@@ -32,9 +32,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,12 +50,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.feature.dock.DockBar
+import com.urunkarpm.drawer.feature.groups.GroupsAccordion
+import com.urunkarpm.drawer.feature.groups.GroupsViewModel
+import com.urunkarpm.drawer.feature.groups.component.CategorySelectionBottomSheet
 import com.urunkarpm.drawer.feature.home.component.AllAppsDrawer
 import com.urunkarpm.drawer.feature.home.component.AppActionBottomSheet
 import java.time.LocalDate
@@ -58,11 +66,15 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    groupsViewModel: GroupsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val groupsUiState by groupsViewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val categorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val snackbarHostState = remember { SnackbarHostState() }
+    var appForCategorySelection by remember { mutableStateOf<AppInfo?>(null) }
 
     LaunchedEffect(uiState.userMessage) {
         val message = uiState.userMessage
@@ -73,10 +85,11 @@ fun HomeScreen(
     }
 
     // Handle back button for launcher:
-    // If a menu or all apps is open, back closes it.
-    // If already at root home, BackHandler is disabled so system handles it gracefully.
-    BackHandler(enabled = uiState.isAllAppsOpen || uiState.selectedAppForMenu != null) {
-        if (uiState.selectedAppForMenu != null) {
+    // If a menu, all apps, or category selection is open, back closes it.
+    BackHandler(enabled = uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null) {
+        if (appForCategorySelection != null) {
+            appForCategorySelection = null
+        } else if (uiState.selectedAppForMenu != null) {
             viewModel.dismissAppMenu()
         } else if (uiState.isAllAppsOpen) {
             viewModel.closeAllApps()
@@ -127,8 +140,18 @@ fun HomeScreen(
                 )
             }
 
-            // Middle Section: App Groups / Categories placeholder (M3)
-            Spacer(modifier = Modifier.weight(1f))
+            // Middle Section: App Groups / Categories
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                GroupsAccordion(
+                    viewModel = groupsViewModel,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             // Bottom Section: All Apps Trigger & Dock placeholder
             Column(
@@ -210,10 +233,28 @@ fun HomeScreen(
                     viewModel.pinToDock(selectedApp)
                 },
                 onAddToGroup = {
-                    // Handled in M3
+                    appForCategorySelection = selectedApp
                     viewModel.dismissAppMenu()
                 },
                 iconLoader = { viewModel.getAppIcon(selectedApp) }
+            )
+        }
+
+        val targetApp = appForCategorySelection
+        if (targetApp != null) {
+            CategorySelectionBottomSheet(
+                app = targetApp,
+                groups = groupsUiState.groups.map { it.group },
+                sheetState = categorySheetState,
+                onDismissRequest = { appForCategorySelection = null },
+                onSelectGroup = { group ->
+                    groupsViewModel.assignAppToGroup(group.id, targetApp)
+                    appForCategorySelection = null
+                },
+                onCreateNewGroup = {
+                    appForCategorySelection = null
+                    groupsViewModel.setShowCreateDialog(true)
+                }
             )
         }
 

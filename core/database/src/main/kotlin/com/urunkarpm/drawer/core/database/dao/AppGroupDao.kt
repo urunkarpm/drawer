@@ -45,6 +45,12 @@ interface AppGroupDao {
     @Query("DELETE FROM app_group_items WHERE package_name = :packageName")
     suspend fun deleteItemsByPackageName(packageName: String)
 
+    @Query("DELETE FROM app_group_items WHERE package_name = :packageName AND activity_name = :activityName")
+    suspend fun deleteItemsByComponent(packageName: String, activityName: String)
+
+    @Query("DELETE FROM app_group_items WHERE group_id = :groupId AND package_name = :packageName AND activity_name = :activityName")
+    suspend fun deleteGroupItem(groupId: String, packageName: String, activityName: String)
+
     @Query("DELETE FROM app_group_items WHERE group_id = :groupId")
     suspend fun clearGroupItems(groupId: String)
 

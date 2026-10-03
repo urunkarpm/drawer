@@ -1,5 +1,7 @@
 package com.urunkarpm.drawer.core.data.di
 
+import com.urunkarpm.drawer.core.data.repository.AppGroupRepository
+import com.urunkarpm.drawer.core.data.repository.AppGroupRepositoryImpl
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.AppRepositoryImpl
 import com.urunkarpm.drawer.core.data.repository.DockRepository
@@ -25,4 +27,10 @@ abstract class DataModule {
     abstract fun bindDockRepository(
         impl: DockRepositoryImpl
     ): DockRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAppGroupRepository(
+        impl: AppGroupRepositoryImpl
+    ): AppGroupRepository
 }
