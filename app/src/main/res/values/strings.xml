@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Drawer</string>
+    <string name="notification_listener_label">Drawer Notification Access</string>
+</resources>
