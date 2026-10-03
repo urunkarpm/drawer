@@ -8,6 +8,7 @@ android {
 
 dependencies {
     implementation(project(":core:data"))
+    implementation(project(":core:datastore"))
     implementation(project(":feature:dock"))
     implementation(project(":feature:groups"))
     implementation(project(":feature:notifications"))

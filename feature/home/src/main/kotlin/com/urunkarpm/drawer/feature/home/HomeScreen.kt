@@ -96,6 +96,21 @@ fun HomeScreen(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(uiState.hideStatusBar) {
+        val activity = context as? android.app.Activity
+        val window = activity?.window
+        if (window != null) {
+            val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            if (uiState.hideStatusBar) {
+                insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+            } else {
+                insetsController.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+            }
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -105,7 +120,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .then(if (uiState.hideStatusBar) Modifier else Modifier.statusBarsPadding())
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp)
                 .draggable(
@@ -118,27 +133,14 @@ fun HomeScreen(
                 ),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top Section: Glance Preview (Time & Date)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 32.dp)
-            ) {
-                val currentTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
-                val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d"))
-
-                Text(
-                    text = currentTime,
-                    fontSize = 64.sp,
-                    fontWeight = FontWeight.Light,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = currentDate,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                )
-            }
+            // Top Section: Glance (Clock, Date & Weather)
+            com.urunkarpm.drawer.feature.home.component.GlanceHeader(
+                is24Hour = uiState.is24Hour,
+                showWeather = uiState.showWeather,
+                weatherUnit = uiState.weatherUnit,
+                weatherInfo = uiState.weatherInfo,
+                onRefreshWeather = { viewModel.refreshWeather() }
+            )
 
             // Middle Section: App Groups / Categories
             Box(

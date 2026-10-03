@@ -33,4 +33,10 @@ abstract class DataModule {
     abstract fun bindAppGroupRepository(
         impl: AppGroupRepositoryImpl
     ): AppGroupRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindWeatherRepository(
+        impl: com.urunkarpm.drawer.core.data.repository.WeatherRepositoryImpl
+    ): com.urunkarpm.drawer.core.data.repository.WeatherRepository
 }

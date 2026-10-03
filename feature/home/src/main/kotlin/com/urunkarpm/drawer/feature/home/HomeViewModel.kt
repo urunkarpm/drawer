@@ -5,7 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.DockRepository
+import com.urunkarpm.drawer.core.data.repository.WeatherRepository
+import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.WeatherInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,6 +18,20 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class GlancePrefs(
+    val is24Hour: Boolean = true,
+    val showWeather: Boolean = true,
+    val weatherUnit: String = "CELSIUS",
+    val hideStatusBar: Boolean = false
+)
+
+data class HomeDialogsState(
+    val searchQuery: String = "",
+    val isAllAppsOpen: Boolean = false,
+    val selectedAppForMenu: AppInfo? = null,
+    val userMessage: String? = null
+)
+
 data class HomeUiState(
     val installedApps: List<AppInfo> = emptyList(),
     val filteredApps: List<AppInfo> = emptyList(),
@@ -22,13 +39,20 @@ data class HomeUiState(
     val isAllAppsOpen: Boolean = false,
     val selectedAppForMenu: AppInfo? = null,
     val isLoading: Boolean = true,
-    val userMessage: String? = null
+    val userMessage: String? = null,
+    val weatherInfo: WeatherInfo? = null,
+    val is24Hour: Boolean = true,
+    val showWeather: Boolean = true,
+    val weatherUnit: String = "CELSIUS",
+    val hideStatusBar: Boolean = false
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val appRepository: AppRepository,
-    private val dockRepository: DockRepository
+    private val dockRepository: DockRepository,
+    private val weatherRepository: WeatherRepository,
+    private val preferencesDataSource: DrawerPreferencesDataSource
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -36,32 +60,64 @@ class HomeViewModel @Inject constructor(
     private val _selectedAppForMenu = MutableStateFlow<AppInfo?>(null)
     private val _userMessage = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<HomeUiState> = combine(
-        appRepository.installedApps,
+    private val glancePrefsFlow = combine(
+        preferencesDataSource.is24Hour,
+        preferencesDataSource.showWeather,
+        preferencesDataSource.weatherUnit,
+        preferencesDataSource.hideStatusBar
+    ) { is24Hour, showWeather, weatherUnit, hideStatusBar ->
+        GlancePrefs(is24Hour, showWeather, weatherUnit, hideStatusBar)
+    }
+
+    private val homeDialogsFlow = combine(
         _searchQuery,
         _isAllAppsOpen,
         _selectedAppForMenu,
         _userMessage
-    ) { apps, query, isAllAppsOpen, selectedApp, userMessage ->
-        val filtered = if (query.isBlank()) {
+    ) { searchQuery, isAllAppsOpen, selectedApp, userMessage ->
+        HomeDialogsState(searchQuery, isAllAppsOpen, selectedApp, userMessage)
+    }
+
+    val uiState: StateFlow<HomeUiState> = combine(
+        appRepository.installedApps,
+        weatherRepository.weatherInfo,
+        glancePrefsFlow,
+        homeDialogsFlow
+    ) { apps, weather, glancePrefs, dialogs ->
+        val filtered = if (dialogs.searchQuery.isBlank()) {
             apps
         } else {
-            apps.filter { it.label.contains(query, ignoreCase = true) }
+            apps.filter { it.label.contains(dialogs.searchQuery, ignoreCase = true) }
         }
         HomeUiState(
             installedApps = apps,
             filteredApps = filtered,
-            searchQuery = query,
-            isAllAppsOpen = isAllAppsOpen,
-            selectedAppForMenu = selectedApp,
+            searchQuery = dialogs.searchQuery,
+            isAllAppsOpen = dialogs.isAllAppsOpen,
+            selectedAppForMenu = dialogs.selectedAppForMenu,
             isLoading = apps.isEmpty(),
-            userMessage = userMessage
+            userMessage = dialogs.userMessage,
+            weatherInfo = weather,
+            is24Hour = glancePrefs.is24Hour,
+            showWeather = glancePrefs.showWeather,
+            weatherUnit = glancePrefs.weatherUnit,
+            hideStatusBar = glancePrefs.hideStatusBar
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = HomeUiState()
     )
+
+    init {
+        refreshWeather()
+    }
+
+    fun refreshWeather() {
+        viewModelScope.launch {
+            weatherRepository.refreshWeather()
+        }
+    }
 
     fun pinToDock(app: AppInfo) {
         viewModelScope.launch {

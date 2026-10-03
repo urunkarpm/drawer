@@ -3,7 +3,10 @@ package com.urunkarpm.drawer.feature.home
 import app.cash.turbine.test
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.DockRepository
+import com.urunkarpm.drawer.core.data.repository.WeatherRepository
+import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.WeatherInfo
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -30,7 +33,15 @@ class HomeViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val appRepository: AppRepository = mockk(relaxed = true)
     private val dockRepository: DockRepository = mockk(relaxed = true)
+    private val weatherRepository: WeatherRepository = mockk(relaxed = true)
+    private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
+
     private val appsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
+    private val weatherFlow = MutableStateFlow<WeatherInfo?>(null)
+    private val is24HourFlow = MutableStateFlow(true)
+    private val showWeatherFlow = MutableStateFlow(true)
+    private val weatherUnitFlow = MutableStateFlow("CELSIUS")
+    private val hideStatusBarFlow = MutableStateFlow(false)
 
     private val sampleApps = listOf(
         AppInfo(
@@ -50,14 +61,30 @@ class HomeViewModelTest {
         )
     )
 
+    private val sampleWeather = WeatherInfo(
+        temperatureCelsius = 22.0,
+        weatherCode = 1,
+        conditionDescription = "Mainly clear",
+        cityName = "London",
+        lastUpdatedMillis = 1000L
+    )
+
     private lateinit var viewModel: HomeViewModel
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         every { appRepository.installedApps } returns appsFlow
+        every { weatherRepository.weatherInfo } returns weatherFlow
+        every { preferencesDataSource.is24Hour } returns is24HourFlow
+        every { preferencesDataSource.showWeather } returns showWeatherFlow
+        every { preferencesDataSource.weatherUnit } returns weatherUnitFlow
+        every { preferencesDataSource.hideStatusBar } returns hideStatusBarFlow
+
         appsFlow.value = sampleApps
-        viewModel = HomeViewModel(appRepository, dockRepository)
+        weatherFlow.value = sampleWeather
+
+        viewModel = HomeViewModel(appRepository, dockRepository, weatherRepository, preferencesDataSource)
     }
 
     @After
@@ -66,17 +93,31 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun uiState_initiallyLoadsInstalledApps() = runTest {
+    fun uiState_initiallyLoadsInstalledAppsAndWeather() = runTest {
         viewModel.uiState.test {
-            val state = awaitItem()
+            awaitItem()
             testScheduler.advanceUntilIdle()
-            val loadedState = if (state.installedApps.isEmpty()) awaitItem() else state
+
+            val loadedState = expectMostRecentItem()
             assertEquals(3, loadedState.installedApps.size)
             assertEquals(3, loadedState.filteredApps.size)
             assertEquals("", loadedState.searchQuery)
             assertFalse(loadedState.isAllAppsOpen)
             assertNull(loadedState.selectedAppForMenu)
+            assertEquals(sampleWeather, loadedState.weatherInfo)
+            assertTrue(loadedState.is24Hour)
+            assertTrue(loadedState.showWeather)
+            assertEquals("CELSIUS", loadedState.weatherUnit)
+            assertFalse(loadedState.hideStatusBar)
         }
+    }
+
+    @Test
+    fun refreshWeather_delegatesToRepository() = runTest {
+        viewModel.refreshWeather()
+        testScheduler.advanceUntilIdle()
+
+        coVerify { weatherRepository.refreshWeather() }
     }
 
     @Test
