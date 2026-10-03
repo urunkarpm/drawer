@@ -31,6 +31,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val DOCK_BACKGROUND = stringPreferencesKey("dock_background")
         val DOCK_ICON_SIZE = floatPreferencesKey("dock_icon_size")
         val DOCK_SHOW_LABELS = booleanPreferencesKey("dock_show_labels")
+        val DOCK_CORNER_RADIUS = floatPreferencesKey("dock_corner_radius")
 
         val MULTI_GROUP_APPS = booleanPreferencesKey("multi_group_apps")
 
@@ -54,6 +55,7 @@ class DrawerPreferencesDataSource @Inject constructor(
     val dockBackground: Flow<String> = dataStore.data.map { it[PreferencesKeys.DOCK_BACKGROUND] ?: "BLUR" }
     val dockIconSize: Flow<Float> = dataStore.data.map { it[PreferencesKeys.DOCK_ICON_SIZE] ?: 56f }
     val dockShowLabels: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DOCK_SHOW_LABELS] ?: false }
+    val dockCornerRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f }
 
     val multiGroupApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.MULTI_GROUP_APPS] ?: false }
 
@@ -98,8 +100,16 @@ class DrawerPreferencesDataSource @Inject constructor(
         dataStore.edit { it[PreferencesKeys.DOCK_BACKGROUND] = style }
     }
 
+    suspend fun setDockIconSize(sizeDp: Float) {
+        dataStore.edit { it[PreferencesKeys.DOCK_ICON_SIZE] = sizeDp }
+    }
+
     suspend fun setDockShowLabels(show: Boolean) {
         dataStore.edit { it[PreferencesKeys.DOCK_SHOW_LABELS] = show }
+    }
+
+    suspend fun setDockCornerRadius(radiusDp: Float) {
+        dataStore.edit { it[PreferencesKeys.DOCK_CORNER_RADIUS] = radiusDp }
     }
 
     suspend fun setMultiGroupApps(multi: Boolean) {

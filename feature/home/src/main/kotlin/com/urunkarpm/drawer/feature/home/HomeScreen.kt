@@ -42,7 +42,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.urunkarpm.drawer.feature.dock.DockBar
 import com.urunkarpm.drawer.feature.home.component.AllAppsDrawer
 import com.urunkarpm.drawer.feature.home.component.AppActionBottomSheet
 import java.time.LocalDate
@@ -57,7 +62,15 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.userMessage) {
+        val message = uiState.userMessage
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearUserMessage()
+        }
+    }
 
     // Handle back button for launcher:
     // If a menu or all apps is open, back closes it.
@@ -124,6 +137,11 @@ fun HomeScreen(
                     .padding(bottom = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Dock Bar (0-5 apps)
+                DockBar()
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // All Apps handle / search bar pill
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
@@ -189,8 +207,7 @@ fun HomeScreen(
                 onOpenDetails = { viewModel.openAppDetails(selectedApp) },
                 onUninstall = { viewModel.uninstallApp(selectedApp) },
                 onPinToDock = {
-                    // Handled in M2
-                    viewModel.dismissAppMenu()
+                    viewModel.pinToDock(selectedApp)
                 },
                 onAddToGroup = {
                     // Handled in M3
@@ -199,5 +216,12 @@ fun HomeScreen(
                 iconLoader = { viewModel.getAppIcon(selectedApp) }
             )
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 72.dp)
+        )
     }
 }

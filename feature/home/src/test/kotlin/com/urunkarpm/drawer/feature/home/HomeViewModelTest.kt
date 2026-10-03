@@ -2,6 +2,7 @@ package com.urunkarpm.drawer.feature.home
 
 import app.cash.turbine.test
 import com.urunkarpm.drawer.core.data.repository.AppRepository
+import com.urunkarpm.drawer.core.data.repository.DockRepository
 import com.urunkarpm.drawer.core.model.AppInfo
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -28,6 +29,7 @@ class HomeViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val appRepository: AppRepository = mockk(relaxed = true)
+    private val dockRepository: DockRepository = mockk(relaxed = true)
     private val appsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
 
     private val sampleApps = listOf(
@@ -55,7 +57,7 @@ class HomeViewModelTest {
         Dispatchers.setMain(testDispatcher)
         every { appRepository.installedApps } returns appsFlow
         appsFlow.value = sampleApps
-        viewModel = HomeViewModel(appRepository)
+        viewModel = HomeViewModel(appRepository, dockRepository)
     }
 
     @After
@@ -160,6 +162,24 @@ class HomeViewModelTest {
             testScheduler.advanceUntilIdle()
             verify { appRepository.uninstallApp(app.packageName) }
             assertNull(expectMostRecentItem().selectedAppForMenu)
+        }
+    }
+
+    @Test
+    fun pinToDock_delegatesToDockRepositoryAndSetsUserMessage() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            val app = sampleApps.first()
+            coEvery { dockRepository.addToDock(app) } returns true
+
+            viewModel.pinToDock(app)
+            testScheduler.advanceUntilIdle()
+
+            coVerify { dockRepository.addToDock(app) }
+            val state = expectMostRecentItem()
+            assertEquals("Calculator pinned to dock", state.userMessage)
         }
     }
 }

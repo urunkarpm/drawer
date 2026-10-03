@@ -4,6 +4,7 @@ import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.urunkarpm.drawer.core.data.repository.AppRepository
+import com.urunkarpm.drawer.core.data.repository.DockRepository
 import com.urunkarpm.drawer.core.model.AppInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,24 +21,28 @@ data class HomeUiState(
     val searchQuery: String = "",
     val isAllAppsOpen: Boolean = false,
     val selectedAppForMenu: AppInfo? = null,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val userMessage: String? = null
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val appRepository: AppRepository
+    private val appRepository: AppRepository,
+    private val dockRepository: DockRepository
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
     private val _isAllAppsOpen = MutableStateFlow(false)
     private val _selectedAppForMenu = MutableStateFlow<AppInfo?>(null)
+    private val _userMessage = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<HomeUiState> = combine(
         appRepository.installedApps,
         _searchQuery,
         _isAllAppsOpen,
-        _selectedAppForMenu
-    ) { apps, query, isAllAppsOpen, selectedApp ->
+        _selectedAppForMenu,
+        _userMessage
+    ) { apps, query, isAllAppsOpen, selectedApp, userMessage ->
         val filtered = if (query.isBlank()) {
             apps
         } else {
@@ -49,13 +54,30 @@ class HomeViewModel @Inject constructor(
             searchQuery = query,
             isAllAppsOpen = isAllAppsOpen,
             selectedAppForMenu = selectedApp,
-            isLoading = apps.isEmpty()
+            isLoading = apps.isEmpty(),
+            userMessage = userMessage
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = HomeUiState()
     )
+
+    fun pinToDock(app: AppInfo) {
+        viewModelScope.launch {
+            val added = dockRepository.addToDock(app)
+            _userMessage.value = if (added) {
+                "${app.label} pinned to dock"
+            } else {
+                "Cannot pin to dock: full (max 5) or already in dock"
+            }
+            dismissAppMenu()
+        }
+    }
+
+    fun clearUserMessage() {
+        _userMessage.value = null
+    }
 
     fun onSearchQueryChanged(newQuery: String) {
         _searchQuery.value = newQuery
