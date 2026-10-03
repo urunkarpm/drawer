@@ -55,6 +55,13 @@ import androidx.compose.ui.unit.dp
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.model.AppInfo
 
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+
 @Composable
 fun AllAppsDrawer(
     visible: Boolean,
@@ -82,61 +89,90 @@ fun AllAppsDrawer(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .draggable(
+                        state = rememberDraggableState { delta ->
+                            if (delta > 25f) {
+                                onClose()
+                            }
+                        },
+                        orientation = Orientation.Vertical
+                    )
             ) {
-                // Search Bar
+                // Top subtle drag handle indicator
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                    )
+                }
+
+                // App Grid or Loading / Empty state
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else if (apps.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (searchQuery.isNotBlank()) "No apps found for \"$searchQuery\"" else "No apps installed",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 80.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(
+                                items = apps,
+                                key = { it.componentKey }
+                            ) { app ->
+                                AppItemView(
+                                    app = app,
+                                    onClick = { onAppClick(app) },
+                                    onLongClick = { onAppLongClick(app) },
+                                    iconLoader = { iconLoader(app) }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Ergonomic Bottom Search Bar: Avoids camera cutout and provides easy one-hand thumb access
                 SearchBarHeader(
                     searchQuery = searchQuery,
                     onSearchQueryChanged = onSearchQueryChanged,
                     onClose = onClose
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // App Grid or Loading / Empty state
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                } else if (apps.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (searchQuery.isNotBlank()) "No apps found for \"$searchQuery\"" else "No apps installed",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 80.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(
-                            items = apps,
-                            key = { it.componentKey }
-                        ) { app ->
-                            AppItemView(
-                                app = app,
-                                onClick = { onAppClick(app) },
-                                onLongClick = { onAppLongClick(app) },
-                                iconLoader = { iconLoader(app) }
-                            )
-                        }
-                    }
-                }
             }
         }
     }
@@ -159,7 +195,7 @@ private fun SearchBarHeader(
     ) {
         IconButton(onClick = onClose) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = "Close app drawer",
                 tint = MaterialTheme.colorScheme.onSurface
             )

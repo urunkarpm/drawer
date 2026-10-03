@@ -52,6 +52,9 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.IconButton
+
 @Composable
 fun GlanceHeader(
     is24Hour: Boolean,
@@ -59,6 +62,7 @@ fun GlanceHeader(
     weatherUnit: String,
     weatherInfo: WeatherInfo?,
     onRefreshWeather: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -78,98 +82,115 @@ fun GlanceHeader(
     val formattedTime = currentTime.format(DateTimeFormatter.ofPattern(timeFormat))
     val formattedDate = currentDate.format(DateTimeFormatter.ofPattern("EEEE, MMMM d"))
 
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 24.dp)
+            .padding(top = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
     ) {
-        // Large Clock Display
-        Text(
-            text = formattedTime,
-            fontSize = 60.sp,
-            fontWeight = FontWeight.Light,
-            color = MaterialTheme.colorScheme.onBackground,
-            letterSpacing = (-1).sp,
-            modifier = Modifier.clickable {
-                launchClock(context)
-            }
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            // Large Clock Display
+            Text(
+                text = formattedTime,
+                fontSize = 58.sp,
+                fontWeight = FontWeight.Light,
+                color = MaterialTheme.colorScheme.onBackground,
+                letterSpacing = (-1).sp,
+                modifier = Modifier.clickable {
+                    launchClock(context)
+                }
+            )
 
-        // Date Display
-        Text(
-            text = formattedDate,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f),
-            modifier = Modifier.clickable {
-                launchCalendar(context)
-            }
-        )
+            // Date Display with high-contrast text
+            Text(
+                text = formattedDate,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+                modifier = Modifier.clickable {
+                    launchCalendar(context)
+                }
+            )
 
-        // Weather Pill / Widget
-        AnimatedVisibility(
-            visible = showWeather,
-            enter = fadeIn(),
-            exit = fadeOut()
+            // Weather Pill / Widget
+            AnimatedVisibility(
+                visible = showWeather,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Spacer(modifier = Modifier.height(10.dp))
+                if (weatherInfo != null) {
+                    val tempText = formatTemperature(weatherInfo.temperatureCelsius, weatherUnit)
+                    val icon = getWeatherIcon(weatherInfo.weatherCode)
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { onRefreshWeather() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = weatherInfo.conditionDescription,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "$tempText • ${weatherInfo.conditionDescription}, ${weatherInfo.cityName}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { onRefreshWeather() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Tap to load weather",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Tap to load weather",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        IconButton(
+            onClick = onOpenSettings,
+            modifier = Modifier.padding(top = 8.dp)
         ) {
-            Spacer(modifier = Modifier.height(10.dp))
-            if (weatherInfo != null) {
-                val tempText = formatTemperature(weatherInfo.temperatureCelsius, weatherUnit)
-                val icon = getWeatherIcon(weatherInfo.weatherCode)
-
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onRefreshWeather() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = weatherInfo.conditionDescription,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "$tempText • ${weatherInfo.conditionDescription}, ${weatherInfo.cityName}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onRefreshWeather() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Tap to load weather",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Tap to load weather",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Open Settings",
+                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f),
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }

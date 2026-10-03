@@ -52,6 +52,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.model.NotificationItem
 import com.urunkarpm.drawer.feature.notifications.component.NotificationRulesBottomSheet
@@ -67,8 +69,14 @@ fun NotificationDrawer(
     val muteSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val rulesSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.checkPermission()
+        viewModel.rebindService()
+    }
+
     LaunchedEffect(Unit) {
         viewModel.checkPermission()
+        viewModel.rebindService()
     }
 
     Column(

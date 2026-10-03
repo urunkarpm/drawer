@@ -65,31 +65,22 @@ class WeatherRepositoryImpl @Inject constructor(
 
             val (lat, lon, cityName) = if (manualLat != null && manualLon != null) {
                 Triple(manualLat, manualLon, manualCity ?: "Custom Location")
-            } else {
-                val hasLocationPermission = ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-
-                val loc = if (hasLocationPermission) {
-                    try {
-                        val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-                        fusedClient.lastLocation.awaitTask()
-                    } catch (_: Exception) {
-                        null
-                    }
-                } else null
-
-                if (loc != null) {
-                    val resolvedCity = resolveCityName(loc.latitude, loc.longitude)
-                    Triple(loc.latitude, loc.longitude, resolvedCity)
-                } else {
-                    // Default fallback coordinates (London)
-                    Triple(51.5074, -0.1278, "Local Weather")
+            } else if (!manualCity.isNullOrBlank()) {
+                val geocoded = try {
+                    val geocoder = Geocoder(context, Locale.getDefault())
+                    val list = geocoder.getFromLocationName(manualCity, 1)
+                    val addr = list?.firstOrNull()
+                    if (addr != null) Pair(addr.latitude, addr.longitude) else null
+                } catch (_: Exception) {
+                    null
                 }
+                if (geocoded != null) {
+                    Triple(geocoded.first, geocoded.second, manualCity)
+                } else {
+                    fetchLocationTriple()
+                }
+            } else {
+                fetchLocationTriple()
             }
 
             val response: OpenMeteoResponse = httpClient.get("https://api.open-meteo.com/v1/forecast") {
@@ -113,6 +104,40 @@ class WeatherRepositoryImpl @Inject constructor(
             Result.success(info)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private suspend fun fetchLocationTriple(): Triple<Double, Double, String> {
+        val hasLocationPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val loc = if (hasLocationPermission) {
+            try {
+                val fusedClient = LocationServices.getFusedLocationProviderClient(context)
+                var l = fusedClient.lastLocation.awaitTask()
+                if (l == null) {
+                    l = fusedClient.getCurrentLocation(
+                        com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY,
+                        null
+                    ).awaitTask()
+                }
+                l
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+
+        return if (loc != null) {
+            val resolvedCity = resolveCityName(loc.latitude, loc.longitude)
+            Triple(loc.latitude, loc.longitude, resolvedCity)
+        } else {
+            // Default fallback coordinates (London)
+            Triple(51.5074, -0.1278, "Local Weather")
         }
     }
 

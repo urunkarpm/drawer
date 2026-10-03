@@ -1,6 +1,9 @@
 package com.urunkarpm.drawer.feature.home
 
+import android.Manifest
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -82,6 +85,21 @@ fun HomeScreen(
     var appForCategorySelection by remember { mutableStateOf<AppInfo?>(null) }
     var isSettingsOpen by remember { mutableStateOf(false) }
 
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        viewModel.refreshWeather()
+    }
+
+    LaunchedEffect(Unit) {
+        locationPermissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+
     LaunchedEffect(uiState.userMessage) {
         val message = uiState.userMessage
         if (message != null) {
@@ -128,7 +146,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (uiState.hideStatusBar) Modifier else Modifier.statusBarsPadding())
+                .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp)
                 .draggable(
@@ -147,7 +165,16 @@ fun HomeScreen(
                 showWeather = uiState.showWeather,
                 weatherUnit = uiState.weatherUnit,
                 weatherInfo = uiState.weatherInfo,
-                onRefreshWeather = { viewModel.refreshWeather() }
+                onRefreshWeather = {
+                    locationPermissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                    viewModel.refreshWeather()
+                },
+                onOpenSettings = { isSettingsOpen = true }
             )
 
             // Middle Section: Notifications (below Glance) & App Categories
@@ -169,69 +196,14 @@ fun HomeScreen(
                 )
             }
 
-            // Bottom Section: All Apps Trigger & Dock placeholder
-            Column(
+            // Bottom Section: Dock Bar (0-5 apps) at the bottom
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(bottom = 12.dp),
+                contentAlignment = Alignment.Center
             ) {
-                // Dock Bar (0-5 apps)
                 DockBar()
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // All Apps handle / search bar pill
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .height(48.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .clickable { viewModel.openAllApps() }
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Search",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "  Search apps (${uiState.installedApps.size})",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = { isSettingsOpen = true },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Open Settings",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowUp,
-                                contentDescription = "Swipe up for apps",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
             }
         }
 

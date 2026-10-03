@@ -18,11 +18,13 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
 class AppGroupRepositoryImpl @Inject constructor(
     private val appGroupDao: AppGroupDao,
+    private val appRepositoryProvider: Provider<AppRepository>,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
 ) : AppGroupRepository {
 
@@ -39,6 +41,111 @@ class AppGroupRepositoryImpl @Inject constructor(
         if (existing.isEmpty()) {
             appGroupDao.insertGroups(defaultGroups)
         }
+        val existingItems = appGroupDao.getAllGroupItems().first()
+        if (existingItems.isEmpty()) {
+            seedDefaultGroupItems()
+        }
+    }
+
+    private suspend fun seedDefaultGroupItems() {
+        try {
+            val appRepo = appRepositoryProvider.get()
+            var apps: List<AppInfo> = appRepo.installedApps.first()
+            if (apps.isEmpty()) {
+                appRepo.refreshApps()
+                apps = appRepo.installedApps.first()
+            }
+            if (apps.isEmpty()) return
+
+            val itemsToInsert = mutableListOf<AppGroupItemEntity>()
+            val groupCounters = mutableMapOf<String, Int>()
+
+            for (app in apps) {
+                val targetGroupId = determineCategory(app) ?: continue
+                val currentIndex = groupCounters.getOrDefault(targetGroupId, 0)
+                if (currentIndex < 12) {
+                    itemsToInsert.add(
+                        AppGroupItemEntity(
+                            id = UUID.randomUUID().toString(),
+                            groupId = targetGroupId,
+                            packageName = app.packageName,
+                            activityName = app.activityName,
+                            userHandleId = app.userHandleId,
+                            orderIndex = currentIndex,
+                            customLabel = app.label
+                        )
+                    )
+                    groupCounters[targetGroupId] = currentIndex + 1
+                }
+            }
+
+            if (itemsToInsert.isNotEmpty()) {
+                appGroupDao.insertGroupItems(itemsToInsert)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun determineCategory(app: AppInfo): String? {
+        if (app.isWorkProfile) return "group_work"
+
+        val pkg = app.packageName.lowercase()
+        val label = app.label.lowercase()
+
+        // 1. Social
+        if (pkg.contains("whatsapp") || pkg.contains("telegram") || pkg.contains("signal") ||
+            pkg.contains("instagram") || pkg.contains("facebook") || pkg.contains("twitter") ||
+            pkg.contains("threads") || pkg.contains("snapchat") || pkg.contains("reddit") ||
+            pkg.contains("discord") || pkg.contains("linkedin") || pkg.contains("tiktok") ||
+            pkg.contains("wechat") || pkg.contains("messaging") || pkg.contains("messages") ||
+            label.contains("chat") || label.contains("message")) {
+            return "group_social"
+        }
+
+        // 2. Finance
+        if (pkg.contains("pay") || pkg.contains("wallet") || pkg.contains("bank") ||
+            pkg.contains("gpay") || pkg.contains("phonepe") || pkg.contains("paytm") ||
+            pkg.contains("cred") || pkg.contains("crypto") || pkg.contains("binance") ||
+            pkg.contains("coinbase") || pkg.contains("zerodha") || pkg.contains("groww") ||
+            pkg.contains("upstox") || pkg.contains("revolut") || pkg.contains("paypal") ||
+            label.contains("bank") || label.contains("finance") || label.contains("money") ||
+            label.contains("wallet") || label.contains("pay")) {
+            return "group_finance"
+        }
+
+        // 3. Work / Productivity
+        if (pkg.contains("mail") || pkg.contains("gmail") || pkg.contains("docs") ||
+            pkg.contains("sheets") || pkg.contains("slides") || pkg.contains("drive") ||
+            pkg.contains("office") || pkg.contains("slack") || pkg.contains("teams") ||
+            pkg.contains("calendar") || pkg.contains("notes") || pkg.contains("keep") ||
+            pkg.contains("tasks") || pkg.contains("meet") || pkg.contains("zoom") ||
+            pkg.contains("notion") || pkg.contains("trello") || pkg.contains("jira") ||
+            pkg.contains("outlook") || pkg.contains("wps") || label.contains("mail") ||
+            label.contains("calendar") || label.contains("notes") || label.contains("task")) {
+            return "group_work"
+        }
+
+        // 4. Media
+        if (pkg.contains("youtube") || pkg.contains("music") || pkg.contains("spotify") ||
+            pkg.contains("netflix") || pkg.contains("prime") || pkg.contains("hotstar") ||
+            pkg.contains("camera") || pkg.contains("gallery") || pkg.contains("photos") ||
+            pkg.contains("vlc") || pkg.contains("podcast") || pkg.contains("twitch") ||
+            pkg.contains("sound") || pkg.contains("radio") || pkg.contains("video") ||
+            pkg.contains("player") || label.contains("music") || label.contains("camera") ||
+            label.contains("gallery") || label.contains("photo") || label.contains("video")) {
+            return "group_media"
+        }
+
+        // 5. Tools
+        if (pkg.contains("settings") || pkg.contains("calculator") || pkg.contains("clock") ||
+            pkg.contains("files") || pkg.contains("filemanager") || pkg.contains("browser") ||
+            pkg.contains("chrome") || pkg.contains("firefox") || pkg.contains("edge") ||
+            pkg.contains("compass") || pkg.contains("weather") || pkg.contains("terminal") ||
+            pkg.contains("vending") || label.contains("settings") || label.contains("calculator") ||
+            label.contains("clock") || label.contains("files") || label.contains("browser")) {
+            return "group_tools"
+        }
+
+        return null
     }
 
     override val groups: Flow<List<AppGroup>> = combine(

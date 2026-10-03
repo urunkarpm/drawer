@@ -27,6 +27,7 @@ class AppGroupRepositoryImplTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val appGroupDao: AppGroupDao = mockk(relaxed = true)
+    private val appRepository: AppRepository = mockk(relaxed = true)
     private val groupsFlow = MutableStateFlow<List<AppGroupEntity>>(emptyList())
     private val itemsFlow = MutableStateFlow<List<AppGroupItemEntity>>(emptyList())
 
@@ -40,10 +41,11 @@ class AppGroupRepositoryImplTest {
 
     @Before
     fun setUp() {
+        every { appRepository.installedApps } returns MutableStateFlow(emptyList())
         every { appGroupDao.getAllGroups() } returns groupsFlow
         every { appGroupDao.getAllGroupItems() } returns itemsFlow
         every { appGroupDao.getItemsForGroup(any()) } returns itemsFlow
-        repository = AppGroupRepositoryImpl(appGroupDao, testDispatcher)
+        repository = AppGroupRepositoryImpl(appGroupDao, { appRepository }, testDispatcher)
     }
 
     @Test

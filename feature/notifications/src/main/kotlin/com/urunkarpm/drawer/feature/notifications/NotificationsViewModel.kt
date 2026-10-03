@@ -90,7 +90,11 @@ class NotificationsViewModel @Inject constructor(
     )
 
     fun checkPermission() {
-        _permissionGrantedState.value = notificationRepository.checkPermission()
+        val granted = notificationRepository.checkPermission()
+        _permissionGrantedState.value = granted
+        if (granted) {
+            notificationRepository.rebindService()
+        }
     }
 
     fun openNotificationAccessSettings() {

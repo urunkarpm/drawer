@@ -66,74 +66,77 @@ fun DockBar(
     val backgroundColor = when (uiState.backgroundStyle) {
         "SOLID" -> MaterialTheme.colorScheme.surfaceContainerHigh
         "TRANSPARENT" -> Color.Transparent
-        else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.70f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
     }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
+        // Background layer: applies shape, elevation, and backdrop tint without blurring child icons
         Surface(
             shape = shape,
             color = backgroundColor,
-            shadowElevation = if (uiState.backgroundStyle == "SOLID") 6.dp else 0.dp,
+            shadowElevation = if (uiState.backgroundStyle == "SOLID") 4.dp else 0.dp,
+            border = if (uiState.backgroundStyle != "TRANSPARENT") {
+                androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                )
+            } else null,
             modifier = Modifier
-                .graphicsLayer {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && uiState.backgroundStyle == "BLUR") {
-                        renderEffect = RenderEffect.createBlurEffect(
-                            25f, 25f, Shader.TileMode.CLAMP
-                        ).asComposeRenderEffect()
-                    }
-                }
+                .matchParentSize()
                 .clip(shape)
+        ) {}
+
+        // Foreground content: crisp, unblurred icons
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (uiState.resolvedApps.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .height(uiState.iconSizeDp.dp)
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Long-press any app to pin here (max 5)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    uiState.resolvedApps.forEach { (dockItem, app) ->
-                        DockAppSlot(
-                            dockItem = dockItem,
-                            app = app,
-                            iconSizeDp = uiState.iconSizeDp,
-                            showLabels = uiState.showLabels,
-                            isEditMode = uiState.isEditMode,
-                            onClick = {
-                                if (app != null) viewModel.onAppClicked(app)
-                            },
-                            onLongClick = {
-                                viewModel.onItemLongClicked(dockItem, app)
-                            },
-                            onRemove = {
-                                viewModel.removeItem(dockItem.position)
-                            },
-                            iconLoader = {
-                                if (app != null) viewModel.getAppIcon(app) else null
-                            }
-                        )
-                    }
+            if (uiState.resolvedApps.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .height(uiState.iconSizeDp.dp)
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Long-press any app to pin here (max 5)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                uiState.resolvedApps.forEach { (dockItem, app) ->
+                    DockAppSlot(
+                        dockItem = dockItem,
+                        app = app,
+                        iconSizeDp = uiState.iconSizeDp,
+                        showLabels = uiState.showLabels,
+                        isEditMode = uiState.isEditMode,
+                        onClick = {
+                            if (app != null) viewModel.onAppClicked(app)
+                        },
+                        onLongClick = {
+                            viewModel.onItemLongClicked(dockItem, app)
+                        },
+                        onRemove = {
+                            viewModel.removeItem(dockItem.position)
+                        },
+                        iconLoader = {
+                            if (app != null) viewModel.getAppIcon(app) else null
+                        }
+                    )
                 }
             }
         }
+    }
 
         // Context Sheet for Dock Item
         val selectedPair = uiState.selectedDockItemForMenu
@@ -160,7 +163,6 @@ fun DockBar(
             )
         }
     }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -207,6 +209,7 @@ private fun DockAppSlot(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center

@@ -33,7 +33,13 @@ class NotificationRepositoryImpl @Inject constructor(
 
     override fun checkPermission(): Boolean {
         return try {
-            NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+            val enabledListeners = Settings.Secure.getString(
+                context.contentResolver,
+                "enabled_notification_listeners"
+            ) ?: ""
+            val isEnabledInSettings = enabledListeners.contains(context.packageName)
+            val isEnabledInCompat = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+            isEnabledInSettings || isEnabledInCompat
         } catch (_: Exception) {
             false
         }
@@ -138,6 +144,27 @@ class NotificationRepositoryImpl @Inject constructor(
     }
 
     override fun rebindService() {
-        notificationBridge.onRebindRequest?.invoke()
+        try {
+            notificationBridge.onRebindRequest?.invoke()
+            val componentName = android.content.ComponentName(
+                context.packageName,
+                "com.urunkarpm.drawer.service.DrawerNotificationListener"
+            )
+            try {
+                android.service.notification.NotificationListenerService.requestRebind(componentName)
+            } catch (_: Exception) {}
+
+            val pm = context.packageManager
+            pm.setComponentEnabledSetting(
+                componentName,
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP
+            )
+            pm.setComponentEnabledSetting(
+                componentName,
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP
+            )
+        } catch (_: Exception) {}
     }
 }
