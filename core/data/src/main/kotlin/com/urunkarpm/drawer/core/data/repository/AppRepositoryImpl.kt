@@ -30,7 +30,8 @@ import javax.inject.Singleton
 @Singleton
 class AppRepositoryImpl @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
+    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
+    private val iconPackRepositoryProvider: javax.inject.Provider<IconPackRepository>? = null
 ) : AppRepository {
 
     private val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
@@ -161,8 +162,19 @@ class AppRepositoryImpl @Inject constructor(
     private val iconCache = LruCache<String, Drawable>(250)
 
     override suspend fun getAppIcon(app: AppInfo): Drawable? = withContext(ioDispatcher) {
+        val iconPackRepo = iconPackRepositoryProvider?.get()
+        if (iconPackRepo != null) {
+            iconPackRepo.loadIcon(app.packageName, app.activityName) {
+                loadDefaultIcon(app)
+            }
+        } else {
+            loadDefaultIcon(app)
+        }
+    }
+
+    private fun loadDefaultIcon(app: AppInfo): Drawable? {
         val key = app.componentKey
-        iconCache.get(key)?.let { return@withContext it }
+        iconCache.get(key)?.let { return it }
 
         val profiles = userManager.userProfiles
         val targetUser = profiles.find { it.hashCode() == app.userHandleId } ?: Process.myUserHandle()
@@ -183,6 +195,6 @@ class AppRepositoryImpl @Inject constructor(
         if (drawable != null) {
             iconCache.put(key, drawable)
         }
-        drawable
+        return drawable
     }
 }

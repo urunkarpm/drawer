@@ -45,4 +45,10 @@ abstract class DataModule {
     abstract fun bindNotificationRepository(
         impl: com.urunkarpm.drawer.core.data.repository.NotificationRepositoryImpl
     ): com.urunkarpm.drawer.core.data.repository.NotificationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindIconPackRepository(
+        impl: com.urunkarpm.drawer.core.data.repository.IconPackRepositoryImpl
+    ): com.urunkarpm.drawer.core.data.repository.IconPackRepository
 }
