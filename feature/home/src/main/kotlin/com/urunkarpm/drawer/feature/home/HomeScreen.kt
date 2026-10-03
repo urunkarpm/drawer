@@ -67,7 +67,8 @@ import java.time.format.DateTimeFormatter
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
-    groupsViewModel: GroupsViewModel = hiltViewModel()
+    groupsViewModel: GroupsViewModel = hiltViewModel(),
+    notificationsViewModel: com.urunkarpm.drawer.feature.notifications.NotificationsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val groupsUiState by groupsViewModel.uiState.collectAsStateWithLifecycle()
@@ -142,13 +143,19 @@ fun HomeScreen(
                 onRefreshWeather = { viewModel.refreshWeather() }
             )
 
-            // Middle Section: App Groups / Categories
-            Box(
+            // Middle Section: Notifications (below Glance) & App Categories
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                com.urunkarpm.drawer.feature.notifications.NotificationDrawer(
+                    viewModel = notificationsViewModel,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
                 GroupsAccordion(
                     viewModel = groupsViewModel,
                     modifier = Modifier.fillMaxWidth()
