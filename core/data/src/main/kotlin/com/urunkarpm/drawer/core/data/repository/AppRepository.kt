@@ -1,5 +1,6 @@
 package com.urunkarpm.drawer.core.data.repository
 
+import android.graphics.drawable.Drawable
 import com.urunkarpm.drawer.core.model.AppInfo
 import kotlinx.coroutines.flow.Flow
 
@@ -9,4 +10,5 @@ interface AppRepository {
     fun launchApp(app: AppInfo): Boolean
     fun openAppDetails(packageName: String)
     fun uninstallApp(packageName: String)
+    suspend fun getAppIcon(app: AppInfo): Drawable?
 }

@@ -10,6 +10,8 @@ import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
 import android.provider.Settings
+import android.graphics.drawable.Drawable
+import androidx.collection.LruCache
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
 import com.urunkarpm.drawer.core.model.AppInfo
@@ -27,8 +29,8 @@ import javax.inject.Singleton
 
 @Singleton
 class AppRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
-    @Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
+    @param:ApplicationContext private val context: Context,
+    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
 ) : AppRepository {
 
     private val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
@@ -48,32 +50,38 @@ class AppRepositoryImpl @Inject constructor(
     }
 
     private fun registerLauncherAppsCallback() {
-        val callback = object : LauncherApps.Callback() {
-            override fun onPackageAdded(packageName: String, user: UserHandle) {
-                scope.launch { refreshApps() }
-            }
+        try {
+            val looper = Looper.getMainLooper() ?: return
+            val callback = object : LauncherApps.Callback() {
+                override fun onPackageAdded(packageName: String, user: UserHandle) {
+                    scope.launch { refreshApps() }
+                }
 
-            override fun onPackageRemoved(packageName: String, user: UserHandle) {
-                scope.launch { refreshApps() }
-            }
+                override fun onPackageRemoved(packageName: String, user: UserHandle) {
+                    scope.launch { refreshApps() }
+                }
 
-            override fun onPackageChanged(packageName: String, user: UserHandle) {
-                scope.launch { refreshApps() }
-            }
+                override fun onPackageChanged(packageName: String, user: UserHandle) {
+                    scope.launch { refreshApps() }
+                }
 
-            override fun onPackagesAvailable(packageNames: Array<out String>?, user: UserHandle?, replacing: Boolean) {
-                scope.launch { refreshApps() }
-            }
+                override fun onPackagesAvailable(packageNames: Array<out String>?, user: UserHandle?, replacing: Boolean) {
+                    scope.launch { refreshApps() }
+                }
 
-            override fun onPackagesUnavailable(packageNames: Array<out String>?, user: UserHandle?, replacing: Boolean) {
-                scope.launch { refreshApps() }
+                override fun onPackagesUnavailable(packageNames: Array<out String>?, user: UserHandle?, replacing: Boolean) {
+                    scope.launch { refreshApps() }
+                }
             }
+            launcherApps.registerCallback(callback, Handler(looper))
+        } catch (_: Throwable) {
+            // Handled in environments without Looper
         }
-        launcherApps.registerCallback(callback, Handler(Looper.getMainLooper()))
     }
 
     override suspend fun refreshApps() = withContext(ioDispatcher) {
-        val myUserHandle = Process.myUserHandle()
+        iconCache.evictAll()
+        val myUserHandle = try { Process.myUserHandle() } catch (_: Throwable) { null }
         val profiles = userManager.userProfiles
         val appsList = mutableListOf<AppInfo>()
 
@@ -118,7 +126,10 @@ class AppRepositoryImpl @Inject constructor(
     override fun launchApp(app: AppInfo): Boolean {
         return try {
             val profiles = userManager.userProfiles
-            val targetUser = profiles.find { it.hashCode() == app.userHandleId } ?: Process.myUserHandle()
+            val targetUser = profiles.find { it.hashCode() == app.userHandleId }
+                ?: profiles.firstOrNull()
+                ?: try { Process.myUserHandle() } catch (_: Throwable) { null }
+                ?: return false
             val component = android.content.ComponentName(app.packageName, app.activityName)
             launcherApps.startMainActivity(component, targetUser, null, null)
             true
@@ -145,5 +156,33 @@ class AppRepositoryImpl @Inject constructor(
             }
             context.startActivity(intent)
         } catch (_: Exception) { }
+    }
+
+    private val iconCache = LruCache<String, Drawable>(250)
+
+    override suspend fun getAppIcon(app: AppInfo): Drawable? = withContext(ioDispatcher) {
+        val key = app.componentKey
+        iconCache.get(key)?.let { return@withContext it }
+
+        val profiles = userManager.userProfiles
+        val targetUser = profiles.find { it.hashCode() == app.userHandleId } ?: Process.myUserHandle()
+        val component = android.content.ComponentName(app.packageName, app.activityName)
+        val activityList = launcherApps.getActivityList(app.packageName, targetUser)
+        val activityInfo = activityList.find { it.componentName == component } ?: activityList.firstOrNull()
+
+        val density = context.resources.displayMetrics.densityDpi
+        val drawable = activityInfo?.getBadgedIcon(density)
+            ?: try {
+                val appInfo = packageManager.getApplicationInfo(app.packageName, 0)
+                val icon = packageManager.getApplicationIcon(appInfo)
+                packageManager.getUserBadgedIcon(icon, targetUser)
+            } catch (_: Exception) {
+                null
+            }
+
+        if (drawable != null) {
+            iconCache.put(key, drawable)
+        }
+        drawable
     }
 }
