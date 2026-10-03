@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -26,8 +28,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -76,6 +80,7 @@ fun HomeScreen(
     val categorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val snackbarHostState = remember { SnackbarHostState() }
     var appForCategorySelection by remember { mutableStateOf<AppInfo?>(null) }
+    var isSettingsOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.userMessage) {
         val message = uiState.userMessage
@@ -86,9 +91,11 @@ fun HomeScreen(
     }
 
     // Handle back button for launcher:
-    // If a menu, all apps, or category selection is open, back closes it.
-    BackHandler(enabled = uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null) {
-        if (appForCategorySelection != null) {
+    // If settings, a menu, all apps, or category selection is open, back closes it.
+    BackHandler(enabled = isSettingsOpen || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null) {
+        if (isSettingsOpen) {
+            isSettingsOpen = false
+        } else if (appForCategorySelection != null) {
             appForCategorySelection = null
         } else if (uiState.selectedAppForMenu != null) {
             viewModel.dismissAppMenu()
@@ -204,12 +211,25 @@ fun HomeScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Swipe up for apps",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { isSettingsOpen = true },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Open Settings",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = "Swipe up for apps",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -264,6 +284,17 @@ fun HomeScreen(
                     appForCategorySelection = null
                     groupsViewModel.setShowCreateDialog(true)
                 }
+            )
+        }
+
+        // Settings Screen Overlay (Slide in from right)
+        AnimatedVisibility(
+            visible = isSettingsOpen,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+        ) {
+            com.urunkarpm.drawer.feature.settings.SettingsScreen(
+                onNavigateBack = { isSettingsOpen = false }
             )
         }
 

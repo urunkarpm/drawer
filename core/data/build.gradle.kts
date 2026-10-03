@@ -20,6 +20,7 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.work.runtime.ktx)
     implementation(libs.coil.compose)
+    implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

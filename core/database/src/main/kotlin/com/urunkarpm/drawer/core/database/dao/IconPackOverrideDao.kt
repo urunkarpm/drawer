@@ -18,6 +18,9 @@ interface IconPackOverrideDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertOverride(override: IconPackOverrideEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOverrides(overrides: List<IconPackOverrideEntity>)
+
     @Query("DELETE FROM icon_pack_overrides WHERE component_name = :componentName")
     suspend fun deleteOverride(componentName: String)
 
