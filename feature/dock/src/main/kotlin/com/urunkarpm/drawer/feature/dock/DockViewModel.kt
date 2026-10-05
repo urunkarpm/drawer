@@ -110,6 +110,7 @@ private data class DockPreferences(
         if (currentPosition > 0) {
             viewModelScope.launch {
                 dockRepository.reorderDock(currentPosition, currentPosition - 1)
+                dismissMenu()
             }
         }
     }
@@ -119,6 +120,7 @@ private data class DockPreferences(
             val total = dockRepository.dockItems.first().size
             if (currentPosition < total - 1) {
                 dockRepository.reorderDock(currentPosition, currentPosition + 1)
+                dismissMenu()
             }
         }
     }

@@ -20,7 +20,9 @@ import javax.inject.Inject
 data class ThemeSettings(
     val themeMode: String = "SYSTEM",
     val dynamicColor: Boolean = true,
-    val hideStatusBar: Boolean = false
+    val hideStatusBar: Boolean = true,
+    val wallpaperBlur: Boolean = false,
+    val wallpaperBlurRadius: Float = 25f
 )
 
 data class GlanceSettings(
@@ -41,7 +43,9 @@ data class MiscSettings(
     val multiGroupApps: Boolean = false,
     val notificationsPrivacyMode: Boolean = false,
     val activeIconPack: String? = null,
-    val adaptiveIconShape: String = "SYSTEM"
+    val adaptiveIconShape: String = "SYSTEM",
+    val twoDrawersSideBySide: Boolean = false,
+    val lockLayout: Boolean = false
 )
 
 data class SettingsActionState(
@@ -53,7 +57,9 @@ data class SettingsActionState(
 data class SettingsUiState(
     val themeMode: String = "SYSTEM",
     val dynamicColor: Boolean = true,
-    val hideStatusBar: Boolean = false,
+    val hideStatusBar: Boolean = true,
+    val wallpaperBlur: Boolean = false,
+    val wallpaperBlurRadius: Float = 25f,
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
     val is24Hour: Boolean = true,
@@ -66,6 +72,8 @@ data class SettingsUiState(
     val notificationsPrivacyMode: Boolean = false,
     val activeIconPack: String? = null,
     val adaptiveIconShape: String = "SYSTEM",
+    val twoDrawersSideBySide: Boolean = false,
+    val lockLayout: Boolean = false,
     val isBackingUp: Boolean = false,
     val isRestoring: Boolean = false,
     val userMessage: String? = null
@@ -83,9 +91,11 @@ class SettingsViewModel @Inject constructor(
     private val themeFlow = combine(
         preferencesDataSource.themeMode,
         preferencesDataSource.dynamicColor,
-        preferencesDataSource.hideStatusBar
-    ) { themeMode, dynamicColor, hideStatusBar ->
-        ThemeSettings(themeMode, dynamicColor, hideStatusBar)
+        preferencesDataSource.hideStatusBar,
+        preferencesDataSource.wallpaperBlur,
+        preferencesDataSource.wallpaperBlurRadius
+    ) { themeMode, dynamicColor, hideStatusBar, wallpaperBlur, wallpaperBlurRadius ->
+        ThemeSettings(themeMode, dynamicColor, hideStatusBar, wallpaperBlur, wallpaperBlurRadius)
     }
 
     private val glanceFlow = combine(
@@ -106,13 +116,24 @@ class SettingsViewModel @Inject constructor(
         DockSettings(dockBackground, dockIconSize, dockShowLabels, dockCornerRadius)
     }
 
-    private val miscFlow = combine(
+    private val miscFlowPart1 = combine(
         preferencesDataSource.multiGroupApps,
         preferencesDataSource.notificationsPrivacyMode,
-        preferencesDataSource.activeIconPack,
-        preferencesDataSource.adaptiveIconShape
-    ) { multiGroupApps, notificationsPrivacyMode, activeIconPack, adaptiveIconShape ->
-        MiscSettings(multiGroupApps, notificationsPrivacyMode, activeIconPack, adaptiveIconShape)
+        preferencesDataSource.activeIconPack
+    ) { multiGroupApps, notificationsPrivacyMode, activeIconPack ->
+        Triple(multiGroupApps, notificationsPrivacyMode, activeIconPack)
+    }
+
+    private val miscFlowPart2 = combine(
+        preferencesDataSource.adaptiveIconShape,
+        preferencesDataSource.twoDrawersSideBySide,
+        preferencesDataSource.lockLayout
+    ) { adaptiveIconShape, twoDrawersSideBySide, lockLayout ->
+        Triple(adaptiveIconShape, twoDrawersSideBySide, lockLayout)
+    }
+
+    private val miscFlow = combine(miscFlowPart1, miscFlowPart2) { p1, p2 ->
+        MiscSettings(p1.first, p1.second, p1.third, p2.first, p2.second, p2.third)
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(
@@ -126,6 +147,8 @@ class SettingsViewModel @Inject constructor(
             themeMode = theme.themeMode,
             dynamicColor = theme.dynamicColor,
             hideStatusBar = theme.hideStatusBar,
+            wallpaperBlur = theme.wallpaperBlur,
+            wallpaperBlurRadius = theme.wallpaperBlurRadius,
             showWeather = glance.showWeather,
             weatherUnit = glance.weatherUnit,
             is24Hour = glance.is24Hour,
@@ -138,6 +161,8 @@ class SettingsViewModel @Inject constructor(
             notificationsPrivacyMode = misc.notificationsPrivacyMode,
             activeIconPack = misc.activeIconPack,
             adaptiveIconShape = misc.adaptiveIconShape,
+            twoDrawersSideBySide = misc.twoDrawersSideBySide,
+            lockLayout = misc.lockLayout,
             isBackingUp = action.isBackingUp,
             isRestoring = action.isRestoring,
             userMessage = action.userMessage
@@ -163,6 +188,18 @@ class SettingsViewModel @Inject constructor(
     fun setHideStatusBar(hide: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setHideStatusBar(hide)
+        }
+    }
+
+    fun setWallpaperBlur(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setWallpaperBlur(enabled)
+        }
+    }
+
+    fun setWallpaperBlurRadius(radius: Float) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setWallpaperBlurRadius(radius)
         }
     }
 
@@ -235,6 +272,18 @@ class SettingsViewModel @Inject constructor(
     fun setAdaptiveIconShape(shape: String) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setAdaptiveIconShape(shape)
+        }
+    }
+
+    fun setTwoDrawersSideBySide(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setTwoDrawersSideBySide(enabled)
+        }
+    }
+
+    fun setLockLayout(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setLockLayout(enabled)
         }
     }
 

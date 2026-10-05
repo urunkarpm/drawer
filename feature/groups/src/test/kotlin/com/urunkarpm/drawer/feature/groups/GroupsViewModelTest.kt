@@ -38,6 +38,7 @@ class GroupsViewModelTest {
     private val groupsFlow = MutableStateFlow<List<AppGroup>>(emptyList())
     private val installedAppsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
     private val multiGroupFlow = MutableStateFlow(false)
+    private val lockLayoutFlow = MutableStateFlow(false)
 
     private lateinit var viewModel: GroupsViewModel
 
@@ -66,6 +67,7 @@ class GroupsViewModelTest {
         every { appGroupRepository.groups } returns groupsFlow
         every { appRepository.installedApps } returns installedAppsFlow
         every { preferencesDataSource.multiGroupApps } returns multiGroupFlow
+        every { preferencesDataSource.lockLayout } returns lockLayoutFlow
 
         groupsFlow.value = listOf(sampleGroup)
         installedAppsFlow.value = listOf(appZ, appA)
@@ -154,6 +156,14 @@ class GroupsViewModelTest {
         testScheduler.advanceUntilIdle()
 
         coVerify { appGroupRepository.removeAppFromGroup("group_work", "com.a", "com.a.Act") }
+    }
+
+    @Test
+    fun moveAppBetweenGroups_delegatesToRepository() = runTest {
+        viewModel.moveAppBetweenGroups("group_work", "group_tools", appA, 2)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { appGroupRepository.moveAppBetweenGroups("group_work", "group_tools", appA, 2) }
     }
 
     @Test

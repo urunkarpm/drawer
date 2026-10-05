@@ -92,13 +92,11 @@ class AppGroupRepositoryImplTest {
         val group = AppGroupEntity(id = "group_1", name = "Work", orderIndex = 0, isExpanded = true)
         groupsFlow.value = listOf(group)
 
-        val updated = slot<AppGroupEntity>()
-        coEvery { appGroupDao.updateGroup(capture(updated)) } returns Unit
+        coEvery { appGroupDao.setOnlyGroupExpanded("group_1", false) } returns Unit
 
         repository.toggleGroupExpanded("group_1")
 
-        coVerify { appGroupDao.updateGroup(any()) }
-        assertFalse(updated.captured.isExpanded)
+        coVerify { appGroupDao.setOnlyGroupExpanded("group_1", false) }
     }
 
     @Test
@@ -113,12 +111,12 @@ class AppGroupRepositoryImplTest {
             groupsFlow.value = listOf(g1, g3)
         }
         val reindexed = slot<List<AppGroupEntity>>()
-        coEvery { appGroupDao.insertGroups(capture(reindexed)) } returns Unit
+        coEvery { appGroupDao.updateGroups(capture(reindexed)) } returns Unit
 
         repository.deleteGroup("g2")
 
         coVerify { appGroupDao.deleteGroupById("g2") }
-        coVerify { appGroupDao.insertGroups(any()) }
+        coVerify { appGroupDao.updateGroups(any()) }
         assertEquals(2, reindexed.captured.size)
         assertEquals(0, reindexed.captured[0].orderIndex)
         assertEquals("g1", reindexed.captured[0].id)
@@ -130,26 +128,30 @@ class AppGroupRepositoryImplTest {
     fun assignAppToGroup_singleGroupModeDeletesFromOtherGroups() = runTest(testDispatcher) {
         itemsFlow.value = emptyList()
 
-        val insertedItem = slot<AppGroupItemEntity>()
-        coEvery { appGroupDao.insertGroupItem(capture(insertedItem)) } returns Unit
+        val insertedItems = slot<List<AppGroupItemEntity>>()
+        coEvery { appGroupDao.insertGroupItems(capture(insertedItems)) } returns Unit
 
         repository.assignAppToGroup("group_social", sampleApp, allowMultiGroup = false)
 
         coVerify { appGroupDao.deleteItemsByComponent(sampleApp.packageName, sampleApp.activityName) }
-        coVerify { appGroupDao.insertGroupItem(any()) }
-        assertEquals("group_social", insertedItem.captured.groupId)
-        assertEquals(sampleApp.packageName, insertedItem.captured.packageName)
-        assertEquals(0, insertedItem.captured.orderIndex)
+        coVerify { appGroupDao.insertGroupItems(any()) }
+        assertEquals("group_social", insertedItems.captured.first().groupId)
+        assertEquals(sampleApp.packageName, insertedItems.captured.first().packageName)
+        assertEquals(0, insertedItems.captured.first().orderIndex)
     }
 
     @Test
     fun assignAppToGroup_multiGroupModeDoesNotDeleteFromOtherGroups() = runTest(testDispatcher) {
         itemsFlow.value = emptyList()
 
+        val insertedItems = slot<List<AppGroupItemEntity>>()
+        coEvery { appGroupDao.insertGroupItems(capture(insertedItems)) } returns Unit
+
         repository.assignAppToGroup("group_social", sampleApp, allowMultiGroup = true)
 
         coVerify(exactly = 0) { appGroupDao.deleteItemsByComponent(any(), any()) }
-        coVerify { appGroupDao.insertGroupItem(any()) }
+        coVerify { appGroupDao.insertGroupItems(any()) }
+        assertEquals("group_social", insertedItems.captured.first().groupId)
     }
 
     @Test
@@ -171,5 +173,39 @@ class AppGroupRepositoryImplTest {
         assertEquals(1, reindexed.captured.size)
         assertEquals(0, reindexed.captured[0].orderIndex)
         assertEquals("i2", reindexed.captured[0].id)
+    }
+
+    @Test
+    fun moveAppBetweenGroups_clearsFromSourceGroupAndAddsToTargetGroup() = runTest(testDispatcher) {
+        val srcItem1 = AppGroupItemEntity(id = "s1", groupId = "group_work", packageName = sampleApp.packageName, activityName = sampleApp.activityName, orderIndex = 0)
+        val srcItem2 = AppGroupItemEntity(id = "s2", groupId = "group_work", packageName = "p2", activityName = "a2", orderIndex = 1)
+        val targetItem1 = AppGroupItemEntity(id = "t1", groupId = "group_tools", packageName = "p3", activityName = "a3", orderIndex = 0)
+
+        coEvery { appGroupDao.deleteGroupItemsByPackage(any(), any()) } returns Unit
+        coEvery { appGroupDao.getItemsForGroup("group_work") } returns kotlinx.coroutines.flow.flowOf(listOf(srcItem2))
+        coEvery { appGroupDao.getItemsForGroup("group_tools") } returns kotlinx.coroutines.flow.flowOf(listOf(targetItem1))
+
+        val capturedInserts = mutableListOf<List<AppGroupItemEntity>>()
+        coEvery { appGroupDao.insertGroupItems(capture(capturedInserts)) } returns Unit
+
+        repository.moveAppBetweenGroups("group_work", "group_tools", sampleApp)
+
+        // Verify delete from source and target groups by package
+        coVerify { appGroupDao.deleteGroupItemsByPackage("group_work", sampleApp.packageName) }
+        coVerify { appGroupDao.deleteGroupItemsByPackage("group_tools", sampleApp.packageName) }
+
+        // Source group re-indexed
+        val sourceReindexed = capturedInserts.first()
+        assertEquals(1, sourceReindexed.size)
+        assertEquals("p2", sourceReindexed[0].packageName)
+        assertEquals(0, sourceReindexed[0].orderIndex)
+
+        // Target group re-indexed with new item
+        val targetReindexed = capturedInserts.last()
+        assertEquals(2, targetReindexed.size)
+        assertEquals("p3", targetReindexed[0].packageName)
+        assertEquals(sampleApp.packageName, targetReindexed[1].packageName)
+        assertEquals("group_tools", targetReindexed[1].groupId)
+        assertEquals(1, targetReindexed[1].orderIndex)
     }
 }

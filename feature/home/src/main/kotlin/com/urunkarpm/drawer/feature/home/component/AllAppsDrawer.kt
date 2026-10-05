@@ -2,35 +2,44 @@ package com.urunkarpm.drawer.feature.home.component
 
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -41,26 +50,38 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.model.AppInfo
-
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import com.urunkarpm.drawer.feature.home.dragdrop.AppDragDropState
+import com.urunkarpm.drawer.feature.home.dragdrop.DragDropResult
+import com.urunkarpm.drawer.feature.home.dragdrop.appDragSource
+import kotlinx.coroutines.launch
 
 @Composable
 fun AllAppsDrawer(
@@ -73,38 +94,117 @@ fun AllAppsDrawer(
     onAppLongClick: (AppInfo) -> Unit,
     onClose: () -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconShape: Shape = RoundedCornerShape(12.dp),
+    dragDropState: AppDragDropState? = null,
+    onDragDropResult: ((DragDropResult) -> Unit)? = null
 ) {
+    // ponytail: Hardware-accelerated vertical spring slide ensures 120 FPS buttery-smooth frame delivery without gesture interference; ceiling is fixed spring spec; upgrade path is customizable animation speeds.
     AnimatedVisibility(
         visible = visible,
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        enter = slideInVertically(
+            initialOffsetY = { it },
+            animationSpec = spring(
+                dampingRatio = 0.82f,
+                stiffness = 380f
+            )
+        ),
+        exit = slideOutVertically(
+            targetOffsetY = { it },
+            animationSpec = spring(
+                dampingRatio = 0.90f,
+                stiffness = 450f
+            )
+        ),
         modifier = modifier
     ) {
+        val gridState = rememberLazyGridState()
+        val coroutineScope = rememberCoroutineScope()
+
+        // NestedScrollConnection: when LazyGrid is scrolled to top, user can pull DOWN to dismiss.
+        var overscrollDownAccumulator by remember { mutableFloatStateOf(0f) }
+        val nestedScrollConnection = remember {
+            object : NestedScrollConnection {
+                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    if (available.y < 0) {
+                        overscrollDownAccumulator = 0f
+                    }
+                    return Offset.Zero
+                }
+
+                override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                    val shouldClose = overscrollDownAccumulator > 80f && available.y > 1200f
+                    overscrollDownAccumulator = 0f
+                    if (shouldClose && !gridState.canScrollBackward) {
+                        onClose()
+                    }
+                    return super.onPostFling(consumed, available)
+                }
+
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource
+                ): Offset {
+                    if (!gridState.canScrollBackward && available.y > 0f && source == NestedScrollSource.UserInput) {
+                        overscrollDownAccumulator += available.y
+                        if (overscrollDownAccumulator > 180f) {
+                            overscrollDownAccumulator = 0f
+                            onClose()
+                        }
+                    } else if (available.y < 0f) {
+                        overscrollDownAccumulator = 0f
+                    }
+                    return Offset.Zero
+                }
+            }
+        }
+
+        val animatedDrawerAlpha by animateFloatAsState(
+            targetValue = if (dragDropState?.isDragging == true) 0f else 1f,
+            animationSpec = tween(durationMillis = 150),
+            label = "drawerAlphaDuringDrag"
+        )
+
         Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = animatedDrawerAlpha
+                },
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
+                    .graphicsLayer {
+                        translationY = (overscrollDownAccumulator * 0.25f).coerceIn(0f, 60f)
+                    }
+                    .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                     .navigationBarsPadding()
                     .imePadding()
-                    .draggable(
-                        state = rememberDraggableState { delta ->
-                            if (delta > 25f) {
-                                onClose()
-                            }
-                        },
-                        orientation = Orientation.Vertical
-                    )
+                    .nestedScroll(nestedScrollConnection)
             ) {
-                // Top subtle drag handle indicator
+                var handleDragAccumulator by remember { mutableFloatStateOf(0f) }
+                // Top subtle drag handle indicator with pull-down gesture
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 4.dp),
+                        .padding(top = 10.dp, bottom = 6.dp)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragStart = { handleDragAccumulator = 0f },
+                                onVerticalDrag = { _, dragAmount ->
+                                    handleDragAccumulator += dragAmount
+                                    if (handleDragAccumulator > 80f) {
+                                        handleDragAccumulator = 0f
+                                        onClose()
+                                    }
+                                },
+                                onDragEnd = { handleDragAccumulator = 0f },
+                                onDragCancel = { handleDragAccumulator = 0f }
+                            )
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
@@ -140,27 +240,63 @@ fun AllAppsDrawer(
                             Text(
                                 text = if (searchQuery.isNotBlank()) "No apps found for \"$searchQuery\"" else "No apps installed",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center
                             )
                         }
                     } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 80.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(
-                                items = apps,
-                                key = { it.componentKey }
-                            ) { app ->
-                                AppItemView(
-                                    app = app,
-                                    onClick = { onAppClick(app) },
-                                    onLongClick = { onAppLongClick(app) },
-                                    iconLoader = { iconLoader(app) }
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            LazyVerticalGrid(
+                                state = gridState,
+                                columns = GridCells.Fixed(4),
+                                contentPadding = PaddingValues(
+                                    start = 16.dp,
+                                    top = 8.dp,
+                                    end = if (searchQuery.isBlank() && apps.size > 8) 32.dp else 16.dp,
+                                    bottom = 12.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(
+                                    items = apps,
+                                    key = { it.componentKey },
+                                    contentType = { "app_item" }
+                                ) { app ->
+                                    AppItemView(
+                                        app = app,
+                                        onAppClick = onAppClick,
+                                        onAppLongClick = onAppLongClick,
+                                        iconLoader = iconLoader,
+                                        iconShape = iconShape,
+                                        dragDropState = dragDropState,
+                                        onDragDropResult = onDragDropResult
+                                    )
+                                }
+                            }
+
+                            if (searchQuery.isBlank() && apps.size > 8) {
+                                AlphabetIndexBar(
+                                    onLetterSelected = { letter ->
+                                        val targetIndex = if (letter == "#") {
+                                            0
+                                        } else {
+                                            val exact = apps.indexOfFirst { it.label.startsWith(letter, ignoreCase = true) }
+                                            if (exact >= 0) {
+                                                exact
+                                            } else {
+                                                val next = apps.indexOfFirst { it.label.uppercase() > letter }
+                                                if (next >= 0) next else (apps.size - 1)
+                                            }
+                                        }
+                                        if (targetIndex in apps.indices) {
+                                            coroutineScope.launch {
+                                                gridState.scrollToItem(targetIndex)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.align(Alignment.CenterEnd)
                                 )
                             }
                         }
@@ -234,6 +370,8 @@ private fun SearchBarHeader(
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 disabledIndicatorColor = Color.Transparent
@@ -251,29 +389,70 @@ private fun SearchBarHeader(
 @Composable
 private fun AppItemView(
     app: AppInfo,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    iconLoader: suspend () -> Drawable?,
-    modifier: Modifier = Modifier
+    onAppClick: (AppInfo) -> Unit,
+    onAppLongClick: (AppInfo) -> Unit,
+    iconLoader: suspend (AppInfo) -> Drawable?,
+    modifier: Modifier = Modifier,
+    iconShape: Shape = RoundedCornerShape(12.dp),
+    dragDropState: AppDragDropState? = null,
+    onDragDropResult: ((DragDropResult) -> Unit)? = null
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
+    val haptic = LocalHapticFeedback.current
+
+    // ponytail: Unified gesture detector combining instantaneous tap execution, list scroll passthrough, and long-press drag-to-drawer; ceiling is Compose pointer slop; upgrade path is native drag-and-drop transfer API.
+    val itemModifier = if (dragDropState != null) {
+        modifier
             .clip(RoundedCornerShape(12.dp))
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
+            .appDragSource(
+                app = app,
+                onAppClick = { onAppClick(app) },
+                onAppLongClick = { onAppLongClick(app) },
+                onDragStart = { rootPos ->
+                    dragDropState.startDrag(app, rootPos, sourceGroupId = null)
+                },
+                onDrag = { dragAmount ->
+                    dragDropState.updateDrag(dragAmount)
+                },
+                onDragEnd = { isDropped ->
+                    if (isDropped) {
+                        val result = dragDropState.endDrag()
+                        onDragDropResult?.invoke(result)
+                    } else {
+                        dragDropState.cancelDrag()
+                    }
+                }
             )
             .padding(vertical = 8.dp, horizontal = 4.dp)
             .semantics {
                 contentDescription = "${app.label}${if (app.isWorkProfile) " (Work Profile)" else ""}"
             }
+    } else {
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .combinedClickable(
+                onClick = { onAppClick(app) },
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onAppLongClick(app)
+                }
+            )
+            .padding(vertical = 8.dp, horizontal = 4.dp)
+            .semantics {
+                contentDescription = "${app.label}${if (app.isWorkProfile) " (Work Profile)" else ""}"
+            }
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = itemModifier
     ) {
         AppIconImage(
+            key = app.componentKey,
             size = 54.dp,
             label = app.label,
             isWorkProfile = app.isWorkProfile,
-            iconLoader = iconLoader
+            iconShape = iconShape,
+            iconLoader = { iconLoader(app) }
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(

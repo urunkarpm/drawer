@@ -1,13 +1,16 @@
 package com.urunkarpm.drawer.feature.dock
 
-import android.graphics.RenderEffect
-import android.graphics.Shader
-import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,7 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,7 +60,9 @@ import com.urunkarpm.drawer.feature.dock.component.DockActionBottomSheet
 @Composable
 fun DockBar(
     modifier: Modifier = Modifier,
-    viewModel: DockViewModel = hiltViewModel()
+    iconShape: Shape = RoundedCornerShape(12.dp),
+    viewModel: DockViewModel = hiltViewModel(),
+    isDropTarget: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -69,26 +75,41 @@ fun DockBar(
         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
     }
 
+    val animatedBorderWidth by animateDpAsState(
+        targetValue = if (isDropTarget) 2.5.dp else 1.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "dockBorderWidth"
+    )
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (isDropTarget) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+        label = "dockBorderColor"
+    )
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isDropTarget) 1.04f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "dockScale"
+    )
+
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = animatedScale
+                scaleY = animatedScale
+            }
             .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         // Background layer: applies shape, elevation, and backdrop tint without blurring child icons
         Surface(
             shape = shape,
-            color = backgroundColor,
-            shadowElevation = if (uiState.backgroundStyle == "SOLID") 4.dp else 0.dp,
-            border = if (uiState.backgroundStyle != "TRANSPARENT") {
-                androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                )
+            color = if (isDropTarget) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else backgroundColor,
+            shadowElevation = if (isDropTarget) 8.dp else if (uiState.backgroundStyle == "SOLID") 4.dp else 0.dp,
+            border = if (isDropTarget || uiState.backgroundStyle != "TRANSPARENT") {
+                BorderStroke(animatedBorderWidth, animatedBorderColor)
             } else null,
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
+            modifier = Modifier.matchParentSize()
         ) {}
 
         // Foreground content: crisp, unblurred icons
@@ -120,6 +141,7 @@ fun DockBar(
                         iconSizeDp = uiState.iconSizeDp,
                         showLabels = uiState.showLabels,
                         isEditMode = uiState.isEditMode,
+                        iconShape = iconShape,
                         onClick = {
                             if (app != null) viewModel.onAppClicked(app)
                         },
@@ -176,39 +198,44 @@ private fun DockAppSlot(
     onLongClick: () -> Unit,
     onRemove: () -> Unit,
     iconLoader: suspend () -> android.graphics.drawable.Drawable?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconShape: Shape = RoundedCornerShape(12.dp)
 ) {
     val label = app?.label ?: dockItem.customLabel ?: dockItem.packageName
+    val slotWidth = (iconSizeDp + 16).dp
 
     Box(
-        modifier = modifier,
+        modifier = modifier.width(slotWidth),
         contentAlignment = Alignment.TopEnd
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
+                .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick
                 )
-                .padding(4.dp)
+                .padding(horizontal = 4.dp, vertical = 2.dp)
                 .semantics {
                     contentDescription = "Dock item $label, slot ${dockItem.position + 1} of 5"
                 }
         ) {
             AppIconImage(
+                key = app?.componentKey ?: "${dockItem.packageName}/${dockItem.activityName}",
                 size = iconSizeDp.dp,
                 label = label,
                 isWorkProfile = app?.isWorkProfile ?: false,
+                iconShape = iconShape,
                 iconLoader = iconLoader
             )
 
             if (showLabels) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

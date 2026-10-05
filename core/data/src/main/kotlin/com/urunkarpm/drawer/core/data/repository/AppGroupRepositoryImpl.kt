@@ -10,6 +10,8 @@ import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupSortOrder
 import com.urunkarpm.drawer.core.model.GroupViewType
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -29,60 +31,105 @@ class AppGroupRepositoryImpl @Inject constructor(
 ) : AppGroupRepository {
 
     private val defaultGroups = listOf(
-        AppGroupEntity(id = "group_work", name = "Work", iconName = "work", colorHex = "#1E88E5", orderIndex = 0, isExpanded = true),
-        AppGroupEntity(id = "group_social", name = "Social", iconName = "chat", colorHex = "#E91E63", orderIndex = 1, isExpanded = true),
-        AppGroupEntity(id = "group_finance", name = "Finance", iconName = "account_balance", colorHex = "#4CAF50", orderIndex = 2, isExpanded = true),
-        AppGroupEntity(id = "group_media", name = "Media", iconName = "play_circle", colorHex = "#FF9800", orderIndex = 3, isExpanded = true),
-        AppGroupEntity(id = "group_tools", name = "Tools", iconName = "build", colorHex = "#9C27B0", orderIndex = 4, isExpanded = true)
+        AppGroupEntity(id = "group_work", name = "Work", iconName = "work", colorHex = "#1E88E5", orderIndex = 0, isExpanded = false),
+        AppGroupEntity(id = "group_social", name = "Social", iconName = "chat", colorHex = "#E91E63", orderIndex = 1, isExpanded = false),
+        AppGroupEntity(id = "group_finance", name = "Finance", iconName = "account_balance", colorHex = "#4CAF50", orderIndex = 2, isExpanded = false),
+        AppGroupEntity(id = "group_media", name = "Media", iconName = "play_circle", colorHex = "#FF9800", orderIndex = 3, isExpanded = false),
+        AppGroupEntity(id = "group_tools", name = "Tools", iconName = "build", colorHex = "#9C27B0", orderIndex = 4, isExpanded = false)
     )
+
+    private var hasSeedAttempted = false
 
     private suspend fun ensureSeeded() {
         val existing = appGroupDao.getAllGroups().first()
         if (existing.isEmpty()) {
             appGroupDao.insertGroups(defaultGroups)
         }
+        if (hasSeedAttempted) return
         val existingItems = appGroupDao.getAllGroupItems().first()
-        if (existingItems.isEmpty()) {
-            seedDefaultGroupItems()
+        // If items are sparse or default groups are mostly empty, trigger seed
+        if (existingItems.size < 4) {
+            CoroutineScope(ioDispatcher).launch {
+                seedDefaultGroupItemsReactive()
+            }
+        } else {
+            hasSeedAttempted = true
         }
     }
 
-    private suspend fun seedDefaultGroupItems() {
+    private suspend fun seedDefaultGroupItemsReactive() {
         try {
             val appRepo = appRepositoryProvider.get()
-            var apps: List<AppInfo> = appRepo.installedApps.first()
+            var apps = appRepo.installedApps.first()
             if (apps.isEmpty()) {
                 appRepo.refreshApps()
                 apps = appRepo.installedApps.first()
             }
-            if (apps.isEmpty()) return
+            doSeedItems(apps)
+            hasSeedAttempted = true
+        } catch (_: Exception) {
+            hasSeedAttempted = true
+        }
+    }
 
-            val itemsToInsert = mutableListOf<AppGroupItemEntity>()
-            val groupCounters = mutableMapOf<String, Int>()
+    override suspend fun autoPopulateGroups() = withContext(ioDispatcher) {
+        val appRepo = appRepositoryProvider.get()
+        var apps = appRepo.installedApps.first()
+        if (apps.isEmpty()) {
+            appRepo.refreshApps()
+            apps = appRepo.installedApps.first()
+        }
+        if (apps.isNotEmpty()) {
+            doSeedItems(apps)
+        }
+    }
+
+    private suspend fun doSeedItems(apps: List<AppInfo>) {
+        val groups = appGroupDao.getAllGroups().first()
+        val existingItems = appGroupDao.getAllGroupItems().first()
+        val itemsByGroup = existingItems.groupBy { it.groupId }
+        val allAssignedComponents = existingItems.map { "${it.packageName}/${it.activityName}#${it.userHandleId}" }.toMutableSet()
+
+        val itemsToInsert = mutableListOf<AppGroupItemEntity>()
+
+        for (group in groups) {
+            val currentGroupItems = itemsByGroup[group.id].orEmpty()
+            if (currentGroupItems.size >= 12) continue
+
+            val groupPackageNames = currentGroupItems.map { it.packageName }.toSet()
+            var currentOrder = currentGroupItems.size
 
             for (app in apps) {
-                val targetGroupId = determineCategory(app) ?: continue
-                val currentIndex = groupCounters.getOrDefault(targetGroupId, 0)
-                if (currentIndex < 12) {
+                if (currentOrder >= 12) break
+                val targetCategory = determineCategory(app) ?: continue
+                val categoryName = targetCategory.removePrefix("group_")
+                val matchesGroup = targetCategory == group.id ||
+                    group.name.equals(categoryName, ignoreCase = true) ||
+                    group.id.contains(categoryName, ignoreCase = true)
+                if (matchesGroup) {
+                    if (app.packageName in groupPackageNames) continue
+                    if (app.componentKey in allAssignedComponents) continue
+
                     itemsToInsert.add(
                         AppGroupItemEntity(
                             id = UUID.randomUUID().toString(),
-                            groupId = targetGroupId,
+                            groupId = group.id,
                             packageName = app.packageName,
                             activityName = app.activityName,
                             userHandleId = app.userHandleId,
-                            orderIndex = currentIndex,
+                            orderIndex = currentOrder,
                             customLabel = app.label
                         )
                     )
-                    groupCounters[targetGroupId] = currentIndex + 1
+                    allAssignedComponents.add(app.componentKey)
+                    currentOrder++
                 }
             }
+        }
 
-            if (itemsToInsert.isNotEmpty()) {
-                appGroupDao.insertGroupItems(itemsToInsert)
-            }
-        } catch (_: Exception) {}
+        if (itemsToInsert.isNotEmpty()) {
+            appGroupDao.insertGroupItems(itemsToInsert)
+        }
     }
 
     private fun determineCategory(app: AppInfo): String? {
@@ -97,7 +144,9 @@ class AppGroupRepositoryImpl @Inject constructor(
             pkg.contains("threads") || pkg.contains("snapchat") || pkg.contains("reddit") ||
             pkg.contains("discord") || pkg.contains("linkedin") || pkg.contains("tiktok") ||
             pkg.contains("wechat") || pkg.contains("messaging") || pkg.contains("messages") ||
-            label.contains("chat") || label.contains("message")) {
+            pkg.contains("frontpage") || pkg.contains("pinterest") ||
+            label.contains("chat") || label.contains("message") || label.contains("social") ||
+            label.contains("reddit") || label.contains("instagram") || label.contains("telegram")) {
             return "group_social"
         }
 
@@ -107,8 +156,11 @@ class AppGroupRepositoryImpl @Inject constructor(
             pkg.contains("cred") || pkg.contains("crypto") || pkg.contains("binance") ||
             pkg.contains("coinbase") || pkg.contains("zerodha") || pkg.contains("groww") ||
             pkg.contains("upstox") || pkg.contains("revolut") || pkg.contains("paypal") ||
+            pkg.contains("splitwise") || pkg.contains("paisa") || pkg.contains("money") ||
+            pkg.contains("bhishi") || pkg.contains("acko") || pkg.contains("saraswat") ||
             label.contains("bank") || label.contains("finance") || label.contains("money") ||
-            label.contains("wallet") || label.contains("pay")) {
+            label.contains("wallet") || label.contains("pay") || label.contains("groww") ||
+            label.contains("splitwise")) {
             return "group_finance"
         }
 
@@ -119,8 +171,13 @@ class AppGroupRepositoryImpl @Inject constructor(
             pkg.contains("calendar") || pkg.contains("notes") || pkg.contains("keep") ||
             pkg.contains("tasks") || pkg.contains("meet") || pkg.contains("zoom") ||
             pkg.contains("notion") || pkg.contains("trello") || pkg.contains("jira") ||
-            pkg.contains("outlook") || pkg.contains("wps") || label.contains("mail") ||
-            label.contains("calendar") || label.contains("notes") || label.contains("task")) {
+            pkg.contains("outlook") || pkg.contains("wps") || pkg.contains("github") ||
+            pkg.contains("claude") || pkg.contains("chatgpt") || pkg.contains("openai") ||
+            pkg.contains("kimichat") || pkg.contains("deepseek") || pkg.contains("qwen") ||
+            pkg.contains("grok") || pkg.contains("perplexity") || pkg.contains("libreoffice") ||
+            label.contains("mail") || label.contains("calendar") || label.contains("notes") ||
+            label.contains("task") || label.contains("office") || label.contains("teams") ||
+            label.contains("chatgpt") || label.contains("claude") || label.contains("docs")) {
             return "group_work"
         }
 
@@ -130,8 +187,11 @@ class AppGroupRepositoryImpl @Inject constructor(
             pkg.contains("camera") || pkg.contains("gallery") || pkg.contains("photos") ||
             pkg.contains("vlc") || pkg.contains("podcast") || pkg.contains("twitch") ||
             pkg.contains("sound") || pkg.contains("radio") || pkg.contains("video") ||
-            pkg.contains("player") || label.contains("music") || label.contains("camera") ||
-            label.contains("gallery") || label.contains("photo") || label.contains("video")) {
+            pkg.contains("player") || pkg.contains("shazam") || pkg.contains("stremio") ||
+            pkg.contains("spotiflac") || pkg.contains("fiio") || pkg.contains("soundcloud") ||
+            label.contains("music") || label.contains("camera") || label.contains("gallery") ||
+            label.contains("photo") || label.contains("video") || label.contains("vlc") ||
+            label.contains("shazam") || label.contains("spotify")) {
             return "group_media"
         }
 
@@ -139,9 +199,12 @@ class AppGroupRepositoryImpl @Inject constructor(
         if (pkg.contains("settings") || pkg.contains("calculator") || pkg.contains("clock") ||
             pkg.contains("files") || pkg.contains("filemanager") || pkg.contains("browser") ||
             pkg.contains("chrome") || pkg.contains("firefox") || pkg.contains("edge") ||
-            pkg.contains("compass") || pkg.contains("weather") || pkg.contains("terminal") ||
-            pkg.contains("vending") || label.contains("settings") || label.contains("calculator") ||
-            label.contains("clock") || label.contains("files") || label.contains("browser")) {
+            pkg.contains("brave") || pkg.contains("localsend") || pkg.contains("rar") ||
+            pkg.contains("termux") || pkg.contains("compass") || pkg.contains("weather") ||
+            pkg.contains("terminal") || pkg.contains("vending") || pkg.contains("lens") ||
+            pkg.contains("authenticator") || pkg.contains("digilocker") || pkg.contains("fdm") ||
+            label.contains("settings") || label.contains("calculator") || label.contains("clock") ||
+            label.contains("files") || label.contains("browser") || label.contains("terminal")) {
             return "group_tools"
         }
 
@@ -200,13 +263,19 @@ class AppGroupRepositoryImpl @Inject constructor(
         val reindexed = remaining.mapIndexed { index, entity ->
             entity.copy(orderIndex = index)
         }
-        appGroupDao.insertGroups(reindexed)
+        appGroupDao.updateGroups(reindexed)
     }
 
     override suspend fun toggleGroupExpanded(groupId: String) = withContext(ioDispatcher) {
         val currentGroups = appGroupDao.getAllGroups().first()
         val target = currentGroups.find { it.id == groupId } ?: return@withContext
-        appGroupDao.updateGroup(target.copy(isExpanded = !target.isExpanded))
+        val newExpanded = !target.isExpanded
+        // "at a time only one drawer can be opened" - expand target, collapse all others via SQL UPDATE
+        appGroupDao.setOnlyGroupExpanded(groupId, newExpanded)
+    }
+
+    override suspend fun collapseAllGroups() = withContext(ioDispatcher) {
+        appGroupDao.collapseAllGroups()
     }
 
     override suspend fun reorderGroups(fromIndex: Int, toIndex: Int) = withContext(ioDispatcher) {
@@ -219,34 +288,92 @@ class AppGroupRepositoryImpl @Inject constructor(
         val reindexed = currentGroups.mapIndexed { index, entity ->
             entity.copy(orderIndex = index)
         }
-        appGroupDao.insertGroups(reindexed)
+        appGroupDao.updateGroups(reindexed)
     }
 
     override suspend fun assignAppToGroup(
         groupId: String,
         app: AppInfo,
-        allowMultiGroup: Boolean
+        allowMultiGroup: Boolean,
+        targetIndex: Int?
     ) = withContext(ioDispatcher) {
-        if (!allowMultiGroup) {
-            appGroupDao.deleteItemsByComponent(app.packageName, app.activityName)
+        val currentItems = appGroupDao.getItemsForGroup(groupId).first().toMutableList()
+        val existingItem = currentItems.find { it.packageName == app.packageName && it.activityName == app.activityName }
+        
+        if (existingItem != null) {
+            currentItems.remove(existingItem)
         }
-        val currentItems = appGroupDao.getItemsForGroup(groupId).first()
-        if (currentItems.any { it.packageName == app.packageName && it.activityName == app.activityName }) {
+        
+        if (!allowMultiGroup) {
+            // Delete from ALL other groups in DB if multi-group is disabled
+            appGroupDao.deleteItemsByComponent(app.packageName, app.activityName)
+        } else {
+            appGroupDao.deleteGroupItem(groupId, app.packageName, app.activityName)
+        }
+        
+        val insertIndex = targetIndex?.coerceIn(0, currentItems.size) ?: currentItems.size
+        
+        val newItem = (existingItem ?: AppGroupItemEntity(
+            id = UUID.randomUUID().toString(),
+            groupId = groupId,
+            packageName = app.packageName,
+            activityName = app.activityName,
+            userHandleId = app.userHandleId,
+            orderIndex = insertIndex,
+            customLabel = app.label
+        )).copy(
+            id = existingItem?.id ?: UUID.randomUUID().toString(),
+            groupId = groupId,
+            orderIndex = insertIndex
+        )
+        
+        currentItems.add(insertIndex, newItem)
+        
+        // Re-index all items to ensure gaps are closed and bounds are correct
+        val reindexed = currentItems.mapIndexed { index, entity ->
+            entity.copy(orderIndex = index)
+        }
+        
+        appGroupDao.insertGroupItems(reindexed)
+    }
+
+    override suspend fun moveAppBetweenGroups(
+        sourceGroupId: String,
+        targetGroupId: String,
+        app: AppInfo,
+        targetIndex: Int?
+    ) = withContext(ioDispatcher) {
+        if (sourceGroupId == targetGroupId) {
+            assignAppToGroup(targetGroupId, app, allowMultiGroup = true, targetIndex = targetIndex)
             return@withContext
         }
 
-        val nextIndex = currentItems.size
-        appGroupDao.insertGroupItem(
-            AppGroupItemEntity(
-                id = UUID.randomUUID().toString(),
-                groupId = groupId,
-                packageName = app.packageName,
-                activityName = app.activityName,
-                userHandleId = app.userHandleId,
-                orderIndex = nextIndex,
-                customLabel = app.label
-            )
+        // 1. Remove from sourceGroupId and reindex
+        appGroupDao.deleteGroupItemsByPackage(sourceGroupId, app.packageName)
+        val remainingSource = appGroupDao.getItemsForGroup(sourceGroupId).first().sortedBy { it.orderIndex }
+        val reindexedSource = remainingSource.mapIndexed { index, entity ->
+            entity.copy(orderIndex = index)
+        }
+        appGroupDao.insertGroupItems(reindexedSource)
+
+        // 2. Remove any pre-existing instance in targetGroupId and insert at targetIndex
+        appGroupDao.deleteGroupItemsByPackage(targetGroupId, app.packageName)
+        val currentTargetItems = appGroupDao.getItemsForGroup(targetGroupId).first().sortedBy { it.orderIndex }.toMutableList()
+        val insertIndex = targetIndex?.coerceIn(0, currentTargetItems.size) ?: currentTargetItems.size
+        val newItem = AppGroupItemEntity(
+            id = UUID.randomUUID().toString(),
+            groupId = targetGroupId,
+            packageName = app.packageName,
+            activityName = app.activityName,
+            userHandleId = app.userHandleId,
+            orderIndex = insertIndex,
+            customLabel = app.label
         )
+        currentTargetItems.add(insertIndex, newItem)
+        val reindexedTarget = currentTargetItems.mapIndexed { index, entity ->
+            entity.copy(orderIndex = index)
+        }
+        appGroupDao.insertGroupItems(reindexedTarget)
     }
 
     override suspend fun removeAppFromGroup(

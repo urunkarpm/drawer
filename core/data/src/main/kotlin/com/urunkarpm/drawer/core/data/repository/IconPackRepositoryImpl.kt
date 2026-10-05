@@ -28,6 +28,10 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
 @Singleton
 class IconPackRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -38,6 +42,25 @@ class IconPackRepositoryImpl @Inject constructor(
 
     private val iconCache = LruCache<String, Drawable>(250)
     private val appFilterCache = ConcurrentHashMap<String, Map<String, String>>()
+    private val overridesCache = ConcurrentHashMap<String, IconPackOverrideEntity>()
+    @Volatile private var cachedActiveIconPack: String? = null
+    private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
+
+    init {
+        scope.launch {
+            preferencesDataSource.activeIconPack.collect { pack ->
+                cachedActiveIconPack = pack
+            }
+        }
+        scope.launch {
+            iconPackOverrideDao.getAllOverrides().collect { list ->
+                overridesCache.clear()
+                for (item in list) {
+                    overridesCache[item.componentName] = item
+                }
+            }
+        }
+    }
 
     override val activeIconPack: Flow<String?> = preferencesDataSource.activeIconPack
 
@@ -166,10 +189,10 @@ class IconPackRepositoryImpl @Inject constructor(
         fallback: suspend () -> Drawable?
     ): Drawable? = withContext(ioDispatcher) {
         val compKey = "$packageName/$activityName"
-        val activePack = preferencesDataSource.activeIconPack.first()
+        val activePack = cachedActiveIconPack ?: preferencesDataSource.activeIconPack.first()
 
-        // 1. Check override
-        val override = iconPackOverrideDao.getOverrideForComponent(compKey)
+        // 1. Check override in memory (eliminates per-icon SQLite disk queries)
+        val override = overridesCache[compKey]
         if (override != null) {
             val cacheKey = "override_${override.iconPackPackageName}_${override.drawableName}"
             iconCache.get(cacheKey)?.let { return@withContext it }

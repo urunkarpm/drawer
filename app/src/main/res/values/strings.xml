@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">Drawer</string>
     <string name="notification_listener_label">Drawer Notification Access</string>
+    <string name="accessibility_service_label">Drawer Screen Lock</string>
+    <string name="accessibility_service_description">Allows Drawer to lock the screen when you double-tap on empty space.</string>
 </resources>

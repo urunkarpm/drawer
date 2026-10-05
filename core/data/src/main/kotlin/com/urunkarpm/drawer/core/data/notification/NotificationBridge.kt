@@ -19,6 +19,8 @@ class NotificationBridge @Inject constructor() {
     var onDismissNotification: ((key: String) -> Unit)? = null
     var onClearAllNotifications: (() -> Unit)? = null
     var onOpenNotification: ((key: String) -> Unit)? = null
+    var onGetPendingIntent: ((key: String) -> android.app.PendingIntent?)? = null
+    var onGetPackageName: ((key: String) -> String?)? = null
     var onRebindRequest: (() -> Unit)? = null
 
     fun updateNotifications(items: List<NotificationItem>) {

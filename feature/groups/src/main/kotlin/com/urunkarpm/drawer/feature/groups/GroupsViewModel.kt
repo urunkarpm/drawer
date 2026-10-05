@@ -36,7 +36,8 @@ data class GroupsUiState(
     val multiGroupEnabled: Boolean = false,
     val selectedAppForAction: Pair<AppInfo, AppGroup>? = null,
     val groupBeingEdited: AppGroup? = null,
-    val showCreateDialog: Boolean = false
+    val showCreateDialog: Boolean = false,
+    val lockLayout: Boolean = false
 )
 
 @HiltViewModel
@@ -62,13 +63,18 @@ class GroupsViewModel @Inject constructor(
         appGroupRepository.groups,
         appRepository.installedApps,
         preferencesDataSource.multiGroupApps,
+        preferencesDataSource.lockLayout,
         dialogsState
-    ) { groups, installedApps, multiGroup, dialogs ->
+    ) { groups, installedApps, multiGroup, lockLayout, dialogs ->
+        // Primary lookup: packageName/activityName
         val appMap = installedApps.associateBy { "${it.packageName}/${it.activityName}" }
+        // Fallback lookup: packageName only (first match) - handles cases where activityName differs
+        val appByPkg = installedApps.groupBy { it.packageName }
         val resolvedGroups = groups.map { group ->
             val resolvedApps = group.items.mapNotNull { item ->
                 appMap["${item.packageName}/${item.activityName}"]
-            }
+                    ?: appByPkg[item.packageName]?.firstOrNull()
+            }.distinctBy { it.componentKey }
             val sortedApps = when (group.sortOrder) {
                 GroupSortOrder.MANUAL -> resolvedApps
                 GroupSortOrder.ALPHABETICAL -> resolvedApps.sortedBy { it.label.lowercase() }
@@ -81,13 +87,25 @@ class GroupsViewModel @Inject constructor(
             multiGroupEnabled = multiGroup,
             selectedAppForAction = dialogs.selectedAppForAction,
             groupBeingEdited = dialogs.groupBeingEdited,
-            showCreateDialog = dialogs.showCreateDialog
+            showCreateDialog = dialogs.showCreateDialog,
+            lockLayout = lockLayout
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = GroupsUiState()
     )
+
+    init {
+        viewModelScope.launch {
+            try {
+                val groups = appGroupRepository.groups.first { it.isNotEmpty() }
+                if (groups.all { it.items.isEmpty() }) {
+                    appGroupRepository.autoPopulateGroups()
+                }
+            } catch (_: Exception) {}
+        }
+    }
 
     fun createGroup(
         name: String,
@@ -125,6 +143,18 @@ class GroupsViewModel @Inject constructor(
         }
     }
 
+    fun collapseAllGroups() {
+        viewModelScope.launch {
+            appGroupRepository.collapseAllGroups()
+        }
+    }
+
+    fun autoPopulateGroups() {
+        viewModelScope.launch {
+            appGroupRepository.autoPopulateGroups()
+        }
+    }
+
     fun moveGroupUp(groupIndex: Int) {
         if (groupIndex > 0) {
             viewModelScope.launch {
@@ -141,10 +171,45 @@ class GroupsViewModel @Inject constructor(
         }
     }
 
-    fun assignAppToGroup(groupId: String, app: AppInfo) {
+    fun assignAppToGroup(groupId: String, app: AppInfo, targetIndex: Int? = null) {
         viewModelScope.launch {
             val allowMulti = preferencesDataSource.multiGroupApps.first()
-            appGroupRepository.assignAppToGroup(groupId, app, allowMulti)
+            appGroupRepository.assignAppToGroup(groupId, app, allowMulti, targetIndex)
+        }
+    }
+
+    fun moveAppBetweenGroups(
+        sourceGroupId: String,
+        targetGroupId: String,
+        app: AppInfo,
+        targetIndex: Int? = null
+    ) {
+        viewModelScope.launch {
+            appGroupRepository.moveAppBetweenGroups(sourceGroupId, targetGroupId, app, targetIndex)
+        }
+    }
+
+    fun moveAppEarlier(groupId: String, app: AppInfo) {
+        viewModelScope.launch {
+            val resolvedGroup = uiState.value.groups.find { it.group.id == groupId } ?: return@launch
+            val currentIndex = resolvedGroup.apps.indexOfFirst { it.componentKey == app.componentKey }
+            if (currentIndex > 0) {
+                val allowMulti = preferencesDataSource.multiGroupApps.first()
+                appGroupRepository.assignAppToGroup(groupId, app, allowMulti, currentIndex - 1)
+            }
+            _selectedAppForAction.value = null
+        }
+    }
+
+    fun moveAppLater(groupId: String, app: AppInfo) {
+        viewModelScope.launch {
+            val resolvedGroup = uiState.value.groups.find { it.group.id == groupId } ?: return@launch
+            val currentIndex = resolvedGroup.apps.indexOfFirst { it.componentKey == app.componentKey }
+            if (currentIndex in 0 until resolvedGroup.apps.size - 1) {
+                val allowMulti = preferencesDataSource.multiGroupApps.first()
+                appGroupRepository.assignAppToGroup(groupId, app, allowMulti, currentIndex + 1)
+            }
+            _selectedAppForAction.value = null
         }
     }
 

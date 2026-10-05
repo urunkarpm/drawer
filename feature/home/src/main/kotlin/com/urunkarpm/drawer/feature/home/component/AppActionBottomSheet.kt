@@ -1,6 +1,7 @@
 package com.urunkarpm.drawer.feature.home.component
 
 import android.graphics.drawable.Drawable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
@@ -26,13 +28,20 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
+import com.urunkarpm.drawer.core.designsystem.component.toImageBitmapSafe
 import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.AppShortcutInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +55,10 @@ fun AppActionBottomSheet(
     onPinToDock: () -> Unit,
     onAddToGroup: () -> Unit,
     iconLoader: suspend () -> Drawable?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shortcuts: List<AppShortcutInfo> = emptyList(),
+    onLaunchShortcut: (String) -> Unit = {},
+    shortcutIconLoader: suspend (String) -> Drawable? = { null }
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -64,6 +76,7 @@ fun AppActionBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIconImage(
+                    key = app.componentKey,
                     size = 56.dp,
                     label = app.label,
                     isWorkProfile = app.isWorkProfile,
@@ -98,6 +111,65 @@ fun AppActionBottomSheet(
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider()
             Spacer(modifier = Modifier.height(8.dp))
+
+            // Native App Shortcuts
+            if (shortcuts.isNotEmpty()) {
+                Text(
+                    text = "Shortcuts",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                shortcuts.forEach { shortcut ->
+                    var iconDrawable by remember(shortcut.id) { mutableStateOf<Drawable?>(null) }
+                    LaunchedEffect(shortcut.id) {
+                        iconDrawable = shortcutIconLoader(shortcut.id)
+                    }
+                    NavigationDrawerItem(
+                        label = {
+                            Text(
+                                text = shortcut.shortLabel,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        icon = {
+                            val drawable = iconDrawable
+                            if (drawable != null) {
+                                val bitmap = remember(drawable) {
+                                    drawable.toImageBitmapSafe()
+                                }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap,
+                                        contentDescription = shortcut.shortLabel,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Outlined.PlayArrow,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    Icons.Outlined.PlayArrow,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        selected = false,
+                        onClick = { onLaunchShortcut(shortcut.id) },
+                        colors = NavigationDrawerItemDefaults.colors()
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // Actions
             NavigationDrawerItem(

@@ -229,6 +229,30 @@ fun SettingsScreen(
                     checked = uiState.hideStatusBar,
                     onCheckedChange = { viewModel.setHideStatusBar(it) }
                 )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                SettingsSwitchRow(
+                    title = "Wallpaper Blur",
+                    subtitle = "Add a frosted glass blur effect to the background wallpaper",
+                    checked = uiState.wallpaperBlur,
+                    onCheckedChange = { viewModel.setWallpaperBlur(it) }
+                )
+
+                if (uiState.wallpaperBlur) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Wallpaper Blur Radius: ${uiState.wallpaperBlurRadius.toInt()} px",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Slider(
+                        value = uiState.wallpaperBlurRadius,
+                        onValueChange = { viewModel.setWallpaperBlurRadius(it) },
+                        valueRange = 5f..100f,
+                        steps = 18,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
 
             // 2. Dock Customization
@@ -303,14 +327,28 @@ fun SettingsScreen(
 
             // 3. App Groups
             item {
-                SettingsCategoryHeader(title = "App Categories & Groups", icon = Icons.Default.FormatPaint)
+                SettingsCategoryHeader(title = "App Categories & Drawers", icon = Icons.Default.FormatPaint)
                 Spacer(modifier = Modifier.height(8.dp))
+
+                SettingsSwitchRow(
+                    title = "Two Drawers Side by Side",
+                    subtitle = "Show category drawers side by side while keeping notifications full width",
+                    checked = uiState.twoDrawersSideBySide,
+                    onCheckedChange = { viewModel.setTwoDrawersSideBySide(it) }
+                )
 
                 SettingsSwitchRow(
                     title = "Multi-Group Apps",
                     subtitle = "Allow a single app to be assigned to multiple categories",
                     checked = uiState.multiGroupApps,
                     onCheckedChange = { viewModel.setMultiGroupApps(it) }
+                )
+
+                SettingsSwitchRow(
+                    title = "Lock Layout",
+                    subtitle = "Prevent accidental editing of category layouts and dragging apps",
+                    checked = uiState.lockLayout,
+                    onCheckedChange = { viewModel.setLockLayout(it) }
                 )
             }
 

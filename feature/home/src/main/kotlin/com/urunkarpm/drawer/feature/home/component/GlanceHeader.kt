@@ -4,32 +4,19 @@ import android.content.Context
 import android.content.Intent
 import android.provider.AlarmClock
 import android.provider.CalendarContract
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AcUnit
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.CloudQueue
-import androidx.compose.material.icons.filled.Dehaze
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,22 +26,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.urunkarpm.drawer.core.model.WeatherInfo
 import kotlinx.coroutines.delay
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.IconButton
-
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GlanceHeader(
     is24Hour: Boolean,
@@ -69,12 +58,17 @@ fun GlanceHeader(
     var currentTime by remember { mutableStateOf(LocalTime.now()) }
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
 
-    // Update time every 10 seconds to keep live clock accurate
-    LaunchedEffect(Unit) {
-        while (true) {
-            currentTime = LocalTime.now()
-            currentDate = LocalDate.now()
-            delay(10_000)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val now = LocalTime.now()
+                currentTime = now
+                currentDate = LocalDate.now()
+                val millisUntilNextMinute = ((60 - now.second) * 1000L - (now.nano / 1_000_000L) + 50L)
+                    .coerceIn(500L, 60_000L)
+                delay(millisUntilNextMinute)
+            }
         }
     }
 
@@ -82,24 +76,55 @@ fun GlanceHeader(
     val formattedTime = currentTime.format(DateTimeFormatter.ofPattern(timeFormat))
     val formattedDate = currentDate.format(DateTimeFormatter.ofPattern("EEEE, MMMM d"))
 
+    val tempText = if (weatherInfo != null) {
+        formatTemperature(weatherInfo.temperatureCelsius, weatherUnit)
+    } else {
+        "--°"
+    }
+
+    val weatherLocationText = if (weatherInfo != null) {
+        val condition = weatherInfo.conditionDescription.trim()
+        val city = weatherInfo.cityName.trim()
+        if (city.isNotBlank() && !city.equals("Unknown", ignoreCase = true)) {
+            "$condition, $city"
+        } else {
+            condition
+        }
+    } else {
+        "Tap to load"
+    }
+
+    val isLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    val displayColor = if (isLight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+    val subtextColor = if (isLight) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f)
+
+    // ponytail: 28.dp top padding positions the clock and weather safely below the display camera cut-out/punch hole; ceiling is static 28.dp offset; upgrade path is dynamic camera cutout bounding rect inspection.
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 16.dp),
+            .padding(top = 28.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        // Left: Live Clock & Date
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .combinedClickable(
+                    onClick = { launchClock(context) },
+                    onLongClick = onOpenSettings
+                ),
+            horizontalAlignment = Alignment.Start
+        ) {
             // Large Clock Display
             Text(
                 text = formattedTime,
-                fontSize = 58.sp,
+                fontSize = 52.sp,
                 fontWeight = FontWeight.Light,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = displayColor,
                 letterSpacing = (-1).sp,
-                modifier = Modifier.clickable {
-                    launchClock(context)
-                }
+                maxLines = 1,
+                softWrap = false
             )
 
             // Date Display with high-contrast text
@@ -107,90 +132,64 @@ fun GlanceHeader(
                 text = formattedDate,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
-                modifier = Modifier.clickable {
-                    launchCalendar(context)
-                }
+                color = subtextColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.combinedClickable(
+                    onClick = { launchCalendar(context) },
+                    onLongClick = onOpenSettings
+                )
             )
-
-            // Weather Pill / Widget
-            AnimatedVisibility(
-                visible = showWeather,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Spacer(modifier = Modifier.height(10.dp))
-                if (weatherInfo != null) {
-                    val tempText = formatTemperature(weatherInfo.temperatureCelsius, weatherUnit)
-                    val icon = getWeatherIcon(weatherInfo.weatherCode)
-
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { onRefreshWeather() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = weatherInfo.conditionDescription,
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "$tempText • ${weatherInfo.conditionDescription}, ${weatherInfo.cityName}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                } else {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { onRefreshWeather() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Tap to load weather",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "Tap to load weather",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
         }
 
-        IconButton(
-            onClick = onOpenSettings,
-            modifier = Modifier.padding(top = 8.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Open Settings",
-                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f),
-                modifier = Modifier.size(24.dp)
-            )
+        // ponytail: right-side weather/location mirrors left-side time/date typography directly for visual symmetry; ceiling is 2-line summary; upgrade path is expanding a forecast card on tap.
+        // ponytail: long-press on clock or weather opens settings to maintain clean symmetrical header without an intrusive gear icon; ceiling is hidden affordance; upgrade path is quick settings tile or dock shortcut.
+        if (showWeather) {
+            // Right: Temperature, Weather & Location (symmetric to Time & Date)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .combinedClickable(
+                        onClick = onRefreshWeather,
+                        onLongClick = onOpenSettings
+                    ),
+                horizontalAlignment = Alignment.End
+            ) {
+                // Large Temperature Display
+                Text(
+                    text = tempText,
+                    fontSize = 52.sp,
+                    fontWeight = FontWeight.Light,
+                    color = displayColor,
+                    letterSpacing = (-1).sp,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    softWrap = false
+                )
+
+                // Weather Condition & Location Display
+                Text(
+                    text = weatherLocationText,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = subtextColor,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        } else {
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Open Settings",
+                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
@@ -201,20 +200,6 @@ private fun formatTemperature(celsius: Double, unit: String): String {
         "${fahrenheit.roundToInt()}°F"
     } else {
         "${celsius.roundToInt()}°C"
-    }
-}
-
-private fun getWeatherIcon(weatherCode: Int): ImageVector {
-    return when (weatherCode) {
-        0, 1 -> Icons.Default.WbSunny
-        2 -> Icons.Default.CloudQueue
-        3 -> Icons.Default.Cloud
-        45, 48 -> Icons.Default.Dehaze
-        51, 53, 55, 56, 57 -> Icons.Default.WaterDrop
-        61, 63, 65, 66, 67, 80, 81, 82 -> Icons.Default.WaterDrop
-        71, 73, 75, 77, 85, 86 -> Icons.Default.AcUnit
-        95, 96, 99 -> Icons.Default.FlashOn
-        else -> Icons.Default.WbSunny
     }
 }
 

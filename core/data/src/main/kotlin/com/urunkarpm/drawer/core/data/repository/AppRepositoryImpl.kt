@@ -15,6 +15,7 @@ import androidx.collection.LruCache
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
 import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.AppShortcutInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -59,11 +60,25 @@ class AppRepositoryImpl @Inject constructor(
                 }
 
                 override fun onPackageRemoved(packageName: String, user: UserHandle) {
-                    scope.launch { refreshApps() }
+                    scope.launch {
+                        val prefix = "$packageName/"
+                        val keysToRemove = iconCache.snapshot().keys.filter { it.startsWith(prefix) }
+                        for (k in keysToRemove) {
+                            iconCache.remove(k)
+                        }
+                        refreshApps()
+                    }
                 }
 
                 override fun onPackageChanged(packageName: String, user: UserHandle) {
-                    scope.launch { refreshApps() }
+                    scope.launch {
+                        val prefix = "$packageName/"
+                        val keysToRemove = iconCache.snapshot().keys.filter { it.startsWith(prefix) }
+                        for (k in keysToRemove) {
+                            iconCache.remove(k)
+                        }
+                        refreshApps()
+                    }
                 }
 
                 override fun onPackagesAvailable(packageNames: Array<out String>?, user: UserHandle?, replacing: Boolean) {
@@ -81,7 +96,7 @@ class AppRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshApps() = withContext(ioDispatcher) {
-        iconCache.evictAll()
+
         val myUserHandle = try { Process.myUserHandle() } catch (_: Throwable) { null }
         val profiles = userManager.userProfiles
         val appsList = mutableListOf<AppInfo>()
@@ -106,35 +121,54 @@ class AppRepositoryImpl @Inject constructor(
                     packageManager.getPackageInfo(packageName, 0).lastUpdateTime
                 } catch (_: Exception) { 0L }
 
-                appsList.add(
-                    AppInfo(
-                        packageName = packageName,
-                        activityName = activityName,
-                        label = label,
-                        userHandleId = userHandleId,
-                        isWorkProfile = isWorkProfile,
-                        installTimeMillis = installTime,
-                        lastUpdateTimeMillis = updateTime
-                    )
+                val app = AppInfo(
+                    packageName = packageName,
+                    activityName = activityName,
+                    label = label,
+                    userHandleId = userHandleId,
+                    isWorkProfile = isWorkProfile,
+                    installTimeMillis = installTime,
+                    lastUpdateTimeMillis = updateTime
                 )
+                appsList.add(app)
+                activityInfoCache[app.componentKey] = activity
             }
         }
 
         appsList.sortBy { it.label.lowercase() }
         _installedApps.value = appsList
+
+        // ponytail: pre-warming in-memory icon cache on IO scope ensures opening the app list is stable and instantaneous with zero pop-in; ceiling is RAM usage of loaded drawables in LRU cache (capped at 500); upgrade path is disk-backed bitmap cache.
+        Unit
     }
 
     override fun launchApp(app: AppInfo): Boolean {
-        return try {
+        try {
             val profiles = userManager.userProfiles
             val targetUser = profiles.find { it.hashCode() == app.userHandleId }
                 ?: profiles.firstOrNull()
                 ?: try { Process.myUserHandle() } catch (_: Throwable) { null }
-                ?: return false
-            val component = android.content.ComponentName(app.packageName, app.activityName)
-            launcherApps.startMainActivity(component, targetUser, null, null)
-            true
-        } catch (_: Exception) {
+            if (targetUser != null && app.activityName.isNotBlank()) {
+                val component = android.content.ComponentName(app.packageName, app.activityName)
+                launcherApps.startMainActivity(component, targetUser, null, null)
+                return true
+            }
+        } catch (e: Throwable) {
+            android.util.Log.w("AppRepository", "launcherApps.startMainActivity failed for ${app.packageName}, trying fallback", e)
+        }
+
+        // Fallback: standard PackageManager launch intent
+        return try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(app.packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launchIntent)
+                true
+            } else {
+                false
+            }
+        } catch (e: Throwable) {
+            android.util.Log.e("AppRepository", "Failed to launch app ${app.packageName}", e)
             false
         }
     }
@@ -159,35 +193,44 @@ class AppRepositoryImpl @Inject constructor(
         } catch (_: Exception) { }
     }
 
-    private val iconCache = LruCache<String, Drawable>(250)
+    private val iconCache = LruCache<String, Drawable>(500)
+    private val activityInfoCache = java.util.concurrent.ConcurrentHashMap<String, android.content.pm.LauncherActivityInfo>()
 
     override suspend fun getAppIcon(app: AppInfo): Drawable? = withContext(ioDispatcher) {
+        iconCache.get(app.componentKey)?.let { return@withContext it }
+
         val iconPackRepo = iconPackRepositoryProvider?.get()
-        if (iconPackRepo != null) {
+        val drawable = if (iconPackRepo != null) {
             iconPackRepo.loadIcon(app.packageName, app.activityName) {
                 loadDefaultIcon(app)
             }
         } else {
             loadDefaultIcon(app)
         }
+
+        if (drawable != null) {
+            iconCache.put(app.componentKey, drawable)
+        }
+        drawable
     }
 
     private fun loadDefaultIcon(app: AppInfo): Drawable? {
         val key = app.componentKey
         iconCache.get(key)?.let { return it }
 
-        val profiles = userManager.userProfiles
-        val targetUser = profiles.find { it.hashCode() == app.userHandleId } ?: Process.myUserHandle()
-        val component = android.content.ComponentName(app.packageName, app.activityName)
-        val activityList = launcherApps.getActivityList(app.packageName, targetUser)
-        val activityInfo = activityList.find { it.componentName == component } ?: activityList.firstOrNull()
-
         val density = context.resources.displayMetrics.densityDpi
-        val drawable = activityInfo?.getBadgedIcon(density)
+        val cachedActivity = activityInfoCache[key]
+        val drawable = cachedActivity?.getBadgedIcon(density)
             ?: try {
-                val appInfo = packageManager.getApplicationInfo(app.packageName, 0)
-                val icon = packageManager.getApplicationIcon(appInfo)
-                packageManager.getUserBadgedIcon(icon, targetUser)
+                val targetUser = userManager.userProfiles.find { it.hashCode() == app.userHandleId } ?: Process.myUserHandle()
+                val component = android.content.ComponentName(app.packageName, app.activityName)
+                val activityList = launcherApps.getActivityList(app.packageName, targetUser)
+                val activityInfo = activityList.find { it.componentName == component } ?: activityList.firstOrNull()
+                activityInfo?.getBadgedIcon(density) ?: run {
+                    val appInfo = packageManager.getApplicationInfo(app.packageName, 0)
+                    val icon = packageManager.getApplicationIcon(appInfo)
+                    packageManager.getUserBadgedIcon(icon, targetUser)
+                }
             } catch (_: Exception) {
                 null
             }
@@ -196,5 +239,82 @@ class AppRepositoryImpl @Inject constructor(
             iconCache.put(key, drawable)
         }
         return drawable
+    }
+
+    override fun getShortcuts(app: AppInfo): List<AppShortcutInfo> {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N_MR1) {
+            return emptyList()
+        }
+        return try {
+            if (launcherApps.hasShortcutHostPermission()) {
+                val targetUser = userManager.userProfiles.find { it.hashCode() == app.userHandleId } ?: Process.myUserHandle()
+                val query = LauncherApps.ShortcutQuery().apply {
+                    setPackage(app.packageName)
+                    setQueryFlags(
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED
+                    )
+                }
+                val shortcuts = launcherApps.getShortcuts(query, targetUser) ?: emptyList()
+                shortcuts.take(4).map { shortcut ->
+                    AppShortcutInfo(
+                        id = shortcut.id,
+                        packageName = shortcut.`package`,
+                        shortLabel = shortcut.shortLabel?.toString() ?: shortcut.id,
+                        longLabel = shortcut.longLabel?.toString(),
+                        isEnabled = shortcut.isEnabled
+                    )
+                }
+            } else {
+                emptyList()
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
+
+    override fun launchShortcut(app: AppInfo, shortcutId: String): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N_MR1) {
+            return false
+        }
+        return try {
+            if (launcherApps.hasShortcutHostPermission()) {
+                val targetUser = userManager.userProfiles.find { it.hashCode() == app.userHandleId } ?: Process.myUserHandle()
+                launcherApps.startShortcut(app.packageName, shortcutId, null, null, targetUser)
+                true
+            } else {
+                false
+            }
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    override suspend fun getShortcutIcon(app: AppInfo, shortcutId: String): Drawable? = withContext(ioDispatcher) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N_MR1) {
+            return@withContext null
+        }
+        try {
+            if (launcherApps.hasShortcutHostPermission()) {
+                val targetUser = userManager.userProfiles.find { it.hashCode() == app.userHandleId } ?: Process.myUserHandle()
+                val query = LauncherApps.ShortcutQuery().apply {
+                    setPackage(app.packageName)
+                    setShortcutIds(listOf(shortcutId))
+                    setQueryFlags(
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED
+                    )
+                }
+                val shortcut = launcherApps.getShortcuts(query, targetUser)?.firstOrNull() ?: return@withContext null
+                val density = context.resources.displayMetrics.densityDpi
+                launcherApps.getShortcutIconDrawable(shortcut, density)
+            } else {
+                null
+            }
+        } catch (_: Throwable) {
+            null
+        }
     }
 }

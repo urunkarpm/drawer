@@ -61,12 +61,14 @@ class DockRepositoryImpl @Inject constructor(
 
     override suspend fun reorderDock(fromPosition: Int, toPosition: Int) = withContext(ioDispatcher) {
         val currentItems = dockDao.getDockItems().first().sortedBy { it.position }.toMutableList()
-        if (fromPosition !in currentItems.indices || toPosition !in currentItems.indices || fromPosition == toPosition) {
+        val fromIndex = currentItems.indexOfFirst { it.position == fromPosition }
+        val toIndex = currentItems.indexOfFirst { it.position == toPosition }
+        if (fromIndex == -1 || toIndex == -1 || fromIndex == toIndex) {
             return@withContext
         }
 
-        val itemToMove = currentItems.removeAt(fromPosition)
-        currentItems.add(toPosition, itemToMove)
+        val itemToMove = currentItems.removeAt(fromIndex)
+        currentItems.add(toIndex, itemToMove)
 
         val reindexed = currentItems.mapIndexed { index, entity ->
             entity.copy(position = index)

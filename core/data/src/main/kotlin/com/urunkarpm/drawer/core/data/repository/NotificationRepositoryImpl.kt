@@ -62,7 +62,13 @@ class NotificationRepositoryImpl @Inject constructor(
         val ruleMap = rules.associateBy { it.packageName }
         val now = System.currentTimeMillis()
 
-        notifications.filter { item ->
+        // ponytail: deduplicate identical (packageName, title, text) defensive pass; ceiling: drops twin alerts; upgrade path: time-bucketed dedup.
+        val deduped = notifications
+            .groupBy { Triple(it.packageName, it.title.trim(), it.text.trim()) }
+            .map { (_, duplicates) -> duplicates.maxByOrNull { it.postTimeMillis } ?: duplicates.first() }
+            .distinctBy { it.key }
+
+        deduped.filter { item ->
             val rule = ruleMap[item.packageName] ?: return@filter true
 
             if (rule.autoDismiss) {
@@ -117,6 +123,29 @@ class NotificationRepositoryImpl @Inject constructor(
     }
 
     override fun openNotification(key: String) {
+        val pendingIntent = notificationBridge.onGetPendingIntent?.invoke(key)
+        val packageName = notificationBridge.onGetPackageName?.invoke(key)
+        if (pendingIntent != null) {
+            try {
+                val options = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    android.app.ActivityOptions.makeBasic().apply {
+                        pendingIntentBackgroundActivityStartMode = android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    }.toBundle()
+                } else null
+                pendingIntent.send(context, 0, null, null, null, null, options)
+                return
+            } catch (_: Throwable) {}
+        }
+        if (packageName != null) {
+            try {
+                val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launchIntent)
+                    return
+                }
+            } catch (_: Throwable) {}
+        }
         notificationBridge.onOpenNotification?.invoke(key)
     }
 
@@ -144,27 +173,14 @@ class NotificationRepositoryImpl @Inject constructor(
     }
 
     override fun rebindService() {
+        // ponytail: official requestRebind handles service reconnect; avoid setComponentEnabledSetting which sends PACKAGE_CHANGED and restarts the launcher; ceiling is requiring permission toggle if unbound; upgrade path is foreground listener service.
         try {
             notificationBridge.onRebindRequest?.invoke()
             val componentName = android.content.ComponentName(
                 context.packageName,
                 "com.urunkarpm.drawer.service.DrawerNotificationListener"
             )
-            try {
-                android.service.notification.NotificationListenerService.requestRebind(componentName)
-            } catch (_: Exception) {}
-
-            val pm = context.packageManager
-            pm.setComponentEnabledSetting(
-                componentName,
-                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                android.content.pm.PackageManager.DONT_KILL_APP
-            )
-            pm.setComponentEnabledSetting(
-                componentName,
-                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                android.content.pm.PackageManager.DONT_KILL_APP
-            )
-        } catch (_: Exception) {}
+            android.service.notification.NotificationListenerService.requestRebind(componentName)
+        } catch (_: Throwable) {}
     }
 }

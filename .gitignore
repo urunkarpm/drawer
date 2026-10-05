@@ -11,7 +11,11 @@ captures/
 .cxx
 *.apk
 *.aab
+*.jks
+*.keystore
 
 .agents/
 .agentsroom/
 .mcp.json
+/*.png
+/DragGestureDetector_decoded.kt

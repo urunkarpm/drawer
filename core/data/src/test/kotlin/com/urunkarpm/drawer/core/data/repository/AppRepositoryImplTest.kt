@@ -60,4 +60,20 @@ class AppRepositoryImplTest {
             )
         }
     }
+
+    @Test
+    fun getShortcuts_returnsEmptyListWhenPermissionMissing() = runTest(testDispatcher) {
+        val repository = AppRepositoryImpl(context, testDispatcher)
+        every { launcherApps.hasShortcutHostPermission() } returns false
+
+        val app = AppInfo(
+            packageName = "com.test.app",
+            activityName = "com.test.app.MainActivity",
+            label = "Test App",
+            userHandleId = myUser.hashCode()
+        )
+
+        val shortcuts = repository.getShortcuts(app)
+        assertTrue(shortcuts.isEmpty())
+    }
 }

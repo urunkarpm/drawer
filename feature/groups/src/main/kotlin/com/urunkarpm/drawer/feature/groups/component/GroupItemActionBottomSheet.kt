@@ -9,10 +9,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
+import androidx.compose.material.icons.outlined.VerticalAlignBottom
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +47,10 @@ fun GroupItemActionBottomSheet(
     onRemoveFromGroup: () -> Unit,
     onOpenDetails: () -> Unit,
     onUninstall: () -> Unit,
+    onMoveEarlier: (() -> Unit)? = null,
+    onMoveLater: (() -> Unit)? = null,
+    onMoveToCategory: (() -> Unit)? = null,
+    onPinToDock: (() -> Unit)? = null,
     iconLoader: suspend () -> Drawable?,
     modifier: Modifier = Modifier
 ) {
@@ -61,6 +69,7 @@ fun GroupItemActionBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIconImage(
+                    key = app.componentKey,
                     size = 56.dp,
                     label = app.label,
                     isWorkProfile = app.isWorkProfile,
@@ -94,6 +103,46 @@ fun GroupItemActionBottomSheet(
                 onClick = onLaunchApp,
                 colors = NavigationDrawerItemDefaults.colors()
             )
+
+            if (onMoveEarlier != null) {
+                NavigationDrawerItem(
+                    label = { Text("Move earlier in ${group.name}") },
+                    icon = { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Move earlier") },
+                    selected = false,
+                    onClick = onMoveEarlier,
+                    colors = NavigationDrawerItemDefaults.colors()
+                )
+            }
+
+            if (onMoveLater != null) {
+                NavigationDrawerItem(
+                    label = { Text("Move later in ${group.name}") },
+                    icon = { Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = "Move later") },
+                    selected = false,
+                    onClick = onMoveLater,
+                    colors = NavigationDrawerItemDefaults.colors()
+                )
+            }
+
+            if (onMoveToCategory != null) {
+                NavigationDrawerItem(
+                    label = { Text("Move to another category...") },
+                    icon = { Icon(Icons.Outlined.Folder, contentDescription = "Move to another category") },
+                    selected = false,
+                    onClick = onMoveToCategory,
+                    colors = NavigationDrawerItemDefaults.colors()
+                )
+            }
+
+            if (onPinToDock != null) {
+                NavigationDrawerItem(
+                    label = { Text("Pin to Dock") },
+                    icon = { Icon(Icons.Outlined.VerticalAlignBottom, contentDescription = "Pin to Dock") },
+                    selected = false,
+                    onClick = onPinToDock,
+                    colors = NavigationDrawerItemDefaults.colors()
+                )
+            }
 
             NavigationDrawerItem(
                 label = { Text("Remove from ${group.name}") },

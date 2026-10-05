@@ -2,11 +2,16 @@ package com.urunkarpm.drawer.feature.groups
 
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -26,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Delete
@@ -43,16 +49,27 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,11 +84,26 @@ import com.urunkarpm.drawer.feature.groups.component.EditGroupDialog
 import com.urunkarpm.drawer.feature.groups.component.GroupItemActionBottomSheet
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
+import androidx.compose.ui.graphics.Shape
+import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
+import com.urunkarpm.drawer.core.designsystem.modifier.appDragSource
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupsAccordion(
     viewModel: GroupsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    twoDrawersSideBySide: Boolean = false,
+    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    hoveredGroupId: String? = null,
+    onGroupPositioned: ((String, Rect) -> Unit)? = null,
+    onAppPositioned: ((String, AppInfo, Rect) -> Unit)? = null,
+    onAppDragStart: ((app: AppInfo, rootPosition: Offset, sourceGroupId: String) -> Unit)? = null,
+    onAppDrag: ((dragAmount: Offset) -> Unit)? = null,
+    onAppDragEnd: ((isDropped: Boolean) -> Unit)? = null,
+    onMoveToCategory: ((AppInfo, String) -> Unit)? = null,
+    onPinToDock: ((AppInfo) -> Unit)? = null,
+    isDragging: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -79,40 +111,130 @@ fun GroupsAccordion(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        uiState.groups.forEachIndexed { index, resolvedGroup ->
-            GroupCard(
-                resolvedGroup = resolvedGroup,
-                groupIndex = index,
-                totalGroups = uiState.groups.size,
-                onToggleExpand = { viewModel.toggleGroupExpanded(resolvedGroup.group.id) },
-                onEditGroup = { viewModel.startEditingGroup(resolvedGroup.group) },
-                onMoveUp = { viewModel.moveGroupUp(index) },
-                onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
-                onDeleteGroup = { viewModel.deleteGroup(resolvedGroup.group.id) },
-                onAppClick = { app -> viewModel.launchApp(app) },
-                onAppLongClick = { app -> viewModel.selectAppForAction(app, resolvedGroup.group) },
-                iconLoader = { app -> viewModel.getAppIcon(app) }
-            )
-        }
+        if (twoDrawersSideBySide) {
+            // Two independent columns side by side: left (even indices) and right (odd indices).
+            // When a drawer on either side opens, only that side adjusts; the opposite side stays intact.
+            val indexedGroups = uiState.groups.mapIndexed { index, group -> index to group }
+            val leftGroups = indexedGroups.filterIndexed { i, _ -> i % 2 == 0 }
+            val rightGroups = indexedGroups.filterIndexed { i, _ -> i % 2 != 0 }
 
-        // Add Category Button
-        FilledTonalButton(
-            onClick = { viewModel.setShowCreateDialog(true) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "New Category",
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Add Category")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    leftGroups.forEach { (index, group) ->
+                        GroupCard(
+                            resolvedGroup = group,
+                            groupIndex = index,
+                            totalGroups = uiState.groups.size,
+                            isCompact = true,
+                            twoDrawersSideBySide = true,
+                            isDropTarget = hoveredGroupId == group.group.id,
+                            onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
+                            onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
+                            onToggleExpand = {
+                                viewModel.toggleGroupExpanded(group.group.id)
+                            },
+                            onEditGroup = { viewModel.startEditingGroup(group.group) },
+                            onMoveUp = { viewModel.moveGroupUp(index) },
+                            onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
+                            onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
+                            onAppClick = { app ->
+                                viewModel.launchApp(app)
+                            },
+                            onAppLongClick = { app ->
+                                viewModel.selectAppForAction(app, group.group)
+                            },
+                            iconLoader = { app -> viewModel.getAppIcon(app) },
+                            iconShape = iconShape,
+                            onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, group.group.id) } },
+                            onAppDrag = if (uiState.lockLayout) null else onAppDrag,
+                            onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
+                            lockLayout = uiState.lockLayout,
+                            isDragging = isDragging
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    rightGroups.forEach { (index, group) ->
+                        GroupCard(
+                            resolvedGroup = group,
+                            groupIndex = index,
+                            totalGroups = uiState.groups.size,
+                            isCompact = true,
+                            twoDrawersSideBySide = true,
+                            isDropTarget = hoveredGroupId == group.group.id,
+                            onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
+                            onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
+                            onToggleExpand = {
+                                viewModel.toggleGroupExpanded(group.group.id)
+                            },
+                            onEditGroup = { viewModel.startEditingGroup(group.group) },
+                            onMoveUp = { viewModel.moveGroupUp(index) },
+                            onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
+                            onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
+                            onAppClick = { app ->
+                                viewModel.launchApp(app)
+                            },
+                            onAppLongClick = { app ->
+                                viewModel.selectAppForAction(app, group.group)
+                            },
+                            iconLoader = { app -> viewModel.getAppIcon(app) },
+                            iconShape = iconShape,
+                            onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, group.group.id) } },
+                            onAppDrag = if (uiState.lockLayout) null else onAppDrag,
+                            onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
+                            lockLayout = uiState.lockLayout,
+                            isDragging = isDragging
+                        )
+                    }
+                }
+            }
+        } else {
+            uiState.groups.forEachIndexed { index, resolvedGroup ->
+                GroupCard(
+                    resolvedGroup = resolvedGroup,
+                    groupIndex = index,
+                    totalGroups = uiState.groups.size,
+                    isCompact = false,
+                    twoDrawersSideBySide = false,
+                    isDropTarget = hoveredGroupId == resolvedGroup.group.id,
+                    onPositioned = { rect -> onGroupPositioned?.invoke(resolvedGroup.group.id, rect) },
+                    onAppPositioned = { app, rect -> onAppPositioned?.invoke(resolvedGroup.group.id, app, rect) },
+                    onToggleExpand = {
+                        viewModel.toggleGroupExpanded(resolvedGroup.group.id)
+                    },
+                    onEditGroup = { viewModel.startEditingGroup(resolvedGroup.group) },
+                    onMoveUp = { viewModel.moveGroupUp(index) },
+                    onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
+                    onDeleteGroup = { viewModel.deleteGroup(resolvedGroup.group.id) },
+                    onAppClick = { app ->
+                        viewModel.launchApp(app)
+                    },
+                    onAppLongClick = { app ->
+                        viewModel.selectAppForAction(app, resolvedGroup.group)
+                    },
+                    iconLoader = { app -> viewModel.getAppIcon(app) },
+                    iconShape = iconShape,
+                    onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, resolvedGroup.group.id) } },
+                    onAppDrag = if (uiState.lockLayout) null else onAppDrag,
+                    onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
+                    lockLayout = uiState.lockLayout,
+                    isDragging = isDragging
+                )
+            }
         }
     }
 
@@ -120,6 +242,7 @@ fun GroupsAccordion(
     if (uiState.showCreateDialog) {
         EditGroupDialog(
             group = null,
+            twoDrawersSideBySide = twoDrawersSideBySide,
             onDismissRequest = { viewModel.setShowCreateDialog(false) },
             onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder ->
                 viewModel.createGroup(name, iconName, colorHex, viewType, columnCount, sortOrder)
@@ -131,6 +254,7 @@ fun GroupsAccordion(
     uiState.groupBeingEdited?.let { groupToEdit ->
         EditGroupDialog(
             group = groupToEdit,
+            twoDrawersSideBySide = twoDrawersSideBySide,
             onDismissRequest = { viewModel.dismissEditGroup() },
             onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder ->
                 viewModel.updateGroup(
@@ -158,6 +282,25 @@ fun GroupsAccordion(
             onLaunchApp = {
                 viewModel.dismissAppAction()
                 viewModel.launchApp(app)
+            },
+            onMoveEarlier = if (uiState.lockLayout) null else {
+                { viewModel.moveAppEarlier(group.id, app) }
+            },
+            onMoveLater = if (uiState.lockLayout) null else {
+                { viewModel.moveAppLater(group.id, app) }
+            },
+            onMoveToCategory = if (uiState.lockLayout) null else onMoveToCategory?.let { cb ->
+                {
+                    val srcGroupId = group.id
+                    viewModel.dismissAppAction()
+                    cb(app, srcGroupId)
+                }
+            },
+            onPinToDock = onPinToDock?.let { cb ->
+                {
+                    viewModel.dismissAppAction()
+                    cb(app)
+                }
             },
             onRemoveFromGroup = {
                 viewModel.removeAppFromGroup(group.id, app.packageName, app.activityName)
@@ -188,6 +331,17 @@ private fun GroupCard(
     onAppClick: (AppInfo) -> Unit,
     onAppLongClick: (AppInfo) -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
+    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    isCompact: Boolean = false,
+    twoDrawersSideBySide: Boolean = false,
+    isDropTarget: Boolean = false,
+    onPositioned: ((Rect) -> Unit)? = null,
+    onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
+    onAppDragStart: ((AppInfo, Offset) -> Unit)? = null,
+    onAppDrag: ((Offset) -> Unit)? = null,
+    onAppDragEnd: ((Boolean) -> Unit)? = null,
+    lockLayout: Boolean = false,
+    isDragging: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val group = resolvedGroup.group
@@ -199,12 +353,41 @@ private fun GroupCard(
     )
     var showMenu by remember { mutableStateOf(false) }
 
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isDropTarget) 1.03f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "groupScale"
+    )
+    val animatedBorderWidth by animateDpAsState(
+        targetValue = if (isDropTarget) 2.dp else 0.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "groupBorderWidth"
+    )
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (isDropTarget) MaterialTheme.colorScheme.primary else Color.Transparent,
+        label = "groupBorderColor"
+    )
+
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer { scaleX = animatedScale; scaleY = animatedScale }
+            .onGloballyPositioned { coords -> onPositioned?.invoke(coords.boundsInRoot()) }
+            .autoCloseOnInactivity(
+                active = group.isExpanded && !isDragging && !isDropTarget,
+                resetKey = group.id,
+                timeoutMs = 2000L,
+                onClose = onToggleExpand
+            ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f)
-        )
+            containerColor = if (isDropTarget)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+            else
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        border = if (isDropTarget) BorderStroke(animatedBorderWidth, animatedBorderColor) else null
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header Row
@@ -216,12 +399,15 @@ private fun GroupCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(
+                            horizontal = if (isCompact) 10.dp else 16.dp,
+                            vertical = if (isCompact) 10.dp else 12.dp
+                        ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(if (isCompact) 28.dp else 36.dp)
                             .clip(CircleShape)
                             .background(groupColor.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
@@ -230,16 +416,17 @@ private fun GroupCard(
                             imageVector = groupIcon,
                             contentDescription = group.name,
                             tint = groupColor,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(if (isCompact) 6.dp else 12.dp))
 
                     Text(
                         text = group.name,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -249,37 +436,43 @@ private fun GroupCard(
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        modifier = Modifier.padding(horizontal = if (isCompact) 2.dp else 4.dp)
                     ) {
                         Text(
                             text = "${resolvedGroup.apps.size}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(
+                                horizontal = if (isCompact) 6.dp else 8.dp,
+                                vertical = 2.dp
+                            )
                         )
                     }
 
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = if (group.isExpanded) "Collapse" else "Expand",
-                        modifier = Modifier.rotate(chevronRotation),
+                        modifier = Modifier
+                            .size(if (isCompact) 18.dp else 24.dp)
+                            .rotate(chevronRotation),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Box {
-                        IconButton(
-                            onClick = { showMenu = true },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Category options",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        DropdownMenu(
+                    if (!lockLayout) {
+                        Box {
+                            IconButton(
+                                onClick = { showMenu = true },
+                                modifier = Modifier.size(if (isCompact) 24.dp else 32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Category options",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(if (isCompact) 14.dp else 18.dp)
+                                )
+                            }
+    
+                            DropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
                         ) {
@@ -327,6 +520,7 @@ private fun GroupCard(
                             )
                         }
                     }
+                    }
                 }
             }
 
@@ -340,18 +534,19 @@ private fun GroupCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No apps in this category.\nLong-press any app in the drawer to add it.",
+                            text = if (isCompact) "No apps in category\nLong-press app to add" else "No apps in this category.\nLong-press any app in the drawer to add it.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
                     }
                 } else {
-                    when (group.viewType) {
+                    val effectiveViewType = if (isCompact || twoDrawersSideBySide) GroupViewType.GRID else group.viewType
+                    when (effectiveViewType) {
                         GroupViewType.GRID -> {
                             GroupGridLayout(
                                 apps = resolvedGroup.apps,
@@ -359,9 +554,18 @@ private fun GroupCard(
                                 onAppClick = onAppClick,
                                 onAppLongClick = onAppLongClick,
                                 iconLoader = iconLoader,
+                                iconShape = iconShape,
+                                isCompact = isCompact,
+                                onAppPositioned = onAppPositioned,
+                                onAppDragStart = onAppDragStart,
+                                onAppDrag = onAppDrag,
+                                onAppDragEnd = onAppDragEnd,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                                    .padding(
+                                        horizontal = if (isCompact) 4.dp else 8.dp,
+                                        vertical = if (isCompact) 6.dp else 8.dp
+                                    )
                             )
                         }
                         GroupViewType.LIST -> {
@@ -370,9 +574,18 @@ private fun GroupCard(
                                 onAppClick = onAppClick,
                                 onAppLongClick = onAppLongClick,
                                 iconLoader = iconLoader,
+                                iconShape = iconShape,
+                                isCompact = isCompact,
+                                onAppPositioned = onAppPositioned,
+                                onAppDragStart = onAppDragStart,
+                                onAppDrag = onAppDrag,
+                                onAppDragEnd = onAppDragEnd,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                                    .padding(
+                                        horizontal = if (isCompact) 4.dp else 8.dp,
+                                        vertical = if (isCompact) 6.dp else 8.dp
+                                    )
                             )
                         }
                     }
@@ -389,9 +602,17 @@ private fun GroupGridLayout(
     onAppClick: (AppInfo) -> Unit,
     onAppLongClick: (AppInfo) -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
+    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    isCompact: Boolean = false,
+    onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
+    onAppDragStart: ((AppInfo, Offset) -> Unit)? = null,
+    onAppDrag: ((Offset) -> Unit)? = null,
+    onAppDragEnd: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val chunkedApps = apps.chunked(columnCount.coerceAtLeast(1))
+    // ponytail: when drawers are side-by-side (isCompact), constrain columns to max 2 so app icons and labels have comfortable breathing room without crunching; ceiling is fixed 2-col; upgrade path is responsive minSize calculation.
+    val effectiveColumns = if (isCompact) 2 else columnCount.coerceAtLeast(1)
+    val chunkedApps = remember(apps, effectiveColumns) { apps.chunked(effectiveColumns) }
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -402,20 +623,28 @@ private fun GroupGridLayout(
                 horizontalArrangement = Arrangement.Start
             ) {
                 rowApps.forEach { app ->
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        GroupGridItem(
-                            app = app,
-                            onClick = { onAppClick(app) },
-                            onLongClick = { onAppLongClick(app) },
-                            iconLoader = { iconLoader(app) }
-                        )
+                    key(app.componentKey) {
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            GroupGridItem(
+                                app = app,
+                                onClick = { onAppClick(app) },
+                                onLongClick = { onAppLongClick(app) },
+                                iconLoader = { iconLoader(app) },
+                                iconShape = iconShape,
+                                isCompact = isCompact,
+                                onPositioned = onAppPositioned?.let { cb -> { rect -> cb(app, rect) } },
+                                onDragStart = onAppDragStart?.let { cb -> { rootPos: Offset -> cb(app, rootPos) } },
+                                onDrag = onAppDrag,
+                                onDragEnd = onAppDragEnd
+                            )
+                        }
                     }
                 }
                 // Fill empty slots in the row
-                val emptySlots = columnCount - rowApps.size
+                val emptySlots = effectiveColumns - rowApps.size
                 repeat(emptySlots) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -431,13 +660,42 @@ private fun GroupGridItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     iconLoader: suspend () -> Drawable?,
+    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    isCompact: Boolean = false,
+    onPositioned: ((Rect) -> Unit)? = null,
+    onDragStart: ((Offset) -> Unit)? = null,
+    onDrag: ((Offset) -> Unit)? = null,
+    onDragEnd: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
 
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+    val baseModifier = modifier
+        .clip(RoundedCornerShape(12.dp))
+        .then(
+            if (onPositioned != null) {
+                Modifier.onGloballyPositioned { coords -> onPositioned(coords.boundsInRoot()) }
+            } else {
+                Modifier
+            }
+        )
+
+    val itemModifier = if (onDragStart != null && onDrag != null && onDragEnd != null) {
+        baseModifier
+            .appDragSource(
+                key = app.componentKey,
+                onAppClick = onClick,
+                onAppLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick()
+                },
+                onDragStart = onDragStart,
+                onDrag = onDrag,
+                onDragEnd = onDragEnd
+            )
+            .padding(horizontal = if (isCompact) 2.dp else 4.dp, vertical = if (isCompact) 4.dp else 6.dp)
+    } else {
+        baseModifier
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = {
@@ -445,19 +703,26 @@ private fun GroupGridItem(
                     onLongClick()
                 }
             )
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .padding(horizontal = if (isCompact) 2.dp else 4.dp, vertical = if (isCompact) 4.dp else 6.dp)
+    }
+
+    Column(
+        modifier = itemModifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         AppIconImage(
-            size = 48.dp,
+            key = app.componentKey,
+            size = if (isCompact) 38.dp else 48.dp,
             label = app.label,
             isWorkProfile = app.isWorkProfile,
+            iconShape = iconShape,
             iconLoader = iconLoader
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = app.label,
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
@@ -472,6 +737,12 @@ private fun GroupListLayout(
     onAppClick: (AppInfo) -> Unit,
     onAppLongClick: (AppInfo) -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
+    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    isCompact: Boolean = false,
+    onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
+    onAppDragStart: ((AppInfo, Offset) -> Unit)? = null,
+    onAppDrag: ((Offset) -> Unit)? = null,
+    onAppDragEnd: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -481,36 +752,70 @@ private fun GroupListLayout(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         apps.forEach { app ->
-            Row(
-                modifier = Modifier
+            key(app.componentKey) {
+                val baseModifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .combinedClickable(
-                        onClick = { onAppClick(app) },
-                        onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onAppLongClick(app)
+                    .then(
+                        if (onAppPositioned != null) {
+                            Modifier.onGloballyPositioned { coords -> onAppPositioned(app, coords.boundsInRoot()) }
+                        } else {
+                            Modifier
                         }
                     )
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                AppIconImage(
-                    size = 40.dp,
-                    label = app.label,
-                    isWorkProfile = app.isWorkProfile,
-                    iconLoader = { iconLoader(app) }
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = app.label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                val rowModifier = if (onAppDragStart != null && onAppDrag != null && onAppDragEnd != null) {
+                    baseModifier
+                        .appDragSource(
+                            key = app.componentKey,
+                            onAppClick = { onAppClick(app) },
+                            onAppLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onAppLongClick(app)
+                            },
+                            onDragStart = { rootPos -> onAppDragStart(app, rootPos) },
+                            onDrag = onAppDrag,
+                            onDragEnd = onAppDragEnd
+                        )
+                        .padding(horizontal = if (isCompact) 4.dp else 8.dp, vertical = if (isCompact) 4.dp else 6.dp)
+                } else {
+                    baseModifier
+                        .combinedClickable(
+                            onClick = { onAppClick(app) },
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onAppLongClick(app)
+                            }
+                        )
+                        .padding(horizontal = if (isCompact) 4.dp else 8.dp, vertical = if (isCompact) 4.dp else 6.dp)
+                }
+
+                Row(
+                    modifier = rowModifier,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AppIconImage(
+                        key = app.componentKey,
+                        size = if (isCompact) 32.dp else 40.dp,
+                        label = app.label,
+                        isWorkProfile = app.isWorkProfile,
+                        iconShape = iconShape,
+                        iconLoader = { iconLoader(app) }
+                    )
+                    Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
+                    Text(
+                        text = app.label,
+                        style = if (isCompact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
 }
+
+

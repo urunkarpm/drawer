@@ -92,7 +92,13 @@ class NotificationsViewModel @Inject constructor(
     fun checkPermission() {
         val granted = notificationRepository.checkPermission()
         _permissionGrantedState.value = granted
-        if (granted) {
+        if (granted && !uiState.value.isServiceConnected) {
+            notificationRepository.rebindService()
+        }
+    }
+
+    fun rebindService() {
+        if (_permissionGrantedState.value && !uiState.value.isServiceConnected) {
             notificationRepository.rebindService()
         }
     }
@@ -147,9 +153,5 @@ class NotificationsViewModel @Inject constructor(
             val current = uiState.value.privacyMode
             preferencesDataSource.setNotificationsPrivacyMode(!current)
         }
-    }
-
-    fun rebindService() {
-        notificationRepository.rebindService()
     }
 }

@@ -65,6 +65,7 @@ fun DockActionBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppIconImage(
+                    key = app?.componentKey ?: "${dockItem.packageName}/${dockItem.activityName}",
                     size = 56.dp,
                     label = label,
                     isWorkProfile = app?.isWorkProfile ?: false,

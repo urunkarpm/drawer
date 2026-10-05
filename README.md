@@ -1,126 +1,103 @@
-# Drawer 📱
+# ✨ Drawer
+### *The launcher your phone has always deserved.*
 
-> A personalisation-first, privacy-focused modern Android launcher built from scratch with Jetpack Compose, Material 3, Clean Architecture, and Android 17 (API 37) platform standards.
-
----
-
-## 🌟 Key Features
-
-1. **Customisable Dock (0–5 Apps)**
-   - Pinned bottom bar holding up to 5 apps.
-   - Long-press menu and drag-to-reorder support.
-   - Background styling: Real-time blur with `RenderEffect` on Android 12+ (API 31+), translucent/solid fallback on older versions.
-   - Customisable icon size (40–72 dp), corner radius, and label visibility.
-
-2. **User-Defined App Groups / Accordion Drawers**
-   - Categorise installed applications into collapsible sections (e.g. Work, Social, Finance, Media, Tools).
-   - Create, edit, rename, recolour, reorder, and set custom category icons.
-   - Grid or List view layout modes with configurable column count (3–6) and sort orders (Manual, A–Z).
-   - "Multi-group apps" setting allowing an app to appear across multiple drawers.
-   - Fully persisted in Room database.
-
-3. **Home-Screen Glance**
-   - Clean "At a glance" header displaying live digital clock (12/24-hour modes), formatted date, and real-time weather.
-   - Powered by Open-Meteo REST API (zero tracking, no API keys required).
-   - Location resolution: Google Play Services Fused Location Provider with manual city fallback.
-   - Background periodic sync via WorkManager (`WeatherRefreshWorker`).
-   - Immersive mode toggle using `WindowInsetsControllerCompat` to hide the system status bar.
-
-4. **Notification Drawer with Quick Mute**
-   - Integrated `NotificationListenerService` (`DrawerNotificationListener`) capturing live device notifications.
-   - Active notification grouping by application with app icons, title, message body, and time.
-   - Swipe-to-dismiss via Material 3 `SwipeToDismissBox` invoking OS-level `cancelNotification`.
-   - **Quick Mute per app**: Snooze notifications for 1 hour, 24 hours, or permanent launcher-level hide rules.
-   - Direct deep-links to Android system per-app notification settings.
-   - Privacy Mode: Mask notification body text on the home screen.
-
-5. **Third-Party Icon Pack Support & Adaptive Shapes**
-   - Automatic discovery of installed icon packs (`org.adw.launcher.THEMES`, `com.novalauncher.THEME`, etc.).
-   - Fast streaming XML parser for `appfilter.xml` mapping component names to drawable resources.
-   - Per-app icon overrides.
-   - Adaptive icon shape engine: System default, Circle, Squircle, Rounded Square, Teardrop.
-
-6. **All Apps Drawer & Instant Search**
-   - Slide-up bottom sheet with instant query filtering across all installed apps and work profiles (`LauncherApps`).
-   - Live package install, uninstall, and update broadcast monitoring.
-
-7. **Global Personalisation & Backup / Restore**
-   - Central Settings screen: System / Light / Dark / AMOLED pure black themes, Material You Dynamic Color.
-   - Complete configuration export & import (categories, dock, mute rules, icon overrides, preferences) to JSON via Android Storage Access Framework (`ActivityResultContracts.CreateDocument` & `OpenDocument`).
+> **Zero clutter. Zero ads. Zero tracking. Just pure speed, total control, and breathtaking beauty.**
 
 ---
 
-## 🏗️ Architecture & Module Structure
+Tired of home screens packed with newsfeeds you never asked for, invasive trackers draining your battery, and clunky animations? 
 
-Drawer follows **Clean Architecture** with strict unidirectional data flow (UDF) across a modular Gradle project:
-
-```
-:app                    # Application entry point, MainActivity (HOME intent filters), NotificationListenerService
-:core:model             # Core domain models (AppInfo, AppGroup, DockItem, MutedAppRule, LauncherBackup)
-:core:database          # Room database (v1), Entities (AppGroup, Dock, MutedRules, Overrides), DAOs
-:core:datastore         # Jetpack Preferences DataStore for all launcher settings
-:core:designsystem      # Material 3 Expressive theme, typography, dynamic colors, AMOLED palette
-:core:common            # Coroutines dispatchers and common qualifiers
-:core:data              # Repository implementations (App, Dock, Groups, Weather, Notifications, IconPack, Backup)
-:feature:home           # HomeScreen, GlanceHeader, AllAppsDrawer, AppActionBottomSheet
-:feature:dock           # DockBar, DockActionBottomSheet, DockViewModel
-:feature:groups         # GroupsAccordion, CategorySelectionBottomSheet, EditGroupDialog, GroupsViewModel
-:feature:notifications  # NotificationDrawer, QuickMuteBottomSheet, NotificationRulesBottomSheet
-:feature:iconpacks      # IconPackScreen, IconPackPickerSheet, IconPackViewModel
-:feature:settings       # SettingsScreen, SettingsViewModel, SAF Backup/Restore
-```
+Say hello to **Drawer** — the refreshingly minimal, lightning-fast home screen crafted to make your phone feel brand new. Everything you need is right at your fingertips, and everything you don’t is out of your way.
 
 ---
 
-## 🔒 Permissions & Privacy Justifications
+## 🚀 Why You’ll Fall In Love With Drawer
 
-Drawer is designed with privacy as a foundational principle: **no telemetry, no analytics, no third-party SDKs**. All user data and preferences remain strictly on-device.
-
-| Permission | Reason & Justification |
-| :--- | :--- |
-| `QUERY_ALL_PACKAGES` | **Mandatory for Android Launchers**. As the primary home screen, Drawer must discover, display, and launch all installed applications on the device. |
-| `ACCESS_COARSE_LOCATION` | **Optional for Weather Glance**. Used exclusively by `FusedLocationProviderClient` to fetch local weather coordinates from Open-Meteo. Users can opt out and specify a manual city name fallback in Settings. |
-| `ACCESS_FINE_LOCATION` | **Optional for Weather Glance**. Complementary location precision when granted by the user. |
-| `INTERNET` | **Weather Sync Only**. Used solely to query weather forecasts from the open-source Open-Meteo API. No user data or analytics are ever transmitted. |
-| `ACCESS_NETWORK_STATE` | Used by WorkManager and Ktor client to check network availability before scheduling weather refresh jobs. |
-| `POST_NOTIFICATIONS` | Allows Drawer to notify the user upon background events when required. |
-| `BIND_NOTIFICATION_LISTENER_SERVICE` | Required by Android platform security for `DrawerNotificationListener` to receive notifications from installed applications for the notification drawer and quick mute features. |
+### 📂 Smart Accordion Drawers — Tame the App Chaos
+Never scroll through endless pages of random icons again.
+- **Collapsible Categories:** Group your apps into elegant, expandable drawers like *Work*, *Social*, *Finance*, *Games*, and *Creativity*.
+- **One Tap Expands, One Tap Closes:** Keep your screen pristine and open only what you need.
+- **Your Style, Your Rules:** Personalize every single category with custom icons, vibrant colors, and tailor-made sorting (A–Z or your custom layout).
+- **Multi-Drawer Freedom:** Have an app belong in both *Work* and *Chat*? Add it to both without limits!
 
 ---
 
-## 🛠️ Tech Stack & Version Catalog
-
-All libraries and build tools use the latest verified stable releases:
-
-- **Target SDK**: Android 17 (API 37)
-- **Compile SDK**: Android 17 (API 37)
-- **Min SDK**: Android 8.0 (API 26)
-- **Kotlin**: `2.3.20` (K2 compiler)
-- **Android Gradle Plugin (AGP)**: `9.4.1`
-- **Gradle**: `9.8.0`
-- **Jetpack Compose BOM**: `2026.09.00`
-- **Hilt**: `2.60.1` (KSP)
-- **Room**: `2.8.5` (KSP)
-- **Preferences DataStore**: `1.2.1`
-- **Coil 3**: `3.6.3`
-- **Ktor Client**: `3.6.0`
-- **Kotlinx Serialization**: `1.11.0`
-- **Kotlinx Coroutines**: `1.11.0`
-- **Play Services Location**: `21.4.0`
-- **WorkManager**: `2.12.0`
+### 🪟 The Floating Glass Dock — Pure Modern Elegance
+Give your everyday favorites a VIP seat.
+- **Frosted Glass Aesthetic:** A sleek floating bar with real-time blur that seamlessly complements any wallpaper.
+- **0 to 5 Quick Apps:** Keep your dock minimal with 1 app, or fill it with your top 5 essentials.
+- **Drag & Drop Intuition:** Effortlessly rearrange icons or drop new apps right into the dock.
+- **Tailor Every Pixel:** Adjust icon sizes, corner roundness, and toggle labels on or off.
 
 ---
 
-## 🧪 Testing & Verification
+### 🪞 Instant Mirror Glance — Quick Check on the Go
+Heading into a video call, meeting, or night out? 
+- A discreet, ultra-clear front-camera mirror widget right on your home screen.
+- One glance to check your hair or smile — no need to open a separate camera app.
 
-Drawer maintains 100% unit test coverage across its domain, repository, and viewmodel layers:
+---
 
-```bash
-# Run unit test suite across all modules
-./gradlew test
+### 🌤️ Beautiful At-A-Glance Header
+Start your day with effortless clarity.
+- **Live Time & Date:** A clean, modern typography clock in 12 or 24-hour style.
+- **Real-Time Weather:** Live temperature, forecasts, and weather conditions right where you can see them.
+- **100% Ad-Free Weather:** No sponsor banners, no paywalls, no pop-up video ads. Ever.
 
-# Assemble release or debug APK
-./gradlew assembleDebug
-```
+---
 
-CI workflows are configured in `.github/workflows/ci.yml` running validation, unit tests, and APK compilation on every push and pull request.
+### 🔕 Silence The Noise — Notification Drawer with Quick Mute
+Reclaim your focus from notifications that never stop buzzing.
+- **Unified Notification Hub:** Swipe up to see all your notifications gathered neatly by app.
+- **Swipe to Dismiss:** Clean up clutter with satisfying, fluid swipe gestures.
+- **Instant Quick Mute:** That chat group blowing up your phone? Mute it for **1 hour**, **24 hours**, or **forever** right from your launcher.
+- **Privacy Mask Mode:** Hide preview text on your home screen so prying eyes can’t read your personal messages.
+
+---
+
+### ⚡ Lightning-Fast Search & A–Z Alphabet Scroll
+Find any app in the blink of an eye.
+- **Thumb-Glide Alphabet Bar:** Slide your finger down the edge of your screen to jump instantly to any letter.
+- **Instant Search:** Type one letter and watch your apps filter in real-time.
+- **Hidden Apps Vault:** Keep sensitive apps tucked safely out of sight.
+
+---
+
+### 🎨 Infinite Visual Customization
+Dress up your home screen to match your exact vibe.
+- **Pitch Black AMOLED Mode:** Save battery and enjoy deep, inky blacks on modern screens.
+- **Material You Dynamic Colors:** Drawer intelligently samples colors from your wallpaper to create a harmonious theme.
+- **Full Icon Pack Freedom:** Download your favorite icon pack from Google Play and apply it instantly, or customize icons one-by-one.
+- **Adaptive Icon Shapes:** Transform ordinary icons into modern **Squircles**, **Circles**, **Teardrops**, or **Rounded Squares**.
+
+---
+
+### 👆 Double-Tap to Sleep & Fluid Gestures
+Every interaction feels weightless and natural.
+- **Double-Tap Lock:** Double-tap anywhere on empty space to turn off and lock your screen.
+- **Biometrics-Friendly:** Locks smoothly without breaking your fingerprint scanner or face unlock.
+- **Drag & Drop Everywhere:** Drag apps straight from your drawer into categories or onto the dock with zero fuss.
+
+---
+
+### 🛡️ Ironclad Privacy — Zero Trackers, Zero Telemetry
+Your phone is your private space, and Drawer keeps it that way.
+- 🚫 **No Ads:** No sponsored suggestions, no pop-ups, no promoted games.
+- 🚫 **No Cloud Tracking:** We don't collect your data, your search history, or what apps you use.
+- 🚫 **No Accounts Required:** Install and use immediately. No logins, no passwords.
+- 🔒 **Everything Stays On Your Device:** 100% offline-first architecture.
+
+---
+
+### 💾 One-Tap Backup & Restore
+Never lose your perfect setup.
+- Back up your categories, dock, customized icons, and settings to a single file.
+- Restore your complete layout on any device in seconds.
+
+---
+
+## 🌟 Ready to upgrade your home screen?
+
+1. Install **Drawer**.
+2. Tap your phone’s **Home** button and select **Drawer** $\rightarrow$ **Always**.
+3. Breathe in the clean, uncluttered bliss of a truly personal launcher.

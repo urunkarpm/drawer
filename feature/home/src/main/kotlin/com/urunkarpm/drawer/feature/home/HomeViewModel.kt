@@ -8,12 +8,17 @@ import com.urunkarpm.drawer.core.data.repository.DockRepository
 import com.urunkarpm.drawer.core.data.repository.WeatherRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.AppShortcutInfo
 import com.urunkarpm.drawer.core.model.WeatherInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.urunkarpm.drawer.core.designsystem.component.AppIconCache
+import com.urunkarpm.drawer.core.designsystem.component.toImageBitmapSafe
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -22,29 +27,40 @@ data class GlancePrefs(
     val is24Hour: Boolean = true,
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
-    val hideStatusBar: Boolean = false
+    val hideStatusBar: Boolean = true,
+    val adaptiveIconShape: String = "SYSTEM",
+    val twoDrawersSideBySide: Boolean = false,
+    val wallpaperBlur: Boolean = false,
+    val wallpaperBlurRadius: Float = 25f
 )
 
 data class HomeDialogsState(
     val searchQuery: String = "",
     val isAllAppsOpen: Boolean = false,
     val selectedAppForMenu: AppInfo? = null,
+    val shortcuts: List<AppShortcutInfo> = emptyList(),
     val userMessage: String? = null
 )
 
 data class HomeUiState(
     val installedApps: List<AppInfo> = emptyList(),
+    val installedAppsByPackage: Map<String, AppInfo> = emptyMap(),
     val filteredApps: List<AppInfo> = emptyList(),
     val searchQuery: String = "",
     val isAllAppsOpen: Boolean = false,
     val selectedAppForMenu: AppInfo? = null,
+    val shortcuts: List<AppShortcutInfo> = emptyList(),
     val isLoading: Boolean = true,
     val userMessage: String? = null,
     val weatherInfo: WeatherInfo? = null,
     val is24Hour: Boolean = true,
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
-    val hideStatusBar: Boolean = false
+    val hideStatusBar: Boolean = true,
+    val adaptiveIconShape: String = "SYSTEM",
+    val twoDrawersSideBySide: Boolean = false,
+    val wallpaperBlur: Boolean = false,
+    val wallpaperBlurRadius: Float = 25f
 )
 
 @HiltViewModel
@@ -58,24 +74,39 @@ class HomeViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     private val _isAllAppsOpen = MutableStateFlow(false)
     private val _selectedAppForMenu = MutableStateFlow<AppInfo?>(null)
+    private val _shortcuts = MutableStateFlow<List<AppShortcutInfo>>(emptyList())
     private val _userMessage = MutableStateFlow<String?>(null)
 
-    private val glancePrefsFlow = combine(
+    private val glancePrefsFlow = combine<Any, GlancePrefs>(
         preferencesDataSource.is24Hour,
         preferencesDataSource.showWeather,
         preferencesDataSource.weatherUnit,
-        preferencesDataSource.hideStatusBar
-    ) { is24Hour, showWeather, weatherUnit, hideStatusBar ->
-        GlancePrefs(is24Hour, showWeather, weatherUnit, hideStatusBar)
+        preferencesDataSource.hideStatusBar,
+        preferencesDataSource.adaptiveIconShape,
+        preferencesDataSource.twoDrawersSideBySide,
+        preferencesDataSource.wallpaperBlur,
+        preferencesDataSource.wallpaperBlurRadius
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val is24Hour = values[0] as Boolean
+        val showWeather = values[1] as Boolean
+        val weatherUnit = values[2] as String
+        val hideStatusBar = values[3] as Boolean
+        val adaptiveIconShape = values[4] as String
+        val twoDrawersSideBySide = values[5] as Boolean
+        val wallpaperBlur = values[6] as Boolean
+        val wallpaperBlurRadius = values[7] as Float
+        GlancePrefs(is24Hour, showWeather, weatherUnit, hideStatusBar, adaptiveIconShape, twoDrawersSideBySide, wallpaperBlur, wallpaperBlurRadius)
     }
 
     private val homeDialogsFlow = combine(
         _searchQuery,
         _isAllAppsOpen,
         _selectedAppForMenu,
+        _shortcuts,
         _userMessage
-    ) { searchQuery, isAllAppsOpen, selectedApp, userMessage ->
-        HomeDialogsState(searchQuery, isAllAppsOpen, selectedApp, userMessage)
+    ) { searchQuery, isAllAppsOpen, selectedApp, shortcuts, userMessage ->
+        HomeDialogsState(searchQuery, isAllAppsOpen, selectedApp, shortcuts, userMessage)
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -89,19 +120,26 @@ class HomeViewModel @Inject constructor(
         } else {
             apps.filter { it.label.contains(dialogs.searchQuery, ignoreCase = true) }
         }
+        val appsByPkg = apps.associateBy { it.packageName }
         HomeUiState(
             installedApps = apps,
+            installedAppsByPackage = appsByPkg,
             filteredApps = filtered,
             searchQuery = dialogs.searchQuery,
             isAllAppsOpen = dialogs.isAllAppsOpen,
             selectedAppForMenu = dialogs.selectedAppForMenu,
+            shortcuts = dialogs.shortcuts,
             isLoading = apps.isEmpty(),
             userMessage = dialogs.userMessage,
             weatherInfo = weather,
             is24Hour = glancePrefs.is24Hour,
             showWeather = glancePrefs.showWeather,
             weatherUnit = glancePrefs.weatherUnit,
-            hideStatusBar = glancePrefs.hideStatusBar
+            hideStatusBar = glancePrefs.hideStatusBar,
+            adaptiveIconShape = glancePrefs.adaptiveIconShape,
+            twoDrawersSideBySide = glancePrefs.twoDrawersSideBySide,
+            wallpaperBlur = glancePrefs.wallpaperBlur,
+            wallpaperBlurRadius = glancePrefs.wallpaperBlurRadius
         )
     }.stateIn(
         scope = viewModelScope,
@@ -111,6 +149,22 @@ class HomeViewModel @Inject constructor(
 
     init {
         refreshWeather()
+        viewModelScope.launch(Dispatchers.IO) {
+            dockRepository.dockItems.collect { dockItems ->
+                val apps = appRepository.installedApps.first()
+                val appsMap = apps.associateBy { "${it.packageName}/${it.activityName}" }
+                for (item in dockItems) {
+                    val targetApp: AppInfo? = appsMap["${item.packageName}/${item.activityName}"]
+                    if (targetApp != null && AppIconCache.get(targetApp.componentKey) == null) {
+                        val d = appRepository.getAppIcon(targetApp)
+                        val bmp = d?.toImageBitmapSafe()
+                        if (bmp != null) {
+                            AppIconCache.put(targetApp.componentKey, bmp)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun refreshWeather() {
@@ -133,6 +187,10 @@ class HomeViewModel @Inject constructor(
 
     fun clearUserMessage() {
         _userMessage.value = null
+    }
+
+    fun showUserMessage(message: String) {
+        _userMessage.value = message
     }
 
     fun onSearchQueryChanged(newQuery: String) {
@@ -166,10 +224,24 @@ class HomeViewModel @Inject constructor(
 
     fun onAppLongClicked(app: AppInfo) {
         _selectedAppForMenu.value = app
+        _shortcuts.value = appRepository.getShortcuts(app)
     }
 
     fun dismissAppMenu() {
         _selectedAppForMenu.value = null
+        _shortcuts.value = emptyList()
+    }
+
+    fun launchShortcut(app: AppInfo, shortcutId: String) {
+        val launched = appRepository.launchShortcut(app, shortcutId)
+        if (launched && _isAllAppsOpen.value) {
+            closeAllApps()
+        }
+        dismissAppMenu()
+    }
+
+    suspend fun getShortcutIcon(app: AppInfo, shortcutId: String): Drawable? {
+        return appRepository.getShortcutIcon(app, shortcutId)
     }
 
     fun openAppDetails(app: AppInfo) {

@@ -39,11 +39,15 @@ class DrawerPreferencesDataSource @Inject constructor(
 
         val ACTIVE_ICON_PACK = stringPreferencesKey("active_icon_pack")
         val ADAPTIVE_ICON_SHAPE = stringPreferencesKey("adaptive_icon_shape")
+        val TWO_DRAWERS_SIDE_BY_SIDE = booleanPreferencesKey("two_drawers_side_by_side")
+        val WALLPAPER_BLUR = booleanPreferencesKey("wallpaper_blur")
+        val WALLPAPER_BLUR_RADIUS = floatPreferencesKey("wallpaper_blur_radius")
+        val LOCK_LAYOUT = booleanPreferencesKey("lock_layout")
     }
 
     val themeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.THEME_MODE] ?: "SYSTEM" }
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_COLOR] ?: true }
-    val hideStatusBar: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_STATUS_BAR] ?: false }
+    val hideStatusBar: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_STATUS_BAR] ?: true }
 
     val showWeather: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.SHOW_WEATHER] ?: true }
     val weatherUnit: Flow<String> = dataStore.data.map { it[PreferencesKeys.WEATHER_UNIT] ?: "CELSIUS" }
@@ -63,6 +67,10 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     val activeIconPack: Flow<String?> = dataStore.data.map { it[PreferencesKeys.ACTIVE_ICON_PACK] }
     val adaptiveIconShape: Flow<String> = dataStore.data.map { it[PreferencesKeys.ADAPTIVE_ICON_SHAPE] ?: "SYSTEM" }
+    val twoDrawersSideBySide: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.TWO_DRAWERS_SIDE_BY_SIDE] ?: false }
+    val wallpaperBlur: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR] ?: false }
+    val wallpaperBlurRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR_RADIUS] ?: 25f }
+    val lockLayout: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.LOCK_LAYOUT] ?: false }
 
     suspend fun setThemeMode(mode: String) {
         dataStore.edit { it[PreferencesKeys.THEME_MODE] = mode }
@@ -129,5 +137,21 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setAdaptiveIconShape(shape: String) {
         dataStore.edit { it[PreferencesKeys.ADAPTIVE_ICON_SHAPE] = shape }
+    }
+
+    suspend fun setTwoDrawersSideBySide(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.TWO_DRAWERS_SIDE_BY_SIDE] = enabled }
+    }
+
+    suspend fun setWallpaperBlur(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.WALLPAPER_BLUR] = enabled }
+    }
+
+    suspend fun setWallpaperBlurRadius(radius: Float) {
+        dataStore.edit { it[PreferencesKeys.WALLPAPER_BLUR_RADIUS] = radius }
+    }
+
+    suspend fun setLockLayout(locked: Boolean) {
+        dataStore.edit { it[PreferencesKeys.LOCK_LAYOUT] = locked }
     }
 }

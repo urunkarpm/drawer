@@ -26,9 +26,19 @@ interface AppGroupRepository {
     suspend fun assignAppToGroup(
         groupId: String,
         app: AppInfo,
-        allowMultiGroup: Boolean = false
+        allowMultiGroup: Boolean = false,
+        targetIndex: Int? = null
+    )
+
+    suspend fun moveAppBetweenGroups(
+        sourceGroupId: String,
+        targetGroupId: String,
+        app: AppInfo,
+        targetIndex: Int? = null
     )
 
     suspend fun removeAppFromGroup(groupId: String, packageName: String, activityName: String)
     suspend fun removeGroupItemById(itemId: String)
+    suspend fun collapseAllGroups()
+    suspend fun autoPopulateGroups()
 }

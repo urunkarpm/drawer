@@ -41,7 +41,11 @@ class HomeViewModelTest {
     private val is24HourFlow = MutableStateFlow(true)
     private val showWeatherFlow = MutableStateFlow(true)
     private val weatherUnitFlow = MutableStateFlow("CELSIUS")
-    private val hideStatusBarFlow = MutableStateFlow(false)
+    private val hideStatusBarFlow = MutableStateFlow(true)
+    private val adaptiveIconShapeFlow = MutableStateFlow("SYSTEM")
+    private val twoDrawersSideBySideFlow = MutableStateFlow(false)
+    private val wallpaperBlurFlow = MutableStateFlow(false)
+    private val wallpaperBlurRadiusFlow = MutableStateFlow(25f)
 
     private val sampleApps = listOf(
         AppInfo(
@@ -80,6 +84,10 @@ class HomeViewModelTest {
         every { preferencesDataSource.showWeather } returns showWeatherFlow
         every { preferencesDataSource.weatherUnit } returns weatherUnitFlow
         every { preferencesDataSource.hideStatusBar } returns hideStatusBarFlow
+        every { preferencesDataSource.adaptiveIconShape } returns adaptiveIconShapeFlow
+        every { preferencesDataSource.twoDrawersSideBySide } returns twoDrawersSideBySideFlow
+        every { preferencesDataSource.wallpaperBlur } returns wallpaperBlurFlow
+        every { preferencesDataSource.wallpaperBlurRadius } returns wallpaperBlurRadiusFlow
 
         appsFlow.value = sampleApps
         weatherFlow.value = sampleWeather
@@ -108,7 +116,7 @@ class HomeViewModelTest {
             assertTrue(loadedState.is24Hour)
             assertTrue(loadedState.showWeather)
             assertEquals("CELSIUS", loadedState.weatherUnit)
-            assertFalse(loadedState.hideStatusBar)
+            assertTrue(loadedState.hideStatusBar)
         }
     }
 

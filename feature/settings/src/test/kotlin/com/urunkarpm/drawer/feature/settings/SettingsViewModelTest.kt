@@ -30,7 +30,7 @@ class SettingsViewModelTest {
 
     private val themeModeFlow = MutableStateFlow("SYSTEM")
     private val dynamicColorFlow = MutableStateFlow(true)
-    private val hideStatusBarFlow = MutableStateFlow(false)
+    private val hideStatusBarFlow = MutableStateFlow(true)
     private val showWeatherFlow = MutableStateFlow(true)
     private val weatherUnitFlow = MutableStateFlow("CELSIUS")
     private val is24HourFlow = MutableStateFlow(true)
@@ -43,6 +43,10 @@ class SettingsViewModelTest {
     private val notificationsPrivacyModeFlow = MutableStateFlow(false)
     private val activeIconPackFlow = MutableStateFlow<String?>(null)
     private val adaptiveIconShapeFlow = MutableStateFlow("SYSTEM")
+    private val twoDrawersSideBySideFlow = MutableStateFlow(false)
+    private val wallpaperBlurFlow = MutableStateFlow(false)
+    private val wallpaperBlurRadiusFlow = MutableStateFlow(25f)
+    private val lockLayoutFlow = MutableStateFlow(false)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -53,6 +57,8 @@ class SettingsViewModelTest {
         every { preferencesDataSource.themeMode } returns themeModeFlow
         every { preferencesDataSource.dynamicColor } returns dynamicColorFlow
         every { preferencesDataSource.hideStatusBar } returns hideStatusBarFlow
+        every { preferencesDataSource.wallpaperBlur } returns wallpaperBlurFlow
+        every { preferencesDataSource.wallpaperBlurRadius } returns wallpaperBlurRadiusFlow
         every { preferencesDataSource.showWeather } returns showWeatherFlow
         every { preferencesDataSource.weatherUnit } returns weatherUnitFlow
         every { preferencesDataSource.is24Hour } returns is24HourFlow
@@ -65,6 +71,8 @@ class SettingsViewModelTest {
         every { preferencesDataSource.notificationsPrivacyMode } returns notificationsPrivacyModeFlow
         every { preferencesDataSource.activeIconPack } returns activeIconPackFlow
         every { preferencesDataSource.adaptiveIconShape } returns adaptiveIconShapeFlow
+        every { preferencesDataSource.twoDrawersSideBySide } returns twoDrawersSideBySideFlow
+        every { preferencesDataSource.lockLayout } returns lockLayoutFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -84,7 +92,7 @@ class SettingsViewModelTest {
             val state = awaitItem()
             assertEquals("SYSTEM", state.themeMode)
             assertTrue(state.dynamicColor)
-            assertFalse(state.hideStatusBar)
+            assertTrue(state.hideStatusBar)
             assertTrue(state.showWeather)
             assertEquals("CELSIUS", state.weatherUnit)
             assertEquals("BLUR", state.dockBackground)
