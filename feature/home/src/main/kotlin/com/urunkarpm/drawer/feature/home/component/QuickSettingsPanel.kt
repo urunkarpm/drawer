@@ -1160,7 +1160,7 @@ fun rememberQuickSettingsState(context: Context): QuickSettingsState {
             if (toggled) {
                 isLocationOn = nextState
             } else {
-                Toast.makeText(context, "Grant WRITE_SECURE_SETTINGS or long press for settings", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Location requires system settings (long press tile)", Toast.LENGTH_SHORT).show()
             }
         }
     )
