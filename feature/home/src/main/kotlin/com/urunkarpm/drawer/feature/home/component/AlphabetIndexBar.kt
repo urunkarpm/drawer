@@ -79,7 +79,16 @@ fun AlphabetIndexBar(
         contentAlignment = Alignment.CenterEnd
     ) {
         // Active letter bubble indicator appearing to the left of the drag position
-        draggingLetter?.let { letter ->
+        val density = LocalDensity.current
+        val bubbleOffsetXPx = with(density) { 72.dp.roundToPx() }
+        val bubbleHalfHeightPx = with(density) { 28.dp.toPx() }
+
+        AnimatedVisibility(
+            visible = draggingLetter != null,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut()
+        ) {
+            val letter = draggingLetter ?: ""
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -89,20 +98,20 @@ fun AlphabetIndexBar(
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
-                    shadowElevation = 6.dp,
+                    shadowElevation = 8.dp,
                     modifier = Modifier
                         .offset {
                             IntOffset(
-                                x = -100,
-                                y = (dragYOffsetPx - 28).roundToInt().coerceAtLeast(0)
+                                x = -bubbleOffsetXPx,
+                                y = (dragYOffsetPx - bubbleHalfHeightPx).roundToInt().coerceAtLeast(0)
                             )
                         }
-                        .size(52.dp)
+                        .size(56.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = letter,
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary
                         )

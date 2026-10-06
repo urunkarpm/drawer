@@ -2,11 +2,14 @@ package com.urunkarpm.drawer.feature.home.component
 
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -17,6 +20,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,15 +55,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -83,6 +92,9 @@ import com.urunkarpm.drawer.feature.home.dragdrop.DragDropResult
 import com.urunkarpm.drawer.feature.home.dragdrop.appDragSource
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
+
 @Composable
 fun AllAppsDrawer(
     visible: Boolean,
@@ -97,83 +109,115 @@ fun AllAppsDrawer(
     modifier: Modifier = Modifier,
     iconShape: Shape = RoundedCornerShape(12.dp),
     dragDropState: AppDragDropState? = null,
-    onDragDropResult: ((DragDropResult) -> Unit)? = null
+    onDragDropResult: ((DragDropResult) -> Unit)? = null,
+    drawerThemeMode: String = "SYSTEM",
+    surfaceCornerRadiusDp: Float = 24f,
+    autoOpenKeyboard: Boolean = false,
+    onOpenSettings: (() -> Unit)? = null
 ) {
-    // ponytail: Hardware-accelerated vertical spring slide ensures 120 FPS buttery-smooth frame delivery without gesture interference; ceiling is fixed spring spec; upgrade path is customizable animation speeds.
-    AnimatedVisibility(
-        visible = visible,
-        enter = slideInVertically(
-            initialOffsetY = { it },
-            animationSpec = spring(
-                dampingRatio = 0.82f,
-                stiffness = 380f
-            )
-        ),
-        exit = slideOutVertically(
-            targetOffsetY = { it },
-            animationSpec = spring(
-                dampingRatio = 0.90f,
-                stiffness = 450f
-            )
-        ),
-        modifier = modifier
-    ) {
-        val gridState = rememberLazyGridState()
-        val coroutineScope = rememberCoroutineScope()
+    val searchFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(visible) {
+        if (visible && autoOpenKeyboard) {
+            searchFocusRequester.requestFocus()
+        }
+    }
+    val isSystemDark = isSystemInDarkTheme()
+    val isDrawerDark = when (drawerThemeMode.uppercase()) {
+        "WHITE", "LIGHT" -> false
+        "DARK" -> true
+        else -> isSystemDark
+    }
 
-        // NestedScrollConnection: when LazyGrid is scrolled to top, user can pull DOWN to dismiss.
-        var overscrollDownAccumulator by remember { mutableFloatStateOf(0f) }
-        val nestedScrollConnection = remember {
-            object : NestedScrollConnection {
-                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                    if (available.y < 0) {
-                        overscrollDownAccumulator = 0f
-                    }
-                    return Offset.Zero
-                }
+    // Wrap the entire app drawer with DrawerTheme so all typography, search bars, and app labels use correct theme contrast
+    DrawerTheme(darkTheme = isDrawerDark) {
+        // Smooth Material motion ensures a consistent, one-pace slide without overshoot bouncing or late adjustment
+        AnimatedVisibility(
+            visible = visible,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(
+                    durationMillis = 280,
+                    easing = FastOutSlowInEasing
+                )
+            ),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(
+                    durationMillis = 220,
+                    easing = FastOutLinearInEasing
+                )
+            ),
+            modifier = modifier
+        ) {
+            val gridState = rememberLazyGridState()
+            val coroutineScope = rememberCoroutineScope()
 
-                override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                    val shouldClose = overscrollDownAccumulator > 80f && available.y > 1200f
-                    overscrollDownAccumulator = 0f
-                    if (shouldClose && !gridState.canScrollBackward) {
-                        onClose()
-                    }
-                    return super.onPostFling(consumed, available)
-                }
-
-                override fun onPostScroll(
-                    consumed: Offset,
-                    available: Offset,
-                    source: NestedScrollSource
-                ): Offset {
-                    if (!gridState.canScrollBackward && available.y > 0f && source == NestedScrollSource.UserInput) {
-                        overscrollDownAccumulator += available.y
-                        if (overscrollDownAccumulator > 180f) {
+            // NestedScrollConnection: when LazyGrid is scrolled to top, user can pull DOWN to dismiss.
+            var overscrollDownAccumulator by remember { mutableFloatStateOf(0f) }
+            val nestedScrollConnection = remember {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        if (available.y < 0) {
                             overscrollDownAccumulator = 0f
+                        }
+                        return Offset.Zero
+                    }
+
+                    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                        val shouldClose = overscrollDownAccumulator > 80f && available.y > 1200f
+                        overscrollDownAccumulator = 0f
+                        if (shouldClose && !gridState.canScrollBackward) {
                             onClose()
                         }
-                    } else if (available.y < 0f) {
-                        overscrollDownAccumulator = 0f
+                        return super.onPostFling(consumed, available)
                     }
-                    return Offset.Zero
+
+                    override fun onPostScroll(
+                        consumed: Offset,
+                        available: Offset,
+                        source: NestedScrollSource
+                    ): Offset {
+                        if (!gridState.canScrollBackward && available.y > 0f && source == NestedScrollSource.UserInput) {
+                            overscrollDownAccumulator += available.y
+                            if (overscrollDownAccumulator > 180f) {
+                                overscrollDownAccumulator = 0f
+                                onClose()
+                            }
+                        } else if (available.y < 0f) {
+                            overscrollDownAccumulator = 0f
+                        }
+                        return Offset.Zero
+                    }
                 }
             }
-        }
 
-        val animatedDrawerAlpha by animateFloatAsState(
-            targetValue = if (dragDropState?.isDragging == true) 0f else 1f,
-            animationSpec = tween(durationMillis = 150),
-            label = "drawerAlphaDuringDrag"
-        )
+            val animatedDrawerAlpha by animateFloatAsState(
+                targetValue = if (dragDropState?.isDragging == true) 0f else 1f,
+                animationSpec = tween(durationMillis = 150),
+                label = "drawerAlphaDuringDrag"
+            )
 
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    alpha = animatedDrawerAlpha
-                },
-            color = MaterialTheme.colorScheme.surface
-        ) {
+            // 100% solid, crisp background in White, Dark, or System mode — no liquid glass translucency
+            val drawerBackgroundColor = if (isDrawerDark) Color(0xFF141218) else Color(0xFFFFFFFF)
+            val drawerBorder = BorderStroke(1.dp, if (isDrawerDark) Color(0xFF2B2930) else Color(0xFFE5E7EB))
+
+            val drawerShape = RoundedCornerShape(
+                topStart = surfaceCornerRadiusDp.dp,
+                topEnd = surfaceCornerRadiusDp.dp,
+                bottomStart = 0.dp,
+                bottomEnd = 0.dp
+            )
+
+            Surface(
+                shape = drawerShape,
+                border = drawerBorder,
+                color = drawerBackgroundColor,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        alpha = animatedDrawerAlpha
+                    }
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -307,11 +351,14 @@ fun AllAppsDrawer(
                 SearchBarHeader(
                     searchQuery = searchQuery,
                     onSearchQueryChanged = onSearchQueryChanged,
-                    onClose = onClose
+                    onClose = onClose,
+                    onOpenSettings = onOpenSettings,
+                    focusRequester = searchFocusRequester
                 )
             }
         }
     }
+}
 }
 
 @Composable
@@ -319,6 +366,8 @@ private fun SearchBarHeader(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     onClose: () -> Unit,
+    onOpenSettings: (() -> Unit)? = null,
+    focusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
@@ -381,7 +430,24 @@ private fun SearchBarHeader(
             modifier = Modifier
                 .weight(1f)
                 .height(56.dp)
+                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
         )
+
+        if (onOpenSettings != null) {
+            Spacer(modifier = Modifier.width(6.dp))
+            IconButton(
+                onClick = {
+                    onClose()
+                    onOpenSettings()
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = "Launcher Settings",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
     }
 }
 
@@ -420,7 +486,8 @@ private fun AppItemView(
                     } else {
                         dragDropState.cancelDrag()
                     }
-                }
+                },
+                longPressRequired = true
             )
             .padding(vertical = 8.dp, horizontal = 4.dp)
             .semantics {

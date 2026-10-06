@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +48,7 @@ fun DockActionBottomSheet(
     onOpenDetails: () -> Unit,
     onUninstall: () -> Unit,
     iconLoader: suspend () -> Drawable?,
+    onToggleEditMode: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     ModalBottomSheet(
@@ -99,6 +101,16 @@ fun DockActionBottomSheet(
                 onClick = onRemoveFromDock,
                 colors = NavigationDrawerItemDefaults.colors()
             )
+
+            if (onToggleEditMode != null) {
+                NavigationDrawerItem(
+                    label = { Text("Rearrange dock icons") },
+                    icon = { Icon(Icons.Outlined.Edit, contentDescription = "Edit dock") },
+                    selected = false,
+                    onClick = onToggleEditMode,
+                    colors = NavigationDrawerItemDefaults.colors()
+                )
+            }
 
             if (dockItem.position > 0) {
                 NavigationDrawerItem(

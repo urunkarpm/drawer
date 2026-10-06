@@ -31,7 +31,15 @@ data class GlancePrefs(
     val adaptiveIconShape: String = "SYSTEM",
     val twoDrawersSideBySide: Boolean = false,
     val wallpaperBlur: Boolean = false,
-    val wallpaperBlurRadius: Float = 25f
+    val wallpaperBlurRadius: Float = 25f,
+    val drawerThemeMode: String = "SYSTEM",
+    val autoOpenKeyboardInDrawer: Boolean = false,
+    val showDuoStatusWidget: Boolean = true,
+    val enableCameraMirror: Boolean = true,
+    val categoryAlignment: String = "TOP",
+    val enableWidgetsPage: Boolean = false,
+    val quickSettingsTileOrder: List<String> = listOf("rotate", "wifi", "bluetooth", "quick_share", "dnd", "auto_rotate", "location", "flashlight"),
+    val quickSettingsHiddenTiles: Set<String> = emptySet()
 )
 
 data class HomeDialogsState(
@@ -60,7 +68,29 @@ data class HomeUiState(
     val adaptiveIconShape: String = "SYSTEM",
     val twoDrawersSideBySide: Boolean = false,
     val wallpaperBlur: Boolean = false,
-    val wallpaperBlurRadius: Float = 25f
+    val wallpaperBlurRadius: Float = 25f,
+    val drawerThemeMode: String = "SYSTEM",
+    val autoOpenKeyboardInDrawer: Boolean = false,
+    val showDuoStatusWidget: Boolean = true,
+    val enableCameraMirror: Boolean = true,
+    val categoryAlignment: String = "TOP",
+    val enableWidgetsPage: Boolean = false,
+    val quickSettingsTileOrder: List<String> = listOf("rotate", "wifi", "bluetooth", "quick_share", "dnd", "auto_rotate", "location", "flashlight"),
+    val quickSettingsHiddenTiles: Set<String> = emptySet(),
+    val widgets: List<com.urunkarpm.drawer.core.model.WidgetItem> = emptyList(),
+    val surfaceThemeStyle: String = "LIQUID_GLASS",
+    val surfaceOpacity: Float = 0.65f,
+    val surfaceBlurRadius: Float = 25f,
+    val surfaceStrokeOpacity: Float = 0.40f,
+    val surfaceCornerRadius: Float = 24f
+)
+
+data class SurfaceThemePrefs(
+    val surfaceThemeStyle: String = "LIQUID_GLASS",
+    val surfaceOpacity: Float = 0.65f,
+    val surfaceBlurRadius: Float = 25f,
+    val surfaceStrokeOpacity: Float = 0.40f,
+    val surfaceCornerRadius: Float = 24f
 )
 
 @HiltViewModel
@@ -68,7 +98,8 @@ class HomeViewModel @Inject constructor(
     private val appRepository: AppRepository,
     private val dockRepository: DockRepository,
     private val weatherRepository: WeatherRepository,
-    private val preferencesDataSource: DrawerPreferencesDataSource
+    private val preferencesDataSource: DrawerPreferencesDataSource,
+    private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -85,7 +116,15 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.adaptiveIconShape,
         preferencesDataSource.twoDrawersSideBySide,
         preferencesDataSource.wallpaperBlur,
-        preferencesDataSource.wallpaperBlurRadius
+        preferencesDataSource.wallpaperBlurRadius,
+        preferencesDataSource.drawerThemeMode,
+        preferencesDataSource.autoOpenKeyboardInDrawer,
+        preferencesDataSource.showDuoStatusWidget,
+        preferencesDataSource.enableCameraMirror,
+        preferencesDataSource.categoryAlignment,
+        preferencesDataSource.enableWidgetsPage,
+        preferencesDataSource.quickSettingsTileOrder,
+        preferencesDataSource.quickSettingsHiddenTiles
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -96,7 +135,34 @@ class HomeViewModel @Inject constructor(
         val twoDrawersSideBySide = values[5] as Boolean
         val wallpaperBlur = values[6] as Boolean
         val wallpaperBlurRadius = values[7] as Float
-        GlancePrefs(is24Hour, showWeather, weatherUnit, hideStatusBar, adaptiveIconShape, twoDrawersSideBySide, wallpaperBlur, wallpaperBlurRadius)
+        val drawerThemeMode = values[8] as String
+        val autoOpenKeyboardInDrawer = values[9] as Boolean
+        val showDuoStatusWidget = values[10] as Boolean
+        val enableCameraMirror = values[11] as Boolean
+        val categoryAlignment = values[12] as String
+        val enableWidgetsPage = values[13] as Boolean
+        @Suppress("UNCHECKED_CAST")
+        val quickSettingsTileOrder = values[14] as List<String>
+        @Suppress("UNCHECKED_CAST")
+        val quickSettingsHiddenTiles = values[15] as Set<String>
+        GlancePrefs(
+            is24Hour,
+            showWeather,
+            weatherUnit,
+            hideStatusBar,
+            adaptiveIconShape,
+            twoDrawersSideBySide,
+            wallpaperBlur,
+            wallpaperBlurRadius,
+            drawerThemeMode,
+            autoOpenKeyboardInDrawer,
+            showDuoStatusWidget,
+            enableCameraMirror,
+            categoryAlignment,
+            enableWidgetsPage,
+            quickSettingsTileOrder,
+            quickSettingsHiddenTiles
+        )
     }
 
     private val homeDialogsFlow = combine(
@@ -109,12 +175,33 @@ class HomeViewModel @Inject constructor(
         HomeDialogsState(searchQuery, isAllAppsOpen, selectedApp, shortcuts, userMessage)
     }
 
+    private val surfacePrefsFlow = combine(
+        preferencesDataSource.surfaceThemeStyle,
+        preferencesDataSource.surfaceOpacity,
+        preferencesDataSource.surfaceBlurRadius,
+        preferencesDataSource.surfaceStrokeOpacity,
+        preferencesDataSource.surfaceCornerRadius
+    ) { theme, opacity, blurRadius, strokeOpacity, cornerRadius ->
+        SurfaceThemePrefs(theme, opacity, blurRadius, strokeOpacity, cornerRadius)
+    }
+
     val uiState: StateFlow<HomeUiState> = combine(
         appRepository.installedApps,
         weatherRepository.weatherInfo,
+        widgetRepository.getAllWidgets(),
         glancePrefsFlow,
-        homeDialogsFlow
-    ) { apps, weather, glancePrefs, dialogs ->
+        homeDialogsFlow,
+        surfacePrefsFlow
+    ) { args: Array<Any?> ->
+        @Suppress("UNCHECKED_CAST")
+        val apps = args[0] as List<AppInfo>
+        val weather = args[1] as? WeatherInfo
+        @Suppress("UNCHECKED_CAST")
+        val widgetsList = args[2] as List<com.urunkarpm.drawer.core.model.WidgetItem>
+        val glancePrefs = args[3] as GlancePrefs
+        val dialogs = args[4] as HomeDialogsState
+        val surfacePrefs = args[5] as SurfaceThemePrefs
+
         val filtered = if (dialogs.searchQuery.isBlank()) {
             apps
         } else {
@@ -139,7 +226,21 @@ class HomeViewModel @Inject constructor(
             adaptiveIconShape = glancePrefs.adaptiveIconShape,
             twoDrawersSideBySide = glancePrefs.twoDrawersSideBySide,
             wallpaperBlur = glancePrefs.wallpaperBlur,
-            wallpaperBlurRadius = glancePrefs.wallpaperBlurRadius
+            wallpaperBlurRadius = glancePrefs.wallpaperBlurRadius,
+            drawerThemeMode = glancePrefs.drawerThemeMode,
+            autoOpenKeyboardInDrawer = glancePrefs.autoOpenKeyboardInDrawer,
+            showDuoStatusWidget = glancePrefs.showDuoStatusWidget,
+            enableCameraMirror = glancePrefs.enableCameraMirror,
+            categoryAlignment = glancePrefs.categoryAlignment,
+            enableWidgetsPage = glancePrefs.enableWidgetsPage,
+            quickSettingsTileOrder = glancePrefs.quickSettingsTileOrder,
+            quickSettingsHiddenTiles = glancePrefs.quickSettingsHiddenTiles,
+            widgets = widgetsList,
+            surfaceThemeStyle = surfacePrefs.surfaceThemeStyle,
+            surfaceOpacity = surfacePrefs.surfaceOpacity,
+            surfaceBlurRadius = surfacePrefs.surfaceBlurRadius,
+            surfaceStrokeOpacity = surfacePrefs.surfaceStrokeOpacity,
+            surfaceCornerRadius = surfacePrefs.surfaceCornerRadius
         )
     }.stateIn(
         scope = viewModelScope,
@@ -160,6 +261,19 @@ class HomeViewModel @Inject constructor(
                         val bmp = d?.toImageBitmapSafe()
                         if (bmp != null) {
                             AppIconCache.put(targetApp.componentKey, bmp)
+                        }
+                    }
+                }
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            appRepository.installedApps.collect { apps ->
+                for (app in apps) {
+                    if (AppIconCache.get(app.componentKey) == null) {
+                        val d = appRepository.getAppIcon(app)
+                        val bmp = d?.toImageBitmapSafe()
+                        if (bmp != null) {
+                            AppIconCache.put(app.componentKey, bmp)
                         }
                     }
                 }
@@ -261,6 +375,62 @@ class HomeViewModel @Inject constructor(
     fun refreshApps() {
         viewModelScope.launch {
             appRepository.refreshApps()
+        }
+    }
+
+    fun addWidget(appWidgetId: Int, packageName: String, providerClassName: String, heightDp: Int = 180) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val currentWidgets = uiState.value.widgets
+            val nextOrder = currentWidgets.size
+            val widget = com.urunkarpm.drawer.core.model.WidgetItem(
+                id = java.util.UUID.randomUUID().toString(),
+                appWidgetId = appWidgetId,
+                packageName = packageName,
+                providerClassName = providerClassName,
+                orderIndex = nextOrder,
+                heightDp = heightDp
+            )
+            widgetRepository.addWidget(widget)
+        }
+    }
+
+    fun deleteWidget(id: String, appWidgetId: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            widgetRepository.deleteWidget(id, appWidgetId)
+        }
+    }
+
+    fun updateWidgetHeight(id: String, newHeightDp: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val widget = uiState.value.widgets.find { it.id == id } ?: return@launch
+            widgetRepository.updateWidget(widget.copy(heightDp = newHeightDp.coerceIn(100, 500)))
+        }
+    }
+
+    fun moveWidget(index: Int, up: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = uiState.value.widgets.toMutableList()
+            val targetIndex = if (up) index - 1 else index + 1
+            if (targetIndex in list.indices) {
+                val temp = list[index]
+                list[index] = list[targetIndex]
+                list[targetIndex] = temp
+                list.forEachIndexed { i, item ->
+                    widgetRepository.updateWidget(item.copy(orderIndex = i))
+                }
+            }
+        }
+    }
+
+    fun updateQuickSettingsTileOrder(order: List<String>) {
+        viewModelScope.launch {
+            preferencesDataSource.setQuickSettingsTileOrder(order)
+        }
+    }
+
+    fun updateQuickSettingsHiddenTiles(hidden: Set<String>) {
+        viewModelScope.launch {
+            preferencesDataSource.setQuickSettingsHiddenTiles(hidden)
         }
     }
 }

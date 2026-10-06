@@ -40,6 +40,8 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +50,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import android.app.Activity
+import android.appwidget.AppWidgetManager
+import android.content.Intent
+import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
+import com.urunkarpm.drawer.feature.home.component.WidgetsPage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.font.FontWeight
@@ -88,6 +97,7 @@ import com.urunkarpm.drawer.feature.groups.component.CategorySelectionBottomShee
 import com.urunkarpm.drawer.feature.home.component.AllAppsDrawer
 import com.urunkarpm.drawer.feature.home.component.AppActionBottomSheet
 import com.urunkarpm.drawer.feature.home.component.GlanceHeader
+import com.urunkarpm.drawer.feature.home.component.HomeContextMenuSheet
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -124,6 +134,7 @@ fun HomeScreen(
     val hasNotifications = notificationsUiState.activeNotifications.isNotEmpty()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val categorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val homeMenuSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val dragDropState = rememberAppDragDropState()
@@ -135,6 +146,7 @@ fun HomeScreen(
     }
     var appForCategorySelection by remember { mutableStateOf<Pair<AppInfo, String?>?>(null) }
     var isSettingsOpen by remember { mutableStateOf(false) }
+    var isQuickSettingsOpen by remember { mutableStateOf(false) }
     var showHomeMenu by remember { mutableStateOf(false) }
     var isNotificationExpanded by remember { mutableStateOf(false) }
     var isCameraOpen by remember { mutableStateOf(false) }
@@ -162,6 +174,14 @@ fun HomeScreen(
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar("Moved \"${result.app.label}\" to $groupTitle")
                     }
+                } else if (result.sourceGroupId != null && result.sourceGroupId == result.targetGroupId) {
+                    // Reorder within the same category grid freely without hesitation
+                    groupsViewModel.moveAppBetweenGroups(
+                        sourceGroupId = result.sourceGroupId,
+                        targetGroupId = result.targetGroupId,
+                        app = result.app,
+                        targetIndex = result.targetIndex
+                    )
                 } else {
                     groupsViewModel.assignAppToGroup(result.targetGroupId, result.app, result.targetIndex)
                     val groupTitle = groupsUiState.groups.find { it.group.id == result.targetGroupId }?.group?.name ?: "Category"
@@ -233,9 +253,17 @@ fun HomeScreen(
         }
     }
 
-    // Back: close camera preview, settings, popup menu, category picker, action sheet, all-apps, notification drawer, or group accordion
-    BackHandler(enabled = isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
+    // Auto-collapse quick settings when other major sheets or drawers open
+    LaunchedEffect(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen) {
+        if (uiState.isAllAppsOpen || isSettingsOpen || isCameraOpen) {
+            isQuickSettingsOpen = false
+        }
+    }
+
+    // Back: close quick settings, camera preview, settings, popup menu, category picker, action sheet, all-apps, notification drawer, or group accordion
+    BackHandler(enabled = isQuickSettingsOpen || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
         when {
+            isQuickSettingsOpen -> isQuickSettingsOpen = false
             isCameraOpen -> isCameraOpen = false
             isSettingsOpen -> isSettingsOpen = false
             showHomeMenu -> showHomeMenu = false
@@ -248,6 +276,64 @@ fun HomeScreen(
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
+    val widgetHostManager = remember { DrawerWidgetHostManager(context.applicationContext) }
+    var pendingAppWidgetId by remember { mutableStateOf<Int?>(null) }
+
+    fun completeWidgetAdd(appWidgetId: Int) {
+        val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(appWidgetId)
+        if (info != null) {
+            val pkg = info.provider.packageName
+            val cls = info.provider.className
+            viewModel.addWidget(appWidgetId, pkg, cls)
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Widget added to feed")
+            }
+        }
+    }
+
+    val configureWidgetLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val id = pendingAppWidgetId
+        if (result.resultCode == Activity.RESULT_OK && id != null) {
+            completeWidgetAdd(id)
+        } else if (id != null) {
+            widgetHostManager.deleteAppWidgetId(id)
+        }
+        pendingAppWidgetId = null
+    }
+
+    val pickWidgetLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val id = pendingAppWidgetId
+        if (result.resultCode == Activity.RESULT_OK && id != null) {
+            val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(id)
+            if (info?.configure != null) {
+                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                    component = info.configure
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                }
+                configureWidgetLauncher.launch(intent)
+            } else {
+                completeWidgetAdd(id)
+                pendingAppWidgetId = null
+            }
+        } else if (id != null) {
+            widgetHostManager.deleteAppWidgetId(id)
+            pendingAppWidgetId = null
+        }
+    }
+
+    fun launchAddWidgetFlow() {
+        val allocatedId = widgetHostManager.allocateAppWidgetId()
+        pendingAppWidgetId = allocatedId
+        val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
+        }
+        pickWidgetLauncher.launch(pickIntent)
+    }
+
     LaunchedEffect(uiState.hideStatusBar) {
         val activity = context as? android.app.Activity
         val window = activity?.window
@@ -273,19 +359,20 @@ fun HomeScreen(
     }
 
     // Track cumulative vertical drag on the home screen to:
-    //  • drag UP (negative) → open All Apps (or collapse expanded notification drawer)
+    //  • drag UP (negative) → open All Apps (or collapse expanded notification drawer / category drawer)
     //  • drag DOWN (positive) → expand notification drawer when notifications exist
-    var dragAccumulator by remember { mutableFloatStateOf(0f) }
     var scrollDownAccumulator by remember { mutableFloatStateOf(0f) }
+    var scrollUpAccumulator by remember { mutableFloatStateOf(0f) }
 
     // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
-    val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, areOtherDrawersOpen) {
+    val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, areOtherDrawersOpen, dragDropState.isDragging) {
         object : NestedScrollConnection {
             override fun onPostScroll(
                 consumed: Offset,
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
+                if (dragDropState.isDragging) return Offset.Zero
                 if (!areOtherDrawersOpen && hasNotifications && !isNotificationExpanded && available.y > 0f) {
                     scrollDownAccumulator += available.y
                     if (scrollDownAccumulator > 25f) {
@@ -296,27 +383,40 @@ fun HomeScreen(
                         scrollDownAccumulator = 0f
                         return Offset(0f, available.y)
                     }
-                } else if (available.y < -35f) {
-                    if (isNotificationExpanded) {
-                        isNotificationExpanded = false
-                        return Offset(0f, available.y)
-                    } else if (!areOtherDrawersOpen) {
-                        viewModel.openAllApps()
-                        return Offset(0f, available.y)
-                    }
                 } else if (available.y < 0f) {
                     scrollDownAccumulator = 0f
+                    scrollUpAccumulator += available.y
+                    if (scrollUpAccumulator < -25f) {
+                        if (isNotificationExpanded) {
+                            isNotificationExpanded = false
+                            scrollUpAccumulator = 0f
+                            return Offset(0f, available.y)
+                        } else if (groupsUiState.groups.any { it.group.isExpanded }) {
+                            groupsViewModel.collapseAllGroups()
+                            scrollUpAccumulator = 0f
+                            return Offset(0f, available.y)
+                        } else if (!uiState.isAllAppsOpen) {
+                            viewModel.openAllApps()
+                            scrollUpAccumulator = 0f
+                            return Offset(0f, available.y)
+                        }
+                    }
+                } else {
+                    scrollDownAccumulator = 0f
+                    scrollUpAccumulator = 0f
                 }
                 return Offset.Zero
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 scrollDownAccumulator = 0f
+                scrollUpAccumulator = 0f
                 return Velocity.Zero
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 scrollDownAccumulator = 0f
+                scrollUpAccumulator = 0f
                 return Velocity.Zero
             }
         }
@@ -342,49 +442,57 @@ fun HomeScreen(
                 )
             }
 
-            // ── Home Content ──────────────────────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
-                    .navigationBarsPadding()
-                    .padding(horizontal = 20.dp)
-                    .onGloballyPositioned { coords ->
-                        rootColumnBounds = coords.boundsInRoot()
-                    }
-                    // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens quick popup menu (Settings & Add Category); ceiling: simple AlertDialog; upgrade path: customizable desktop widget menu.
-                    .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen) {
-                        if (!uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
-                            detectTapGestures(
-                                onDoubleTap = { offset ->
-                                    val colBounds = rootColumnBounds ?: Rect.Zero
-                                    val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                    val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                    val isOverApp = dragDropState.appBounds.values.any { groupMap -> groupMap.values.any { it.contains(rootPos) } }
-                                    val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                    val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                    val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                    if (!isOverGroup && !isOverApp && !isOverDock && !isOverGlance && !isOverNotification) {
-                                        onDoubleTapLock()
-                                    }
-                                },
-                                onLongPress = { offset ->
-                                    val colBounds = rootColumnBounds ?: Rect.Zero
-                                    val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                    val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                    val isOverApp = dragDropState.appBounds.values.any { groupMap -> groupMap.values.any { it.contains(rootPos) } }
-                                    val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                    val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                    val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                    if (!isOverGroup && !isOverApp && !isOverDock && !isOverGlance && !isOverNotification) {
-                                        showHomeMenu = true
-                                    }
-                                }
-                            )
+            val homeContent: @Composable () -> Unit = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp)
+                        .onGloballyPositioned { coords ->
+                            rootColumnBounds = coords.boundsInRoot()
                         }
-                    },
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
+                        // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
+                        .pointerInput(isQuickSettingsOpen, uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups) {
+                            if (!isQuickSettingsOpen && !uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
+                                detectTapGestures(
+                                    onTap = { offset ->
+                                        val colBounds = rootColumnBounds ?: Rect.Zero
+                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                        if (!isOverDock && !isOverGlance) {
+                                            if (isNotificationExpanded) {
+                                                isNotificationExpanded = false
+                                            }
+                                            if (groupsUiState.groups.any { it.group.isExpanded }) {
+                                                groupsViewModel.collapseAllGroups()
+                                            }
+                                        }
+                                    },
+                                    onDoubleTap = { offset ->
+                                        val colBounds = rootColumnBounds ?: Rect.Zero
+                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                        if (!isOverDock && !isOverGlance) {
+                                            onDoubleTapLock()
+                                        }
+                                    },
+                                    onLongPress = { offset ->
+                                        val colBounds = rootColumnBounds ?: Rect.Zero
+                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                        if (!isOverDock && !isOverGlance) {
+                                            showHomeMenu = true
+                                        }
+                                    }
+                                )
+                            }
+                        },
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
                 // Top: Glance (Clock, Date & Weather)
                 GlanceHeader(
                     is24Hour = uiState.is24Hour,
@@ -401,6 +509,8 @@ fun HomeScreen(
                         viewModel.refreshWeather()
                     },
                     onOpenSettings = { isSettingsOpen = true },
+                    showDuoStatus = uiState.showDuoStatusWidget && uiState.hideStatusBar,
+                    onDuoStatusClick = { isQuickSettingsOpen = true },
                     modifier = Modifier
                         .fillMaxWidth()
                         .onGloballyPositioned { coords ->
@@ -416,7 +526,7 @@ fun HomeScreen(
                         .weight(1f)
                         .fillMaxWidth()
                         .nestedScroll(homeNestedScrollConnection)
-                        .verticalScroll(rememberScrollState()),
+                        .verticalScroll(rememberScrollState(), enabled = !dragDropState.isDragging),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Spacer(modifier = Modifier.height(2.dp))
@@ -547,6 +657,53 @@ fun HomeScreen(
                 )
             }
         }
+    }
+
+    // ── Left Widgets Page and Home Page (only active when enabled in Settings) ──
+    val pagerState = rememberPagerState(
+        initialPage = 1,
+        pageCount = { 2 }
+    )
+
+    // Back button: If user is on Widgets feed (page 0), pressing Back returns to main Home (page 1)
+    BackHandler(enabled = uiState.enableWidgetsPage && pagerState.currentPage == 0 && !isCameraOpen && !isSettingsOpen && !showHomeMenu && !uiState.isAllAppsOpen && uiState.selectedAppForMenu == null && appForCategorySelection == null && !isNotificationExpanded && !groupsUiState.groups.any { it.group.isExpanded }) {
+        coroutineScope.launch {
+            pagerState.animateScrollToPage(1)
+        }
+    }
+
+    if (uiState.enableWidgetsPage) {
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = !dragDropState.isDragging && !uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            if (page == 0) {
+                WidgetsPage(
+                    widgets = uiState.widgets,
+                    widgetHostManager = widgetHostManager,
+                    onAddWidgetClick = { launchAddWidgetFlow() },
+                    onDeleteWidget = { id, appWidgetId -> viewModel.deleteWidget(id, appWidgetId) },
+                    onMoveWidget = { index, up -> viewModel.moveWidget(index, up) },
+                    onResizeWidget = { id, newHeight -> viewModel.updateWidgetHeight(id, newHeight) },
+                    lockLayout = groupsUiState.lockLayout,
+                    onBackToHome = {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(1)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
+                        .navigationBarsPadding()
+                )
+            } else {
+                homeContent()
+            }
+        }
+    } else {
+        homeContent()
+    }
 
         // ── All Apps Drawer Overlay (slides up from bottom) ───────────────────
         AllAppsDrawer(
@@ -563,7 +720,11 @@ fun HomeScreen(
             onAppClick = { app -> viewModel.onAppClicked(app) },
             onAppLongClick = { app -> viewModel.onAppLongClicked(app) },
             onClose = { viewModel.closeAllApps() },
-            iconLoader = { app -> viewModel.getAppIcon(app) }
+            iconLoader = { app -> viewModel.getAppIcon(app) },
+            drawerThemeMode = uiState.drawerThemeMode,
+            surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
+            autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer,
+            onOpenSettings = { isSettingsOpen = true }
         )
 
         // ── App Long-Press Action Sheet ────────────────────────────────────────
@@ -631,26 +792,28 @@ fun HomeScreen(
 
         // ── Camera Cutout Touch Target ────────────────────────────────────────
         // ponytail: transparent 110x48dp hit area directly over the top camera cut-out triggers the drop-down selfie mirror; ceiling is top-center cutouts; upgrade path is querying DisplayCutout bounding rects on Android 9+.
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .size(width = 110.dp, height = 48.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = {
-                            val hasCam = androidx.core.content.ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.CAMERA
-                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                            if (hasCam) {
-                                isCameraOpen = true
-                            } else {
-                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        if (uiState.enableCameraMirror) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .size(width = 110.dp, height = 48.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = {
+                                val hasCam = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.CAMERA
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (hasCam) {
+                                    isCameraOpen = true
+                                } else {
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                }
                             }
-                        }
-                    )
-                }
-        )
+                        )
+                    }
+            )
+        }
 
         // ── Drop-Down Camera Window (Selfie Mirror) ───────────────────────────
         if (isCameraOpen) {
@@ -710,82 +873,88 @@ fun HomeScreen(
             }
         }
 
-        // ── Quick Screen Popup Menu (Settings & Add Category) ──────────────────
+        // ── Home Screen Context Menu Sheet (Settings, Add Category, Wallpaper, System Settings) ──
         if (showHomeMenu) {
-            AlertDialog(
+            HomeContextMenuSheet(
                 onDismissRequest = { showHomeMenu = false },
-                title = {
-                    Text(
-                        text = "Quick Actions",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                sheetState = homeMenuSheetState,
+                onOpenSettings = {
+                    showHomeMenu = false
+                    isSettingsOpen = true
                 },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            onClick = {
-                                showHomeMenu = false
-                                isSettingsOpen = true
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Settings,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "Settings",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
+                onAddCategory = {
+                    showHomeMenu = false
+                    groupsViewModel.setShowCreateDialog(true)
+                },
+                onAddWidget = {
+                    showHomeMenu = false
+                    launchAddWidgetFlow()
+                }
+            )
+        }
 
-                        Surface(
-                            onClick = {
-                                showHomeMenu = false
-                                groupsViewModel.setShowCreateDialog(true)
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "Add Category",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
+        // ── Quick Settings Dark Scrim (covers remaining screen with dark shadow) ──
+        AnimatedVisibility(
+            visible = isQuickSettingsOpen,
+            enter = fadeIn(animationSpec = tween(180)),
+            exit = fadeOut(animationSpec = tween(140))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { isQuickSettingsOpen = false })
                     }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { showHomeMenu = false }) {
-                        Text("Cancel")
-                    }
+            )
+        }
+
+        // ── Quick Settings Panel (Rich animated presentation: 35% bottom in portrait, right 50% in landscape) ──
+        val screenConfig = LocalConfiguration.current
+        val isLandscape = screenConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+        AnimatedVisibility(
+            visible = isQuickSettingsOpen,
+            enter = if (isLandscape) {
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                ) + fadeIn(animationSpec = tween(220))
+            } else {
+                slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                ) + fadeIn(animationSpec = tween(220))
+            },
+            exit = if (isLandscape) {
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(durationMillis = 240, easing = FastOutLinearInEasing)
+                ) + fadeOut(animationSpec = tween(180))
+            } else {
+                slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(durationMillis = 240, easing = FastOutLinearInEasing)
+                ) + fadeOut(animationSpec = tween(180))
+            },
+            modifier = if (isLandscape) Modifier.align(Alignment.CenterEnd) else Modifier.align(Alignment.BottomCenter)
+        ) {
+            com.urunkarpm.drawer.feature.home.component.QuickSettingsPanel(
+                tileOrder = uiState.quickSettingsTileOrder,
+                hiddenTiles = uiState.quickSettingsHiddenTiles,
+                onUpdateTileOrder = viewModel::updateQuickSettingsTileOrder,
+                onUpdateHiddenTiles = viewModel::updateQuickSettingsHiddenTiles,
+                onClose = { isQuickSettingsOpen = false },
+                drawerThemeMode = uiState.drawerThemeMode,
+                surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
+                modifier = if (isLandscape) {
+                    Modifier
+                        .fillMaxWidth(0.50f)
+                        .fillMaxHeight()
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.35f)
                 }
             )
         }
@@ -794,7 +963,16 @@ fun HomeScreen(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 72.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 76.dp, start = 24.dp, end = 24.dp),
+            snackbar = { snackbarData ->
+                androidx.compose.material3.Snackbar(
+                    snackbarData = snackbarData,
+                    shape = RoundedCornerShape(24.dp),
+                    containerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.92f),
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface
+                )
+            }
         )
 
         // ── Drag Ghost Overlay (120 FPS hardware-accelerated follow-finger preview) ────

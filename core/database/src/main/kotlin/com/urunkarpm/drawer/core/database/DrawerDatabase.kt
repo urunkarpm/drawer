@@ -18,9 +18,10 @@ import com.urunkarpm.drawer.core.database.entity.MutedAppRuleEntity
         AppGroupItemEntity::class,
         DockItemEntity::class,
         MutedAppRuleEntity::class,
-        IconPackOverrideEntity::class
+        IconPackOverrideEntity::class,
+        com.urunkarpm.drawer.core.database.entity.WidgetItemEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class DrawerDatabase : RoomDatabase() {
@@ -28,4 +29,5 @@ abstract class DrawerDatabase : RoomDatabase() {
     abstract fun dockDao(): DockDao
     abstract fun mutedAppDao(): MutedAppDao
     abstract fun iconPackOverrideDao(): IconPackOverrideDao
+    abstract fun widgetDao(): com.urunkarpm.drawer.core.database.dao.WidgetDao
 }

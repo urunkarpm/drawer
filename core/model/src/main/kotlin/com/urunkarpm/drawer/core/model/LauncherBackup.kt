@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 data class LauncherPreferencesBackup(
     val themeMode: String = "SYSTEM",
     val dynamicColor: Boolean = true,
-    val hideStatusBar: Boolean = false,
+    val hideStatusBar: Boolean = true,
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
     val is24Hour: Boolean = true,

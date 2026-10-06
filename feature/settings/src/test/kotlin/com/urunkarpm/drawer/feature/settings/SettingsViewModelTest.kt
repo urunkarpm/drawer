@@ -27,8 +27,10 @@ class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
     private val backupRepository: BackupRepository = mockk(relaxed = true)
+    private val updateRepository: com.urunkarpm.drawer.core.data.repository.UpdateRepository = mockk(relaxed = true)
 
     private val themeModeFlow = MutableStateFlow("SYSTEM")
+    private val drawerThemeModeFlow = MutableStateFlow("SYSTEM")
     private val dynamicColorFlow = MutableStateFlow(true)
     private val hideStatusBarFlow = MutableStateFlow(true)
     private val showWeatherFlow = MutableStateFlow(true)
@@ -47,6 +49,17 @@ class SettingsViewModelTest {
     private val wallpaperBlurFlow = MutableStateFlow(false)
     private val wallpaperBlurRadiusFlow = MutableStateFlow(25f)
     private val lockLayoutFlow = MutableStateFlow(false)
+    private val surfaceThemeStyleFlow = MutableStateFlow("LIQUID_GLASS")
+    private val surfaceOpacityFlow = MutableStateFlow(0.65f)
+    private val surfaceBlurRadiusFlow = MutableStateFlow(25f)
+    private val surfaceStrokeOpacityFlow = MutableStateFlow(0.40f)
+    private val surfaceCornerRadiusFlow = MutableStateFlow(24f)
+    private val autoArrangeAppsFlow = MutableStateFlow(true)
+    private val showDuoStatusWidgetFlow = MutableStateFlow(true)
+    private val enableCameraMirrorFlow = MutableStateFlow(true)
+    private val autoOpenKeyboardInDrawerFlow = MutableStateFlow(false)
+    private val categoryAlignmentFlow = MutableStateFlow("TOP")
+    private val enableWidgetsPageFlow = MutableStateFlow(false)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -55,6 +68,7 @@ class SettingsViewModelTest {
         Dispatchers.setMain(testDispatcher)
 
         every { preferencesDataSource.themeMode } returns themeModeFlow
+        every { preferencesDataSource.drawerThemeMode } returns drawerThemeModeFlow
         every { preferencesDataSource.dynamicColor } returns dynamicColorFlow
         every { preferencesDataSource.hideStatusBar } returns hideStatusBarFlow
         every { preferencesDataSource.wallpaperBlur } returns wallpaperBlurFlow
@@ -67,16 +81,28 @@ class SettingsViewModelTest {
         every { preferencesDataSource.dockIconSize } returns dockIconSizeFlow
         every { preferencesDataSource.dockShowLabels } returns dockShowLabelsFlow
         every { preferencesDataSource.dockCornerRadius } returns dockCornerRadiusFlow
+        every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
+        every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
+        every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
+        every { preferencesDataSource.surfaceStrokeOpacity } returns surfaceStrokeOpacityFlow
+        every { preferencesDataSource.surfaceCornerRadius } returns surfaceCornerRadiusFlow
+        every { preferencesDataSource.autoArrangeApps } returns autoArrangeAppsFlow
         every { preferencesDataSource.multiGroupApps } returns multiGroupAppsFlow
         every { preferencesDataSource.notificationsPrivacyMode } returns notificationsPrivacyModeFlow
         every { preferencesDataSource.activeIconPack } returns activeIconPackFlow
         every { preferencesDataSource.adaptiveIconShape } returns adaptiveIconShapeFlow
         every { preferencesDataSource.twoDrawersSideBySide } returns twoDrawersSideBySideFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
+        every { preferencesDataSource.autoOpenKeyboardInDrawer } returns autoOpenKeyboardInDrawerFlow
+        every { preferencesDataSource.categoryAlignment } returns categoryAlignmentFlow
+        every { preferencesDataSource.enableWidgetsPage } returns enableWidgetsPageFlow
+        every { preferencesDataSource.showDuoStatusWidget } returns showDuoStatusWidgetFlow
+        every { preferencesDataSource.enableCameraMirror } returns enableCameraMirrorFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
             backupRepository = backupRepository,
+            updateRepository = updateRepository,
             ioDispatcher = testDispatcher
         )
     }
@@ -95,11 +121,24 @@ class SettingsViewModelTest {
             assertTrue(state.hideStatusBar)
             assertTrue(state.showWeather)
             assertEquals("CELSIUS", state.weatherUnit)
-            assertEquals("BLUR", state.dockBackground)
+            assertEquals("LIQUID_GLASS", state.dockBackground)
             assertEquals(56f, state.dockIconSize)
             assertEquals("SYSTEM", state.adaptiveIconShape)
+            assertEquals("LIQUID_GLASS", state.surfaceThemeStyle)
+            assertEquals(0.65f, state.surfaceOpacity)
+            assertEquals(25f, state.surfaceBlurRadius)
+            assertEquals(0.40f, state.surfaceStrokeOpacity)
+            assertEquals(24f, state.surfaceCornerRadius)
+            assertTrue(state.autoArrangeApps)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun setAutoArrangeApps_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setAutoArrangeApps(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setAutoArrangeApps(false) }
     }
 
     @Test
@@ -107,6 +146,23 @@ class SettingsViewModelTest {
         viewModel.setThemeMode("AMOLED")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setThemeMode("AMOLED") }
+    }
+
+    @Test
+    fun setSurfaceThemeOptions_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setSurfaceThemeStyle("LIQUID_GLASS")
+        viewModel.setSurfaceOpacity(0.80f)
+        viewModel.setSurfaceBlurRadius(35f)
+        viewModel.setSurfaceStrokeOpacity(0.50f)
+        viewModel.setSurfaceCornerRadius(28f)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setSurfaceThemeStyle("LIQUID_GLASS") }
+        coVerify { preferencesDataSource.setSurfaceOpacity(0.80f) }
+        coVerify { preferencesDataSource.setSurfaceBlurRadius(35f) }
+        coVerify { preferencesDataSource.setSurfaceStrokeOpacity(0.50f) }
+        coVerify { preferencesDataSource.setSurfaceCornerRadius(28f) }
     }
 
     @Test
@@ -118,7 +174,7 @@ class SettingsViewModelTest {
 
         testDispatcher.scheduler.advanceUntilIdle()
 
-        coVerify { preferencesDataSource.setDockBackground("SOLID") }
+        coVerify { preferencesDataSource.setSurfaceThemeStyle("SOLID") }
         coVerify { preferencesDataSource.setDockIconSize(64f) }
         coVerify { preferencesDataSource.setDockShowLabels(true) }
         coVerify { preferencesDataSource.setDockCornerRadius(16f) }
@@ -156,5 +212,13 @@ class SettingsViewModelTest {
             assertTrue(state.userMessage?.contains("Failed to restore backup") == true)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun setDrawerThemeMode_persistsSetting() = runTest(testDispatcher) {
+        viewModel.setDrawerThemeMode("WHITE")
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setDrawerThemeMode("WHITE") }
     }
 }

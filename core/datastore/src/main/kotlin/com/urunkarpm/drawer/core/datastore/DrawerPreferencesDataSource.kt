@@ -33,6 +33,12 @@ class DrawerPreferencesDataSource @Inject constructor(
         val DOCK_SHOW_LABELS = booleanPreferencesKey("dock_show_labels")
         val DOCK_CORNER_RADIUS = floatPreferencesKey("dock_corner_radius")
 
+        val SURFACE_THEME_STYLE = stringPreferencesKey("surface_theme_style")
+        val SURFACE_OPACITY = floatPreferencesKey("surface_opacity")
+        val SURFACE_BLUR_RADIUS = floatPreferencesKey("surface_blur_radius")
+        val SURFACE_STROKE_OPACITY = floatPreferencesKey("surface_stroke_opacity")
+        val SURFACE_CORNER_RADIUS = floatPreferencesKey("surface_corner_radius")
+
         val MULTI_GROUP_APPS = booleanPreferencesKey("multi_group_apps")
 
         val NOTIFICATIONS_PRIVACY_MODE = booleanPreferencesKey("notifications_privacy_mode")
@@ -43,9 +49,42 @@ class DrawerPreferencesDataSource @Inject constructor(
         val WALLPAPER_BLUR = booleanPreferencesKey("wallpaper_blur")
         val WALLPAPER_BLUR_RADIUS = floatPreferencesKey("wallpaper_blur_radius")
         val LOCK_LAYOUT = booleanPreferencesKey("lock_layout")
+        val DRAWER_THEME_MODE = stringPreferencesKey("drawer_theme_mode")
+        val HAS_SEEDED_DEFAULT_DOCK = booleanPreferencesKey("has_seeded_default_dock_v3")
+        val AUTO_ARRANGE_APPS = booleanPreferencesKey("auto_arrange_apps")
+        val AUTO_OPEN_KEYBOARD_IN_DRAWER = booleanPreferencesKey("auto_open_keyboard_in_drawer")
+        val SHOW_DUO_STATUS_WIDGET = booleanPreferencesKey("show_duo_status_widget")
+        val ENABLE_CAMERA_MIRROR = booleanPreferencesKey("enable_camera_mirror")
+        val CATEGORY_ALIGNMENT = stringPreferencesKey("category_alignment")
+        val ENABLE_WIDGETS_PAGE = booleanPreferencesKey("enable_widgets_page")
+        val QUICK_SETTINGS_TILE_ORDER = stringPreferencesKey("quick_settings_tile_order")
+        val QUICK_SETTINGS_HIDDEN_TILES = stringPreferencesKey("quick_settings_hidden_tiles")
+    }
+
+    val quickSettingsTileOrder: Flow<List<String>> = dataStore.data.map {
+        val raw = it[PreferencesKeys.QUICK_SETTINGS_TILE_ORDER] ?: "rotate,wifi,bluetooth,quick_share,dnd,auto_rotate,location,flashlight"
+        raw.split(",").map { s -> s.trim() }.filter { s -> s.isNotEmpty() }
+    }
+
+    val quickSettingsHiddenTiles: Flow<Set<String>> = dataStore.data.map {
+        val raw = it[PreferencesKeys.QUICK_SETTINGS_HIDDEN_TILES] ?: ""
+        if (raw.isBlank()) emptySet() else raw.split(",").map { s -> s.trim() }.filter { s -> s.isNotEmpty() }.toSet()
+    }
+
+    val autoOpenKeyboardInDrawer: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] ?: false }
+    val showDuoStatusWidget: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] ?: true }
+    val enableCameraMirror: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.ENABLE_CAMERA_MIRROR] ?: true }
+    val categoryAlignment: Flow<String> = dataStore.data.map { it[PreferencesKeys.CATEGORY_ALIGNMENT] ?: "TOP" }
+    val enableWidgetsPage: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.ENABLE_WIDGETS_PAGE] ?: false }
+
+    val hasSeededDefaultDock: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HAS_SEEDED_DEFAULT_DOCK] ?: false }
+
+    suspend fun setHasSeededDefaultDock(seeded: Boolean) {
+        dataStore.edit { it[PreferencesKeys.HAS_SEEDED_DEFAULT_DOCK] = seeded }
     }
 
     val themeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.THEME_MODE] ?: "SYSTEM" }
+    val drawerThemeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM" }
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_COLOR] ?: true }
     val hideStatusBar: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_STATUS_BAR] ?: true }
 
@@ -61,6 +100,16 @@ class DrawerPreferencesDataSource @Inject constructor(
     val dockShowLabels: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DOCK_SHOW_LABELS] ?: false }
     val dockCornerRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f }
 
+    val surfaceThemeStyle: Flow<String> = dataStore.data.map {
+        it[PreferencesKeys.SURFACE_THEME_STYLE] ?: it[PreferencesKeys.DOCK_BACKGROUND] ?: "LIQUID_GLASS"
+    }
+    val surfaceOpacity: Flow<Float> = dataStore.data.map { it[PreferencesKeys.SURFACE_OPACITY] ?: 0.65f }
+    val surfaceBlurRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.SURFACE_BLUR_RADIUS] ?: 25f }
+    val surfaceStrokeOpacity: Flow<Float> = dataStore.data.map { it[PreferencesKeys.SURFACE_STROKE_OPACITY] ?: 0.40f }
+    val surfaceCornerRadius: Flow<Float> = dataStore.data.map {
+        it[PreferencesKeys.SURFACE_CORNER_RADIUS] ?: it[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f
+    }
+
     val multiGroupApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.MULTI_GROUP_APPS] ?: false }
 
     val notificationsPrivacyMode: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] ?: false }
@@ -71,9 +120,18 @@ class DrawerPreferencesDataSource @Inject constructor(
     val wallpaperBlur: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR] ?: false }
     val wallpaperBlurRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR_RADIUS] ?: 25f }
     val lockLayout: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.LOCK_LAYOUT] ?: false }
+    val autoArrangeApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_ARRANGE_APPS] ?: true }
+
+    suspend fun setAutoArrangeApps(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.AUTO_ARRANGE_APPS] = enabled }
+    }
 
     suspend fun setThemeMode(mode: String) {
         dataStore.edit { it[PreferencesKeys.THEME_MODE] = mode }
+    }
+
+    suspend fun setDrawerThemeMode(mode: String) {
+        dataStore.edit { it[PreferencesKeys.DRAWER_THEME_MODE] = mode }
     }
 
     suspend fun setDynamicColor(enabled: Boolean) {
@@ -105,7 +163,36 @@ class DrawerPreferencesDataSource @Inject constructor(
     }
 
     suspend fun setDockBackground(style: String) {
-        dataStore.edit { it[PreferencesKeys.DOCK_BACKGROUND] = style }
+        dataStore.edit {
+            it[PreferencesKeys.DOCK_BACKGROUND] = style
+            it[PreferencesKeys.SURFACE_THEME_STYLE] = style
+        }
+    }
+
+    suspend fun setSurfaceThemeStyle(style: String) {
+        dataStore.edit {
+            it[PreferencesKeys.SURFACE_THEME_STYLE] = style
+            it[PreferencesKeys.DOCK_BACKGROUND] = style
+        }
+    }
+
+    suspend fun setSurfaceOpacity(opacity: Float) {
+        dataStore.edit { it[PreferencesKeys.SURFACE_OPACITY] = opacity }
+    }
+
+    suspend fun setSurfaceBlurRadius(radius: Float) {
+        dataStore.edit { it[PreferencesKeys.SURFACE_BLUR_RADIUS] = radius }
+    }
+
+    suspend fun setSurfaceStrokeOpacity(opacity: Float) {
+        dataStore.edit { it[PreferencesKeys.SURFACE_STROKE_OPACITY] = opacity }
+    }
+
+    suspend fun setSurfaceCornerRadius(radiusDp: Float) {
+        dataStore.edit {
+            it[PreferencesKeys.SURFACE_CORNER_RADIUS] = radiusDp
+            it[PreferencesKeys.DOCK_CORNER_RADIUS] = radiusDp
+        }
     }
 
     suspend fun setDockIconSize(sizeDp: Float) {
@@ -153,5 +240,33 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setLockLayout(locked: Boolean) {
         dataStore.edit { it[PreferencesKeys.LOCK_LAYOUT] = locked }
+    }
+
+    suspend fun setAutoOpenKeyboardInDrawer(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] = enabled }
+    }
+
+    suspend fun setShowDuoStatusWidget(show: Boolean) {
+        dataStore.edit { it[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] = show }
+    }
+
+    suspend fun setEnableCameraMirror(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.ENABLE_CAMERA_MIRROR] = enabled }
+    }
+
+    suspend fun setCategoryAlignment(alignment: String) {
+        dataStore.edit { it[PreferencesKeys.CATEGORY_ALIGNMENT] = alignment }
+    }
+
+    suspend fun setEnableWidgetsPage(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.ENABLE_WIDGETS_PAGE] = enabled }
+    }
+
+    suspend fun setQuickSettingsTileOrder(order: List<String>) {
+        dataStore.edit { it[PreferencesKeys.QUICK_SETTINGS_TILE_ORDER] = order.joinToString(",") }
+    }
+
+    suspend fun setQuickSettingsHiddenTiles(hidden: Set<String>) {
+        dataStore.edit { it[PreferencesKeys.QUICK_SETTINGS_HIDDEN_TILES] = hidden.joinToString(",") }
     }
 }

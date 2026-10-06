@@ -17,11 +17,11 @@ import kotlinx.coroutines.delay
  * Automatically closes an expanded drawer after [timeoutMs] of inactivity.
  * Countdown pauses while any finger touches the screen, and restarts when fingers lift.
  */
-// ponytail: auto-closes drawer after 2 seconds of inactivity, pausing countdown while finger is held on screen; ceiling is fixed 2s timeout; upgrade path is user-configurable timeout in Settings.
+// ponytail: auto-closes drawer after 5 seconds of inactivity, pausing countdown while finger is held on screen; ceiling is fixed 5s timeout; upgrade path is user-configurable timeout in Settings.
 fun Modifier.autoCloseOnInactivity(
     active: Boolean,
     resetKey: Any? = null,
-    timeoutMs: Long = 2000L,
+    timeoutMs: Long = 5000L,
     onClose: () -> Unit
 ): Modifier = composed {
     if (!active) return@composed this

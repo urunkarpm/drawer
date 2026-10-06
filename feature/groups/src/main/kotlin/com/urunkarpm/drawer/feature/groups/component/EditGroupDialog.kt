@@ -60,7 +60,7 @@ fun EditGroupDialog(
     var selectedIcon by remember { mutableStateOf(group?.iconName ?: "folder") }
     var selectedColor by remember { mutableStateOf(group?.colorHex ?: "#1E88E5") }
     var selectedViewType by remember {
-        mutableStateOf(if (twoDrawersSideBySide) GroupViewType.GRID else (group?.viewType ?: GroupViewType.GRID))
+        mutableStateOf(group?.viewType ?: if (twoDrawersSideBySide) GroupViewType.LIST else GroupViewType.GRID)
     }
     var columnCount by remember { mutableIntStateOf(group?.columnCount ?: 4) }
     var selectedSortOrder by remember { mutableStateOf(group?.sortOrder ?: GroupSortOrder.MANUAL) }
@@ -197,13 +197,8 @@ fun EditGroupDialog(
                     )
                     FilterChip(
                         selected = selectedViewType == GroupViewType.LIST,
-                        onClick = {
-                            if (!twoDrawersSideBySide) {
-                                selectedViewType = GroupViewType.LIST
-                            }
-                        },
-                        enabled = !twoDrawersSideBySide,
-                        label = { Text(if (twoDrawersSideBySide) "List (Disabled in 2-Drawer mode)" else "List") }
+                        onClick = { selectedViewType = GroupViewType.LIST },
+                        label = { Text("List") }
                     )
                 }
 

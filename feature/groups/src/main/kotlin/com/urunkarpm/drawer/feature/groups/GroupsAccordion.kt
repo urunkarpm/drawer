@@ -3,10 +3,12 @@ package com.urunkarpm.drawer.feature.groups
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -85,8 +87,8 @@ import com.urunkarpm.drawer.feature.groups.component.GroupItemActionBottomSheet
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
 import androidx.compose.ui.graphics.Shape
-import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
 import com.urunkarpm.drawer.core.designsystem.modifier.appDragSource
+import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,30 +109,39 @@ fun GroupsAccordion(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val hasExpandedGroup = uiState.groups.any { it.group.isExpanded }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .autoCloseOnInactivity(
+                active = hasExpandedGroup,
+                resetKey = uiState.groups.find { it.group.isExpanded }?.group?.id,
+                timeoutMs = 5000L,
+                onClose = { viewModel.collapseAllGroups() }
+            ),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (twoDrawersSideBySide) {
-            // Two independent columns side by side: left (even indices) and right (odd indices).
-            // When a drawer on either side opens, only that side adjusts; the opposite side stays intact.
-            val indexedGroups = uiState.groups.mapIndexed { index, group -> index to group }
-            val leftGroups = indexedGroups.filterIndexed { i, _ -> i % 2 == 0 }
-            val rightGroups = indexedGroups.filterIndexed { i, _ -> i % 2 != 0 }
+            val leftColumnGroups = remember(uiState.groups) {
+                uiState.groups.mapIndexed { index, group -> index to group }.filterIndexed { idx, _ -> idx % 2 == 0 }
+            }
+            val rightColumnGroups = remember(uiState.groups) {
+                uiState.groups.mapIndexed { index, group -> index to group }.filterIndexed { idx, _ -> idx % 2 == 1 }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Top
             ) {
+                // Left Column
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    leftGroups.forEach { (index, group) ->
+                    leftColumnGroups.forEach { (index, group) ->
                         GroupCard(
                             resolvedGroup = group,
                             groupIndex = index,
@@ -140,19 +151,13 @@ fun GroupsAccordion(
                             isDropTarget = hoveredGroupId == group.group.id,
                             onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
                             onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
-                            onToggleExpand = {
-                                viewModel.toggleGroupExpanded(group.group.id)
-                            },
+                            onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
                             onEditGroup = { viewModel.startEditingGroup(group.group) },
                             onMoveUp = { viewModel.moveGroupUp(index) },
                             onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
                             onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
-                            onAppClick = { app ->
-                                viewModel.launchApp(app)
-                            },
-                            onAppLongClick = { app ->
-                                viewModel.selectAppForAction(app, group.group)
-                            },
+                            onAppClick = { app -> viewModel.launchApp(app) },
+                            onAppLongClick = { app -> viewModel.selectAppForAction(app, group.group) },
                             iconLoader = { app -> viewModel.getAppIcon(app) },
                             iconShape = iconShape,
                             onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, group.group.id) } },
@@ -164,11 +169,12 @@ fun GroupsAccordion(
                     }
                 }
 
+                // Right Column
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    rightGroups.forEach { (index, group) ->
+                    rightColumnGroups.forEach { (index, group) ->
                         GroupCard(
                             resolvedGroup = group,
                             groupIndex = index,
@@ -178,19 +184,13 @@ fun GroupsAccordion(
                             isDropTarget = hoveredGroupId == group.group.id,
                             onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
                             onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
-                            onToggleExpand = {
-                                viewModel.toggleGroupExpanded(group.group.id)
-                            },
+                            onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
                             onEditGroup = { viewModel.startEditingGroup(group.group) },
                             onMoveUp = { viewModel.moveGroupUp(index) },
                             onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
                             onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
-                            onAppClick = { app ->
-                                viewModel.launchApp(app)
-                            },
-                            onAppLongClick = { app ->
-                                viewModel.selectAppForAction(app, group.group)
-                            },
+                            onAppClick = { app -> viewModel.launchApp(app) },
+                            onAppLongClick = { app -> viewModel.selectAppForAction(app, group.group) },
                             iconLoader = { app -> viewModel.getAppIcon(app) },
                             iconShape = iconShape,
                             onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, group.group.id) } },
@@ -372,13 +372,7 @@ private fun GroupCard(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer { scaleX = animatedScale; scaleY = animatedScale }
-            .onGloballyPositioned { coords -> onPositioned?.invoke(coords.boundsInRoot()) }
-            .autoCloseOnInactivity(
-                active = group.isExpanded && !isDragging && !isDropTarget,
-                resetKey = group.id,
-                timeoutMs = 2000L,
-                onClose = onToggleExpand
-            ),
+            .onGloballyPositioned { coords -> onPositioned?.invoke(coords.boundsInRoot()) },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isDropTarget)
@@ -390,136 +384,128 @@ private fun GroupCard(
         border = if (isDropTarget) BorderStroke(animatedBorderWidth, animatedBorderColor) else null
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Header Row
-            Surface(
-                onClick = onToggleExpand,
-                color = Color.Transparent,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
+            // Header Row (Single tap to expand/collapse, long press to edit/reorder)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(
-                            horizontal = if (isCompact) 10.dp else 16.dp,
-                            vertical = if (isCompact) 10.dp else 12.dp
+                        .combinedClickable(
+                            onClick = onToggleExpand,
+                            onLongClick = if (!lockLayout) { { showMenu = true } } else null
                         ),
-                    verticalAlignment = Alignment.CenterVertically
+                    color = Color.Transparent
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(if (isCompact) 28.dp else 36.dp)
-                            .clip(CircleShape)
-                            .background(groupColor.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = if (isCompact) 10.dp else 16.dp,
+                                vertical = if (isCompact) 10.dp else 12.dp
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = groupIcon,
-                            contentDescription = group.name,
-                            tint = groupColor,
-                            modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(if (isCompact) 6.dp else 12.dp))
-
-                    Text(
-                        text = group.name,
-                        style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    // Count badge
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.padding(horizontal = if (isCompact) 2.dp else 4.dp)
-                    ) {
-                        Text(
-                            text = "${resolvedGroup.apps.size}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(
-                                horizontal = if (isCompact) 6.dp else 8.dp,
-                                vertical = 2.dp
-                            )
-                        )
-                    }
-
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (group.isExpanded) "Collapse" else "Expand",
-                        modifier = Modifier
-                            .size(if (isCompact) 18.dp else 24.dp)
-                            .rotate(chevronRotation),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (!lockLayout) {
-                        Box {
-                            IconButton(
-                                onClick = { showMenu = true },
-                                modifier = Modifier.size(if (isCompact) 24.dp else 32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.MoreVert,
-                                    contentDescription = "Category options",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(if (isCompact) 14.dp else 18.dp)
-                                )
-                            }
-    
-                            DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
+                        Box(
+                            modifier = Modifier
+                                .size(if (isCompact) 28.dp else 36.dp)
+                                .clip(CircleShape)
+                                .background(groupColor.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Edit") },
-                                onClick = {
-                                    showMenu = false
-                                    onEditGroup()
-                                },
-                                leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }
-                            )
-                            if (groupIndex > 0) {
-                                DropdownMenuItem(
-                                    text = { Text("Move up") },
-                                    onClick = {
-                                        showMenu = false
-                                        onMoveUp()
-                                    },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null) }
-                                )
-                            }
-                            if (groupIndex < totalGroups - 1) {
-                                DropdownMenuItem(
-                                    text = { Text("Move down") },
-                                    onClick = {
-                                        showMenu = false
-                                        onMoveDown()
-                                    },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null) }
-                                )
-                            }
-                            DropdownMenuItem(
-                                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                onClick = {
-                                    showMenu = false
-                                    onDeleteGroup()
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Outlined.Delete,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                }
+                            Icon(
+                                imageVector = groupIcon,
+                                contentDescription = group.name,
+                                tint = groupColor,
+                                modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(if (isCompact) 6.dp else 12.dp))
+
+                        Text(
+                            text = group.name,
+                            style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        // Count badge
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.padding(horizontal = if (isCompact) 2.dp else 4.dp)
+                        ) {
+                            Text(
+                                text = "${resolvedGroup.apps.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(
+                                    horizontal = if (isCompact) 6.dp else 8.dp,
+                                    vertical = 2.dp
+                                )
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (group.isExpanded) "Collapse" else "Expand",
+                            modifier = Modifier
+                                .size(if (isCompact) 18.dp else 24.dp)
+                                .rotate(chevronRotation),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
+                }
+
+                if (!lockLayout) {
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit") },
+                            onClick = {
+                                showMenu = false
+                                onEditGroup()
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }
+                        )
+                        if (groupIndex > 0) {
+                            DropdownMenuItem(
+                                text = { Text("Move up") },
+                                onClick = {
+                                    showMenu = false
+                                    onMoveUp()
+                                },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null) }
+                            )
+                        }
+                        if (groupIndex < totalGroups - 1) {
+                            DropdownMenuItem(
+                                text = { Text("Move down") },
+                                onClick = {
+                                    showMenu = false
+                                    onMoveDown()
+                                },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null) }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                onDeleteGroup()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Outlined.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -527,8 +513,18 @@ private fun GroupCard(
             // Expanded Apps Content
             AnimatedVisibility(
                 visible = group.isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = expandVertically(
+                    animationSpec = tween(
+                        durationMillis = 220,
+                        easing = FastOutSlowInEasing
+                    )
+                ) + fadeIn(animationSpec = tween(durationMillis = 180)),
+                exit = shrinkVertically(
+                    animationSpec = tween(
+                        durationMillis = 180,
+                        easing = FastOutSlowInEasing
+                    )
+                ) + fadeOut(animationSpec = tween(durationMillis = 120))
             ) {
                 if (resolvedGroup.apps.isEmpty()) {
                     Box(
@@ -545,7 +541,12 @@ private fun GroupCard(
                         )
                     }
                 } else {
-                    val effectiveViewType = if (isCompact || twoDrawersSideBySide) GroupViewType.GRID else group.viewType
+                    // When twoDrawersSideBySide is enabled, default to LIST view mode
+                    val effectiveViewType = if (twoDrawersSideBySide) {
+                        GroupViewType.LIST
+                    } else {
+                        group.viewType
+                    }
                     when (effectiveViewType) {
                         GroupViewType.GRID -> {
                             GroupGridLayout(
@@ -638,7 +639,8 @@ private fun GroupGridLayout(
                                 onPositioned = onAppPositioned?.let { cb -> { rect -> cb(app, rect) } },
                                 onDragStart = onAppDragStart?.let { cb -> { rootPos: Offset -> cb(app, rootPos) } },
                                 onDrag = onAppDrag,
-                                onDragEnd = onAppDragEnd
+                                onDragEnd = onAppDragEnd,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }

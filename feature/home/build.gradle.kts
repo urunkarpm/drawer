@@ -7,6 +7,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(project(":core:data"))
     implementation(project(":core:datastore"))
     implementation(project(":feature:dock"))
@@ -16,6 +17,7 @@ dependencies {
     implementation(project(":feature:settings"))
 
     implementation(libs.coil.compose)
+    implementation(libs.compose.material.icons.extended)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)

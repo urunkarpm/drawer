@@ -99,8 +99,10 @@ fun AppIconImage(
     val effectiveKey = remember(key, label) {
         key?.toString() ?: label.takeIf { it.isNotEmpty() } ?: "default"
     }
-    val cachedBitmap = remember(effectiveKey, drawable) {
-        if (drawable != null) drawable.toImageBitmapSafe() else AppIconCache.get(effectiveKey)
+    val cachedBitmap = if (drawable != null) {
+        remember(drawable) { drawable.toImageBitmapSafe() }
+    } else {
+        AppIconCache.get(effectiveKey)
     }
 
     if (cachedBitmap != null) {

@@ -31,44 +31,66 @@ fun Modifier.appDragSource(
     onAppLongClick: () -> Unit,
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
-    onDragEnd: (isDropped: Boolean) -> Unit
+    onDragEnd: (isDropped: Boolean) -> Unit,
+    longPressRequired: Boolean = false
 ): Modifier = composed {
     val haptic = LocalHapticFeedback.current
-    var itemCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val coordsHolder = remember { arrayOfNulls<LayoutCoordinates>(1) }
 
     this
         .onGloballyPositioned { coords ->
-            itemCoordinates = coords
+            coordsHolder[0] = coords
         }
-        .pointerInput(key) {
+        .pointerInput(key, longPressRequired) {
             awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
+                val down = awaitFirstDown(requireUnconsumed = true)
                 val pointerId = down.id
                 val touchSlop = viewConfiguration.touchSlop
+                val initialPosition = down.position
+                var isDragStarted = false
                 var isLongPressed = false
+                var currentPosition = initialPosition
 
-                // 1. Wait for long press or tap
+                // When in app drawer (longPressRequired = true), require standard launcher long-press hold (350ms)
+                // so scrolling down/up the list is 100% protected and never triggers accidental drag.
+                // When on home grid (longPressRequired = false), quick 180ms hold or immediate horizontal flick.
+                val dragInitiationTimeoutMillis = if (longPressRequired) 350L else 180L
                 try {
-                    withTimeout(viewConfiguration.longPressTimeoutMillis) {
-                        val initialPosition = down.position
+                    withTimeout(dragInitiationTimeoutMillis) {
                         while (true) {
                             val event = awaitPointerEvent(PointerEventPass.Main)
                             val change = event.changes.firstOrNull { it.id == pointerId }
-                            
+
                             if (change == null || change.changedToUp() || !change.pressed) {
-                                // Tap released
-                                val currentPos = change?.position ?: down.position
-                                val dist = (currentPos - initialPosition).getDistance()
+                                // Tap released quickly within touchSlop
+                                val releasePos = change?.position ?: down.position
+                                val dist = (releasePos - initialPosition).getDistance()
                                 if (dist <= touchSlop) {
                                     change?.consume()
                                     onAppClick()
                                 }
                                 return@withTimeout
                             }
-                            
-                            val dist = (change.position - initialPosition).getDistance()
-                            if (dist > touchSlop) {
-                                return@withTimeout // Moved too far, let parent scroll
+
+                            currentPosition = change.position
+                            val deltaX = currentPosition.x - initialPosition.x
+                            val deltaY = currentPosition.y - initialPosition.y
+                            val dist = (currentPosition - initialPosition).getDistance()
+
+                            if (!longPressRequired) {
+                                // On grid: moving horizontally left/right past touchSlop initiates drag immediately without hesitation
+                                if (kotlin.math.abs(deltaX) > touchSlop && kotlin.math.abs(deltaX) > kotlin.math.abs(deltaY) * 1.2f) {
+                                    isDragStarted = true
+                                    change.consume()
+                                    return@withTimeout
+                                }
+                            } else {
+                                // In AllAppsDrawer (longPressRequired = true):
+                                // If user moves past touchSlop before timeout, user is SCROLLING the list!
+                                // Exit without consuming so LazyVerticalGrid / scroll container handles the scroll cleanly.
+                                if (dist > touchSlop) {
+                                    return@withTimeout
+                                }
                             }
                         }
                     }
@@ -78,20 +100,30 @@ fun Modifier.appDragSource(
                     isLongPressed = true
                 }
 
-                // 2. Handle long press drag or options menu
-                if (isLongPressed) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    
-                    var isDragStarted = false
-                    var lastPosition: Offset? = null
-                    var postLongPressDrag = Offset.Zero
+                // If user released quickly (tap executed), end gesture
+                if (!isLongPressed && !isDragStarted) {
+                    return@awaitEachGesture
+                }
 
+                // Provide haptic feedback on drag or long-press hold
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                // If drag was initiated by quick movement in phase 1, trigger onDragStart right away!
+                if (isDragStarted) {
+                    val rootPos = (coordsHolder[0]?.takeIf { it.isAttached }?.positionInRoot() ?: Offset.Zero) + currentPosition
+                    onDragStart(rootPos)
+                }
+
+                // Phase 2: Active pointer tracking (streaming drag deltas or waiting for long-press release)
+                var lastPosition = currentPosition
+
+                try {
                     while (true) {
-                        // Use Initial pass to steal events from scrollable parents
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == pointerId }
                         if (change == null) {
                             if (isDragStarted) {
+                                isDragStarted = false
                                 onDragEnd(false)
                             }
                             break
@@ -99,6 +131,7 @@ fun Modifier.appDragSource(
 
                         if (change.changedToUp() || !change.pressed) {
                             if (isDragStarted) {
+                                isDragStarted = false
                                 onDragEnd(true)
                             } else {
                                 onAppLongClick()
@@ -107,21 +140,16 @@ fun Modifier.appDragSource(
                             break
                         }
 
-                        val currentPosition = change.position
-                        val dragAmount = if (lastPosition != null) {
-                            currentPosition - lastPosition
-                        } else {
-                            Offset.Zero
-                        }
-                        lastPosition = currentPosition
-                        
-                        postLongPressDrag += dragAmount
+                        val newPosition = change.position
+                        val dragAmount = newPosition - lastPosition
+                        lastPosition = newPosition
 
-                        // Account for human finger micro-jiggle after long press
                         if (!isDragStarted) {
-                            if (postLongPressDrag.getDistance() > touchSlop * 0.4f) {
+                            // User held stationary for timeout, now moved finger slightly
+                            val totalMovement = (newPosition - initialPosition).getDistance()
+                            if (totalMovement > touchSlop * 0.3f) {
                                 isDragStarted = true
-                                val rootPos = (itemCoordinates?.positionInRoot() ?: Offset.Zero) + change.position
+                                val rootPos = (coordsHolder[0]?.takeIf { it.isAttached }?.positionInRoot() ?: Offset.Zero) + newPosition
                                 onDragStart(rootPos)
                             }
                         } else {
@@ -129,9 +157,13 @@ fun Modifier.appDragSource(
                                 onDrag(dragAmount)
                             }
                         }
-                        
-                        // Consume the event so parents don't scroll
+
                         change.consume()
+                    }
+                } finally {
+                    if (isDragStarted) {
+                        isDragStarted = false
+                        onDragEnd(false)
                     }
                 }
             }

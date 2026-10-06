@@ -35,9 +35,11 @@ class HomeViewModelTest {
     private val dockRepository: DockRepository = mockk(relaxed = true)
     private val weatherRepository: WeatherRepository = mockk(relaxed = true)
     private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
+    private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository = mockk(relaxed = true)
 
     private val appsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
     private val weatherFlow = MutableStateFlow<WeatherInfo?>(null)
+    private val widgetsFlow = MutableStateFlow<List<com.urunkarpm.drawer.core.model.WidgetItem>>(emptyList())
     private val is24HourFlow = MutableStateFlow(true)
     private val showWeatherFlow = MutableStateFlow(true)
     private val weatherUnitFlow = MutableStateFlow("CELSIUS")
@@ -46,6 +48,19 @@ class HomeViewModelTest {
     private val twoDrawersSideBySideFlow = MutableStateFlow(false)
     private val wallpaperBlurFlow = MutableStateFlow(false)
     private val wallpaperBlurRadiusFlow = MutableStateFlow(25f)
+    private val drawerThemeModeFlow = MutableStateFlow("SYSTEM")
+    private val autoOpenKeyboardInDrawerFlow = MutableStateFlow(false)
+    private val showDuoStatusWidgetFlow = MutableStateFlow(true)
+    private val enableCameraMirrorFlow = MutableStateFlow(true)
+    private val categoryAlignmentFlow = MutableStateFlow("TOP")
+    private val enableWidgetsPageFlow = MutableStateFlow(false)
+    private val surfaceThemeStyleFlow = MutableStateFlow("LIQUID_GLASS")
+    private val surfaceOpacityFlow = MutableStateFlow(0.65f)
+    private val surfaceBlurRadiusFlow = MutableStateFlow(25f)
+    private val surfaceStrokeOpacityFlow = MutableStateFlow(0.40f)
+    private val surfaceCornerRadiusFlow = MutableStateFlow(24f)
+    private val quickSettingsTileOrderFlow = MutableStateFlow(listOf("rotate", "wifi", "bluetooth", "quick_share", "dnd", "auto_rotate", "location", "flashlight"))
+    private val quickSettingsHiddenTilesFlow = MutableStateFlow<Set<String>>(emptySet())
 
     private val sampleApps = listOf(
         AppInfo(
@@ -88,11 +103,25 @@ class HomeViewModelTest {
         every { preferencesDataSource.twoDrawersSideBySide } returns twoDrawersSideBySideFlow
         every { preferencesDataSource.wallpaperBlur } returns wallpaperBlurFlow
         every { preferencesDataSource.wallpaperBlurRadius } returns wallpaperBlurRadiusFlow
+        every { preferencesDataSource.drawerThemeMode } returns drawerThemeModeFlow
+        every { preferencesDataSource.autoOpenKeyboardInDrawer } returns autoOpenKeyboardInDrawerFlow
+        every { preferencesDataSource.showDuoStatusWidget } returns showDuoStatusWidgetFlow
+        every { preferencesDataSource.enableCameraMirror } returns enableCameraMirrorFlow
+        every { preferencesDataSource.categoryAlignment } returns categoryAlignmentFlow
+        every { preferencesDataSource.enableWidgetsPage } returns enableWidgetsPageFlow
+        every { preferencesDataSource.quickSettingsTileOrder } returns quickSettingsTileOrderFlow
+        every { preferencesDataSource.quickSettingsHiddenTiles } returns quickSettingsHiddenTilesFlow
+        every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
+        every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
+        every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
+        every { preferencesDataSource.surfaceStrokeOpacity } returns surfaceStrokeOpacityFlow
+        every { preferencesDataSource.surfaceCornerRadius } returns surfaceCornerRadiusFlow
+        every { widgetRepository.getAllWidgets() } returns widgetsFlow
 
         appsFlow.value = sampleApps
         weatherFlow.value = sampleWeather
 
-        viewModel = HomeViewModel(appRepository, dockRepository, weatherRepository, preferencesDataSource)
+        viewModel = HomeViewModel(appRepository, dockRepository, weatherRepository, preferencesDataSource, widgetRepository)
     }
 
     @After
@@ -117,6 +146,11 @@ class HomeViewModelTest {
             assertTrue(loadedState.showWeather)
             assertEquals("CELSIUS", loadedState.weatherUnit)
             assertTrue(loadedState.hideStatusBar)
+            assertEquals("LIQUID_GLASS", loadedState.surfaceThemeStyle)
+            assertEquals(0.65f, loadedState.surfaceOpacity)
+            assertEquals(25f, loadedState.surfaceBlurRadius)
+            assertEquals(0.40f, loadedState.surfaceStrokeOpacity)
+            assertEquals(24f, loadedState.surfaceCornerRadius)
         }
     }
 
@@ -230,5 +264,23 @@ class HomeViewModelTest {
             val state = expectMostRecentItem()
             assertEquals("Calculator pinned to dock", state.userMessage)
         }
+    }
+
+    @Test
+    fun updateQuickSettingsTileOrder_delegatesToPreferencesDataSource() = runTest {
+        val newOrder = listOf("wifi", "bluetooth", "flashlight", "rotate")
+        viewModel.updateQuickSettingsTileOrder(newOrder)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setQuickSettingsTileOrder(newOrder) }
+    }
+
+    @Test
+    fun updateQuickSettingsHiddenTiles_delegatesToPreferencesDataSource() = runTest {
+        val hidden = setOf("quick_share", "dnd")
+        viewModel.updateQuickSettingsHiddenTiles(hidden)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setQuickSettingsHiddenTiles(hidden) }
     }
 }

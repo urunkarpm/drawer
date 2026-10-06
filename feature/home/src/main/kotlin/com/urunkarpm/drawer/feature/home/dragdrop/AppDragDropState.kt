@@ -22,10 +22,10 @@ class AppDragDropState {
     var sourceGroupId by mutableStateOf<String?>(null)
         private set
 
-    var dockBounds by mutableStateOf<Rect?>(null)
-    val groupBounds = mutableStateMapOf<String, Rect>()
+    var dockBounds: Rect? = null
+    val groupBounds = mutableMapOf<String, Rect>()
     // groupId -> list of app center Y coordinates or just bounding rects
-    val appBounds = mutableStateMapOf<String, MutableMap<String, Rect>>()
+    val appBounds = mutableMapOf<String, MutableMap<String, Rect>>()
 
     fun registerAppBounds(groupId: String, key: String, rect: Rect) {
         val map = appBounds.getOrPut(groupId) { mutableMapOf() }
@@ -33,52 +33,57 @@ class AppDragDropState {
     }
 
     fun isOverDock(pos: Offset = dragPosition): Boolean {
-        val bounds = dockBounds
-        if (bounds != null) {
-            val horizontalMatch = pos.x in (bounds.left - 48f)..(bounds.right + 48f)
-            val verticalMatch = pos.y >= (bounds.top - 60f)
-            return horizontalMatch && verticalMatch
-        }
-        return false
+        val bounds = dockBounds ?: return false
+        val horizontalMatch = pos.x in (bounds.left - 48f)..(bounds.right + 48f)
+        val verticalMatch = pos.y >= (bounds.top - 60f)
+        return horizontalMatch && verticalMatch
     }
 
     fun hoveredGroupId(pos: Offset = dragPosition): String? {
+        val exact = groupBounds.entries.firstOrNull { it.value.contains(pos) }?.key
+        if (exact != null) return exact
         return groupBounds.entries.firstOrNull { it.value.inflate(36f).contains(pos) }?.key
     }
     
     fun calculateTargetIndex(groupId: String, pos: Offset): Int {
         val boundsMap = appBounds[groupId]
         if (boundsMap != null && boundsMap.isNotEmpty()) {
+            // Sort bounding rects in visual grid order: row-by-row (top-to-bottom), then left-to-right
+            val sortedRects = boundsMap.values.sortedWith(
+                compareBy<Rect> { (it.center.y / 70f).toInt() }
+                    .thenBy { it.center.x }
+            )
+            val total = sortedRects.size
+
+            // If dropped past the end of the items
+            val lastRect = sortedRects.last()
+            if (pos.y > lastRect.bottom || (pos.y >= lastRect.top - 20f && pos.x > lastRect.right)) {
+                return total
+            }
+
             var closestIndex = 0
             var closestDistance = Float.MAX_VALUE
-            var index = 0
-            for ((_, rect) in boundsMap.entries) {
-                val center = rect.center
-                val dist = (pos - center).getDistanceSquared()
+            for ((index, rect) in sortedRects.withIndex()) {
+                val dist = (pos - rect.center).getDistanceSquared()
                 if (dist < closestDistance) {
                     closestDistance = dist
-                    closestIndex = if (pos.x > center.x || pos.y > rect.bottom - 8f) {
-                        index + 1
-                    } else {
-                        index
-                    }
+                    closestIndex = index
                 }
-                index++
             }
-            return closestIndex.coerceIn(0, boundsMap.size)
+            return closestIndex.coerceIn(0, total)
         }
         
-        // Pure math fallback (assumes 4 columns grid view, with ~48dp header)
+        // Pure math fallback (assumes 2 columns grid view with ~48dp header)
         val bounds = groupBounds[groupId] ?: return 0
         val relativeX = (pos.x - bounds.left).coerceAtLeast(0f)
         val relativeY = (pos.y - bounds.top).coerceAtLeast(0f)
         if (relativeY < 120f) return 0
         
-        val rowHeight = 220f
+        val rowHeight = 200f
         val row = ((relativeY - 120f) / rowHeight).toInt().coerceAtLeast(0)
-        val colWidth = (bounds.width / 4f).coerceAtLeast(1f)
-        val col = (relativeX / colWidth).toInt().coerceIn(0, 3)
-        return row * 4 + col
+        val colWidth = (bounds.width / 2f).coerceAtLeast(1f)
+        val col = (relativeX / colWidth).toInt().coerceIn(0, 1)
+        return row * 2 + col
     }
 
     fun startDrag(app: AppInfo, rootPosition: Offset, sourceGroupId: String? = null) {
@@ -96,30 +101,37 @@ class AppDragDropState {
         val app = draggingApp
         val pos = dragPosition
         val srcGroup = sourceGroupId
+
+        if (app == null) {
+            cancelDrag()
+            return DragDropResult.None
+        }
+
+        val targetGroup = hoveredGroupId(pos)
+        val result = when {
+            isOverDock(pos) -> {
+                val bounds = dockBounds
+                var targetIndex = 0
+                if (bounds != null) {
+                    val dockWidth = bounds.width
+                    val numItems = 4 // approx
+                    val itemWidth = dockWidth / numItems
+                    val dropX = pos.x - bounds.left
+                    targetIndex = (dropX / itemWidth).toInt().coerceIn(0, numItems)
+                }
+                DragDropResult.DroppedOnDock(app, targetIndex, srcGroup)
+            }
+            targetGroup != null -> {
+                val targetIndex = calculateTargetIndex(targetGroup, pos)
+                DragDropResult.DroppedOnGroup(app, targetGroup, targetIndex, srcGroup)
+            }
+            else -> DragDropResult.DroppedOnHome(app, srcGroup)
+        }
+
         isDragging = false
         draggingApp = null
         sourceGroupId = null
-
-        if (app == null) return DragDropResult.None
-
-        if (isOverDock(pos)) {
-            val bounds = dockBounds
-            var targetIndex = 0
-            if (bounds != null) {
-                val dockWidth = bounds.width
-                val numItems = 4 // approx
-                val itemWidth = dockWidth / numItems
-                val dropX = pos.x - bounds.left
-                targetIndex = (dropX / itemWidth).toInt().coerceIn(0, numItems)
-            }
-            return DragDropResult.DroppedOnDock(app, targetIndex, srcGroup)
-        }
-        val targetGroup = hoveredGroupId(pos)
-        if (targetGroup != null) {
-            val targetIndex = calculateTargetIndex(targetGroup, pos)
-            return DragDropResult.DroppedOnGroup(app, targetGroup, targetIndex, srcGroup)
-        }
-        return DragDropResult.DroppedOnHome(app, srcGroup)
+        return result
     }
 
     fun cancelDrag() {
@@ -147,13 +159,15 @@ fun Modifier.appDragSource(
     onAppLongClick: () -> Unit,
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
-    onDragEnd: (isDropped: Boolean) -> Unit
+    onDragEnd: (isDropped: Boolean) -> Unit,
+    longPressRequired: Boolean = false
 ): Modifier = this.coreAppDragSource(
     key = app.componentKey,
     onAppClick = onAppClick,
     onAppLongClick = onAppLongClick,
     onDragStart = onDragStart,
     onDrag = onDrag,
-    onDragEnd = onDragEnd
+    onDragEnd = onDragEnd,
+    longPressRequired = longPressRequired
 )
 

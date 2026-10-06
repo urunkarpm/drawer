@@ -41,4 +41,7 @@ object DatabaseModule {
 
     @Provides
     fun provideIconPackOverrideDao(db: DrawerDatabase): IconPackOverrideDao = db.iconPackOverrideDao()
+
+    @Provides
+    fun provideWidgetDao(db: DrawerDatabase): com.urunkarpm.drawer.core.database.dao.WidgetDao = db.widgetDao()
 }

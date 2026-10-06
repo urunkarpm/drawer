@@ -57,4 +57,16 @@ abstract class DataModule {
     abstract fun bindBackupRepository(
         impl: com.urunkarpm.drawer.core.data.repository.BackupRepositoryImpl
     ): com.urunkarpm.drawer.core.data.repository.BackupRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUpdateRepository(
+        impl: com.urunkarpm.drawer.core.data.repository.UpdateRepositoryImpl
+    ): com.urunkarpm.drawer.core.data.repository.UpdateRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindWidgetRepository(
+        impl: com.urunkarpm.drawer.core.data.repository.WidgetRepositoryImpl
+    ): com.urunkarpm.drawer.core.data.repository.WidgetRepository
 }

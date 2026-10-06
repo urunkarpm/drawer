@@ -119,6 +119,12 @@ fun NotificationDrawer(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .autoCloseOnInactivity(
+                active = isExpanded,
+                resetKey = uiState.activeNotifications.size,
+                timeoutMs = 5000L,
+                onClose = { onExpandedChange(false) }
+            )
     ) {
         // ── Onboarding Banner ─────────────────────────────────────────────────
         if (!uiState.isPermissionGranted) {
@@ -176,11 +182,6 @@ fun NotificationDrawer(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .autoCloseOnInactivity(
-                        active = isExpanded && !isDragging,
-                        timeoutMs = 2000L,
-                        onClose = { onExpandedChange(false) }
-                    )
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
 
