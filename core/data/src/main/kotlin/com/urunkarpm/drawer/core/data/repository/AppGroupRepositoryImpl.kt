@@ -291,6 +291,29 @@ class AppGroupRepositoryImpl @Inject constructor(
         appGroupDao.updateGroups(reindexed)
     }
 
+    // ponytail: bulk assignment for edit group dialog. ceiling: deletes all and re-inserts. upgrade path: proper diffing if performance suffers.
+    override suspend fun setGroupApps(groupId: String, apps: List<AppInfo>, allowMultiGroup: Boolean) = withContext(ioDispatcher) {
+        val currentItems = appGroupDao.getItemsForGroup(groupId).first()
+        currentItems.forEach { item ->
+            appGroupDao.deleteGroupItem(groupId, item.packageName, item.activityName)
+        }
+        val newEntities = apps.mapIndexed { index, app ->
+            if (!allowMultiGroup) {
+                appGroupDao.deleteItemsByComponent(app.packageName, app.activityName)
+            }
+            AppGroupItemEntity(
+                id = UUID.randomUUID().toString(),
+                groupId = groupId,
+                packageName = app.packageName,
+                activityName = app.activityName,
+                userHandleId = app.userHandleId,
+                orderIndex = index,
+                customLabel = app.label
+            )
+        }
+        appGroupDao.insertGroupItems(newEntities)
+    }
+
     override suspend fun assignAppToGroup(
         groupId: String,
         app: AppInfo,

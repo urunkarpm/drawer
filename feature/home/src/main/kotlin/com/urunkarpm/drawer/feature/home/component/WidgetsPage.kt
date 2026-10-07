@@ -279,21 +279,31 @@ private fun WidgetCardItem(
                     factory = { ctx ->
                         try {
                             val providerInfo = widgetHostManager.appWidgetManager.getAppWidgetInfo(widget.appWidgetId)
-                            val hostView = widgetHostManager.createView(ctx, widget.appWidgetId, providerInfo)
-                            hostView.apply {
-                                val bundle = Bundle().apply {
-                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 150)
-                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 400)
-                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, widget.heightDp)
-                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, widget.heightDp)
-                                }
-                                updateAppWidgetOptions(bundle)
-                            }
+                            widgetHostManager.createView(ctx, widget.appWidgetId, providerInfo)
                         } catch (e: Exception) {
                             android.widget.TextView(ctx).apply {
                                 text = "Widget unavailable (${widget.packageName})"
                                 setPadding(32, 32, 32, 32)
                             }
+                        }
+                    },
+                    update = { view ->
+                        if (view is AppWidgetHostView) {
+                            view.layoutParams = android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            
+                            val density = view.resources.displayMetrics.density
+                            val widthDp = (view.width / density).toInt().coerceAtLeast(150)
+                            
+                            val bundle = Bundle().apply {
+                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
+                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
+                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, widget.heightDp)
+                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, widget.heightDp)
+                            }
+                            view.updateAppWidgetOptions(bundle)
                         }
                     },
                     modifier = Modifier.fillMaxSize()

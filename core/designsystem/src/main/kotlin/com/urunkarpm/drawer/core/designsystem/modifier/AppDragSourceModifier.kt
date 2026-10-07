@@ -32,7 +32,7 @@ fun Modifier.appDragSource(
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: (isDropped: Boolean) -> Unit,
-    longPressRequired: Boolean = false
+    longPressRequired: Boolean = true
 ): Modifier = composed {
     val haptic = LocalHapticFeedback.current
     val coordsHolder = remember { arrayOfNulls<LayoutCoordinates>(1) }
@@ -51,10 +51,8 @@ fun Modifier.appDragSource(
                 var isLongPressed = false
                 var currentPosition = initialPosition
 
-                // When in app drawer (longPressRequired = true), require standard launcher long-press hold (350ms)
-                // so scrolling down/up the list is 100% protected and never triggers accidental drag.
-                // When on home grid (longPressRequired = false), quick 180ms hold or immediate horizontal flick.
-                val dragInitiationTimeoutMillis = if (longPressRequired) 350L else 180L
+                // ponytail: standard 350ms launcher long-press resistance so scrolling is 100% protected and never triggers accidental drag; ceiling: 350ms constant; upgrade path: user configurable long-press delay.
+                val dragInitiationTimeoutMillis = if (longPressRequired) 350L else 200L
                 try {
                     withTimeout(dragInitiationTimeoutMillis) {
                         while (true) {
@@ -73,24 +71,12 @@ fun Modifier.appDragSource(
                             }
 
                             currentPosition = change.position
-                            val deltaX = currentPosition.x - initialPosition.x
-                            val deltaY = currentPosition.y - initialPosition.y
                             val dist = (currentPosition - initialPosition).getDistance()
 
-                            if (!longPressRequired) {
-                                // On grid: moving horizontally left/right past touchSlop initiates drag immediately without hesitation
-                                if (kotlin.math.abs(deltaX) > touchSlop && kotlin.math.abs(deltaX) > kotlin.math.abs(deltaY) * 1.2f) {
-                                    isDragStarted = true
-                                    change.consume()
-                                    return@withTimeout
-                                }
-                            } else {
-                                // In AllAppsDrawer (longPressRequired = true):
-                                // If user moves past touchSlop before timeout, user is SCROLLING the list!
-                                // Exit without consuming so LazyVerticalGrid / scroll container handles the scroll cleanly.
-                                if (dist > touchSlop) {
-                                    return@withTimeout
-                                }
+                            // If user moves past touchSlop before the long-press timeout, user is SCROLLING the list!
+                            // Exit cleanly without consuming so the parent scroll container handles scrolling effortlessly.
+                            if (dist > touchSlop) {
+                                return@withTimeout
                             }
                         }
                     }
@@ -145,9 +131,9 @@ fun Modifier.appDragSource(
                         lastPosition = newPosition
 
                         if (!isDragStarted) {
-                            // User held stationary for timeout, now moved finger slightly
+                            // User held stationary for timeout, now moved finger past touchSlop to drag
                             val totalMovement = (newPosition - initialPosition).getDistance()
-                            if (totalMovement > touchSlop * 0.3f) {
+                            if (totalMovement > touchSlop) {
                                 isDragStarted = true
                                 val rootPos = (coordsHolder[0]?.takeIf { it.isAttached }?.positionInRoot() ?: Offset.Zero) + newPosition
                                 onDragStart(rootPos)

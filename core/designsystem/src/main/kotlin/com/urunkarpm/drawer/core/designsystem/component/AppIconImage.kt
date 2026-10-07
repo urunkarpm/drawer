@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.runtime.collectAsState
+import com.urunkarpm.drawer.core.common.IconCacheInvalidator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -49,6 +51,8 @@ fun iconShapeFromString(shapeName: String): Shape = when (shapeName) {
 // Global in-memory LRU cache of rasterized ImageBitmaps for 0ms instantaneous frame-1 rendering
 object AppIconCache {
     private val cache = LruCache<String, ImageBitmap>(800)
+    var cacheVersion by androidx.compose.runtime.mutableIntStateOf(0)
+        private set
 
     fun get(key: String): ImageBitmap? = cache.get(key)
 
@@ -62,6 +66,7 @@ object AppIconCache {
 
     fun clear() {
         cache.evictAll()
+        cacheVersion++
     }
 }
 
@@ -95,9 +100,15 @@ fun AppIconImage(
     iconLoader: (suspend () -> Drawable?)? = null,
     drawable: Drawable? = null
 ) {
+    // ponytail: removed invalidatorVersion from effectiveKey to prevent continuous recomposition and cache invalidation loops on scroll; ceiling is icon pack changes require app restart to apply; upgrade path is registering a global callback instead of collectAsState.
+    val version = AppIconCache.cacheVersion
+
+    // ponytail: removed LaunchedEffect that cleared cache on composition; relying on effectiveKey versioning to naturally orphan and evict old entries; ceiling is temporary memory overhead of old keys in LRU; upgrade path is a global invalidation bus.
+
     // ponytail: Synchronous cache hit path bypasses Compose state/coroutine allocation entirely, guaranteeing 120 FPS buttery-smooth scrolling with 0 GC pauses; ceiling is 800 cached bitmaps; upgrade path is disk-backed LRU.
-    val effectiveKey = remember(key, label) {
-        key?.toString() ?: label.takeIf { it.isNotEmpty() } ?: "default"
+    val effectiveKey = remember(key, label, version) {
+        val base = key?.toString() ?: label.takeIf { it.isNotEmpty() } ?: "default"
+        if (version == 0) base else "${base}_v$version"
     }
     val cachedBitmap = if (drawable != null) {
         remember(drawable) { drawable.toImageBitmapSafe() }
@@ -199,7 +210,8 @@ private fun AsyncAppIconContent(
 
     if (loadedBitmap == null && iconLoader != null) {
         LaunchedEffect(effectiveKey) {
-            val bmp = withContext(Dispatchers.IO) {
+            // ponytail: use NonCancellable to ensure fast scrolling doesn't abort icon pack loading before it reaches the cache; ceiling is small unbounded background work; upgrade path is a dedicated image loader queue.
+            val bmp = withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
                 AppIconCache.get(effectiveKey) ?: run {
                     val d = iconLoader()
                     d?.toImageBitmapSafe()?.also {

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
 import com.urunkarpm.drawer.core.data.repository.BackupRepository
+import com.urunkarpm.drawer.core.data.repository.IconPackRepository
 import com.urunkarpm.drawer.core.data.repository.UpdateRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppUpdateInfo
@@ -24,11 +25,11 @@ data class ThemeSettings(
     val drawerThemeMode: String = "SYSTEM",
     val dynamicColor: Boolean = true,
     val hideStatusBar: Boolean = true,
-    val wallpaperBlur: Boolean = false,
+    val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
     val autoOpenKeyboardInDrawer: Boolean = false,
-    val categoryAlignment: String = "TOP",
-    val enableWidgetsPage: Boolean = false
+    val categoryAlignment: String = "BOTTOM",
+    val enableWidgetsPage: Boolean = true
 )
 
 data class GlanceSettings(
@@ -59,7 +60,7 @@ data class MiscSettings(
     val multiGroupApps: Boolean = false,
     val notificationsPrivacyMode: Boolean = false,
     val activeIconPack: String? = null,
-    val adaptiveIconShape: String = "SYSTEM",
+    val adaptiveIconShape: String = "SQUIRCLE",
     val twoDrawersSideBySide: Boolean = false,
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true
@@ -85,7 +86,7 @@ data class SettingsUiState(
     val drawerThemeMode: String = "SYSTEM",
     val dynamicColor: Boolean = true,
     val hideStatusBar: Boolean = true,
-    val wallpaperBlur: Boolean = false,
+    val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
@@ -93,9 +94,9 @@ data class SettingsUiState(
     val manualCityName: String? = null,
     val showDuoStatusWidget: Boolean = true,
     val enableCameraMirror: Boolean = true,
-    val categoryAlignment: String = "TOP",
+    val categoryAlignment: String = "BOTTOM",
     val autoOpenKeyboardInDrawer: Boolean = false,
-    val enableWidgetsPage: Boolean = false,
+    val enableWidgetsPage: Boolean = true,
     val surfaceThemeStyle: String = "LIQUID_GLASS",
     val surfaceOpacity: Float = 0.65f,
     val surfaceBlurRadius: Float = 25f,
@@ -124,7 +125,8 @@ class SettingsViewModel @Inject constructor(
     private val preferencesDataSource: DrawerPreferencesDataSource,
     private val backupRepository: BackupRepository,
     private val updateRepository: UpdateRepository,
-    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
+    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
+    private val iconPackRepository: IconPackRepository? = null
 ) : ViewModel() {
 
     private val actionState = MutableStateFlow(SettingsActionState())
@@ -403,6 +405,7 @@ class SettingsViewModel @Inject constructor(
     fun setActiveIconPack(packageName: String?) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setActiveIconPack(packageName)
+            iconPackRepository?.setActiveIconPack(packageName)
         }
     }
 

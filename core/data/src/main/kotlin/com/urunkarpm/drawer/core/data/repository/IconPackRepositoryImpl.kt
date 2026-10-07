@@ -8,6 +8,7 @@ import android.util.LruCache
 import androidx.core.content.res.ResourcesCompat
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
+import com.urunkarpm.drawer.core.common.IconCacheInvalidator
 import com.urunkarpm.drawer.core.database.dao.IconPackOverrideDao
 import com.urunkarpm.drawer.core.database.entity.IconPackOverrideEntity
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
@@ -49,7 +50,10 @@ class IconPackRepositoryImpl @Inject constructor(
     init {
         scope.launch {
             preferencesDataSource.activeIconPack.collect { pack ->
-                cachedActiveIconPack = pack
+                if (cachedActiveIconPack != pack) {
+                    cachedActiveIconPack = pack
+                    clearCaches()
+                }
             }
         }
         scope.launch {
@@ -58,8 +62,15 @@ class IconPackRepositoryImpl @Inject constructor(
                 for (item in list) {
                     overridesCache[item.componentName] = item
                 }
+                clearCaches()
             }
         }
+    }
+
+    private fun clearCaches() {
+        iconCache.evictAll()
+        appFilterCache.clear()
+        IconCacheInvalidator.invalidate()
     }
 
     override val activeIconPack: Flow<String?> = preferencesDataSource.activeIconPack
@@ -108,7 +119,8 @@ class IconPackRepositoryImpl @Inject constructor(
 
     override suspend fun setActiveIconPack(packageName: String?) = withContext(ioDispatcher) {
         preferencesDataSource.setActiveIconPack(if (packageName.isNullOrBlank()) null else packageName)
-        iconCache.evictAll()
+        cachedActiveIconPack = if (packageName.isNullOrBlank()) null else packageName
+        clearCaches()
     }
 
     override suspend fun setAppOverride(
@@ -123,12 +135,12 @@ class IconPackRepositoryImpl @Inject constructor(
                 drawableName = drawableName
             )
         )
-        iconCache.evictAll()
+        clearCaches()
     }
 
     override suspend fun removeAppOverride(componentName: String) = withContext(ioDispatcher) {
         iconPackOverrideDao.deleteOverride(componentName)
-        iconCache.evictAll()
+        clearCaches()
     }
 
     override suspend fun parseAppFilter(iconPackPackage: String): Map<String, String> = withContext(ioDispatcher) {
@@ -140,30 +152,19 @@ class IconPackRepositoryImpl @Inject constructor(
             val res = pm.getResourcesForApplication(iconPackPackage)
             val xmlId = res.getIdentifier("appfilter", "xml", iconPackPackage)
 
-            val inputStream: InputStream? = if (xmlId != 0) {
-                res.openRawResource(xmlId)
-            } else {
-                try {
-                    val iconPackContext = context.createPackageContext(iconPackPackage, 0)
-                    iconPackContext.assets.open("appfilter.xml")
-                } catch (_: Exception) {
-                    null
-                }
-            }
-
-            inputStream?.use { stream ->
-                val factory = XmlPullParserFactory.newInstance()
-                factory.isNamespaceAware = false
-                val parser = factory.newPullParser()
-                parser.setInput(stream, "UTF-8")
-
+            fun parseWithPullParser(parser: org.xmlpull.v1.XmlPullParser) {
                 var eventType = parser.eventType
-                while (eventType != XmlPullParser.END_DOCUMENT) {
-                    if (eventType == XmlPullParser.START_TAG && parser.name == "item") {
-                        val component = parser.getAttributeValue(null, "component")
-                        val drawable = parser.getAttributeValue(null, "drawable")
+                while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                    if (eventType == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name.equals("item", ignoreCase = true)) {
+                        var component: String? = null
+                        var drawable: String? = null
+                        for (i in 0 until parser.attributeCount) {
+                            when (parser.getAttributeName(i).lowercase()) {
+                                "component" -> component = parser.getAttributeValue(i)
+                                "drawable" -> drawable = parser.getAttributeValue(i)
+                            }
+                        }
                         if (!component.isNullOrBlank() && !drawable.isNullOrBlank()) {
-                            // Extract "package/activity" from "ComponentInfo{package/activity}"
                             val cleanComp = component.removePrefix("ComponentInfo{").removeSuffix("}")
                             map[cleanComp] = drawable
                             val slashIdx = cleanComp.indexOf('/')
@@ -175,6 +176,47 @@ class IconPackRepositoryImpl @Inject constructor(
                     }
                     eventType = parser.next()
                 }
+            }
+
+            // 1. If compiled in res/xml, open via res.getXml() (handles compiled Android binary XML!)
+            var parsed = false
+            if (xmlId != 0) {
+                try {
+                    val xmlParser = res.getXml(xmlId)
+                    parseWithPullParser(xmlParser)
+                    parsed = map.isNotEmpty()
+                } catch (_: Exception) { }
+            }
+
+            // 2. If not found or empty, try assets/appfilter.xml (plain XML)
+            if (!parsed) {
+                try {
+                    val iconPackContext = context.createPackageContext(iconPackPackage, 0)
+                    iconPackContext.assets.open("appfilter.xml").use { stream ->
+                        val factory = XmlPullParserFactory.newInstance()
+                        factory.isNamespaceAware = false
+                        val parser = factory.newPullParser()
+                        parser.setInput(stream, "UTF-8")
+                        parseWithPullParser(parser)
+                        parsed = map.isNotEmpty()
+                    }
+                } catch (_: Exception) { }
+            }
+
+            // 3. Fallback: try res/raw/appfilter.xml
+            if (!parsed) {
+                try {
+                    val rawId = res.getIdentifier("appfilter", "raw", iconPackPackage)
+                    if (rawId != 0) {
+                        res.openRawResource(rawId).use { stream ->
+                            val factory = XmlPullParserFactory.newInstance()
+                            factory.isNamespaceAware = false
+                            val parser = factory.newPullParser()
+                            parser.setInput(stream, "UTF-8")
+                            parseWithPullParser(parser)
+                        }
+                    }
+                } catch (_: Exception) { }
             }
         } catch (_: Exception) {
             // Log and return parsed so far
@@ -228,9 +270,16 @@ class IconPackRepositoryImpl @Inject constructor(
         return try {
             val pm = context.packageManager
             val res = pm.getResourcesForApplication(packPackage)
-            val resId = res.getIdentifier(drawableName, "drawable", packPackage)
+            var resId = res.getIdentifier(drawableName, "drawable", packPackage)
+            if (resId == 0) {
+                resId = res.getIdentifier(drawableName, "mipmap", packPackage)
+            }
             if (resId != 0) {
-                ResourcesCompat.getDrawable(res, resId, null)
+                try {
+                    pm.getDrawable(packPackage, resId, null)
+                } catch (_: Exception) {
+                    ResourcesCompat.getDrawable(res, resId, null)
+                }
             } else null
         } catch (_: Exception) {
             null

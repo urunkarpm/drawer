@@ -12,6 +12,7 @@ interface AppRepository {
     fun openAppDetails(packageName: String)
     fun uninstallApp(packageName: String)
     suspend fun getAppIcon(app: AppInfo): Drawable?
+    fun clearIconCache()
     fun getShortcuts(app: AppInfo): List<AppShortcutInfo>
     fun launchShortcut(app: AppInfo, shortcutId: String): Boolean
     suspend fun getShortcutIcon(app: AppInfo, shortcutId: String): Drawable?

@@ -197,6 +197,10 @@ fun HomeScreen(
         }
         if (result !is DragDropResult.None) {
             viewModel.closeAllApps()
+            // Collapse groups unless reordering within the same group
+            if (result !is DragDropResult.DroppedOnGroup || result.sourceGroupId != result.targetGroupId) {
+                groupsViewModel.collapseAllGroups()
+            }
         }
     }
 
@@ -303,7 +307,10 @@ fun HomeScreen(
         pendingAppWidgetId = null
     }
 
-    val pickWidgetLauncher = rememberLauncherForActivityResult(
+    var showWidgetPicker by remember { mutableStateOf(false) }
+    val widgetPickerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val bindWidgetLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val id = pendingAppWidgetId
@@ -325,13 +332,33 @@ fun HomeScreen(
         }
     }
 
-    fun launchAddWidgetFlow() {
+    fun tryBindWidget(provider: android.content.ComponentName) {
         val allocatedId = widgetHostManager.allocateAppWidgetId()
-        pendingAppWidgetId = allocatedId
-        val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
+        val bound = widgetHostManager.appWidgetManager.bindAppWidgetIdIfAllowed(allocatedId, provider)
+        if (bound) {
+            val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(allocatedId)
+            if (info?.configure != null) {
+                pendingAppWidgetId = allocatedId
+                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                    component = info.configure
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
+                }
+                configureWidgetLauncher.launch(intent)
+            } else {
+                completeWidgetAdd(allocatedId)
+            }
+        } else {
+            pendingAppWidgetId = allocatedId
+            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
+            }
+            bindWidgetLauncher.launch(intent)
         }
-        pickWidgetLauncher.launch(pickIntent)
+    }
+
+    fun launchAddWidgetFlow() {
+        showWidgetPicker = true
     }
 
     LaunchedEffect(uiState.hideStatusBar) {
@@ -363,43 +390,54 @@ fun HomeScreen(
     //  • drag DOWN (positive) → expand notification drawer when notifications exist
     var scrollDownAccumulator by remember { mutableFloatStateOf(0f) }
     var scrollUpAccumulator by remember { mutableFloatStateOf(0f) }
+    var actionTriggeredInScroll by remember { mutableStateOf(false) }
 
     // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
     val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, areOtherDrawersOpen, dragDropState.isDragging) {
         object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (actionTriggeredInScroll) {
+                    if (available.y > 0f && scrollUpAccumulator < 0f) {
+                        actionTriggeredInScroll = false
+                    } else if (available.y < 0f && scrollDownAccumulator > 0f) {
+                        actionTriggeredInScroll = false
+                    }
+                }
+                return Offset.Zero
+            }
+
             override fun onPostScroll(
                 consumed: Offset,
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
                 if (dragDropState.isDragging) return Offset.Zero
+                if (actionTriggeredInScroll) return Offset.Zero
+
+                // ponytail: nested scroll gestures only active on empty home screen when no category drawers are open; ceiling: fixed 60f scroll accumulator; upgrade path: velocity-aware gesture router.
                 if (!areOtherDrawersOpen && hasNotifications && !isNotificationExpanded && available.y > 0f) {
                     scrollDownAccumulator += available.y
-                    if (scrollDownAccumulator > 25f) {
+                    if (scrollDownAccumulator > 60f) {
                         isNotificationExpanded = true
                         if (!uiState.twoDrawersSideBySide) {
                             groupsViewModel.collapseAllGroups()
                         }
                         scrollDownAccumulator = 0f
+                        actionTriggeredInScroll = true
                         return Offset(0f, available.y)
                     }
-                } else if (available.y < 0f) {
+                } else if (!areOtherDrawersOpen && available.y < 0f) {
                     scrollDownAccumulator = 0f
                     scrollUpAccumulator += available.y
-                    if (scrollUpAccumulator < -25f) {
+                    if (scrollUpAccumulator < -60f) {
                         if (isNotificationExpanded) {
                             isNotificationExpanded = false
-                            scrollUpAccumulator = 0f
-                            return Offset(0f, available.y)
-                        } else if (groupsUiState.groups.any { it.group.isExpanded }) {
-                            groupsViewModel.collapseAllGroups()
-                            scrollUpAccumulator = 0f
-                            return Offset(0f, available.y)
                         } else if (!uiState.isAllAppsOpen) {
                             viewModel.openAllApps()
-                            scrollUpAccumulator = 0f
-                            return Offset(0f, available.y)
                         }
+                        scrollUpAccumulator = 0f
+                        actionTriggeredInScroll = true
+                        return Offset(0f, available.y)
                     }
                 } else {
                     scrollDownAccumulator = 0f
@@ -411,12 +449,14 @@ fun HomeScreen(
             override suspend fun onPreFling(available: Velocity): Velocity {
                 scrollDownAccumulator = 0f
                 scrollUpAccumulator = 0f
+                actionTriggeredInScroll = false
                 return Velocity.Zero
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 scrollDownAccumulator = 0f
                 scrollUpAccumulator = 0f
+                actionTriggeredInScroll = false
                 return Velocity.Zero
             }
         }
@@ -461,7 +501,9 @@ fun HomeScreen(
                                         val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
                                         val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
                                         val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                        if (!isOverDock && !isOverGlance) {
+                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                        if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
                                             if (isNotificationExpanded) {
                                                 isNotificationExpanded = false
                                             }
@@ -475,7 +517,9 @@ fun HomeScreen(
                                         val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
                                         val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
                                         val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                        if (!isOverDock && !isOverGlance) {
+                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                        if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
                                             onDoubleTapLock()
                                         }
                                     },
@@ -484,7 +528,9 @@ fun HomeScreen(
                                         val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
                                         val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
                                         val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                        if (!isOverDock && !isOverGlance) {
+                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                        if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
                                             showHomeMenu = true
                                         }
                                     }
@@ -531,44 +577,28 @@ fun HomeScreen(
                 ) {
                     Spacer(modifier = Modifier.height(2.dp))
 
-                    // 1. Notification Drawer: Auto-hides when any drawer is opened, reveals when all drawers close
-                    // ponytail: Seamless auto-hide of notification drawer when category drawers or all-apps are open; ceiling is full-hide; upgrade path is persistent unread count badge.
-                    AnimatedVisibility(
-                        visible = !areOtherDrawersOpen,
-                        enter = expandVertically(
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            )
-                        ) + fadeIn(animationSpec = tween(durationMillis = 180)),
-                        exit = shrinkVertically(
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMedium
-                            )
-                        ) + fadeOut(animationSpec = tween(durationMillis = 140))
-                    ) {
-                        com.urunkarpm.drawer.feature.notifications.NotificationDrawer(
-                            viewModel = notificationsViewModel,
-                            isExpanded = isNotificationExpanded,
-                            onExpandedChange = { expanded ->
-                                isNotificationExpanded = expanded
-                                if (expanded && !uiState.twoDrawersSideBySide) {
-                                    groupsViewModel.collapseAllGroups()
-                                }
+                    // 1. Notification Drawer: Stays fixed at top as stable accordion item; no layout shifts when drawers open
+                    // ponytail: keep notification header persistent to eliminate jarring layout shifts on category drawer expansion; ceiling: full drawer card always present; upgrade path: customizable collapsed view.
+                    com.urunkarpm.drawer.feature.notifications.NotificationDrawer(
+                        viewModel = notificationsViewModel,
+                        isExpanded = isNotificationExpanded,
+                        onExpandedChange = { expanded ->
+                            isNotificationExpanded = expanded
+                            if (expanded && !uiState.twoDrawersSideBySide) {
+                                groupsViewModel.collapseAllGroups()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { coords ->
+                                notificationBounds = coords.boundsInRoot()
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onGloballyPositioned { coords ->
-                                    notificationBounds = coords.boundsInRoot()
-                                },
-                            iconLoader = { packageName ->
-                                val app = uiState.installedAppsByPackage[packageName]
-                                if (app != null) viewModel.getAppIcon(app) else null
-                            },
-                            isDragging = dragDropState.isDragging
-                        )
-                    }
+                        iconLoader = { packageName ->
+                            val app = uiState.installedAppsByPackage[packageName]
+                            if (app != null) viewModel.getAppIcon(app) else null
+                        },
+                        isDragging = dragDropState.isDragging
+                    )
 
                     // 2. Rest of the Drawers (App Categories): Side by side (2 columns) if enabled, otherwise single column
                     GroupsAccordion(
@@ -621,26 +651,30 @@ fun HomeScreen(
                     }
                     .pointerInput(uiState.isAllAppsOpen, hasNotifications, isNotificationExpanded) {
                         var dockDrag = 0f
+                        var actionTriggered = false
                         detectVerticalDragGestures(
-                            onDragStart = { dockDrag = 0f },
+                            onDragStart = { 
+                                dockDrag = 0f 
+                                actionTriggered = false
+                            },
                             onVerticalDrag = { _, dragAmount ->
+                                if (actionTriggered) return@detectVerticalDragGestures
                                 dockDrag += dragAmount
                                 if (!uiState.isAllAppsOpen && dockDrag < -20f) {
                                     if (isNotificationExpanded) {
                                         isNotificationExpanded = false
-                                        dockDrag = 0f
                                     } else {
                                         viewModel.openAllApps()
-                                        dockDrag = 0f
                                     }
+                                    actionTriggered = true
                                 } else if (!uiState.isAllAppsOpen && dockDrag > 20f) {
                                     if (hasNotifications && !isNotificationExpanded) {
                                         isNotificationExpanded = true
                                         if (!uiState.twoDrawersSideBySide) {
                                             groupsViewModel.collapseAllGroups()
                                         }
-                                        dockDrag = 0f
                                     }
+                                    actionTriggered = true
                                 }
                             },
                             onDragEnd = { dockDrag = 0f },
@@ -775,6 +809,19 @@ fun HomeScreen(
                 onCreateNewGroup = {
                     appForCategorySelection = null
                     groupsViewModel.setShowCreateDialog(true)
+                }
+            )
+        }
+
+        // ── Widget Picker Sheet ────────────────────────────────────────────────
+        if (showWidgetPicker) {
+            com.urunkarpm.drawer.feature.home.component.WidgetPickerBottomSheet(
+                widgetHostManager = widgetHostManager,
+                sheetState = widgetPickerSheetState,
+                onDismissRequest = { showWidgetPicker = false },
+                onWidgetSelected = { provider ->
+                    showWidgetPicker = false
+                    tryBindWidget(provider)
                 }
             )
         }

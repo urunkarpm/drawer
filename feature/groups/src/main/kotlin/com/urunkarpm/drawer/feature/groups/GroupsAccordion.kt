@@ -24,9 +24,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,6 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import com.urunkarpm.drawer.core.designsystem.theme.TexasTroupeFontFamily
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -242,10 +250,11 @@ fun GroupsAccordion(
     if (uiState.showCreateDialog) {
         EditGroupDialog(
             group = null,
+            allApps = uiState.allApps,
             twoDrawersSideBySide = twoDrawersSideBySide,
             onDismissRequest = { viewModel.setShowCreateDialog(false) },
-            onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder ->
-                viewModel.createGroup(name, iconName, colorHex, viewType, columnCount, sortOrder)
+            onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder, selectedApps ->
+                viewModel.createGroup(name, iconName, colorHex, viewType, columnCount, sortOrder, selectedApps)
             }
         )
     }
@@ -254,9 +263,10 @@ fun GroupsAccordion(
     uiState.groupBeingEdited?.let { groupToEdit ->
         EditGroupDialog(
             group = groupToEdit,
+            allApps = uiState.allApps,
             twoDrawersSideBySide = twoDrawersSideBySide,
             onDismissRequest = { viewModel.dismissEditGroup() },
-            onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder ->
+            onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder, selectedApps ->
                 viewModel.updateGroup(
                     groupToEdit.copy(
                         name = name,
@@ -265,7 +275,8 @@ fun GroupsAccordion(
                         viewType = viewType,
                         columnCount = columnCount,
                         sortOrder = sortOrder
-                    )
+                    ),
+                    selectedApps
                 )
             },
             onDelete = { viewModel.deleteGroup(groupToEdit.id) }
@@ -349,6 +360,10 @@ private fun GroupCard(
     val groupIcon = GroupIcons.getIcon(group.iconName)
     val chevronRotation by animateFloatAsState(
         targetValue = if (group.isExpanded) 180f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
         label = "chevron_rotation"
     )
     var showMenu by remember { mutableStateOf(false) }
@@ -367,6 +382,28 @@ private fun GroupCard(
         targetValue = if (isDropTarget) MaterialTheme.colorScheme.primary else Color.Transparent,
         label = "groupBorderColor"
     )
+
+    val listScrollState = rememberScrollState()
+    val scrollBlocker = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset = Offset(0f, available.y)
+
+            override suspend fun onPostFling(
+                consumed: Velocity,
+                available: Velocity
+            ): Velocity = Velocity(0f, available.y)
+        }
+    }
+
+    LaunchedEffect(group.isExpanded) {
+        if (!group.isExpanded) {
+            listScrollState.scrollTo(0)
+        }
+    }
 
     Card(
         modifier = modifier
@@ -423,6 +460,7 @@ private fun GroupCard(
 
                         Text(
                             text = group.name,
+                            fontFamily = TexasTroupeFontFamily,
                             style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -510,21 +548,33 @@ private fun GroupCard(
                 }
             }
 
-            // Expanded Apps Content
+            // ponytail: Silky smooth drawer expansion anchored from top with physics spring; ceiling: fixed spring constants; upgrade path: customizable motion duration.
             AnimatedVisibility(
                 visible = group.isExpanded,
                 enter = expandVertically(
+                    expandFrom = Alignment.Top,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                ) + fadeIn(
                     animationSpec = tween(
-                        durationMillis = 220,
+                        durationMillis = 200,
                         easing = FastOutSlowInEasing
                     )
-                ) + fadeIn(animationSpec = tween(durationMillis = 180)),
+                ),
                 exit = shrinkVertically(
+                    shrinkTowards = Alignment.Top,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                ) + fadeOut(
                     animationSpec = tween(
-                        durationMillis = 180,
+                        durationMillis = 150,
                         easing = FastOutSlowInEasing
                     )
-                ) + fadeOut(animationSpec = tween(durationMillis = 120))
+                )
             ) {
                 if (resolvedGroup.apps.isEmpty()) {
                     Box(
@@ -541,53 +591,62 @@ private fun GroupCard(
                         )
                     }
                 } else {
-                    // When twoDrawersSideBySide is enabled, default to LIST view mode
-                    val effectiveViewType = if (twoDrawersSideBySide) {
-                        GroupViewType.LIST
-                    } else {
-                        group.viewType
-                    }
-                    when (effectiveViewType) {
-                        GroupViewType.GRID -> {
-                            GroupGridLayout(
-                                apps = resolvedGroup.apps,
-                                columnCount = group.columnCount,
-                                onAppClick = onAppClick,
-                                onAppLongClick = onAppLongClick,
-                                iconLoader = iconLoader,
-                                iconShape = iconShape,
-                                isCompact = isCompact,
-                                onAppPositioned = onAppPositioned,
-                                onAppDragStart = onAppDragStart,
-                                onAppDrag = onAppDrag,
-                                onAppDragEnd = onAppDragEnd,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        horizontal = if (isCompact) 4.dp else 8.dp,
-                                        vertical = if (isCompact) 6.dp else 8.dp
-                                    )
-                            )
+                    // ponytail: bounded drawer list height with scroll blocker ensures drawer cards stay static while large lists scroll smoothly; ceiling: fixed max height (280dp/240dp); upgrade path: dynamic height calculation based on available viewport space.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = if (isCompact) 240.dp else 280.dp)
+                            .nestedScroll(scrollBlocker)
+                            .verticalScroll(listScrollState, enabled = !isDragging)
+                    ) {
+                        // When twoDrawersSideBySide is enabled, default to LIST view mode
+                        val effectiveViewType = if (twoDrawersSideBySide) {
+                            GroupViewType.LIST
+                        } else {
+                            group.viewType
                         }
-                        GroupViewType.LIST -> {
-                            GroupListLayout(
-                                apps = resolvedGroup.apps,
-                                onAppClick = onAppClick,
-                                onAppLongClick = onAppLongClick,
-                                iconLoader = iconLoader,
-                                iconShape = iconShape,
-                                isCompact = isCompact,
-                                onAppPositioned = onAppPositioned,
-                                onAppDragStart = onAppDragStart,
-                                onAppDrag = onAppDrag,
-                                onAppDragEnd = onAppDragEnd,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        horizontal = if (isCompact) 4.dp else 8.dp,
-                                        vertical = if (isCompact) 6.dp else 8.dp
-                                    )
-                            )
+                        when (effectiveViewType) {
+                            GroupViewType.GRID -> {
+                                GroupGridLayout(
+                                    apps = resolvedGroup.apps,
+                                    columnCount = group.columnCount,
+                                    onAppClick = onAppClick,
+                                    onAppLongClick = onAppLongClick,
+                                    iconLoader = iconLoader,
+                                    iconShape = iconShape,
+                                    isCompact = isCompact,
+                                    onAppPositioned = onAppPositioned,
+                                    onAppDragStart = onAppDragStart,
+                                    onAppDrag = onAppDrag,
+                                    onAppDragEnd = onAppDragEnd,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            horizontal = if (isCompact) 4.dp else 8.dp,
+                                            vertical = if (isCompact) 6.dp else 8.dp
+                                        )
+                                )
+                            }
+                            GroupViewType.LIST -> {
+                                GroupListLayout(
+                                    apps = resolvedGroup.apps,
+                                    onAppClick = onAppClick,
+                                    onAppLongClick = onAppLongClick,
+                                    iconLoader = iconLoader,
+                                    iconShape = iconShape,
+                                    isCompact = isCompact,
+                                    onAppPositioned = onAppPositioned,
+                                    onAppDragStart = onAppDragStart,
+                                    onAppDrag = onAppDrag,
+                                    onAppDragEnd = onAppDragEnd,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            horizontal = if (isCompact) 4.dp else 8.dp,
+                                            vertical = if (isCompact) 6.dp else 8.dp
+                                        )
+                                )
+                            }
                         }
                     }
                 }

@@ -3,7 +3,9 @@ package com.urunkarpm.drawer.feature.notifications
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -22,10 +24,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -52,6 +62,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.urunkarpm.drawer.core.designsystem.theme.TexasTroupeFontFamily
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.key
@@ -102,8 +113,34 @@ fun NotificationDrawer(
 
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
         label = "notif_chevron"
     )
+
+    val notifScrollState = rememberScrollState()
+    val notifScrollBlocker = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset = Offset(0f, available.y)
+
+            override suspend fun onPostFling(
+                consumed: Velocity,
+                available: Velocity
+            ): Velocity = Velocity(0f, available.y)
+        }
+    }
+
+    LaunchedEffect(isExpanded) {
+        if (!isExpanded) {
+            notifScrollState.scrollTo(0)
+        }
+    }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.checkPermission()
@@ -223,6 +260,7 @@ fun NotificationDrawer(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Notifications",
+                                fontFamily = TexasTroupeFontFamily,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -268,8 +306,30 @@ fun NotificationDrawer(
                     // ── Expanded body ─────────────────────────────────────────
                     AnimatedVisibility(
                         visible = isExpanded,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
+                        enter = expandVertically(
+                            expandFrom = Alignment.Top,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) + fadeIn(
+                            animationSpec = tween(
+                                durationMillis = 200,
+                                easing = FastOutSlowInEasing
+                            )
+                        ),
+                        exit = shrinkVertically(
+                            shrinkTowards = Alignment.Top,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            )
+                        ) + fadeOut(
+                            animationSpec = tween(
+                                durationMillis = 150,
+                                easing = FastOutSlowInEasing
+                            )
+                        )
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             HorizontalDivider(
@@ -292,9 +352,13 @@ fun NotificationDrawer(
                                     )
                                 }
                             } else {
+                                // ponytail: bounded notification list with scroll blocker so drawer headers remain static during scrolling; ceiling: 280dp max height; upgrade path: adaptive layout based on window insets.
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .heightIn(max = 280.dp)
+                                        .nestedScroll(notifScrollBlocker)
+                                        .verticalScroll(notifScrollState, enabled = !isDragging)
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {

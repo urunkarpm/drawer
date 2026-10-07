@@ -33,6 +33,7 @@ class AppDragDropState {
     }
 
     fun isOverDock(pos: Offset = dragPosition): Boolean {
+        if (!isDragging) return false
         val bounds = dockBounds ?: return false
         val horizontalMatch = pos.x in (bounds.left - 48f)..(bounds.right + 48f)
         val verticalMatch = pos.y >= (bounds.top - 60f)
@@ -40,6 +41,7 @@ class AppDragDropState {
     }
 
     fun hoveredGroupId(pos: Offset = dragPosition): String? {
+        if (!isDragging) return null
         val exact = groupBounds.entries.firstOrNull { it.value.contains(pos) }?.key
         if (exact != null) return exact
         return groupBounds.entries.firstOrNull { it.value.inflate(36f).contains(pos) }?.key
@@ -49,8 +51,9 @@ class AppDragDropState {
         val boundsMap = appBounds[groupId]
         if (boundsMap != null && boundsMap.isNotEmpty()) {
             // Sort bounding rects in visual grid order: row-by-row (top-to-bottom), then left-to-right
+            // ponytail: ceiling: Hardcoded 10px tolerance for row alignment and pixel math for hitboxes won't scale flawlessly to all densities/foldables. Upgrade path: Inject LocalDensity and convert fixed sizes from dp to px.
             val sortedRects = boundsMap.values.sortedWith(
-                compareBy<Rect> { (it.center.y / 70f).toInt() }
+                compareBy<Rect> { it.top.toInt() / 10 }
                     .thenBy { it.center.x }
             )
             val total = sortedRects.size
@@ -160,7 +163,7 @@ fun Modifier.appDragSource(
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: (isDropped: Boolean) -> Unit,
-    longPressRequired: Boolean = false
+    longPressRequired: Boolean = true
 ): Modifier = this.coreAppDragSource(
     key = app.componentKey,
     onAppClick = onAppClick,

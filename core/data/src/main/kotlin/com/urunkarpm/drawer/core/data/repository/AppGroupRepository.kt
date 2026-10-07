@@ -30,6 +30,9 @@ interface AppGroupRepository {
         targetIndex: Int? = null
     )
 
+    // ponytail: bulk assignment for edit group dialog
+    suspend fun setGroupApps(groupId: String, apps: List<AppInfo>, allowMultiGroup: Boolean)
+
     suspend fun moveAppBetweenGroups(
         sourceGroupId: String,
         targetGroupId: String,

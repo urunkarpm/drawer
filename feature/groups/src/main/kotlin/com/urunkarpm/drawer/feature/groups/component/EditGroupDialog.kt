@@ -48,11 +48,14 @@ import com.urunkarpm.drawer.core.model.GroupSortOrder
 import com.urunkarpm.drawer.core.model.GroupViewType
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
+import com.urunkarpm.drawer.core.model.AppInfo
+
 @Composable
 fun EditGroupDialog(
     group: AppGroup?,
+    allApps: List<AppInfo> = emptyList(),
     onDismissRequest: () -> Unit,
-    onSave: (name: String, iconName: String, colorHex: String, viewType: GroupViewType, columnCount: Int, sortOrder: GroupSortOrder) -> Unit,
+    onSave: (name: String, iconName: String, colorHex: String, viewType: GroupViewType, columnCount: Int, sortOrder: GroupSortOrder, selectedApps: List<AppInfo>) -> Unit,
     onDelete: (() -> Unit)? = null,
     twoDrawersSideBySide: Boolean = false
 ) {
@@ -64,6 +67,11 @@ fun EditGroupDialog(
     }
     var columnCount by remember { mutableIntStateOf(group?.columnCount ?: 4) }
     var selectedSortOrder by remember { mutableStateOf(group?.sortOrder ?: GroupSortOrder.MANUAL) }
+
+    val initialSelectedKeys = remember(group) {
+        group?.items?.map { "${it.packageName}/${it.activityName}" }?.toSet() ?: emptySet()
+    }
+    var selectedApps by remember { mutableStateOf(initialSelectedKeys) }
 
     val isEditing = group != null
 
@@ -243,13 +251,51 @@ fun EditGroupDialog(
                         label = { Text("A to Z") }
                     )
                 }
+
+                // ponytail: dirty inline app list for bulk add. ceiling: 100-300 apps rendered in a column can drop frames. upgrade path: LazyColumn inside dialog or separate screen.
+                if (allApps.isNotEmpty()) {
+                    Text(
+                        text = "Select Apps",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        allApps.forEach { app ->
+                            val key = "${app.packageName}/${app.activityName}"
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedApps = if (key in selectedApps) {
+                                            selectedApps - key
+                                        } else {
+                                            selectedApps + key
+                                        }
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.material3.Checkbox(
+                                    checked = key in selectedApps,
+                                    onCheckedChange = null
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = app.label, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     if (name.isNotBlank()) {
-                        onSave(name, selectedIcon, selectedColor, selectedViewType, columnCount, selectedSortOrder)
+                        val finalApps = allApps.filter { "${it.packageName}/${it.activityName}" in selectedApps }
+                        onSave(name, selectedIcon, selectedColor, selectedViewType, columnCount, selectedSortOrder, finalApps)
                     }
                 },
                 enabled = name.isNotBlank()

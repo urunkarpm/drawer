@@ -37,7 +37,8 @@ data class GroupsUiState(
     val selectedAppForAction: Pair<AppInfo, AppGroup>? = null,
     val groupBeingEdited: AppGroup? = null,
     val showCreateDialog: Boolean = false,
-    val lockLayout: Boolean = false
+    val lockLayout: Boolean = false,
+    val allApps: List<AppInfo> = emptyList() // ponytail: exposed for bulk add
 )
 
 @HiltViewModel
@@ -88,7 +89,8 @@ class GroupsViewModel @Inject constructor(
             selectedAppForAction = dialogs.selectedAppForAction,
             groupBeingEdited = dialogs.groupBeingEdited,
             showCreateDialog = dialogs.showCreateDialog,
-            lockLayout = lockLayout
+            lockLayout = lockLayout,
+            allApps = installedApps.sortedBy { it.label.lowercase() }
         )
     }.stateIn(
         scope = viewModelScope,
@@ -113,17 +115,24 @@ class GroupsViewModel @Inject constructor(
         colorHex: String = "#6750A4",
         viewType: GroupViewType = GroupViewType.GRID,
         columnCount: Int = 4,
-        sortOrder: GroupSortOrder = GroupSortOrder.MANUAL
+        sortOrder: GroupSortOrder = GroupSortOrder.MANUAL,
+        selectedApps: List<AppInfo> = emptyList() // ponytail: bulk selection
     ) {
         viewModelScope.launch {
-            appGroupRepository.createGroup(name, iconName, colorHex, viewType, columnCount, sortOrder)
+            val group = appGroupRepository.createGroup(name, iconName, colorHex, viewType, columnCount, sortOrder)
+            if (selectedApps.isNotEmpty()) {
+                appGroupRepository.setGroupApps(group.id, selectedApps, preferencesDataSource.multiGroupApps.first())
+            }
             _showCreateDialog.value = false
         }
     }
 
-    fun updateGroup(group: AppGroup) {
+    fun updateGroup(group: AppGroup, selectedApps: List<AppInfo>? = null) {
         viewModelScope.launch {
             appGroupRepository.updateGroup(group)
+            if (selectedApps != null) {
+                appGroupRepository.setGroupApps(group.id, selectedApps, preferencesDataSource.multiGroupApps.first())
+            }
             _groupBeingEdited.value = null
         }
     }

@@ -32,7 +32,8 @@ import javax.inject.Singleton
 class AppRepositoryImpl @Inject constructor(
     @param:ApplicationContext private val context: Context,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
-    private val iconPackRepositoryProvider: javax.inject.Provider<IconPackRepository>? = null
+    private val iconPackRepositoryProvider: javax.inject.Provider<IconPackRepository>? = null,
+    private val preferencesDataSource: com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource? = null
 ) : AppRepository {
 
     private val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
@@ -48,6 +49,13 @@ class AppRepositoryImpl @Inject constructor(
         registerLauncherAppsCallback()
         scope.launch {
             refreshApps()
+        }
+        preferencesDataSource?.let { prefs ->
+            scope.launch {
+                prefs.activeIconPack.collect {
+                    clearIconCache()
+                }
+            }
         }
     }
 
@@ -195,6 +203,10 @@ class AppRepositoryImpl @Inject constructor(
 
     private val iconCache = LruCache<String, Drawable>(500)
     private val activityInfoCache = java.util.concurrent.ConcurrentHashMap<String, android.content.pm.LauncherActivityInfo>()
+
+    override fun clearIconCache() {
+        iconCache.evictAll()
+    }
 
     override suspend fun getAppIcon(app: AppInfo): Drawable? = withContext(ioDispatcher) {
         iconCache.get(app.componentKey)?.let { return@withContext it }
