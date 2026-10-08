@@ -1,0 +1,4 @@
+• 100% Free & Open Source: Replaced Google Play Services with native Android location services
+• Prepared for F-Droid and IzzyOnDroid hosting
+• Streamlined app performance and pruned unused invalidator code
+• Restored native system widget picker

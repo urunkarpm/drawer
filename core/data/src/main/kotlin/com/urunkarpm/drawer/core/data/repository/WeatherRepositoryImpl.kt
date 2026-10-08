@@ -4,9 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Geocoder
+import android.location.Location
+import android.location.LocationManager
 import androidx.core.content.ContextCompat
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.tasks.Task
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
@@ -21,14 +21,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.coroutines.resume
 
 @Serializable
 data class OpenMeteoResponse(
@@ -116,17 +114,27 @@ class WeatherRepositoryImpl @Inject constructor(
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
+        // ponytail: native Android LocationManager replaces proprietary Google Play Services fused client for 100% FOSS compliance; ceiling: relies on last known location or coarse network provider; upgrade path: LocationListener requestSingleUpdate.
         val loc = if (hasLocationPermission) {
             try {
-                val fusedClient = LocationServices.getFusedLocationProviderClient(context)
-                var l = fusedClient.lastLocation.awaitTask()
-                if (l == null) {
-                    l = fusedClient.getCurrentLocation(
-                        com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY,
-                        null
-                    ).awaitTask()
+                val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                var bestLocation: Location? = null
+                val providers = listOf(
+                    LocationManager.GPS_PROVIDER,
+                    LocationManager.NETWORK_PROVIDER,
+                    LocationManager.PASSIVE_PROVIDER
+                )
+                for (provider in providers) {
+                    try {
+                        val l = lm?.getLastKnownLocation(provider)
+                        if (l != null && (bestLocation == null || l.time > bestLocation.time)) {
+                            bestLocation = l
+                        }
+                    } catch (_: SecurityException) {
+                        // ignore permission issue on specific provider
+                    }
                 }
-                l
+                bestLocation
             } catch (_: Exception) {
                 null
             }
@@ -174,10 +182,4 @@ class WeatherRepositoryImpl @Inject constructor(
             }
         }
     }
-}
-
-suspend fun <T> Task<T>.awaitTask(): T? = suspendCancellableCoroutine { cont ->
-    addOnSuccessListener { result -> cont.resume(result) }
-    addOnFailureListener { _ -> cont.resume(null) }
-    addOnCanceledListener { cont.cancel() }
 }

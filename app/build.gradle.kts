@@ -9,20 +9,23 @@ android {
 
     defaultConfig {
         applicationId = "com.urunkarpm.drawer"
-        versionCode = 5
-        versionName = "1.1.3"
+        versionCode = 6
+        versionName = "1.1.4"
     }
 
+    val keystoreFile = rootProject.file("keystore/drawer-release.jks")
     signingConfigs {
-        create("release") {
-            storeFile = rootProject.file("keystore/drawer-release.jks")
-            storePassword = "DrawerReleaseKey2026!"
-            keyAlias = "drawer"
-            keyPassword = "DrawerReleaseKey2026!"
-            enableV1Signing = true
-            enableV2Signing = true
-            enableV3Signing = true
-            enableV4Signing = true
+        if (keystoreFile.exists()) {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = "DrawerReleaseKey2026!"
+                keyAlias = "drawer"
+                keyPassword = "DrawerReleaseKey2026!"
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
         }
     }
 
@@ -30,7 +33,9 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

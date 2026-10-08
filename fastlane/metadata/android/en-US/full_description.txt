@@ -1,0 +1,13 @@
+Drawer is a refreshingly minimal, lightning-fast home screen launcher crafted to make your phone feel brand new. Everything you need is right at your fingertips, with zero clutter, zero ads, and zero tracking.
+
+Key Features:
+
+• Smart Accordion Drawers: Group apps into elegant, expandable drawers (Work, Social, Finance, Games, etc.). One tap expands, one tap closes.
+• Floating Glass Dock: Sleek floating bar with real-time frosted blur that complements any wallpaper.
+• Instant Mirror Glance: Discreet front-camera mirror preview on your home screen to quickly check your look on the go.
+• Beautiful At-A-Glance Header: Clean typography clock, date, and live weather forecast with zero ads.
+• Notification Drawer with Quick Mute: Swipe to see notifications grouped neatly by app, swipe to dismiss, or quick mute conversations.
+• Lightning-Fast Search & A–Z Alphabet Scroll: Slide down the screen edge to jump instantly to any letter, or type to filter apps in real-time.
+• Visual Customization: AMOLED black mode, Material You dynamic wallpaper colors, icon pack support, and adaptive shapes (squircles, circles, rounded squares).
+• Double-Tap to Sleep: Tap empty space to turn off and lock the screen smoothly without breaking biometric unlock.
+• 100% Offline & Private: No ads, no cloud tracking, no accounts required. Everything stays strictly on your device.

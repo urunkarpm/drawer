@@ -1,0 +1,1 @@
+Minimalist, fluid, and customizable Android app launcher.

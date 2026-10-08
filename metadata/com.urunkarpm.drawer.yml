@@ -1,0 +1,41 @@
+Categories:
+  - System
+  - Personalization
+License: Apache-2.0
+SourceCode: https://github.com/urunkarpm/drawer
+IssueTracker: https://github.com/urunkarpm/drawer/issues
+Changelog: https://github.com/urunkarpm/drawer/releases
+
+AutoName: Drawer
+Summary: Minimalist, fluid, and customizable Android app launcher
+
+Description: |-
+  Drawer is a refreshingly minimal, lightning-fast home screen launcher crafted
+  to make your phone feel brand new. Everything you need is right at your
+  fingertips, with zero clutter, zero ads, and zero tracking.
+
+  Features:
+  * Smart Accordion Drawers: Group apps into elegant, expandable drawers.
+  * Floating Glass Dock: Sleek floating bar with real-time frosted blur.
+  * Instant Mirror Glance: Front-camera mirror preview on your home screen.
+  * At-A-Glance Header: Typography clock and ad-free live weather.
+  * Notification Drawer: Notification management with quick mute.
+  * Fast Search & Alphabet Scroll: Jump instantly to any app.
+  * Customization: AMOLED black mode, Material You, and icon pack support.
+  * 100% Offline & Private: No ads, no cloud tracking, no accounts.
+
+RepoType: git
+Repo: https://github.com/urunkarpm/drawer.git
+
+Builds:
+  - versionName: 1.1.4
+    versionCode: 6
+    commit: v1.1.4
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.1.4
+CurrentVersionCode: 6
