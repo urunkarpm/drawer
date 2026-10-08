@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 import androidx.compose.runtime.collectAsState
-import com.urunkarpm.drawer.core.common.IconCacheInvalidator
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -100,7 +100,6 @@ fun AppIconImage(
     iconLoader: (suspend () -> Drawable?)? = null,
     drawable: Drawable? = null
 ) {
-    // ponytail: removed invalidatorVersion from effectiveKey to prevent continuous recomposition and cache invalidation loops on scroll; ceiling is icon pack changes require app restart to apply; upgrade path is registering a global callback instead of collectAsState.
     val version = AppIconCache.cacheVersion
 
     // ponytail: removed LaunchedEffect that cleared cache on composition; relying on effectiveKey versioning to naturally orphan and evict old entries; ceiling is temporary memory overhead of old keys in LRU; upgrade path is a global invalidation bus.

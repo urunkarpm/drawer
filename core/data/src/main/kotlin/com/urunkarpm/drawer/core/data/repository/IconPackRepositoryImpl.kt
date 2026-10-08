@@ -8,7 +8,7 @@ import android.util.LruCache
 import androidx.core.content.res.ResourcesCompat
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
-import com.urunkarpm.drawer.core.common.IconCacheInvalidator
+
 import com.urunkarpm.drawer.core.database.dao.IconPackOverrideDao
 import com.urunkarpm.drawer.core.database.entity.IconPackOverrideEntity
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
@@ -70,7 +70,7 @@ class IconPackRepositoryImpl @Inject constructor(
     private fun clearCaches() {
         iconCache.evictAll()
         appFilterCache.clear()
-        IconCacheInvalidator.invalidate()
+
     }
 
     override val activeIconPack: Flow<String?> = preferencesDataSource.activeIconPack

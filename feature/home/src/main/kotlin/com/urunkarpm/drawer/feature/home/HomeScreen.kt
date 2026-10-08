@@ -307,10 +307,7 @@ fun HomeScreen(
         pendingAppWidgetId = null
     }
 
-    var showWidgetPicker by remember { mutableStateOf(false) }
-    val widgetPickerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    val bindWidgetLauncher = rememberLauncherForActivityResult(
+    val pickWidgetLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val id = pendingAppWidgetId
@@ -332,33 +329,13 @@ fun HomeScreen(
         }
     }
 
-    fun tryBindWidget(provider: android.content.ComponentName) {
-        val allocatedId = widgetHostManager.allocateAppWidgetId()
-        val bound = widgetHostManager.appWidgetManager.bindAppWidgetIdIfAllowed(allocatedId, provider)
-        if (bound) {
-            val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(allocatedId)
-            if (info?.configure != null) {
-                pendingAppWidgetId = allocatedId
-                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
-                    component = info.configure
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
-                }
-                configureWidgetLauncher.launch(intent)
-            } else {
-                completeWidgetAdd(allocatedId)
-            }
-        } else {
-            pendingAppWidgetId = allocatedId
-            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
-            }
-            bindWidgetLauncher.launch(intent)
-        }
-    }
-
     fun launchAddWidgetFlow() {
-        showWidgetPicker = true
+        val allocatedId = widgetHostManager.allocateAppWidgetId()
+        pendingAppWidgetId = allocatedId
+        val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
+        }
+        pickWidgetLauncher.launch(pickIntent)
     }
 
     LaunchedEffect(uiState.hideStatusBar) {
@@ -813,18 +790,6 @@ fun HomeScreen(
             )
         }
 
-        // ── Widget Picker Sheet ────────────────────────────────────────────────
-        if (showWidgetPicker) {
-            com.urunkarpm.drawer.feature.home.component.WidgetPickerBottomSheet(
-                widgetHostManager = widgetHostManager,
-                sheetState = widgetPickerSheetState,
-                onDismissRequest = { showWidgetPicker = false },
-                onWidgetSelected = { provider ->
-                    showWidgetPicker = false
-                    tryBindWidget(provider)
-                }
-            )
-        }
 
         // ── Settings Screen Overlay (slide in from right) ──────────────────────
         AnimatedVisibility(
