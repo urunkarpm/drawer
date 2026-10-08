@@ -76,6 +76,7 @@ import kotlin.math.roundToInt
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
+import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.DockItem
 import com.urunkarpm.drawer.feature.dock.component.DockActionBottomSheet
@@ -387,6 +388,7 @@ private fun DockAppSlot(
     iconShape: Shape = RoundedCornerShape(12.dp)
 ) {
     val haptic = LocalHapticFeedback.current
+    val labelScale = LocalAppLabelScale.current
     val label = app?.label ?: dockItem.customLabel ?: dockItem.packageName
 
     val currentOnClick by rememberUpdatedState(onClick)
@@ -436,7 +438,7 @@ private fun DockAppSlot(
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp * labelScale),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

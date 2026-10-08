@@ -58,6 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -730,6 +731,7 @@ private fun GroupGridItem(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val labelScale = LocalAppLabelScale.current
 
     val baseModifier = modifier
         .clip(RoundedCornerShape(12.dp))
@@ -782,7 +784,7 @@ private fun GroupGridItem(
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = app.label,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * labelScale),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -807,6 +809,7 @@ private fun GroupListLayout(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val labelScale = LocalAppLabelScale.current
 
     Column(
         modifier = modifier,
@@ -864,9 +867,10 @@ private fun GroupListLayout(
                         iconLoader = { iconLoader(app) }
                     )
                     Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
+                    val baseStyle = if (isCompact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
                     Text(
                         text = app.label,
-                        style = if (isCompact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
+                        style = baseStyle.copy(fontSize = baseStyle.fontSize * labelScale),
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),

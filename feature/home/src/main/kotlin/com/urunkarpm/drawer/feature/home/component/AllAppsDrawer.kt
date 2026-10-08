@@ -94,6 +94,7 @@ import kotlinx.coroutines.launch
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
+import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
 
 @Composable
 fun AllAppsDrawer(
@@ -464,6 +465,7 @@ private fun AppItemView(
     onDragDropResult: ((DragDropResult) -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
+    val labelScale = LocalAppLabelScale.current
 
     // ponytail: Unified gesture detector combining instantaneous tap execution, list scroll passthrough, and long-press drag-to-drawer; ceiling is Compose pointer slop; upgrade path is native drag-and-drop transfer API.
     val itemModifier = if (dragDropState != null) {
@@ -524,7 +526,7 @@ private fun AppItemView(
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = app.label,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * labelScale),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
