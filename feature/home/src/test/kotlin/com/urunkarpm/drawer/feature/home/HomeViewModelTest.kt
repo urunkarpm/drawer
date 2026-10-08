@@ -61,6 +61,8 @@ class HomeViewModelTest {
     private val surfaceCornerRadiusFlow = MutableStateFlow(24f)
     private val quickSettingsTileOrderFlow = MutableStateFlow(listOf("rotate", "wifi", "bluetooth", "quick_share", "dnd", "auto_rotate", "location", "flashlight"))
     private val quickSettingsHiddenTilesFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val headerFontFamilyFlow = MutableStateFlow("SYSTEM")
+    private val appLabelScaleFlow = MutableStateFlow("NORMAL")
 
     private val sampleApps = listOf(
         AppInfo(
@@ -111,6 +113,8 @@ class HomeViewModelTest {
         every { preferencesDataSource.enableWidgetsPage } returns enableWidgetsPageFlow
         every { preferencesDataSource.quickSettingsTileOrder } returns quickSettingsTileOrderFlow
         every { preferencesDataSource.quickSettingsHiddenTiles } returns quickSettingsHiddenTilesFlow
+        every { preferencesDataSource.headerFontFamily } returns headerFontFamilyFlow
+        every { preferencesDataSource.appLabelScale } returns appLabelScaleFlow
         every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
         every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
@@ -151,6 +155,24 @@ class HomeViewModelTest {
             assertEquals(25f, loadedState.surfaceBlurRadius)
             assertEquals(0.40f, loadedState.surfaceStrokeOpacity)
             assertEquals(24f, loadedState.surfaceCornerRadius)
+            assertEquals("SYSTEM", loadedState.headerFontFamily)
+            assertEquals("NORMAL", loadedState.appLabelScale)
+        }
+    }
+
+    @Test
+    fun uiState_updatesTypographyPreferences() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            headerFontFamilyFlow.value = "TEXAS_TROUPE"
+            appLabelScaleFlow.value = "LARGE"
+            testScheduler.advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals("TEXAS_TROUPE", state.headerFontFamily)
+            assertEquals("LARGE", state.appLabelScale)
         }
     }
 

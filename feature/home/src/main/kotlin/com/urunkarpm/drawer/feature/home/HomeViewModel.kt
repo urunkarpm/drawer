@@ -39,7 +39,9 @@ data class GlancePrefs(
     val categoryAlignment: String = "TOP",
     val enableWidgetsPage: Boolean = true,
     val quickSettingsTileOrder: List<String> = listOf("rotate", "wifi", "bluetooth", "quick_share", "dnd", "auto_rotate", "location", "flashlight"),
-    val quickSettingsHiddenTiles: Set<String> = emptySet()
+    val quickSettingsHiddenTiles: Set<String> = emptySet(),
+    val headerFontFamily: String = "SYSTEM",
+    val appLabelScale: String = "NORMAL"
 )
 
 data class HomeDialogsState(
@@ -82,7 +84,9 @@ data class HomeUiState(
     val surfaceOpacity: Float = 0.65f,
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
-    val surfaceCornerRadius: Float = 24f
+    val surfaceCornerRadius: Float = 24f,
+    val headerFontFamily: String = "SYSTEM",
+    val appLabelScale: String = "NORMAL"
 )
 
 data class SurfaceThemePrefs(
@@ -124,7 +128,9 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.categoryAlignment,
         preferencesDataSource.enableWidgetsPage,
         preferencesDataSource.quickSettingsTileOrder,
-        preferencesDataSource.quickSettingsHiddenTiles
+        preferencesDataSource.quickSettingsHiddenTiles,
+        preferencesDataSource.headerFontFamily,
+        preferencesDataSource.appLabelScale
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -145,6 +151,8 @@ class HomeViewModel @Inject constructor(
         val quickSettingsTileOrder = values[14] as List<String>
         @Suppress("UNCHECKED_CAST")
         val quickSettingsHiddenTiles = values[15] as Set<String>
+        val headerFontFamily = values[16] as String
+        val appLabelScale = values[17] as String
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -161,7 +169,9 @@ class HomeViewModel @Inject constructor(
             categoryAlignment,
             enableWidgetsPage,
             quickSettingsTileOrder,
-            quickSettingsHiddenTiles
+            quickSettingsHiddenTiles,
+            headerFontFamily,
+            appLabelScale
         )
     }
 
@@ -240,7 +250,9 @@ class HomeViewModel @Inject constructor(
             surfaceOpacity = surfacePrefs.surfaceOpacity,
             surfaceBlurRadius = surfacePrefs.surfaceBlurRadius,
             surfaceStrokeOpacity = surfacePrefs.surfaceStrokeOpacity,
-            surfaceCornerRadius = surfacePrefs.surfaceCornerRadius
+            surfaceCornerRadius = surfacePrefs.surfaceCornerRadius,
+            headerFontFamily = glancePrefs.headerFontFamily,
+            appLabelScale = glancePrefs.appLabelScale
         )
     }.stateIn(
         scope = viewModelScope,

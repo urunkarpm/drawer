@@ -117,6 +117,10 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.runtime.rememberCoroutineScope
 import com.urunkarpm.drawer.feature.home.dragdrop.DragDropResult
 import com.urunkarpm.drawer.feature.home.dragdrop.rememberAppDragDropState
+import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
+import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
+import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
+import com.urunkarpm.drawer.core.designsystem.theme.labelScaleFromName
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -439,7 +443,14 @@ fun HomeScreen(
         }
     }
 
-    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+    val headerFont = remember(uiState.headerFontFamily) { headerFontFamilyFromName(uiState.headerFontFamily) }
+    val labelScale = remember(uiState.appLabelScale) { labelScaleFromName(uiState.appLabelScale) }
+
+    CompositionLocalProvider(
+        LocalContentColor provides MaterialTheme.colorScheme.onBackground,
+        LocalHeaderFontFamily provides headerFont,
+        LocalAppLabelScale provides labelScale
+    ) {
         Box(
             modifier = modifier
                 .fillMaxSize()
