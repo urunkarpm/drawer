@@ -60,6 +60,8 @@ class SettingsViewModelTest {
     private val autoOpenKeyboardInDrawerFlow = MutableStateFlow(false)
     private val categoryAlignmentFlow = MutableStateFlow("TOP")
     private val enableWidgetsPageFlow = MutableStateFlow(false)
+    private val headerFontFamilyFlow = MutableStateFlow("TEXAS_TROUPE")
+    private val appLabelScaleFlow = MutableStateFlow("NORMAL")
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -98,6 +100,8 @@ class SettingsViewModelTest {
         every { preferencesDataSource.enableWidgetsPage } returns enableWidgetsPageFlow
         every { preferencesDataSource.showDuoStatusWidget } returns showDuoStatusWidgetFlow
         every { preferencesDataSource.enableCameraMirror } returns enableCameraMirrorFlow
+        every { preferencesDataSource.headerFontFamily } returns headerFontFamilyFlow
+        every { preferencesDataSource.appLabelScale } returns appLabelScaleFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -220,5 +224,29 @@ class SettingsViewModelTest {
         testScheduler.advanceUntilIdle()
 
         coVerify { preferencesDataSource.setDrawerThemeMode("WHITE") }
+    }
+
+    @Test
+    fun uiState_reflectsTypographyPreferences() = runTest(testDispatcher) {
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertEquals("TEXAS_TROUPE", state.headerFontFamily)
+            assertEquals("NORMAL", state.appLabelScale)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun setHeaderFontFamily_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setHeaderFontFamily("SERIF")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setHeaderFontFamily("SERIF") }
+    }
+
+    @Test
+    fun setAppLabelScale_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setAppLabelScale("LARGE")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setAppLabelScale("LARGE") }
     }
 }

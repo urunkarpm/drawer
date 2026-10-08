@@ -113,6 +113,8 @@ data class SettingsUiState(
     val twoDrawersSideBySide: Boolean = false,
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
+    val headerFontFamily: String = "TEXAS_TROUPE",
+    val appLabelScale: String = "NORMAL",
     val isBackingUp: Boolean = false,
     val isRestoring: Boolean = false,
     val isCheckingForUpdate: Boolean = false,
@@ -219,13 +221,24 @@ class SettingsViewModel @Inject constructor(
         MiscSettings(p1.first, p1.second, p1.third, p2.adaptiveIconShape, p2.twoDrawersSideBySide, p2.lockLayout, p2.autoArrangeApps)
     }
 
+    private val typographyFlow = combine(
+        preferencesDataSource.headerFontFamily,
+        preferencesDataSource.appLabelScale
+    ) { font, scale ->
+        font to scale
+    }
+
+    private val typographyAndActionFlow = combine(typographyFlow, actionState) { (font, scale), action ->
+        Triple(font, scale, action)
+    }
+
     val uiState: StateFlow<SettingsUiState> = combine(
         themeFlow,
         glanceFlow,
         dockAndSurfaceFlow,
         miscFlow,
-        actionState
-    ) { theme, glance, (dock, surface), misc, action ->
+        typographyAndActionFlow
+    ) { theme, glance, (dock, surface), misc, (headerFontFamily, appLabelScale, action) ->
         SettingsUiState(
             themeMode = theme.themeMode,
             drawerThemeMode = theme.drawerThemeMode,
@@ -258,6 +271,8 @@ class SettingsViewModel @Inject constructor(
             twoDrawersSideBySide = misc.twoDrawersSideBySide,
             lockLayout = misc.lockLayout,
             autoArrangeApps = misc.autoArrangeApps,
+            headerFontFamily = headerFontFamily,
+            appLabelScale = appLabelScale,
             isBackingUp = action.isBackingUp,
             isRestoring = action.isRestoring,
             isCheckingForUpdate = action.isCheckingForUpdate,
@@ -454,6 +469,18 @@ class SettingsViewModel @Inject constructor(
     fun setEnableWidgetsPage(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setEnableWidgetsPage(enabled)
+        }
+    }
+
+    fun setHeaderFontFamily(fontFamily: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setHeaderFontFamily(fontFamily)
+        }
+    }
+
+    fun setAppLabelScale(scale: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAppLabelScale(scale)
         }
     }
 

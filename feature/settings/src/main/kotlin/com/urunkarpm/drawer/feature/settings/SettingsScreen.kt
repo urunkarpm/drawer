@@ -37,9 +37,12 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.outlined.ColorLens
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -61,7 +64,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -79,11 +81,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
+import com.urunkarpm.drawer.core.designsystem.theme.labelScaleFromName
 import com.urunkarpm.drawer.feature.iconpacks.IconPackViewModel
 import com.urunkarpm.drawer.feature.iconpacks.component.IconPackPickerSheet
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
@@ -306,7 +310,143 @@ fun SettingsScreen(
                 }
             }
 
-            // 2. Dock Theming & Style
+            // 2. Typography & Font Packs
+            item {
+                SettingsCategoryHeader(title = "Typography & Font Packs", icon = Icons.Outlined.TextFields)
+                Spacer(modifier = Modifier.height(6.dp))
+                SettingsCard {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Header & Clock Font",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Choose the display font for the clock, weather, and group headers",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ThemeOptionChip(
+                                label = "Texas Troupe",
+                                selected = uiState.headerFontFamily == "TEXAS_TROUPE",
+                                onClick = { viewModel.setHeaderFontFamily("TEXAS_TROUPE") }
+                            )
+                            ThemeOptionChip(
+                                label = "System Sans",
+                                selected = uiState.headerFontFamily == "SYSTEM",
+                                onClick = { viewModel.setHeaderFontFamily("SYSTEM") }
+                            )
+                            ThemeOptionChip(
+                                label = "Serif",
+                                selected = uiState.headerFontFamily == "SERIF",
+                                onClick = { viewModel.setHeaderFontFamily("SERIF") }
+                            )
+                            ThemeOptionChip(
+                                label = "Monospace",
+                                selected = uiState.headerFontFamily == "MONOSPACE",
+                                onClick = { viewModel.setHeaderFontFamily("MONOSPACE") }
+                            )
+                            ThemeOptionChip(
+                                label = "Cursive",
+                                selected = uiState.headerFontFamily == "CURSIVE",
+                                onClick = { viewModel.setHeaderFontFamily("CURSIVE") }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "Preview",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "12:45 PM • Social • Utilities",
+                                    fontFamily = headerFontFamilyFromName(uiState.headerFontFamily),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                        Text(
+                            text = "App Label Size",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Scale font size for app titles across home, groups, and dock",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ThemeOptionChip(
+                                label = "Small",
+                                selected = uiState.appLabelScale == "SMALL",
+                                onClick = { viewModel.setAppLabelScale("SMALL") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ThemeOptionChip(
+                                label = "Default",
+                                selected = uiState.appLabelScale == "NORMAL",
+                                onClick = { viewModel.setAppLabelScale("NORMAL") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ThemeOptionChip(
+                                label = "Large",
+                                selected = uiState.appLabelScale == "LARGE",
+                                onClick = { viewModel.setAppLabelScale("LARGE") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "Preview",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                val labelScale = labelScaleFromName(uiState.appLabelScale)
+                                Text(
+                                    text = "Sample App",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = MaterialTheme.typography.bodyMedium.fontSize * labelScale
+                                    ),
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Dock Theming & Style
             item {
                 SettingsCategoryHeader(title = "Dock Theming & Style", icon = Icons.Default.ViewCarousel)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -436,7 +576,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 3. App Groups & Drawer
+            // 4. App Categories & Drawers
             item {
                 SettingsCategoryHeader(title = "App Categories & Drawers", icon = Icons.Default.FormatPaint)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -479,7 +619,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 4. Home Glance & Weather
+            // 5. At A Glance
             item {
                 SettingsCategoryHeader(title = "At A Glance", icon = Icons.Default.Schedule)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -579,7 +719,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 5. Notifications
+            // 6. Notifications
             item {
                 SettingsCategoryHeader(title = "Notifications", icon = Icons.Default.Notifications)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -628,7 +768,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 6. Icons & Themes
+            // 7. Icon Packs & Shapes
             item {
                 SettingsCategoryHeader(title = "Icon Packs & Shapes", icon = Icons.Default.Palette)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -665,7 +805,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 7. Backup & Restore
+            // 8. Backup & Restore
             item {
                 SettingsCategoryHeader(title = "Backup & Restore", icon = Icons.Default.FileUpload)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -720,7 +860,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 8. About & Information
+            // 9. About & Information
             item {
                 SettingsCategoryHeader(title = "About Drawer", icon = Icons.Outlined.Info)
                 Spacer(modifier = Modifier.height(6.dp))
