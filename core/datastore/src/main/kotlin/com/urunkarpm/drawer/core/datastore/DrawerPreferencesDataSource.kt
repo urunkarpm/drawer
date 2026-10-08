@@ -59,6 +59,8 @@ class DrawerPreferencesDataSource @Inject constructor(
         val ENABLE_WIDGETS_PAGE = booleanPreferencesKey("enable_widgets_page")
         val QUICK_SETTINGS_TILE_ORDER = stringPreferencesKey("quick_settings_tile_order")
         val QUICK_SETTINGS_HIDDEN_TILES = stringPreferencesKey("quick_settings_hidden_tiles")
+        val HEADER_FONT_FAMILY = stringPreferencesKey("header_font_family")
+        val APP_LABEL_SCALE = stringPreferencesKey("app_label_scale")
     }
 
     val quickSettingsTileOrder: Flow<List<String>> = dataStore.data.map {
@@ -85,6 +87,8 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     val themeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.THEME_MODE] ?: "SYSTEM" }
     val drawerThemeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM" }
+    val headerFontFamily: Flow<String> = dataStore.data.map { it[PreferencesKeys.HEADER_FONT_FAMILY] ?: "SYSTEM" }
+    val appLabelScale: Flow<String> = dataStore.data.map { it[PreferencesKeys.APP_LABEL_SCALE] ?: "NORMAL" }
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_COLOR] ?: true }
     val hideStatusBar: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_STATUS_BAR] ?: true }
 
@@ -268,5 +272,13 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setQuickSettingsHiddenTiles(hidden: Set<String>) {
         dataStore.edit { it[PreferencesKeys.QUICK_SETTINGS_HIDDEN_TILES] = hidden.joinToString(",") }
+    }
+
+    suspend fun setHeaderFontFamily(font: String) {
+        dataStore.edit { it[PreferencesKeys.HEADER_FONT_FAMILY] = font }
+    }
+
+    suspend fun setAppLabelScale(scale: String) {
+        dataStore.edit { it[PreferencesKeys.APP_LABEL_SCALE] = scale }
     }
 }
