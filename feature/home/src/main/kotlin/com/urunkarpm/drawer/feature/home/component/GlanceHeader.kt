@@ -28,7 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import com.urunkarpm.drawer.core.designsystem.theme.TexasTroupeFontFamily
+import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -263,7 +263,7 @@ fun GlanceHeader(
             ) {
                 Text(
                     text = timeDigits,
-                    fontFamily = TexasTroupeFontFamily,
+                    fontFamily = LocalHeaderFontFamily.current,
                     fontSize = 44.sp,
                     fontWeight = FontWeight.Normal,
                     color = displayColor,
@@ -334,7 +334,7 @@ fun GlanceHeader(
                 if (showWeather) {
                     Text(
                         text = tempText,
-                        fontFamily = TexasTroupeFontFamily,
+                        fontFamily = LocalHeaderFontFamily.current,
                         fontSize = 38.sp,
                         fontWeight = FontWeight.Normal,
                         color = displayColor,

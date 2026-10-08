@@ -62,7 +62,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import com.urunkarpm.drawer.core.designsystem.theme.TexasTroupeFontFamily
+import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.key
@@ -260,7 +260,7 @@ fun NotificationDrawer(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Notifications",
-                                fontFamily = TexasTroupeFontFamily,
+                                fontFamily = LocalHeaderFontFamily.current,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface

@@ -58,7 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import com.urunkarpm.drawer.core.designsystem.theme.TexasTroupeFontFamily
+import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -460,7 +460,7 @@ private fun GroupCard(
 
                         Text(
                             text = group.name,
-                            fontFamily = TexasTroupeFontFamily,
+                            fontFamily = LocalHeaderFontFamily.current,
                             style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
