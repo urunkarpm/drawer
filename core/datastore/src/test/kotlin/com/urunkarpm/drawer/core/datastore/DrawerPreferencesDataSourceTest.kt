@@ -51,4 +51,37 @@ class DrawerPreferencesDataSourceTest {
         dataSource.setAppLabelScale("LARGE")
         assertEquals("LARGE", dataSource.appLabelScale.first())
     }
+
+    @Test
+    fun defaultNotificationSwipeActionsAreCorrect() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(
+            com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ,
+            dataSource.notificationSwipeRightAction.first()
+        )
+        assertEquals(
+            com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS,
+            dataSource.notificationSwipeLeftAction.first()
+        )
+    }
+
+    @Test
+    fun updateNotificationSwipeRightActionPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setNotificationSwipeRightAction(com.urunkarpm.drawer.core.model.NotificationSwipeAction.OPEN)
+        assertEquals(
+            com.urunkarpm.drawer.core.model.NotificationSwipeAction.OPEN,
+            dataSource.notificationSwipeRightAction.first()
+        )
+    }
+
+    @Test
+    fun updateNotificationSwipeLeftActionPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setNotificationSwipeLeftAction(com.urunkarpm.drawer.core.model.NotificationSwipeAction.NONE)
+        assertEquals(
+            com.urunkarpm.drawer.core.model.NotificationSwipeAction.NONE,
+            dataSource.notificationSwipeLeftAction.first()
+        )
+    }
 }

@@ -42,7 +42,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -239,158 +241,204 @@ fun GlanceHeader(
     val subtextColor = wallpaperContrast.secondaryText
     val textShadow = wallpaperContrast.textShadow
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 18.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top
-    ) {
-        // Left: Live Clock & Date (2 Tiers)
-        Column(
-            modifier = Modifier
-                .weight(1.1f)
-                .combinedClickable(
-                    onClick = { launchClock(context) },
-                    onLongClick = onOpenSettings
-                ),
-            horizontalAlignment = Alignment.Start
-        ) {
-            // Tier 1: Clock Display
-            Row(
-                modifier = Modifier.height(48.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Text(
-                    text = timeDigits,
-                    fontFamily = LocalHeaderFontFamily.current,
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = displayColor,
-                    style = TextStyle(shadow = textShadow),
-                    letterSpacing = (-0.5).sp,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                if (amPm != null) {
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = amPm,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = subtextColor,
-                        style = TextStyle(shadow = textShadow),
-                        modifier = Modifier.padding(bottom = 5.dp)
-                    )
-                }
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val cornerRadiusDp = remember(context, density, configuration) {
+        val cornerRadiusPx = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    context.display
+                } else null
+                val corner = display?.getRoundedCorner(android.view.RoundedCorner.POSITION_TOP_RIGHT)
+                corner?.radius ?: 0
+            } catch (_: Exception) {
+                0
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Tier 2: Date Display
-            Text(
-                text = formattedDate,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = subtextColor,
-                style = TextStyle(shadow = textShadow),
-                letterSpacing = 0.1.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.combinedClickable(
-                    onClick = { launchCalendar(context) },
-                    onLongClick = onOpenSettings
-                )
-            )
+        } else {
+            0
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        if (cornerRadiusPx > 0) {
+            with(density) { cornerRadiusPx.toDp() }
+        } else {
+            when {
+                configuration.screenWidthDp < 360 -> 16.dp
+                configuration.screenWidthDp >= 600 -> 20.dp
+                else -> 28.dp
+            }
+        }
+    }
 
-        // Right: DuoStatusIcon + Temperature (Side-by-Side) & Location (2 Tiers)
-        Column(
-            modifier = Modifier
-                .weight(1.0f)
-                .combinedClickable(
-                    onClick = onRefreshWeather,
-                    onLongClick = onOpenSettings
-                ),
-            horizontalAlignment = Alignment.End
-        ) {
-            // Tier 1: DuoStatusIcon side-by-side with Temperature (Horizontally Centered)
+    // Dynamic padding calculated to nest the duo status icon symmetrically into the top-right display curve
+    val duoTopPadding = (cornerRadiusDp * 0.10f).coerceIn(0.dp, 6.dp)
+    val duoEndPadding = ((cornerRadiusDp - 16.dp) * 0.20f).coerceIn(0.dp, 8.dp)
+
+    Column(
+        modifier = modifier.fillMaxWidth()
+    ) {
+        if (showDuoStatus) {
             Row(
-                modifier = Modifier.height(48.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = duoTopPadding, end = duoEndPadding, bottom = 0.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (showDuoStatus) {
-                    DuoStatusIcon(
-                        displayColor = displayColor,
-                        sizeDp = 34,
-                        modifier = Modifier.padding(end = 8.dp),
-                        onClick = onDuoStatusClick
-                    )
-                }
+                DuoStatusIcon(
+                    displayColor = displayColor,
+                    sizeDp = 34,
+                    onClick = onDuoStatusClick
+                )
+            }
+        } else {
+            Spacer(modifier = Modifier.height(18.dp))
+        }
 
-                if (showWeather) {
+        // Main Glance Row: Clock & Date (Left) and Temperature & Location (Right) in exact same alignment!
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            // Left: Live Clock & Date (2 Tiers)
+            Column(
+                modifier = Modifier
+                    .weight(1.1f)
+                    .combinedClickable(
+                        onClick = { launchClock(context) },
+                        onLongClick = onOpenSettings
+                    ),
+                horizontalAlignment = Alignment.Start
+            ) {
+                // Tier 1: Clock Display
+                Row(
+                    modifier = Modifier.height(48.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
                     Text(
-                        text = tempText,
+                        text = timeDigits,
                         fontFamily = LocalHeaderFontFamily.current,
-                        fontSize = 38.sp,
+                        fontSize = 44.sp,
                         fontWeight = FontWeight.Normal,
                         color = displayColor,
                         style = TextStyle(shadow = textShadow),
                         letterSpacing = (-0.5).sp,
-                        textAlign = TextAlign.End,
                         maxLines = 1,
                         softWrap = false
                     )
+                    if (amPm != null) {
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = amPm,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = subtextColor,
+                            style = TextStyle(shadow = textShadow),
+                            modifier = Modifier.padding(bottom = 5.dp)
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Tier 2: Date Display
+                Text(
+                    text = formattedDate,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = subtextColor,
+                    style = TextStyle(shadow = textShadow),
+                    letterSpacing = 0.1.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.combinedClickable(
+                        onClick = { launchCalendar(context) },
+                        onLongClick = onOpenSettings
+                    )
+                )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Tier 2: Weather Condition & Location Display
-            if (showWeather) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = weatherLocationText,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = subtextColor,
-                        style = TextStyle(shadow = textShadow),
-                        letterSpacing = 0.1.sp,
-                        textAlign = TextAlign.End,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+            // Right: Temperature & Location (2 Tiers) - Exactly matching left side alignment!
+            Column(
+                modifier = Modifier
+                    .weight(1.0f)
+                    .combinedClickable(
+                        onClick = onRefreshWeather,
+                        onLongClick = onOpenSettings
+                    ),
+                horizontalAlignment = Alignment.End
+            ) {
+                // Tier 1: Temperature Display (Same height 48.dp & bottom baseline as Clock)
+                if (showWeather) {
+                    Row(
+                        modifier = Modifier.height(48.dp),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = tempText,
+                            fontFamily = LocalHeaderFontFamily.current,
+                            fontSize = 44.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = displayColor,
+                            style = TextStyle(shadow = textShadow),
+                            letterSpacing = (-0.5).sp,
+                            textAlign = TextAlign.End,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(48.dp))
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Tier 2: Weather Condition & Location Display (Same height & bottom baseline as Date)
+                if (showWeather) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = weatherLocationText,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = subtextColor,
+                            style = TextStyle(shadow = textShadow),
+                            letterSpacing = 0.1.sp,
+                            textAlign = TextAlign.End,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        IconButton(
+                            onClick = onOpenSettings,
+                            modifier = Modifier.size(22.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Open Settings",
+                                tint = subtextColor.copy(alpha = 0.85f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                } else {
                     IconButton(
                         onClick = onOpenSettings,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Open Settings",
-                            tint = subtextColor.copy(alpha = 0.85f),
-                            modifier = Modifier.size(16.dp)
+                            tint = subtextColor,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                }
-            } else {
-                IconButton(
-                    onClick = onOpenSettings,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Open Settings",
-                        tint = subtextColor,
-                        modifier = Modifier.size(20.dp)
-                    )
                 }
             }
         }

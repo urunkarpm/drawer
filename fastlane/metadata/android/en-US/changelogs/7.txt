@@ -1,0 +1,4 @@
+• Redesigned Home Screen Drawers: Translucent frosted glass cards, category squircle badges with notification pulse, hairline borders, and tactile chevron controls
+• Typography & Font Packs: System, Serif Editorial, Sans Clean, Monospace Minimal, and Rounded Casual
+• App Label Scaling: Customizable label sizing across home screen and drawer
+• UI polish and smoothness enhancements

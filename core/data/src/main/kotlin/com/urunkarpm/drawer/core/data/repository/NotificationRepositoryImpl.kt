@@ -118,6 +118,10 @@ class NotificationRepositoryImpl @Inject constructor(
         notificationBridge.onDismissNotification?.invoke(key)
     }
 
+    override fun markNotificationAsRead(key: String) {
+        notificationBridge.onMarkNotificationAsRead?.invoke(key)
+    }
+
     override fun clearAllNotifications() {
         notificationBridge.onClearAllNotifications?.invoke()
     }

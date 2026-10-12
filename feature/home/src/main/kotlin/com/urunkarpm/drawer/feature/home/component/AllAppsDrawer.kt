@@ -12,6 +12,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
@@ -47,6 +50,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,9 +62,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
@@ -76,6 +83,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
@@ -152,6 +160,54 @@ fun AllAppsDrawer(
         ) {
             val gridState = rememberLazyGridState()
             val coroutineScope = rememberCoroutineScope()
+            var activeScrubLetter by remember { mutableStateOf<String?>(null) }
+            var scrollJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+            // Reset active scrub letter when drawer closes or search is active
+            LaunchedEffect(visible, searchQuery) {
+                if (!visible || searchQuery.isNotBlank()) {
+                    activeScrubLetter = null
+                }
+            }
+
+            val displayedApps = remember(apps, searchQuery) {
+                if (searchQuery.isNotBlank()) {
+                    apps.filter { it.label.contains(searchQuery, ignoreCase = true) }
+                } else {
+                    apps
+                }
+            }
+
+            val configuration = LocalConfiguration.current
+            val screenWidth = configuration.screenWidthDp
+            val gridColumns = when {
+                screenWidth < 600 -> 4
+                screenWidth < 840 -> 6
+                screenWidth < 1100 -> 7
+                else -> 8
+            }
+            val horizontalPadding = if (screenWidth < 360) 12.dp else if (screenWidth >= 840) 24.dp else 16.dp
+
+            val letterIndexMap = remember(displayedApps) {
+                val map = HashMap<String, Int>(30)
+                map["#"] = 0
+                for (c in 'A'..'Z') {
+                    val s = c.toString()
+                    val exact = displayedApps.indexOfFirst {
+                        it.label.firstOrNull()?.uppercaseChar() == c
+                    }
+                    if (exact != -1) {
+                        map[s] = exact
+                    } else {
+                        val next = displayedApps.indexOfFirst {
+                            val fc = it.label.firstOrNull()?.uppercaseChar() ?: ' '
+                            fc.isLetter() && fc > c
+                        }
+                        map[s] = if (next != -1) next else (displayedApps.size - 1).coerceAtLeast(0)
+                    }
+                }
+                map
+            }
 
             // NestedScrollConnection: when LazyGrid is scrolled to top, user can pull DOWN to dismiss.
             var overscrollDownAccumulator by remember { mutableFloatStateOf(0f) }
@@ -275,7 +331,7 @@ fun AllAppsDrawer(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                    } else if (apps.isEmpty()) {
+                    } else if (displayedApps.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -291,13 +347,15 @@ fun AllAppsDrawer(
                         }
                     } else {
                         Box(modifier = Modifier.fillMaxSize()) {
+                            val scrubProvider = remember { { activeScrubLetter } }
+
                             LazyVerticalGrid(
                                 state = gridState,
-                                columns = GridCells.Fixed(4),
+                                columns = GridCells.Fixed(gridColumns),
                                 contentPadding = PaddingValues(
-                                    start = 16.dp,
+                                    start = horizontalPadding,
                                     top = 8.dp,
-                                    end = if (searchQuery.isBlank() && apps.size > 8) 32.dp else 16.dp,
+                                    end = if (searchQuery.isBlank() && displayedApps.size > 8) horizontalPadding + 24.dp else horizontalPadding,
                                     bottom = 12.dp
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -305,7 +363,7 @@ fun AllAppsDrawer(
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 items(
-                                    items = apps,
+                                    items = displayedApps,
                                     key = { it.componentKey },
                                     contentType = { "app_item" }
                                 ) { app ->
@@ -316,30 +374,30 @@ fun AllAppsDrawer(
                                         iconLoader = iconLoader,
                                         iconShape = iconShape,
                                         dragDropState = dragDropState,
-                                        onDragDropResult = onDragDropResult
+                                        onDragDropResult = onDragDropResult,
+                                        activeScrubLetterProvider = scrubProvider
                                     )
                                 }
                             }
 
-                            if (searchQuery.isBlank() && apps.size > 8) {
+                            var lastTargetIndex by remember { mutableIntStateOf(-1) }
+
+                            if (searchQuery.isBlank() && displayedApps.size > 8) {
                                 AlphabetIndexBar(
-                                    onLetterSelected = { letter ->
-                                        val targetIndex = if (letter == "#") {
-                                            0
-                                        } else {
-                                            val exact = apps.indexOfFirst { it.label.startsWith(letter, ignoreCase = true) }
-                                            if (exact >= 0) {
-                                                exact
-                                            } else {
-                                                val next = apps.indexOfFirst { it.label.uppercase() > letter }
-                                                if (next >= 0) next else (apps.size - 1)
-                                            }
-                                        }
-                                        if (targetIndex in apps.indices) {
-                                            coroutineScope.launch {
+                                    onLetterScrolled = { letter ->
+                                        activeScrubLetter = letter
+                                        val targetIndex = letterIndexMap[letter] ?: 0
+                                        if (targetIndex != lastTargetIndex) {
+                                            lastTargetIndex = targetIndex
+                                            scrollJob?.cancel()
+                                            scrollJob = coroutineScope.launch {
                                                 gridState.scrollToItem(targetIndex)
                                             }
                                         }
+                                    },
+                                    onDragEnd = {
+                                        activeScrubLetter = null
+                                        lastTargetIndex = -1
                                     },
                                     modifier = Modifier.align(Alignment.CenterEnd)
                                 )
@@ -354,7 +412,11 @@ fun AllAppsDrawer(
                     onSearchQueryChanged = onSearchQueryChanged,
                     onClose = onClose,
                     onOpenSettings = onOpenSettings,
-                    focusRequester = searchFocusRequester
+                    focusRequester = searchFocusRequester,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                        .widthIn(max = 760.dp)
                 )
             }
         }
@@ -462,10 +524,12 @@ private fun AppItemView(
     modifier: Modifier = Modifier,
     iconShape: Shape = RoundedCornerShape(12.dp),
     dragDropState: AppDragDropState? = null,
-    onDragDropResult: ((DragDropResult) -> Unit)? = null
+    onDragDropResult: ((DragDropResult) -> Unit)? = null,
+    activeScrubLetterProvider: () -> String? = { null }
 ) {
     val haptic = LocalHapticFeedback.current
     val labelScale = LocalAppLabelScale.current
+    val firstChar = remember(app.label) { app.label.firstOrNull()?.uppercaseChar() }
 
     // ponytail: Unified gesture detector combining instantaneous tap execution, list scroll passthrough, and long-press drag-to-drawer; ceiling is Compose pointer slop; upgrade path is native drag-and-drop transfer API.
     val itemModifier = if (dragDropState != null) {
@@ -513,7 +577,19 @@ private fun AppItemView(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = itemModifier
+        modifier = itemModifier.graphicsLayer {
+            val scrub = activeScrubLetterProvider()
+            if (scrub != null) {
+                val matches = if (scrub == "#") !(firstChar?.isLetter() == true) else (firstChar == scrub.firstOrNull())
+                alpha = if (matches) 1f else 0.35f
+                scaleX = if (matches) 1.05f else 0.98f
+                scaleY = if (matches) 1.05f else 0.98f
+            } else {
+                alpha = 1f
+                scaleX = 1f
+                scaleY = 1f
+            }
+        }
     ) {
         AppIconImage(
             key = app.componentKey,

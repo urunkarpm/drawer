@@ -163,14 +163,14 @@ private fun AppIconContent(
                 modifier = Modifier
                     .size(size)
                     .clip(iconShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(androidx.compose.ui.graphics.Color(0xFF3DDC84)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Android,
                     contentDescription = label,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(size * 0.6f)
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.size(size * 0.65f)
                 )
             }
         }

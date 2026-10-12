@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -42,6 +43,8 @@ class DrawerPreferencesDataSource @Inject constructor(
         val MULTI_GROUP_APPS = booleanPreferencesKey("multi_group_apps")
 
         val NOTIFICATIONS_PRIVACY_MODE = booleanPreferencesKey("notifications_privacy_mode")
+        val NOTIFICATION_SWIPE_RIGHT_ACTION = stringPreferencesKey("notification_swipe_right_action")
+        val NOTIFICATION_SWIPE_LEFT_ACTION = stringPreferencesKey("notification_swipe_left_action")
 
         val ACTIVE_ICON_PACK = stringPreferencesKey("active_icon_pack")
         val ADAPTIVE_ICON_SHAPE = stringPreferencesKey("adaptive_icon_shape")
@@ -117,6 +120,30 @@ class DrawerPreferencesDataSource @Inject constructor(
     val multiGroupApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.MULTI_GROUP_APPS] ?: false }
 
     val notificationsPrivacyMode: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] ?: false }
+    val notificationSwipeRightAction: Flow<NotificationSwipeAction> = dataStore.data.map { prefs ->
+        val raw = prefs[PreferencesKeys.NOTIFICATION_SWIPE_RIGHT_ACTION]
+        if (raw != null) {
+            try {
+                NotificationSwipeAction.valueOf(raw)
+            } catch (_: Exception) {
+                NotificationSwipeAction.MARK_AS_READ
+            }
+        } else {
+            NotificationSwipeAction.MARK_AS_READ
+        }
+    }
+    val notificationSwipeLeftAction: Flow<NotificationSwipeAction> = dataStore.data.map { prefs ->
+        val raw = prefs[PreferencesKeys.NOTIFICATION_SWIPE_LEFT_ACTION]
+        if (raw != null) {
+            try {
+                NotificationSwipeAction.valueOf(raw)
+            } catch (_: Exception) {
+                NotificationSwipeAction.DISMISS
+            }
+        } else {
+            NotificationSwipeAction.DISMISS
+        }
+    }
 
     val activeIconPack: Flow<String?> = dataStore.data.map { it[PreferencesKeys.ACTIVE_ICON_PACK] }
     val adaptiveIconShape: Flow<String> = dataStore.data.map { it[PreferencesKeys.ADAPTIVE_ICON_SHAPE] ?: "SQUIRCLE" }
@@ -217,6 +244,14 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setNotificationsPrivacyMode(privacy: Boolean) {
         dataStore.edit { it[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] = privacy }
+    }
+
+    suspend fun setNotificationSwipeRightAction(action: NotificationSwipeAction) {
+        dataStore.edit { it[PreferencesKeys.NOTIFICATION_SWIPE_RIGHT_ACTION] = action.name }
+    }
+
+    suspend fun setNotificationSwipeLeftAction(action: NotificationSwipeAction) {
+        dataStore.edit { it[PreferencesKeys.NOTIFICATION_SWIPE_LEFT_ACTION] = action.name }
     }
 
     suspend fun setActiveIconPack(packageName: String?) {

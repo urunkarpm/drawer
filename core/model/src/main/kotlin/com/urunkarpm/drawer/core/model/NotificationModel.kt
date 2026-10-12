@@ -27,3 +27,11 @@ data class MutedAppRule(
     val snoozedUntilTimestamp: Long? = null,
     val autoDismiss: Boolean = false
 )
+
+@Serializable
+enum class NotificationSwipeAction(val label: String) {
+    MARK_AS_READ("Mark as read"),
+    DISMISS("Delete"),
+    OPEN("Open"),
+    NONE("None")
+}

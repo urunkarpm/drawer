@@ -142,35 +142,41 @@ fun DockBar(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = animatedScale
-                scaleY = animatedScale
-            }
             .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Background layer: applies shape, elevation, and backdrop tint without blurring child icons
-        Surface(
-            shape = shape,
-            color = if (isDropTarget) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else backgroundColor,
-            shadowElevation = if (isDropTarget) 8.dp else if (uiState.backgroundStyle == "SOLID") 4.dp else if (uiState.backgroundStyle == "LIQUID_GLASS") 4.dp else 0.dp,
-            border = surfaceBorder,
-            modifier = Modifier.matchParentSize()
-        ) {}
-
         if (uiState.resolvedApps.isEmpty()) {
+            val emptyDockWidth = 280.dp.coerceAtMost(maxWidth)
             Box(
                 modifier = Modifier
-                    .height(uiState.iconSizeDp.dp.coerceAtLeast(48.dp))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .width(emptyDockWidth)
+                    .graphicsLayer {
+                        scaleX = animatedScale
+                        scaleY = animatedScale
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "Long-press any app to pin here (max 5)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
+                Surface(
+                    shape = shape,
+                    color = if (isDropTarget) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else backgroundColor,
+                    shadowElevation = if (isDropTarget) 8.dp else if (uiState.backgroundStyle == "SOLID") 4.dp else if (uiState.backgroundStyle == "LIQUID_GLASS") 4.dp else 0.dp,
+                    border = surfaceBorder,
+                    modifier = Modifier.matchParentSize()
+                ) {}
+
+                Box(
+                    modifier = Modifier
+                        .height(uiState.iconSizeDp.dp.coerceAtLeast(48.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Long-press any app to pin here (max 5)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         } else {
             val itemCount = uiState.resolvedApps.size
@@ -209,6 +215,8 @@ fun DockBar(
                 Triple(targetIconSizeDp, idealSpacing, targetIconSizeDp * itemCount)
             }
 
+            val dockWidth = (rowWidth + (dockPaddingHorizontal * 2)).coerceAtMost(maxWidth)
+
             val localDensity = LocalDensity.current
             val haptic = LocalHapticFeedback.current
 
@@ -237,15 +245,32 @@ fun DockBar(
                 }
             }
 
-            // Foreground content: crisp, unblurred icons uniformly scaled and distributed
-            Row(
+            Box(
                 modifier = Modifier
-                    .width(rowWidth + (dockPaddingHorizontal * 2))
-                    .padding(horizontal = dockPaddingHorizontal, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(actualSpacing, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
+                    .width(dockWidth)
+                    .graphicsLayer {
+                        scaleX = animatedScale
+                        scaleY = animatedScale
+                    },
+                contentAlignment = Alignment.Center
             ) {
-                uiState.resolvedApps.forEachIndexed { index, (dockItem, app) ->
+                Surface(
+                    shape = shape,
+                    color = if (isDropTarget) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else backgroundColor,
+                    shadowElevation = if (isDropTarget) 8.dp else if (uiState.backgroundStyle == "SOLID") 4.dp else if (uiState.backgroundStyle == "LIQUID_GLASS") 4.dp else 0.dp,
+                    border = surfaceBorder,
+                    modifier = Modifier.matchParentSize()
+                ) {}
+
+                // Foreground content: crisp, unblurred icons uniformly scaled and distributed
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = dockPaddingHorizontal, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(actualSpacing, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    uiState.resolvedApps.forEachIndexed { index, (dockItem, app) ->
                     key(dockItem.position, dockItem.packageName) {
                         val isBeingDragged = (draggedSlotIndex == index)
 
@@ -335,6 +360,7 @@ fun DockBar(
             }
         }
     }
+}
 
     // Context Sheet for Dock Item
     val selectedPair = uiState.selectedDockItemForMenu

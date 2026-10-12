@@ -14,6 +14,7 @@ interface NotificationRepository {
     fun checkPermission(): Boolean
     fun openNotificationAccessSettings()
     fun dismissNotification(key: String)
+    fun markNotificationAsRead(key: String)
     fun clearAllNotifications()
     fun openNotification(key: String)
     suspend fun muteApp(

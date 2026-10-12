@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -135,7 +137,23 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val groupsUiState by groupsViewModel.uiState.collectAsStateWithLifecycle()
     val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
+
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val screenHeightDp = configuration.screenHeightDp
+    val isSmallScreen = screenWidthDp < 360
+    val isFoldableOrTablet = screenWidthDp >= 600
+    val isLargeTablet = screenWidthDp >= 840
+    val effectiveTwoDrawersSideBySide = uiState.twoDrawersSideBySide || isFoldableOrTablet
+    val horizontalPadding = when {
+        isSmallScreen -> 12.dp
+        isLargeTablet -> 24.dp
+        else -> 16.dp
+    }
     val hasNotifications = notificationsUiState.activeNotifications.isNotEmpty()
+    val activeNotificationPackages = remember(notificationsUiState.activeNotifications) {
+        notificationsUiState.activeNotifications.map { it.packageName }.toSet()
+    }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val categorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val homeMenuSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -226,7 +244,7 @@ fun HomeScreen(
 
     // When an app category group is opened, collapse notification drawer (if not in side-by-side mode)
     LaunchedEffect(groupsUiState.groups) {
-        if (!uiState.twoDrawersSideBySide && groupsUiState.groups.any { it.group.isExpanded }) {
+        if (!effectiveTwoDrawersSideBySide && groupsUiState.groups.any { it.group.isExpanded }) {
             isNotificationExpanded = false
         }
     }
@@ -400,7 +418,7 @@ fun HomeScreen(
                     scrollDownAccumulator += available.y
                     if (scrollDownAccumulator > 60f) {
                         isNotificationExpanded = true
-                        if (!uiState.twoDrawersSideBySide) {
+                        if (!effectiveTwoDrawersSideBySide) {
                             groupsViewModel.collapseAllGroups()
                         }
                         scrollDownAccumulator = 0f
@@ -471,212 +489,221 @@ fun HomeScreen(
             }
 
             val homeContent: @Composable () -> Unit = {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
-                        .navigationBarsPadding()
-                        .padding(horizontal = 20.dp)
-                        .onGloballyPositioned { coords ->
-                            rootColumnBounds = coords.boundsInRoot()
-                        }
-                        // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
-                        .pointerInput(isQuickSettingsOpen, uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups) {
-                            if (!isQuickSettingsOpen && !uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
-                                detectTapGestures(
-                                    onTap = { offset ->
-                                        val colBounds = rootColumnBounds ?: Rect.Zero
-                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                        if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
-                                            if (isNotificationExpanded) {
-                                                isNotificationExpanded = false
+                        .navigationBarsPadding(),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .widthIn(max = 1040.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = horizontalPadding)
+                            .onGloballyPositioned { coords ->
+                                rootColumnBounds = coords.boundsInRoot()
+                            }
+                            // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
+                            .pointerInput(isQuickSettingsOpen, uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups) {
+                                if (!isQuickSettingsOpen && !uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
+                                    detectTapGestures(
+                                        onTap = { offset ->
+                                            val colBounds = rootColumnBounds ?: Rect.Zero
+                                            val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                            val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                            val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                            val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                            val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                                if (isNotificationExpanded) {
+                                                    isNotificationExpanded = false
+                                                }
+                                                if (groupsUiState.groups.any { it.group.isExpanded }) {
+                                                    groupsViewModel.collapseAllGroups()
+                                                }
                                             }
-                                            if (groupsUiState.groups.any { it.group.isExpanded }) {
-                                                groupsViewModel.collapseAllGroups()
+                                        },
+                                        onDoubleTap = { offset ->
+                                            val colBounds = rootColumnBounds ?: Rect.Zero
+                                            val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                            val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                            val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                            val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                            val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                                onDoubleTapLock()
+                                            }
+                                        },
+                                        onLongPress = { offset ->
+                                            val colBounds = rootColumnBounds ?: Rect.Zero
+                                            val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                            val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                            val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                            val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                            val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                                showHomeMenu = true
                                             }
                                         }
-                                    },
-                                    onDoubleTap = { offset ->
-                                        val colBounds = rootColumnBounds ?: Rect.Zero
-                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                        if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
-                                            onDoubleTapLock()
-                                        }
-                                    },
-                                    onLongPress = { offset ->
-                                        val colBounds = rootColumnBounds ?: Rect.Zero
-                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                        if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
-                                            showHomeMenu = true
-                                        }
-                                    }
+                                    )
+                                }
+                            },
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                    // Top: Glance (Clock, Date & Weather)
+                    GlanceHeader(
+                        is24Hour = uiState.is24Hour,
+                        showWeather = uiState.showWeather,
+                        weatherUnit = uiState.weatherUnit,
+                        weatherInfo = uiState.weatherInfo,
+                        onRefreshWeather = {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
                                 )
-                            }
-                        },
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                // Top: Glance (Clock, Date & Weather)
-                GlanceHeader(
-                    is24Hour = uiState.is24Hour,
-                    showWeather = uiState.showWeather,
-                    weatherUnit = uiState.weatherUnit,
-                    weatherInfo = uiState.weatherInfo,
-                    onRefreshWeather = {
-                        locationPermissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
                             )
-                        )
-                        viewModel.refreshWeather()
-                    },
-                    onOpenSettings = { isSettingsOpen = true },
-                    showDuoStatus = uiState.showDuoStatusWidget && uiState.hideStatusBar,
-                    onDuoStatusClick = { isQuickSettingsOpen = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onGloballyPositioned { coords ->
-                            glanceBounds = coords.boundsInRoot()
-                        }
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Middle: Notifications (always full width at top) + Category Drawers (side-by-side or stacked vertically)
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .nestedScroll(homeNestedScrollConnection)
-                        .verticalScroll(rememberScrollState(), enabled = !dragDropState.isDragging),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    // 1. Notification Drawer: Stays fixed at top as stable accordion item; no layout shifts when drawers open
-                    // ponytail: keep notification header persistent to eliminate jarring layout shifts on category drawer expansion; ceiling: full drawer card always present; upgrade path: customizable collapsed view.
-                    com.urunkarpm.drawer.feature.notifications.NotificationDrawer(
-                        viewModel = notificationsViewModel,
-                        isExpanded = isNotificationExpanded,
-                        onExpandedChange = { expanded ->
-                            isNotificationExpanded = expanded
-                            if (expanded && !uiState.twoDrawersSideBySide) {
-                                groupsViewModel.collapseAllGroups()
-                            }
+                            viewModel.refreshWeather()
                         },
+                        onOpenSettings = { isSettingsOpen = true },
+                        showDuoStatus = uiState.showDuoStatusWidget && uiState.hideStatusBar,
+                        onDuoStatusClick = { isQuickSettingsOpen = true },
                         modifier = Modifier
                             .fillMaxWidth()
                             .onGloballyPositioned { coords ->
-                                notificationBounds = coords.boundsInRoot()
-                            },
-                        iconLoader = { packageName ->
-                            val app = uiState.installedAppsByPackage[packageName]
-                            if (app != null) viewModel.getAppIcon(app) else null
-                        },
-                        isDragging = dragDropState.isDragging
+                                glanceBounds = coords.boundsInRoot()
+                            }
                     )
 
-                    // 2. Rest of the Drawers (App Categories): Side by side (2 columns) if enabled, otherwise single column
-                    GroupsAccordion(
-                        viewModel = groupsViewModel,
-                        twoDrawersSideBySide = uiState.twoDrawersSideBySide,
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Middle: Notifications (always full width at top) + Category Drawers (side-by-side or stacked vertically)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .nestedScroll(homeNestedScrollConnection)
+                            .verticalScroll(rememberScrollState(), enabled = !dragDropState.isDragging),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        // 1. Notification Drawer: Stays fixed at top as stable accordion item; no layout shifts when drawers open
+                        // ponytail: keep notification header persistent to eliminate jarring layout shifts on category drawer expansion; ceiling: full drawer card always present; upgrade path: customizable collapsed view.
+                        com.urunkarpm.drawer.feature.notifications.NotificationDrawer(
+                            viewModel = notificationsViewModel,
+                            isExpanded = isNotificationExpanded,
+                            onExpandedChange = { expanded ->
+                                isNotificationExpanded = expanded
+                                if (expanded && !effectiveTwoDrawersSideBySide) {
+                                    groupsViewModel.collapseAllGroups()
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned { coords ->
+                                    notificationBounds = coords.boundsInRoot()
+                                },
+                            iconLoader = { packageName ->
+                                val app = uiState.installedAppsByPackage[packageName]
+                                if (app != null) viewModel.getAppIcon(app) else null
+                            },
+                            isDragging = dragDropState.isDragging
+                        )
+
+                        // 2. Rest of the Drawers (App Categories): Side by side (2 columns) if enabled, otherwise single column
+                        GroupsAccordion(
+                            viewModel = groupsViewModel,
+                            twoDrawersSideBySide = effectiveTwoDrawersSideBySide,
+                            iconShape = com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString(
+                                uiState.adaptiveIconShape
+                            ),
+                            hoveredGroupId = hoveredGroupId,
+                            notificationPackages = activeNotificationPackages,
+                            onGroupPositioned = { groupId, rect ->
+                                dragDropState.groupBounds[groupId] = rect
+                            },
+                            onAppPositioned = { groupId, app, rect ->
+                                dragDropState.registerAppBounds(groupId, app.componentKey, rect)
+                            },
+                            onAppDragStart = { app, rootPos, sourceGroupId ->
+                                dragDropState.startDrag(app, rootPos, sourceGroupId = sourceGroupId)
+                            },
+                            onAppDrag = { dragAmount ->
+                                dragDropState.updateDrag(dragAmount)
+                            },
+                            onAppDragEnd = { isDropped ->
+                                if (isDropped) {
+                                    val result = dragDropState.endDrag()
+                                    handleDragDropResult(result)
+                                } else {
+                                    dragDropState.cancelDrag()
+                                }
+                            },
+                            onMoveToCategory = { app, sourceGroupId ->
+                                appForCategorySelection = app to sourceGroupId
+                            },
+                            onPinToDock = { app ->
+                                viewModel.pinToDock(app)
+                            },
+                            isDragging = dragDropState.isDragging,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                // Bottom: Dock (swiping up from dock opens app drawer instantaneously)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .onGloballyPositioned { coords ->
+                            dragDropState.dockBounds = coords.boundsInRoot()
+                        }
+                        .pointerInput(uiState.isAllAppsOpen, hasNotifications, isNotificationExpanded) {
+                            var dockDrag = 0f
+                            var actionTriggered = false
+                            detectVerticalDragGestures(
+                                onDragStart = { 
+                                    dockDrag = 0f 
+                                    actionTriggered = false
+                                },
+                                onVerticalDrag = { _, dragAmount ->
+                                    if (actionTriggered) return@detectVerticalDragGestures
+                                    dockDrag += dragAmount
+                                    if (!uiState.isAllAppsOpen && dockDrag < -20f) {
+                                        if (isNotificationExpanded) {
+                                            isNotificationExpanded = false
+                                        } else {
+                                            viewModel.openAllApps()
+                                        }
+                                        actionTriggered = true
+                                    } else if (!uiState.isAllAppsOpen && dockDrag > 20f) {
+                                        if (hasNotifications && !isNotificationExpanded) {
+                                            isNotificationExpanded = true
+                                            if (!effectiveTwoDrawersSideBySide) {
+                                                groupsViewModel.collapseAllGroups()
+                                            }
+                                        }
+                                        actionTriggered = true
+                                    }
+                                },
+                                onDragEnd = { dockDrag = 0f },
+                                onDragCancel = { dockDrag = 0f }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    DockBar(
                         iconShape = com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString(
                             uiState.adaptiveIconShape
                         ),
-                        hoveredGroupId = hoveredGroupId,
-                        onGroupPositioned = { groupId, rect ->
-                            dragDropState.groupBounds[groupId] = rect
-                        },
-                        onAppPositioned = { groupId, app, rect ->
-                            dragDropState.registerAppBounds(groupId, app.componentKey, rect)
-                        },
-                        onAppDragStart = { app, rootPos, sourceGroupId ->
-                            dragDropState.startDrag(app, rootPos, sourceGroupId = sourceGroupId)
-                        },
-                        onAppDrag = { dragAmount ->
-                            dragDropState.updateDrag(dragAmount)
-                        },
-                        onAppDragEnd = { isDropped ->
-                            if (isDropped) {
-                                val result = dragDropState.endDrag()
-                                handleDragDropResult(result)
-                            } else {
-                                dragDropState.cancelDrag()
-                            }
-                        },
-                        onMoveToCategory = { app, sourceGroupId ->
-                            appForCategorySelection = app to sourceGroupId
-                        },
-                        onPinToDock = { app ->
-                            viewModel.pinToDock(app)
-                        },
-                        isDragging = dragDropState.isDragging,
-                        modifier = Modifier.fillMaxWidth()
+                        isDropTarget = isOverDock
                     )
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-            // Bottom: Dock (swiping up from dock opens app drawer instantaneously)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-                    .onGloballyPositioned { coords ->
-                        dragDropState.dockBounds = coords.boundsInRoot()
-                    }
-                    .pointerInput(uiState.isAllAppsOpen, hasNotifications, isNotificationExpanded) {
-                        var dockDrag = 0f
-                        var actionTriggered = false
-                        detectVerticalDragGestures(
-                            onDragStart = { 
-                                dockDrag = 0f 
-                                actionTriggered = false
-                            },
-                            onVerticalDrag = { _, dragAmount ->
-                                if (actionTriggered) return@detectVerticalDragGestures
-                                dockDrag += dragAmount
-                                if (!uiState.isAllAppsOpen && dockDrag < -20f) {
-                                    if (isNotificationExpanded) {
-                                        isNotificationExpanded = false
-                                    } else {
-                                        viewModel.openAllApps()
-                                    }
-                                    actionTriggered = true
-                                } else if (!uiState.isAllAppsOpen && dockDrag > 20f) {
-                                    if (hasNotifications && !isNotificationExpanded) {
-                                        isNotificationExpanded = true
-                                        if (!uiState.twoDrawersSideBySide) {
-                                            groupsViewModel.collapseAllGroups()
-                                        }
-                                    }
-                                    actionTriggered = true
-                                }
-                            },
-                            onDragEnd = { dockDrag = 0f },
-                            onDragCancel = { dockDrag = 0f }
-                        )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                DockBar(
-                    iconShape = com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString(
-                        uiState.adaptiveIconShape
-                    ),
-                    isDropTarget = isOverDock
-                )
             }
         }
     }
@@ -865,6 +892,7 @@ fun HomeScreen(
         ) {
             Card(
                 modifier = Modifier
+                    .widthIn(max = 520.dp)
                     .fillMaxWidth()
                     .fillMaxHeight(0.5f),
                 shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
@@ -972,12 +1000,14 @@ fun HomeScreen(
                 surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
                 modifier = if (isLandscape) {
                     Modifier
-                        .fillMaxWidth(0.50f)
+                        .widthIn(max = 480.dp)
+                        .fillMaxWidth(if (screenWidthDp >= 840) 0.38f else 0.50f)
                         .fillMaxHeight()
                 } else {
                     Modifier
+                        .widthIn(max = 560.dp)
                         .fillMaxWidth()
-                        .fillMaxHeight(0.35f)
+                        .fillMaxHeight(if (isFoldableOrTablet) 0.45f else 0.35f)
                 }
             )
         }

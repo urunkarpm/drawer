@@ -43,6 +43,8 @@ class SettingsViewModelTest {
     private val dockCornerRadiusFlow = MutableStateFlow(24f)
     private val multiGroupAppsFlow = MutableStateFlow(false)
     private val notificationsPrivacyModeFlow = MutableStateFlow(false)
+    private val notificationSwipeRightActionFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ)
+    private val notificationSwipeLeftActionFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS)
     private val activeIconPackFlow = MutableStateFlow<String?>(null)
     private val adaptiveIconShapeFlow = MutableStateFlow("SYSTEM")
     private val twoDrawersSideBySideFlow = MutableStateFlow(false)
@@ -91,6 +93,8 @@ class SettingsViewModelTest {
         every { preferencesDataSource.autoArrangeApps } returns autoArrangeAppsFlow
         every { preferencesDataSource.multiGroupApps } returns multiGroupAppsFlow
         every { preferencesDataSource.notificationsPrivacyMode } returns notificationsPrivacyModeFlow
+        every { preferencesDataSource.notificationSwipeRightAction } returns notificationSwipeRightActionFlow
+        every { preferencesDataSource.notificationSwipeLeftAction } returns notificationSwipeLeftActionFlow
         every { preferencesDataSource.activeIconPack } returns activeIconPackFlow
         every { preferencesDataSource.adaptiveIconShape } returns adaptiveIconShapeFlow
         every { preferencesDataSource.twoDrawersSideBySide } returns twoDrawersSideBySideFlow
@@ -134,8 +138,30 @@ class SettingsViewModelTest {
             assertEquals(0.40f, state.surfaceStrokeOpacity)
             assertEquals(24f, state.surfaceCornerRadius)
             assertTrue(state.autoArrangeApps)
+            assertEquals(
+                com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ,
+                state.notificationSwipeRightAction
+            )
+            assertEquals(
+                com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS,
+                state.notificationSwipeLeftAction
+            )
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun setNotificationSwipeRightAction_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setNotificationSwipeRightAction(com.urunkarpm.drawer.core.model.NotificationSwipeAction.OPEN)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setNotificationSwipeRightAction(com.urunkarpm.drawer.core.model.NotificationSwipeAction.OPEN) }
+    }
+
+    @Test
+    fun setNotificationSwipeLeftAction_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setNotificationSwipeLeftAction(com.urunkarpm.drawer.core.model.NotificationSwipeAction.NONE)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setNotificationSwipeLeftAction(com.urunkarpm.drawer.core.model.NotificationSwipeAction.NONE) }
     }
 
     @Test

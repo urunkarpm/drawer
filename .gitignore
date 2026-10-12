@@ -19,3 +19,5 @@ captures/
 .mcp.json
 /*.png
 /DragGestureDetector_decoded.kt
+.kotlin/
+.superpowers/

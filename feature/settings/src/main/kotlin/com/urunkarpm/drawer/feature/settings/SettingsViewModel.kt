@@ -9,6 +9,7 @@ import com.urunkarpm.drawer.core.data.repository.IconPackRepository
 import com.urunkarpm.drawer.core.data.repository.UpdateRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppUpdateInfo
+import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,7 +64,9 @@ data class MiscSettings(
     val adaptiveIconShape: String = "SQUIRCLE",
     val twoDrawersSideBySide: Boolean = false,
     val lockLayout: Boolean = false,
-    val autoArrangeApps: Boolean = true
+    val autoArrangeApps: Boolean = true,
+    val notificationSwipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
+    val notificationSwipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS
 )
 
 data class SettingsActionState(
@@ -72,6 +75,14 @@ data class SettingsActionState(
     val isCheckingForUpdate: Boolean = false,
     val updateInfo: AppUpdateInfo? = null,
     val userMessage: String? = null
+)
+
+private data class MiscPart1(
+    val multiGroupApps: Boolean,
+    val notificationsPrivacyMode: Boolean,
+    val activeIconPack: String?,
+    val swipeRight: NotificationSwipeAction,
+    val swipeLeft: NotificationSwipeAction
 )
 
 private data class MiscPart2(
@@ -108,6 +119,8 @@ data class SettingsUiState(
     val dockCornerRadius: Float = 24f,
     val multiGroupApps: Boolean = false,
     val notificationsPrivacyMode: Boolean = false,
+    val notificationSwipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
+    val notificationSwipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
     val activeIconPack: String? = null,
     val adaptiveIconShape: String = "SYSTEM",
     val twoDrawersSideBySide: Boolean = false,
@@ -203,9 +216,11 @@ class SettingsViewModel @Inject constructor(
     private val miscFlowPart1 = combine(
         preferencesDataSource.multiGroupApps,
         preferencesDataSource.notificationsPrivacyMode,
-        preferencesDataSource.activeIconPack
-    ) { multiGroupApps, notificationsPrivacyMode, activeIconPack ->
-        Triple(multiGroupApps, notificationsPrivacyMode, activeIconPack)
+        preferencesDataSource.activeIconPack,
+        preferencesDataSource.notificationSwipeRightAction,
+        preferencesDataSource.notificationSwipeLeftAction
+    ) { multiGroupApps, notificationsPrivacyMode, activeIconPack, swipeRight, swipeLeft ->
+        MiscPart1(multiGroupApps, notificationsPrivacyMode, activeIconPack, swipeRight, swipeLeft)
     }
 
     private val miscFlowPart2 = combine(
@@ -218,7 +233,17 @@ class SettingsViewModel @Inject constructor(
     }
 
     private val miscFlow = combine(miscFlowPart1, miscFlowPart2) { p1, p2 ->
-        MiscSettings(p1.first, p1.second, p1.third, p2.adaptiveIconShape, p2.twoDrawersSideBySide, p2.lockLayout, p2.autoArrangeApps)
+        MiscSettings(
+            multiGroupApps = p1.multiGroupApps,
+            notificationsPrivacyMode = p1.notificationsPrivacyMode,
+            activeIconPack = p1.activeIconPack,
+            adaptiveIconShape = p2.adaptiveIconShape,
+            twoDrawersSideBySide = p2.twoDrawersSideBySide,
+            lockLayout = p2.lockLayout,
+            autoArrangeApps = p2.autoArrangeApps,
+            notificationSwipeRightAction = p1.swipeRight,
+            notificationSwipeLeftAction = p1.swipeLeft
+        )
     }
 
     private val typographyFlow = combine(
@@ -266,6 +291,8 @@ class SettingsViewModel @Inject constructor(
             dockCornerRadius = surface.surfaceCornerRadius,
             multiGroupApps = misc.multiGroupApps,
             notificationsPrivacyMode = misc.notificationsPrivacyMode,
+            notificationSwipeRightAction = misc.notificationSwipeRightAction,
+            notificationSwipeLeftAction = misc.notificationSwipeLeftAction,
             activeIconPack = misc.activeIconPack,
             adaptiveIconShape = misc.adaptiveIconShape,
             twoDrawersSideBySide = misc.twoDrawersSideBySide,
@@ -414,6 +441,18 @@ class SettingsViewModel @Inject constructor(
     fun setNotificationsPrivacyMode(privacy: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setNotificationsPrivacyMode(privacy)
+        }
+    }
+
+    fun setNotificationSwipeRightAction(action: NotificationSwipeAction) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setNotificationSwipeRightAction(action)
+        }
+    }
+
+    fun setNotificationSwipeLeftAction(action: NotificationSwipeAction) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setNotificationSwipeLeftAction(action)
         }
     }
 

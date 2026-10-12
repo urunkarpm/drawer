@@ -64,6 +64,38 @@ class DrawerNotificationListener : NotificationListenerService() {
                 refreshNotifications()
             } catch (_: Throwable) {}
         }
+        bridge.onMarkNotificationAsRead = { key ->
+            try {
+                val sbn = activeNotifications?.find { it.key == key }
+                if (sbn != null) {
+                    val actions = sbn.notification?.actions
+                    if (actions != null) {
+                        for (action in actions) {
+                            val isSemanticRead = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                                action.semanticAction == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ
+                            } else false
+                            val titleStr = action.title?.toString()?.lowercase() ?: ""
+                            val isTitleRead = titleStr.contains("mark as read") ||
+                                              titleStr.contains("mark read") ||
+                                              titleStr == "read"
+                            if (isSemanticRead || isTitleRead) {
+                                try {
+                                    val options = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                                        android.app.ActivityOptions.makeBasic().apply {
+                                            pendingIntentBackgroundActivityStartMode = android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                                        }.toBundle()
+                                    } else null
+                                    action.actionIntent?.send(this, 0, null, null, null, null, options)
+                                    break
+                                } catch (_: Throwable) {}
+                            }
+                        }
+                    }
+                }
+                cancelNotification(key)
+                refreshNotifications()
+            } catch (_: Throwable) {}
+        }
         bridge.onClearAllNotifications = {
             try {
                 cancelAllNotifications()

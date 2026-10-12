@@ -12,9 +12,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,10 +42,12 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Security
@@ -90,6 +95,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.model.NotificationItem
+import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import com.urunkarpm.drawer.feature.notifications.component.NotificationRulesBottomSheet
 import com.urunkarpm.drawer.feature.notifications.component.QuickMuteBottomSheet
 import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
@@ -155,7 +161,6 @@ fun NotificationDrawer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
             .autoCloseOnInactivity(
                 active = isExpanded,
                 resetKey = uiState.activeNotifications.size,
@@ -166,7 +171,7 @@ fun NotificationDrawer(
         // ── Onboarding Banner ─────────────────────────────────────────────────
         if (!uiState.isPermissionGranted) {
             Card(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
                 ),
@@ -212,15 +217,26 @@ fun NotificationDrawer(
         } else {
             val hasNotifications = uiState.activeNotifications.isNotEmpty()
             Card(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
-                modifier = Modifier
-                    .fillMaxWidth()
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                ) {
 
                     // ── Collapsed header (always visible) ─────────────────────
                     Row(
@@ -293,14 +309,22 @@ fun NotificationDrawer(
                         }
 
                         // Animated chevron
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (isExpanded) "Collapse" else "Expand",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        Box(
                             modifier = Modifier
-                                .size(20.dp)
-                                .rotate(chevronRotation)
-                        )
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .rotate(chevronRotation)
+                            )
+                        }
                     }
 
                     // ── Expanded body ─────────────────────────────────────────
@@ -352,11 +376,12 @@ fun NotificationDrawer(
                                     )
                                 }
                             } else {
-                                // ponytail: bounded notification list with scroll blocker so drawer headers remain static during scrolling; ceiling: 280dp max height; upgrade path: adaptive layout based on window insets.
+                                val configuration = LocalConfiguration.current
+                                val maxNotifHeight = if (configuration.screenHeightDp >= 800) 400.dp else 280.dp
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(max = 280.dp)
+                                        .heightIn(max = maxNotifHeight)
                                         .nestedScroll(notifScrollBlocker)
                                         .verticalScroll(notifScrollState, enabled = !isDragging)
                                         .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -367,12 +392,17 @@ fun NotificationDrawer(
                                             AppNotificationGroupCard(
                                                 group = appGroup,
                                                 privacyMode = uiState.privacyMode,
+                                                swipeRightAction = uiState.swipeRightAction,
+                                                swipeLeftAction = uiState.swipeLeftAction,
                                                 iconLoader = iconLoader,
                                                 onOpen = { item ->
                                                     viewModel.openNotification(item.key)
                                                 },
                                                 onDismiss = { item ->
                                                     viewModel.dismissNotification(item.key)
+                                                },
+                                                onMarkAsRead = { item ->
+                                                    viewModel.markNotificationAsRead(item.key)
                                                 },
                                                 onQuickMute = { item ->
                                                     viewModel.selectItemForMute(item)
@@ -479,15 +509,18 @@ private fun NotificationIconStack(
 
     // Total width = iconSize + overlap*(n-1)
     val totalWidth = iconSize + overlap * (displayGroups.size - 1).coerceAtLeast(0)
-
     Box(modifier = modifier.height(iconSize).width(totalWidth)) {
         displayGroups.forEachIndexed { index, group ->
+            val isAndroidSystem = group.packageName == "android"
             Box(
                 modifier = Modifier
                     .offset(x = overlap * index)
                     .size(iconSize)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(
+                        if (isAndroidSystem) androidx.compose.ui.graphics.Color(0xFF3DDC84)
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
             ) {
                 AppIconImage(
                     key = group.packageName,
@@ -506,9 +539,12 @@ private fun NotificationIconStack(
 private fun AppNotificationGroupCard(
     group: AppNotificationGroup,
     privacyMode: Boolean,
+    swipeRightAction: NotificationSwipeAction,
+    swipeLeftAction: NotificationSwipeAction,
     iconLoader: (suspend (String) -> Drawable?)?,
     onOpen: (NotificationItem) -> Unit,
     onDismiss: (NotificationItem) -> Unit,
+    onMarkAsRead: (NotificationItem) -> Unit,
     onQuickMute: (NotificationItem) -> Unit,
     modifier: Modifier = Modifier,
     onInteraction: () -> Unit = {}
@@ -535,11 +571,15 @@ private fun AppNotificationGroupCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val isAndroidSystem = group.packageName == "android"
                     Box(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .background(
+                                if (isAndroidSystem) androidx.compose.ui.graphics.Color(0xFF3DDC84)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
                     ) {
                         AppIconImage(
                             key = group.packageName,
@@ -588,8 +628,11 @@ private fun AppNotificationGroupCard(
                             item = item,
                             appName = group.appName,
                             privacyMode = privacyMode,
+                            swipeRightAction = swipeRightAction,
+                            swipeLeftAction = swipeLeftAction,
                             onOpen = { onOpen(item) },
                             onDismiss = { onDismiss(item) },
+                            onMarkAsRead = { onMarkAsRead(item) },
                             onInteraction = onInteraction
                         )
                     }
@@ -599,27 +642,35 @@ private fun AppNotificationGroupCard(
     }
 }
 
-// ponytail: Clean, battery-efficient swipe-to-dismiss with threshold haptic, dynamic bidirectional reveal, and hardware-accelerated collapse before committing removal to prevent animation cut-off; ceiling: fixed 180ms delay matching tween duration; upgrade path: AnchoredDraggable with custom SettleVelocityTracker.
+// ponytail: Clean, battery-efficient swipe-to-dismiss with threshold haptic, dynamic bidirectional reveal, and hardware-accelerated collapse before committing action to prevent animation cut-off; ceiling: fixed 180ms delay matching tween duration; upgrade path: AnchoredDraggable with custom SettleVelocityTracker.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DismissibleNotificationRow(
     item: NotificationItem,
     appName: String,
     privacyMode: Boolean,
+    swipeRightAction: NotificationSwipeAction,
+    swipeLeftAction: NotificationSwipeAction,
     onOpen: () -> Unit,
     onDismiss: () -> Unit,
+    onMarkAsRead: () -> Unit,
     modifier: Modifier = Modifier,
     onInteraction: () -> Unit = {}
 ) {
-    var isDismissed by remember { mutableStateOf(false) }
+    var pendingAction by remember { mutableStateOf<NotificationSwipeAction?>(null) }
     val haptic = LocalHapticFeedback.current
 
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { it * 0.38f },
         confirmValueChange = { value ->
-            if (item.isClearable && (value == SwipeToDismissBoxValue.StartToEnd || value == SwipeToDismissBoxValue.EndToStart)) {
+            val action = when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> swipeRightAction
+                SwipeToDismissBoxValue.EndToStart -> swipeLeftAction
+                else -> null
+            }
+            if (item.isClearable && action != null && action != NotificationSwipeAction.NONE) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                isDismissed = true
+                pendingAction = action
                 true
             } else false
         }
@@ -632,17 +683,21 @@ private fun DismissibleNotificationRow(
         }
     }
 
-    // Smooth exit: allow the swipe settle and vertical height collapse to finish completely before unmounting from data layer
-    LaunchedEffect(isDismissed) {
-        if (isDismissed) {
-            onInteraction()
-            delay(180)
-            onDismiss()
+    // Smooth exit: allow the swipe settle and vertical height collapse to finish completely before executing callback
+    LaunchedEffect(pendingAction) {
+        val action = pendingAction ?: return@LaunchedEffect
+        onInteraction()
+        delay(180)
+        when (action) {
+            NotificationSwipeAction.MARK_AS_READ -> onMarkAsRead()
+            NotificationSwipeAction.DISMISS -> onDismiss()
+            NotificationSwipeAction.OPEN -> onOpen()
+            NotificationSwipeAction.NONE -> {}
         }
     }
 
     AnimatedVisibility(
-        visible = !isDismissed,
+        visible = pendingAction == null,
         enter = fadeIn(),
         exit = shrinkVertically(
             animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
@@ -652,28 +707,85 @@ private fun DismissibleNotificationRow(
     ) {
         SwipeToDismissBox(
             state = dismissState,
-            enableDismissFromStartToEnd = item.isClearable,
-            enableDismissFromEndToStart = item.isClearable,
+            enableDismissFromStartToEnd = item.isClearable && swipeRightAction != NotificationSwipeAction.NONE,
+            enableDismissFromEndToStart = item.isClearable && swipeLeftAction != NotificationSwipeAction.NONE,
             backgroundContent = {
                 val direction = dismissState.dismissDirection
+                val action = when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> swipeRightAction
+                    SwipeToDismissBoxValue.EndToStart -> swipeLeftAction
+                    else -> null
+                }
                 val alignment = when (direction) {
                     SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
                     SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
                     else -> Alignment.CenterStart
                 }
+                val bgColor = when (action) {
+                    NotificationSwipeAction.MARK_AS_READ -> MaterialTheme.colorScheme.primaryContainer
+                    NotificationSwipeAction.DISMISS -> MaterialTheme.colorScheme.errorContainer
+                    NotificationSwipeAction.OPEN -> MaterialTheme.colorScheme.secondaryContainer
+                    NotificationSwipeAction.NONE, null -> Color.Transparent
+                }
+                val contentColor = when (action) {
+                    NotificationSwipeAction.MARK_AS_READ -> MaterialTheme.colorScheme.onPrimaryContainer
+                    NotificationSwipeAction.DISMISS -> MaterialTheme.colorScheme.onErrorContainer
+                    NotificationSwipeAction.OPEN -> MaterialTheme.colorScheme.onSecondaryContainer
+                    NotificationSwipeAction.NONE, null -> Color.Transparent
+                }
+                val icon = when (action) {
+                    NotificationSwipeAction.MARK_AS_READ -> Icons.Default.Check
+                    NotificationSwipeAction.DISMISS -> Icons.Default.Delete
+                    NotificationSwipeAction.OPEN -> Icons.AutoMirrored.Filled.OpenInNew
+                    NotificationSwipeAction.NONE, null -> null
+                }
+                val label = when (action) {
+                    NotificationSwipeAction.MARK_AS_READ -> "Mark as read"
+                    NotificationSwipeAction.DISMISS -> "Delete"
+                    NotificationSwipeAction.OPEN -> "Open"
+                    NotificationSwipeAction.NONE, null -> ""
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f))
+                        .background(bgColor.copy(alpha = 0.85f))
                         .padding(horizontal = 16.dp),
                     contentAlignment = alignment
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Dismiss",
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
+                    if (icon != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (direction == SwipeToDismissBoxValue.EndToStart) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = contentColor
+                                )
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = contentColor
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = contentColor
+                                )
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = contentColor
+                                )
+                            }
+                        }
+                    }
                 }
             },
             content = {
@@ -716,7 +828,7 @@ private fun DismissibleNotificationRow(
                                 IconButton(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        isDismissed = true
+                                        pendingAction = NotificationSwipeAction.DISMISS
                                     },
                                     modifier = Modifier.size(24.dp)
                                 ) {

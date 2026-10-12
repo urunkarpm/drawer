@@ -36,6 +36,8 @@ class NotificationsViewModelTest {
     private val notificationsFlow = MutableStateFlow<List<NotificationItem>>(emptyList())
     private val rulesFlow = MutableStateFlow<List<MutedAppRule>>(emptyList())
     private val privacyModeFlow = MutableStateFlow(false)
+    private val swipeRightFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ)
+    private val swipeLeftFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS)
 
     private lateinit var viewModel: NotificationsViewModel
 
@@ -73,6 +75,8 @@ class NotificationsViewModelTest {
         every { notificationRepository.mutedRules } returns rulesFlow
         every { notificationRepository.checkPermission() } returns true
         every { preferencesDataSource.notificationsPrivacyMode } returns privacyModeFlow
+        every { preferencesDataSource.notificationSwipeRightAction } returns swipeRightFlow
+        every { preferencesDataSource.notificationSwipeLeftAction } returns swipeLeftFlow
 
         notificationsFlow.value = listOf(notificationA1, notificationA2, notificationB1)
 
@@ -104,6 +108,30 @@ class NotificationsViewModelTest {
     fun dismissNotification_delegatesToRepository() = runTest {
         viewModel.dismissNotification("k1")
         verify { notificationRepository.dismissNotification("k1") }
+    }
+
+    @Test
+    fun markNotificationAsRead_delegatesToRepository() = runTest {
+        viewModel.markNotificationAsRead("k1")
+        verify { notificationRepository.markNotificationAsRead("k1") }
+    }
+
+    @Test
+    fun uiState_reflectsSwipeActions() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(
+                com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ,
+                state.swipeRightAction
+            )
+            assertEquals(
+                com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS,
+                state.swipeLeftAction
+            )
+        }
     }
 
     @Test

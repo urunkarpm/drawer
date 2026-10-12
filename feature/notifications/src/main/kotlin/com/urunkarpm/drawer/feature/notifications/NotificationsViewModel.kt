@@ -8,6 +8,7 @@ import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.MuteRuleType
 import com.urunkarpm.drawer.core.model.MutedAppRule
 import com.urunkarpm.drawer.core.model.NotificationItem
+import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,6 +31,8 @@ data class NotificationsUiState(
     val groupedNotifications: List<AppNotificationGroup> = emptyList(),
     val mutedRules: List<MutedAppRule> = emptyList(),
     val privacyMode: Boolean = false,
+    val swipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
+    val swipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
     val selectedItemForMute: NotificationItem? = null,
     val showRulesSheet: Boolean = false
 )
@@ -53,12 +56,21 @@ class NotificationsViewModel @Inject constructor(
         Triple(selectedItem, showRules, permission)
     }
 
+    private val notificationPreferencesFlow = combine(
+        preferencesDataSource.notificationsPrivacyMode,
+        preferencesDataSource.notificationSwipeRightAction,
+        preferencesDataSource.notificationSwipeLeftAction
+    ) { privacyMode, swipeRight, swipeLeft ->
+        Triple(privacyMode, swipeRight, swipeLeft)
+    }
+
     val uiState: StateFlow<NotificationsUiState> = combine(
         notificationRepository.activeNotifications,
         notificationRepository.mutedRules,
-        preferencesDataSource.notificationsPrivacyMode,
+        notificationPreferencesFlow,
         uiControlsFlow
-    ) { notifications, rules, privacyMode, controls ->
+    ) { notifications, rules, notifPrefs, controls ->
+        val (privacyMode, swipeRight, swipeLeft) = notifPrefs
         val (selectedItem, showRules, permission) = controls
         val grouped = notifications
             .groupBy { it.packageName }
@@ -78,6 +90,8 @@ class NotificationsViewModel @Inject constructor(
             groupedNotifications = grouped,
             mutedRules = rules,
             privacyMode = privacyMode,
+            swipeRightAction = swipeRight,
+            swipeLeftAction = swipeLeft,
             selectedItemForMute = selectedItem,
             showRulesSheet = showRules
         )
@@ -113,6 +127,10 @@ class NotificationsViewModel @Inject constructor(
 
     fun dismissNotification(key: String) {
         notificationRepository.dismissNotification(key)
+    }
+
+    fun markNotificationAsRead(key: String) {
+        notificationRepository.markNotificationAsRead(key)
     }
 
     fun clearAllNotifications() {

@@ -6,13 +6,20 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -22,6 +29,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -45,18 +53,21 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.runtime.Composable
 import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
@@ -96,6 +107,7 @@ import com.urunkarpm.drawer.feature.groups.component.GroupItemActionBottomSheet
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalConfiguration
 import com.urunkarpm.drawer.core.designsystem.modifier.appDragSource
 import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
 
@@ -107,6 +119,7 @@ fun GroupsAccordion(
     twoDrawersSideBySide: Boolean = false,
     iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
     hoveredGroupId: String? = null,
+    notificationPackages: Set<String> = emptySet(),
     onGroupPositioned: ((String, Rect) -> Unit)? = null,
     onAppPositioned: ((String, AppInfo, Rect) -> Unit)? = null,
     onAppDragStart: ((app: AppInfo, rootPosition: Offset, sourceGroupId: String) -> Unit)? = null,
@@ -120,10 +133,13 @@ fun GroupsAccordion(
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val hasExpandedGroup = uiState.groups.any { it.group.isExpanded }
 
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val isCompactEffective = twoDrawersSideBySide && screenWidthDp < 600
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
             .autoCloseOnInactivity(
                 active = hasExpandedGroup,
                 resetKey = uiState.groups.find { it.group.isExpanded }?.group?.id,
@@ -155,9 +171,10 @@ fun GroupsAccordion(
                             resolvedGroup = group,
                             groupIndex = index,
                             totalGroups = uiState.groups.size,
-                            isCompact = true,
+                            isCompact = isCompactEffective,
                             twoDrawersSideBySide = true,
                             isDropTarget = hoveredGroupId == group.group.id,
+                            hasNotification = group.apps.any { it.packageName in notificationPackages },
                             onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
                             onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
                             onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
@@ -188,9 +205,10 @@ fun GroupsAccordion(
                             resolvedGroup = group,
                             groupIndex = index,
                             totalGroups = uiState.groups.size,
-                            isCompact = true,
+                            isCompact = isCompactEffective,
                             twoDrawersSideBySide = true,
                             isDropTarget = hoveredGroupId == group.group.id,
+                            hasNotification = group.apps.any { it.packageName in notificationPackages },
                             onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
                             onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
                             onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
@@ -220,6 +238,7 @@ fun GroupsAccordion(
                     isCompact = false,
                     twoDrawersSideBySide = false,
                     isDropTarget = hoveredGroupId == resolvedGroup.group.id,
+                    hasNotification = resolvedGroup.apps.any { it.packageName in notificationPackages },
                     onPositioned = { rect -> onGroupPositioned?.invoke(resolvedGroup.group.id, rect) },
                     onAppPositioned = { app, rect -> onAppPositioned?.invoke(resolvedGroup.group.id, app, rect) },
                     onToggleExpand = {
@@ -347,6 +366,7 @@ private fun GroupCard(
     isCompact: Boolean = false,
     twoDrawersSideBySide: Boolean = false,
     isDropTarget: Boolean = false,
+    hasNotification: Boolean = false,
     onPositioned: ((Rect) -> Unit)? = null,
     onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
     onAppDragStart: ((AppInfo, Offset) -> Unit)? = null,
@@ -411,17 +431,32 @@ private fun GroupCard(
             .fillMaxWidth()
             .graphicsLayer { scaleX = animatedScale; scaleY = animatedScale }
             .onGloballyPositioned { coords -> onPositioned?.invoke(coords.boundsInRoot()) },
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isDropTarget)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
             else
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
             contentColor = MaterialTheme.colorScheme.onSurface
         ),
-        border = if (isDropTarget) BorderStroke(animatedBorderWidth, animatedBorderColor) else null
+        border = if (isDropTarget) {
+            BorderStroke(animatedBorderWidth, animatedBorderColor)
+        } else {
+            BorderStroke(1.dp, groupColor.copy(alpha = 0.22f))
+        }
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            groupColor.copy(alpha = 0.05f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        ) {
             // Header Row (Single tap to expand/collapse, long press to edit/reorder)
             Box(modifier = Modifier.fillMaxWidth()) {
                 Surface(
@@ -442,22 +477,74 @@ private fun GroupCard(
                             ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val infiniteTransition = rememberInfiniteTransition(label = "drawerGlow")
+                        val rawGlowAlpha by infiniteTransition.animateFloat(
+                            initialValue = 0.35f,
+                            targetValue = 0.95f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "glowAlpha"
+                        )
+                        val rawGlowRadiusDp by infiniteTransition.animateFloat(
+                            initialValue = 3f,
+                            targetValue = 7.5f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "glowRadius"
+                        )
+                        val glowAlpha = if (hasNotification) rawGlowAlpha else 0f
+                        val glowRadiusDp = if (hasNotification) rawGlowRadiusDp else 0f
+
                         Box(
                             modifier = Modifier
-                                .size(if (isCompact) 28.dp else 36.dp)
-                                .clip(CircleShape)
-                                .background(groupColor.copy(alpha = 0.2f)),
+                                .size(if (isCompact) 32.dp else 38.dp)
+                                .then(
+                                    if (hasNotification) {
+                                        Modifier
+                                            .drawBehind {
+                                                // Outer soft diffuse aura in assigned drawer color
+                                                drawCircle(
+                                                    color = groupColor.copy(alpha = glowAlpha * 0.38f),
+                                                    radius = size.maxDimension / 2f + glowRadiusDp.dp.toPx()
+                                                )
+                                                // Inner intense glow ring in assigned drawer color
+                                                drawCircle(
+                                                    color = groupColor.copy(alpha = glowAlpha * 0.65f),
+                                                    radius = size.maxDimension / 2f + 1.5.dp.toPx()
+                                                )
+                                            }
+                                            .border(
+                                                width = 1.5.dp,
+                                                color = groupColor.copy(alpha = glowAlpha),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                    } else Modifier
+                                )
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (hasNotification) groupColor.copy(alpha = 0.32f)
+                                    else groupColor.copy(alpha = 0.18f)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = groupColor.copy(alpha = 0.30f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = groupIcon,
                                 contentDescription = group.name,
                                 tint = groupColor,
-                                modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
+                                modifier = Modifier.size(if (isCompact) 18.dp else 22.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(if (isCompact) 6.dp else 12.dp))
+                        Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
 
                         Text(
                             text = group.name,
@@ -470,31 +557,23 @@ private fun GroupCard(
                             overflow = TextOverflow.Ellipsis
                         )
 
-                        // Count badge
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.padding(horizontal = if (isCompact) 2.dp else 4.dp)
+                        // Tactile circular touch backing for chevron
+                        Box(
+                            modifier = Modifier
+                                .size(if (isCompact) 26.dp else 30.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "${resolvedGroup.apps.size}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(
-                                    horizontal = if (isCompact) 6.dp else 8.dp,
-                                    vertical = 2.dp
-                                )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = if (group.isExpanded) "Collapse" else "Expand",
+                                modifier = Modifier
+                                    .size(if (isCompact) 18.dp else 22.dp)
+                                    .rotate(chevronRotation),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (group.isExpanded) "Collapse" else "Expand",
-                            modifier = Modifier
-                                .size(if (isCompact) 18.dp else 24.dp)
-                                .rotate(chevronRotation),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
 
@@ -577,7 +656,14 @@ private fun GroupCard(
                     )
                 )
             ) {
-                if (resolvedGroup.apps.isEmpty()) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = groupColor.copy(alpha = 0.12f),
+                        modifier = Modifier.padding(horizontal = if (isCompact) 10.dp else 16.dp)
+                    )
+
+                    if (resolvedGroup.apps.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -592,16 +678,17 @@ private fun GroupCard(
                         )
                     }
                 } else {
-                    // ponytail: bounded drawer list height with scroll blocker ensures drawer cards stay static while large lists scroll smoothly; ceiling: fixed max height (280dp/240dp); upgrade path: dynamic height calculation based on available viewport space.
+                    val configuration = LocalConfiguration.current
+                    val maxGroupHeight = if (configuration.screenHeightDp >= 800) 420.dp else if (isCompact) 240.dp else 280.dp
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = if (isCompact) 240.dp else 280.dp)
+                            .heightIn(max = maxGroupHeight)
                             .nestedScroll(scrollBlocker)
                             .verticalScroll(listScrollState, enabled = !isDragging)
                     ) {
-                        // When twoDrawersSideBySide is enabled, default to LIST view mode
-                        val effectiveViewType = if (twoDrawersSideBySide) {
+                        // When drawers are compact on small screens, default to LIST view mode
+                        val effectiveViewType = if (isCompact) {
                             GroupViewType.LIST
                         } else {
                             group.viewType
@@ -626,34 +713,35 @@ private fun GroupCard(
                                             horizontal = if (isCompact) 4.dp else 8.dp,
                                             vertical = if (isCompact) 6.dp else 8.dp
                                         )
-                                )
-                            }
-                            GroupViewType.LIST -> {
-                                GroupListLayout(
-                                    apps = resolvedGroup.apps,
-                                    onAppClick = onAppClick,
-                                    onAppLongClick = onAppLongClick,
-                                    iconLoader = iconLoader,
-                                    iconShape = iconShape,
-                                    isCompact = isCompact,
-                                    onAppPositioned = onAppPositioned,
-                                    onAppDragStart = onAppDragStart,
-                                    onAppDrag = onAppDrag,
-                                    onAppDragEnd = onAppDragEnd,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(
-                                            horizontal = if (isCompact) 4.dp else 8.dp,
-                                            vertical = if (isCompact) 6.dp else 8.dp
-                                        )
-                                )
-                            }
+                            )
+                        }
+                        GroupViewType.LIST -> {
+                            GroupListLayout(
+                                apps = resolvedGroup.apps,
+                                onAppClick = onAppClick,
+                                onAppLongClick = onAppLongClick,
+                                iconLoader = iconLoader,
+                                iconShape = iconShape,
+                                isCompact = isCompact,
+                                onAppPositioned = onAppPositioned,
+                                onAppDragStart = onAppDragStart,
+                                onAppDrag = onAppDrag,
+                                onAppDragEnd = onAppDragEnd,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        horizontal = if (isCompact) 4.dp else 8.dp,
+                                        vertical = if (isCompact) 6.dp else 8.dp
+                                    )
+                            )
                         }
                     }
                 }
             }
         }
     }
+}
+}
 }
 
 @Composable
@@ -671,8 +759,7 @@ private fun GroupGridLayout(
     onAppDragEnd: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    // ponytail: when drawers are side-by-side (isCompact), constrain columns to max 2 so app icons and labels have comfortable breathing room without crunching; ceiling is fixed 2-col; upgrade path is responsive minSize calculation.
-    val effectiveColumns = if (isCompact) 2 else columnCount.coerceAtLeast(1)
+    val effectiveColumns = if (isCompact) 2 else columnCount.coerceIn(2, 6)
     val chunkedApps = remember(apps, effectiveColumns) { apps.chunked(effectiveColumns) }
     Column(
         modifier = modifier,

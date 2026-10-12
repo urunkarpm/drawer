@@ -17,6 +17,7 @@ class NotificationBridge @Inject constructor() {
     val isServiceConnected: StateFlow<Boolean> = _isServiceConnected.asStateFlow()
 
     var onDismissNotification: ((key: String) -> Unit)? = null
+    var onMarkNotificationAsRead: ((key: String) -> Unit)? = null
     var onClearAllNotifications: (() -> Unit)? = null
     var onOpenNotification: ((key: String) -> Unit)? = null
     var onGetPendingIntent: ((key: String) -> android.app.PendingIntent?)? = null

@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,13 +52,14 @@ private val ALPHABET = listOf(
 
 @Composable
 fun AlphabetIndexBar(
-    onLetterSelected: (String) -> Unit,
+    onLetterScrolled: (String) -> Unit,
+    onDragEnd: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
-    var barHeightPx by remember { mutableStateOf(0f) }
+    var barHeightPx by remember { mutableFloatStateOf(0f) }
     var draggingLetter by remember { mutableStateOf<String?>(null) }
-    var dragYOffsetPx by remember { mutableStateOf(0f) }
+    var dragYOffsetPx by remember { mutableFloatStateOf(0f) }
 
     fun updateLetter(y: Float) {
         if (barHeightPx <= 0f) return
@@ -64,11 +67,11 @@ fun AlphabetIndexBar(
         val itemHeight = barHeightPx / ALPHABET.size
         val index = (clampedY / itemHeight).toInt().coerceIn(0, ALPHABET.lastIndex)
         val letter = ALPHABET[index]
+        dragYOffsetPx = clampedY
         if (letter != draggingLetter) {
             draggingLetter = letter
-            dragYOffsetPx = clampedY
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onLetterSelected(letter)
+            onLetterScrolled(letter)
         }
     }
 
@@ -130,40 +133,50 @@ fun AlphabetIndexBar(
                     barHeightPx = coordinates.size.height.toFloat()
                 }
                 .pointerInput(barHeightPx) {
-                    detectVerticalDragGestures(
-                        onDragStart = { offset ->
-                            updateLetter(offset.y)
-                        },
-                        onVerticalDrag = { change, _ ->
-                            change.consume()
-                            updateLetter(change.position.y)
-                        },
-                        onDragEnd = {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            updateLetter(down.position.y)
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: break
+                                if (!change.pressed) break
+                                change.consume()
+                                updateLetter(change.position.y)
+                            }
                             draggingLetter = null
-                        },
-                        onDragCancel = {
-                            draggingLetter = null
+                            onDragEnd()
                         }
-                    )
+                    }
                 },
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             ALPHABET.forEach { letter ->
-                val isSelected = letter == draggingLetter
-                Text(
-                    text = letter,
-                    fontSize = 9.sp,
-                    lineHeight = 10.sp,
-                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                    },
-                    textAlign = TextAlign.Center
+                AlphabetLetterItem(
+                    letter = letter,
+                    isSelected = letter == draggingLetter
                 )
             }
         }
     }
+}
+
+@Composable
+private fun AlphabetLetterItem(
+    letter: String,
+    isSelected: Boolean
+) {
+    Text(
+        text = letter,
+        fontSize = if (isSelected) 11.sp else 9.sp,
+        lineHeight = 11.sp,
+        fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+        },
+        textAlign = TextAlign.Center
+    )
 }
