@@ -168,7 +168,7 @@ fun HomeScreen(
     }
     var appForCategorySelection by remember { mutableStateOf<Pair<AppInfo, String?>?>(null) }
     var isSettingsOpen by remember { mutableStateOf(false) }
-    var isQuickSettingsOpen by remember { mutableStateOf(false) }
+    var isDuoStatusExpanded by remember { mutableStateOf(false) }
     var showHomeMenu by remember { mutableStateOf(false) }
     var isNotificationExpanded by remember { mutableStateOf(false) }
     var isCameraOpen by remember { mutableStateOf(false) }
@@ -279,17 +279,10 @@ fun HomeScreen(
         }
     }
 
-    // Auto-collapse quick settings when other major sheets or drawers open
-    LaunchedEffect(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen) {
-        if (uiState.isAllAppsOpen || isSettingsOpen || isCameraOpen) {
-            isQuickSettingsOpen = false
-        }
-    }
-
-    // Back: close quick settings, camera preview, settings, popup menu, category picker, action sheet, all-apps, notification drawer, or group accordion
-    BackHandler(enabled = isQuickSettingsOpen || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
+    // Back: close camera preview, settings, duo status breakdown, popup menu, category picker, action sheet, all-apps, notification drawer, or group accordion
+    BackHandler(enabled = isDuoStatusExpanded || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
         when {
-            isQuickSettingsOpen -> isQuickSettingsOpen = false
+            isDuoStatusExpanded -> isDuoStatusExpanded = false
             isCameraOpen -> isCameraOpen = false
             isSettingsOpen -> isSettingsOpen = false
             showHomeMenu -> showHomeMenu = false
@@ -392,7 +385,7 @@ fun HomeScreen(
     var actionTriggeredInScroll by remember { mutableStateOf(false) }
 
     // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
-    val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, areOtherDrawersOpen, dragDropState.isDragging) {
+    val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, areOtherDrawersOpen, dragDropState.isDragging, uiState.openDrawerFromDockOnly) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (actionTriggeredInScroll) {
@@ -427,16 +420,23 @@ fun HomeScreen(
                     }
                 } else if (!areOtherDrawersOpen && available.y < 0f) {
                     scrollDownAccumulator = 0f
-                    scrollUpAccumulator += available.y
-                    if (scrollUpAccumulator < -60f) {
-                        if (isNotificationExpanded) {
+                    // Apply resistance to upward drag so normal scrolling does not unintentionally trigger app drawer
+                    scrollUpAccumulator += available.y * 0.55f
+                    if (isNotificationExpanded) {
+                        if (scrollUpAccumulator < -60f) {
                             isNotificationExpanded = false
-                        } else if (!uiState.isAllAppsOpen) {
-                            viewModel.openAllApps()
+                            scrollUpAccumulator = 0f
+                            actionTriggeredInScroll = true
+                            return Offset(0f, available.y)
                         }
-                        scrollUpAccumulator = 0f
-                        actionTriggeredInScroll = true
-                        return Offset(0f, available.y)
+                    } else if (!uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
+                        // Sane resistance threshold: requires deliberate upward pull (~180f accumulated)
+                        if (scrollUpAccumulator < -180f) {
+                            viewModel.openAllApps()
+                            scrollUpAccumulator = 0f
+                            actionTriggeredInScroll = true
+                            return Offset(0f, available.y)
+                        }
                     }
                 } else {
                     scrollDownAccumulator = 0f
@@ -506,8 +506,8 @@ fun HomeScreen(
                                 rootColumnBounds = coords.boundsInRoot()
                             }
                             // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
-                            .pointerInput(isQuickSettingsOpen, uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups) {
-                                if (!isQuickSettingsOpen && !uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
+                            .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups) {
+                                if (!uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
                                     detectTapGestures(
                                         onTap = { offset ->
                                             val colBounds = rootColumnBounds ?: Rect.Zero
@@ -516,7 +516,9 @@ fun HomeScreen(
                                             val isOverGlance = glanceBounds?.contains(rootPos) == true
                                             val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
                                             val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                            if (isDuoStatusExpanded) {
+                                                isDuoStatusExpanded = false
+                                            } else if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
                                                 if (isNotificationExpanded) {
                                                     isNotificationExpanded = false
                                                 }
@@ -526,6 +528,10 @@ fun HomeScreen(
                                             }
                                         },
                                         onDoubleTap = { offset ->
+                                            if (isDuoStatusExpanded) {
+                                                isDuoStatusExpanded = false
+                                                return@detectTapGestures
+                                            }
                                             val colBounds = rootColumnBounds ?: Rect.Zero
                                             val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
                                             val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
@@ -537,6 +543,10 @@ fun HomeScreen(
                                             }
                                         },
                                         onLongPress = { offset ->
+                                            if (isDuoStatusExpanded) {
+                                                isDuoStatusExpanded = false
+                                                return@detectTapGestures
+                                            }
                                             val colBounds = rootColumnBounds ?: Rect.Zero
                                             val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
                                             val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
@@ -569,7 +579,9 @@ fun HomeScreen(
                         },
                         onOpenSettings = { isSettingsOpen = true },
                         showDuoStatus = uiState.showDuoStatusWidget && uiState.hideStatusBar,
-                        onDuoStatusClick = { isQuickSettingsOpen = true },
+                        duoStatusPosition = uiState.duoStatusPosition,
+                        isDuoStatusExpanded = isDuoStatusExpanded,
+                        onToggleDuoStatusExpand = { isDuoStatusExpanded = !isDuoStatusExpanded },
                         modifier = Modifier
                             .fillMaxWidth()
                             .onGloballyPositioned { coords ->
@@ -674,14 +686,14 @@ fun HomeScreen(
                                 onVerticalDrag = { _, dragAmount ->
                                     if (actionTriggered) return@detectVerticalDragGestures
                                     dockDrag += dragAmount
-                                    if (!uiState.isAllAppsOpen && dockDrag < -20f) {
+                                    if (!uiState.isAllAppsOpen && dockDrag < -55f) {
                                         if (isNotificationExpanded) {
                                             isNotificationExpanded = false
                                         } else {
                                             viewModel.openAllApps()
                                         }
                                         actionTriggered = true
-                                    } else if (!uiState.isAllAppsOpen && dockDrag > 20f) {
+                                    } else if (!uiState.isAllAppsOpen && dockDrag > 50f) {
                                         if (hasNotifications && !isNotificationExpanded) {
                                             isNotificationExpanded = true
                                             if (!effectiveTwoDrawersSideBySide) {
@@ -944,73 +956,6 @@ fun HomeScreen(
             )
         }
 
-        // ── Quick Settings Dark Scrim (covers remaining screen with dark shadow) ──
-        AnimatedVisibility(
-            visible = isQuickSettingsOpen,
-            enter = fadeIn(animationSpec = tween(180)),
-            exit = fadeOut(animationSpec = tween(140))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .pointerInput(Unit) {
-                        detectTapGestures(onTap = { isQuickSettingsOpen = false })
-                    }
-            )
-        }
-
-        // ── Quick Settings Panel (Rich animated presentation: 35% bottom in portrait, right 50% in landscape) ──
-        val screenConfig = LocalConfiguration.current
-        val isLandscape = screenConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-        AnimatedVisibility(
-            visible = isQuickSettingsOpen,
-            enter = if (isLandscape) {
-                slideInHorizontally(
-                    initialOffsetX = { it },
-                    animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
-                ) + fadeIn(animationSpec = tween(220))
-            } else {
-                slideInVertically(
-                    initialOffsetY = { it },
-                    animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
-                ) + fadeIn(animationSpec = tween(220))
-            },
-            exit = if (isLandscape) {
-                slideOutHorizontally(
-                    targetOffsetX = { it },
-                    animationSpec = tween(durationMillis = 240, easing = FastOutLinearInEasing)
-                ) + fadeOut(animationSpec = tween(180))
-            } else {
-                slideOutVertically(
-                    targetOffsetY = { it },
-                    animationSpec = tween(durationMillis = 240, easing = FastOutLinearInEasing)
-                ) + fadeOut(animationSpec = tween(180))
-            },
-            modifier = if (isLandscape) Modifier.align(Alignment.CenterEnd) else Modifier.align(Alignment.BottomCenter)
-        ) {
-            com.urunkarpm.drawer.feature.home.component.QuickSettingsPanel(
-                tileOrder = uiState.quickSettingsTileOrder,
-                hiddenTiles = uiState.quickSettingsHiddenTiles,
-                onUpdateTileOrder = viewModel::updateQuickSettingsTileOrder,
-                onUpdateHiddenTiles = viewModel::updateQuickSettingsHiddenTiles,
-                onClose = { isQuickSettingsOpen = false },
-                drawerThemeMode = uiState.drawerThemeMode,
-                surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
-                modifier = if (isLandscape) {
-                    Modifier
-                        .widthIn(max = 480.dp)
-                        .fillMaxWidth(if (screenWidthDp >= 840) 0.38f else 0.50f)
-                        .fillMaxHeight()
-                } else {
-                    Modifier
-                        .widthIn(max = 560.dp)
-                        .fillMaxWidth()
-                        .fillMaxHeight(if (isFoldableOrTablet) 0.45f else 0.35f)
-                }
-            )
-        }
 
         SnackbarHost(
             hostState = snackbarHostState,

@@ -1,0 +1,3 @@
+• Duo Status Indicator: Refined placement horizontally centered in between the live clock and weather temperature
+• Header Alignment: Streamlined at-a-glance header layout moving time and temperature to the top
+• UI polish and smoothness enhancements

@@ -38,10 +38,10 @@ data class GlancePrefs(
     val enableCameraMirror: Boolean = true,
     val categoryAlignment: String = "TOP",
     val enableWidgetsPage: Boolean = true,
-    val quickSettingsTileOrder: List<String> = listOf("rotate", "wifi", "bluetooth", "quick_share", "dnd", "auto_rotate", "location", "flashlight"),
-    val quickSettingsHiddenTiles: Set<String> = emptySet(),
     val headerFontFamily: String = "SYSTEM",
-    val appLabelScale: String = "NORMAL"
+    val appLabelScale: String = "NORMAL",
+    val openDrawerFromDockOnly: Boolean = false,
+    val duoStatusPosition: String = "TEMP"
 )
 
 data class HomeDialogsState(
@@ -77,8 +77,6 @@ data class HomeUiState(
     val enableCameraMirror: Boolean = true,
     val categoryAlignment: String = "TOP",
     val enableWidgetsPage: Boolean = true,
-    val quickSettingsTileOrder: List<String> = listOf("rotate", "wifi", "bluetooth", "quick_share", "dnd", "auto_rotate", "location", "flashlight"),
-    val quickSettingsHiddenTiles: Set<String> = emptySet(),
     val widgets: List<com.urunkarpm.drawer.core.model.WidgetItem> = emptyList(),
     val surfaceThemeStyle: String = "LIQUID_GLASS",
     val surfaceOpacity: Float = 0.65f,
@@ -86,7 +84,9 @@ data class HomeUiState(
     val surfaceStrokeOpacity: Float = 0.40f,
     val surfaceCornerRadius: Float = 24f,
     val headerFontFamily: String = "SYSTEM",
-    val appLabelScale: String = "NORMAL"
+    val appLabelScale: String = "NORMAL",
+    val openDrawerFromDockOnly: Boolean = false,
+    val duoStatusPosition: String = "TEMP"
 )
 
 data class SurfaceThemePrefs(
@@ -127,10 +127,10 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.enableCameraMirror,
         preferencesDataSource.categoryAlignment,
         preferencesDataSource.enableWidgetsPage,
-        preferencesDataSource.quickSettingsTileOrder,
-        preferencesDataSource.quickSettingsHiddenTiles,
         preferencesDataSource.headerFontFamily,
-        preferencesDataSource.appLabelScale
+        preferencesDataSource.appLabelScale,
+        preferencesDataSource.openDrawerFromDockOnly,
+        preferencesDataSource.duoStatusPosition
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -147,12 +147,10 @@ class HomeViewModel @Inject constructor(
         val enableCameraMirror = values[11] as Boolean
         val categoryAlignment = values[12] as String
         val enableWidgetsPage = values[13] as Boolean
-        @Suppress("UNCHECKED_CAST")
-        val quickSettingsTileOrder = values[14] as List<String>
-        @Suppress("UNCHECKED_CAST")
-        val quickSettingsHiddenTiles = values[15] as Set<String>
-        val headerFontFamily = values[16] as String
-        val appLabelScale = values[17] as String
+        val headerFontFamily = values[14] as String
+        val appLabelScale = values[15] as String
+        val openDrawerFromDockOnly = values[16] as Boolean
+        val duoStatusPosition = values[17] as String
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -168,10 +166,10 @@ class HomeViewModel @Inject constructor(
             enableCameraMirror,
             categoryAlignment,
             enableWidgetsPage,
-            quickSettingsTileOrder,
-            quickSettingsHiddenTiles,
             headerFontFamily,
-            appLabelScale
+            appLabelScale,
+            openDrawerFromDockOnly,
+            duoStatusPosition
         )
     }
 
@@ -243,8 +241,6 @@ class HomeViewModel @Inject constructor(
             enableCameraMirror = glancePrefs.enableCameraMirror,
             categoryAlignment = glancePrefs.categoryAlignment,
             enableWidgetsPage = glancePrefs.enableWidgetsPage,
-            quickSettingsTileOrder = glancePrefs.quickSettingsTileOrder,
-            quickSettingsHiddenTiles = glancePrefs.quickSettingsHiddenTiles,
             widgets = widgetsList,
             surfaceThemeStyle = surfacePrefs.surfaceThemeStyle,
             surfaceOpacity = surfacePrefs.surfaceOpacity,
@@ -252,7 +248,9 @@ class HomeViewModel @Inject constructor(
             surfaceStrokeOpacity = surfacePrefs.surfaceStrokeOpacity,
             surfaceCornerRadius = surfacePrefs.surfaceCornerRadius,
             headerFontFamily = glancePrefs.headerFontFamily,
-            appLabelScale = glancePrefs.appLabelScale
+            appLabelScale = glancePrefs.appLabelScale,
+            openDrawerFromDockOnly = glancePrefs.openDrawerFromDockOnly,
+            duoStatusPosition = glancePrefs.duoStatusPosition
         )
     }.stateIn(
         scope = viewModelScope,
@@ -431,18 +429,6 @@ class HomeViewModel @Inject constructor(
                     widgetRepository.updateWidget(item.copy(orderIndex = i))
                 }
             }
-        }
-    }
-
-    fun updateQuickSettingsTileOrder(order: List<String>) {
-        viewModelScope.launch {
-            preferencesDataSource.setQuickSettingsTileOrder(order)
-        }
-    }
-
-    fun updateQuickSettingsHiddenTiles(hidden: Set<String>) {
-        viewModelScope.launch {
-            preferencesDataSource.setQuickSettingsHiddenTiles(hidden)
         }
     }
 }

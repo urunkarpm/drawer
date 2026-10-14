@@ -59,10 +59,10 @@ class HomeViewModelTest {
     private val surfaceBlurRadiusFlow = MutableStateFlow(25f)
     private val surfaceStrokeOpacityFlow = MutableStateFlow(0.40f)
     private val surfaceCornerRadiusFlow = MutableStateFlow(24f)
-    private val quickSettingsTileOrderFlow = MutableStateFlow(listOf("rotate", "wifi", "bluetooth", "quick_share", "dnd", "auto_rotate", "location", "flashlight"))
-    private val quickSettingsHiddenTilesFlow = MutableStateFlow<Set<String>>(emptySet())
     private val headerFontFamilyFlow = MutableStateFlow("SYSTEM")
     private val appLabelScaleFlow = MutableStateFlow("NORMAL")
+    private val openDrawerFromDockOnlyFlow = MutableStateFlow(false)
+    private val duoStatusPositionFlow = MutableStateFlow("TEMP")
 
     private val sampleApps = listOf(
         AppInfo(
@@ -111,10 +111,10 @@ class HomeViewModelTest {
         every { preferencesDataSource.enableCameraMirror } returns enableCameraMirrorFlow
         every { preferencesDataSource.categoryAlignment } returns categoryAlignmentFlow
         every { preferencesDataSource.enableWidgetsPage } returns enableWidgetsPageFlow
-        every { preferencesDataSource.quickSettingsTileOrder } returns quickSettingsTileOrderFlow
-        every { preferencesDataSource.quickSettingsHiddenTiles } returns quickSettingsHiddenTilesFlow
         every { preferencesDataSource.headerFontFamily } returns headerFontFamilyFlow
         every { preferencesDataSource.appLabelScale } returns appLabelScaleFlow
+        every { preferencesDataSource.openDrawerFromDockOnly } returns openDrawerFromDockOnlyFlow
+        every { preferencesDataSource.duoStatusPosition } returns duoStatusPositionFlow
         every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
         every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
@@ -157,6 +157,8 @@ class HomeViewModelTest {
             assertEquals(24f, loadedState.surfaceCornerRadius)
             assertEquals("SYSTEM", loadedState.headerFontFamily)
             assertEquals("NORMAL", loadedState.appLabelScale)
+            assertFalse(loadedState.openDrawerFromDockOnly)
+            assertEquals("TEMP", loadedState.duoStatusPosition)
         }
     }
 
@@ -173,6 +175,22 @@ class HomeViewModelTest {
             val state = expectMostRecentItem()
             assertEquals("TEXAS_TROUPE", state.headerFontFamily)
             assertEquals("LARGE", state.appLabelScale)
+        }
+    }
+
+    @Test
+    fun uiState_updatesDockOnlyAndDuoStatusPosition() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            openDrawerFromDockOnlyFlow.value = true
+            duoStatusPositionFlow.value = "TIME"
+            testScheduler.advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertTrue(state.openDrawerFromDockOnly)
+            assertEquals("TIME", state.duoStatusPosition)
         }
     }
 
@@ -286,23 +304,5 @@ class HomeViewModelTest {
             val state = expectMostRecentItem()
             assertEquals("Calculator pinned to dock", state.userMessage)
         }
-    }
-
-    @Test
-    fun updateQuickSettingsTileOrder_delegatesToPreferencesDataSource() = runTest {
-        val newOrder = listOf("wifi", "bluetooth", "flashlight", "rotate")
-        viewModel.updateQuickSettingsTileOrder(newOrder)
-        testScheduler.advanceUntilIdle()
-
-        coVerify { preferencesDataSource.setQuickSettingsTileOrder(newOrder) }
-    }
-
-    @Test
-    fun updateQuickSettingsHiddenTiles_delegatesToPreferencesDataSource() = runTest {
-        val hidden = setOf("quick_share", "dnd")
-        viewModel.updateQuickSettingsHiddenTiles(hidden)
-        testScheduler.advanceUntilIdle()
-
-        coVerify { preferencesDataSource.setQuickSettingsHiddenTiles(hidden) }
     }
 }

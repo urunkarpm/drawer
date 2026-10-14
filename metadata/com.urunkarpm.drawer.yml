@@ -40,8 +40,14 @@ Builds:
     subdir: app
     gradle:
       - yes
+  - versionName: 1.2.1
+    versionCode: 8
+    commit: v1.2.1
+    subdir: app
+    gradle:
+      - yes
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 1.2.0
-CurrentVersionCode: 7
+CurrentVersion: 1.2.1
+CurrentVersionCode: 8

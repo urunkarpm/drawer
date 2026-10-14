@@ -60,21 +60,14 @@ class DrawerPreferencesDataSource @Inject constructor(
         val ENABLE_CAMERA_MIRROR = booleanPreferencesKey("enable_camera_mirror")
         val CATEGORY_ALIGNMENT = stringPreferencesKey("category_alignment")
         val ENABLE_WIDGETS_PAGE = booleanPreferencesKey("enable_widgets_page")
-        val QUICK_SETTINGS_TILE_ORDER = stringPreferencesKey("quick_settings_tile_order")
-        val QUICK_SETTINGS_HIDDEN_TILES = stringPreferencesKey("quick_settings_hidden_tiles")
         val HEADER_FONT_FAMILY = stringPreferencesKey("header_font_family")
         val APP_LABEL_SCALE = stringPreferencesKey("app_label_scale")
+        val OPEN_DRAWER_FROM_DOCK_ONLY = booleanPreferencesKey("open_drawer_from_dock_only")
+        val DUO_STATUS_POSITION = stringPreferencesKey("duo_status_position")
     }
 
-    val quickSettingsTileOrder: Flow<List<String>> = dataStore.data.map {
-        val raw = it[PreferencesKeys.QUICK_SETTINGS_TILE_ORDER] ?: "rotate,wifi,bluetooth,quick_share,dnd,auto_rotate,location,flashlight"
-        raw.split(",").map { s -> s.trim() }.filter { s -> s.isNotEmpty() }
-    }
-
-    val quickSettingsHiddenTiles: Flow<Set<String>> = dataStore.data.map {
-        val raw = it[PreferencesKeys.QUICK_SETTINGS_HIDDEN_TILES] ?: ""
-        if (raw.isBlank()) emptySet() else raw.split(",").map { s -> s.trim() }.filter { s -> s.isNotEmpty() }.toSet()
-    }
+    val openDrawerFromDockOnly: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] ?: false }
+    val duoStatusPosition: Flow<String> = dataStore.data.map { it[PreferencesKeys.DUO_STATUS_POSITION] ?: "TEMP" }
 
     val autoOpenKeyboardInDrawer: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] ?: false }
     val showDuoStatusWidget: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] ?: true }
@@ -301,13 +294,6 @@ class DrawerPreferencesDataSource @Inject constructor(
         dataStore.edit { it[PreferencesKeys.ENABLE_WIDGETS_PAGE] = enabled }
     }
 
-    suspend fun setQuickSettingsTileOrder(order: List<String>) {
-        dataStore.edit { it[PreferencesKeys.QUICK_SETTINGS_TILE_ORDER] = order.joinToString(",") }
-    }
-
-    suspend fun setQuickSettingsHiddenTiles(hidden: Set<String>) {
-        dataStore.edit { it[PreferencesKeys.QUICK_SETTINGS_HIDDEN_TILES] = hidden.joinToString(",") }
-    }
 
     suspend fun setHeaderFontFamily(font: String) {
         dataStore.edit { it[PreferencesKeys.HEADER_FONT_FAMILY] = font }
@@ -315,5 +301,13 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setAppLabelScale(scale: String) {
         dataStore.edit { it[PreferencesKeys.APP_LABEL_SCALE] = scale }
+    }
+
+    suspend fun setOpenDrawerFromDockOnly(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] = enabled }
+    }
+
+    suspend fun setDuoStatusPosition(position: String) {
+        dataStore.edit { it[PreferencesKeys.DUO_STATUS_POSITION] = position }
     }
 }

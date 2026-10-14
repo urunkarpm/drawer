@@ -639,6 +639,15 @@ fun SettingsScreen(
                         checked = uiState.autoArrangeApps,
                         onCheckedChange = { viewModel.setAutoArrangeApps(it) }
                     )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    SettingsSwitchRow(
+                        title = "Open Drawer From Dock Only",
+                        subtitle = "Only open the app drawer when swiping up on the dock, disabling home screen swipe up",
+                        checked = uiState.openDrawerFromDockOnly,
+                        onCheckedChange = { viewModel.setOpenDrawerFromDockOnly(it) }
+                    )
                 }
             }
 
@@ -789,7 +798,7 @@ fun SettingsScreen(
 
                     SettingsSwitchRow(
                         title = "Show Status Indicators",
-                        subtitle = "Show battery and Wi-Fi icons alongside the weather glance",
+                        subtitle = "Show battery and Wi-Fi status indicator in between time and weather",
                         checked = uiState.showDuoStatusWidget,
                         onCheckedChange = { viewModel.setShowDuoStatusWidget(it) }
                     )

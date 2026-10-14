@@ -84,4 +84,30 @@ class DrawerPreferencesDataSourceTest {
             dataSource.notificationSwipeLeftAction.first()
         )
     }
+
+    @Test
+    fun defaultOpenDrawerFromDockOnlyIsFalse() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(false, dataSource.openDrawerFromDockOnly.first())
+    }
+
+    @Test
+    fun updateOpenDrawerFromDockOnlyPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setOpenDrawerFromDockOnly(true)
+        assertEquals(true, dataSource.openDrawerFromDockOnly.first())
+    }
+
+    @Test
+    fun defaultDuoStatusPositionIsTemp() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals("TEMP", dataSource.duoStatusPosition.first())
+    }
+
+    @Test
+    fun updateDuoStatusPositionPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setDuoStatusPosition("TIME")
+        assertEquals("TIME", dataSource.duoStatusPosition.first())
+    }
 }

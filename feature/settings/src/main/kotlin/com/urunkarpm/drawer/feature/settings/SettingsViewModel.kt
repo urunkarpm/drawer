@@ -39,14 +39,16 @@ data class GlanceSettings(
     val is24Hour: Boolean = true,
     val manualCityName: String? = null,
     val showDuoStatusWidget: Boolean = true,
-    val enableCameraMirror: Boolean = true
+    val enableCameraMirror: Boolean = true,
+    val duoStatusPosition: String = "TEMP"
 )
 
 data class DockSettings(
     val dockBackground: String = "LIQUID_GLASS",
     val dockIconSize: Float = 56f,
     val dockShowLabels: Boolean = false,
-    val dockCornerRadius: Float = 24f
+    val dockCornerRadius: Float = 24f,
+    val openDrawerFromDockOnly: Boolean = false
 )
 
 data class SurfaceSettings(
@@ -128,6 +130,8 @@ data class SettingsUiState(
     val autoArrangeApps: Boolean = true,
     val headerFontFamily: String = "TEXAS_TROUPE",
     val appLabelScale: String = "NORMAL",
+    val openDrawerFromDockOnly: Boolean = false,
+    val duoStatusPosition: String = "TEMP",
     val isBackingUp: Boolean = false,
     val isRestoring: Boolean = false,
     val isCheckingForUpdate: Boolean = false,
@@ -177,7 +181,8 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.is24Hour,
         preferencesDataSource.manualCityName,
         preferencesDataSource.showDuoStatusWidget,
-        preferencesDataSource.enableCameraMirror
+        preferencesDataSource.enableCameraMirror,
+        preferencesDataSource.duoStatusPosition
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         GlanceSettings(
@@ -186,7 +191,8 @@ class SettingsViewModel @Inject constructor(
             is24Hour = values[2] as Boolean,
             manualCityName = values[3] as? String,
             showDuoStatusWidget = values[4] as Boolean,
-            enableCameraMirror = values[5] as Boolean
+            enableCameraMirror = values[5] as Boolean,
+            duoStatusPosition = values[6] as String
         )
     }
 
@@ -204,9 +210,10 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.dockBackground,
         preferencesDataSource.dockIconSize,
         preferencesDataSource.dockShowLabels,
-        preferencesDataSource.dockCornerRadius
-    ) { dockBackground, dockIconSize, dockShowLabels, dockCornerRadius ->
-        DockSettings(dockBackground, dockIconSize, dockShowLabels, dockCornerRadius)
+        preferencesDataSource.dockCornerRadius,
+        preferencesDataSource.openDrawerFromDockOnly
+    ) { dockBackground, dockIconSize, dockShowLabels, dockCornerRadius, openDrawerFromDockOnly ->
+        DockSettings(dockBackground, dockIconSize, dockShowLabels, dockCornerRadius, openDrawerFromDockOnly)
     }
 
     private val dockAndSurfaceFlow = combine(dockFlow, surfaceFlow) { dock, surface ->
@@ -300,6 +307,8 @@ class SettingsViewModel @Inject constructor(
             autoArrangeApps = misc.autoArrangeApps,
             headerFontFamily = headerFontFamily,
             appLabelScale = appLabelScale,
+            openDrawerFromDockOnly = dock.openDrawerFromDockOnly,
+            duoStatusPosition = glance.duoStatusPosition,
             isBackingUp = action.isBackingUp,
             isRestoring = action.isRestoring,
             isCheckingForUpdate = action.isCheckingForUpdate,
@@ -311,6 +320,18 @@ class SettingsViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = SettingsUiState()
     )
+
+    fun setOpenDrawerFromDockOnly(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setOpenDrawerFromDockOnly(enabled)
+        }
+    }
+
+    fun setDuoStatusPosition(position: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDuoStatusPosition(position)
+        }
+    }
 
     fun setThemeMode(mode: String) {
         viewModelScope.launch(ioDispatcher) {

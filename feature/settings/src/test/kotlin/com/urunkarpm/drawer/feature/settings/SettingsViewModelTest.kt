@@ -64,6 +64,8 @@ class SettingsViewModelTest {
     private val enableWidgetsPageFlow = MutableStateFlow(false)
     private val headerFontFamilyFlow = MutableStateFlow("TEXAS_TROUPE")
     private val appLabelScaleFlow = MutableStateFlow("NORMAL")
+    private val openDrawerFromDockOnlyFlow = MutableStateFlow(false)
+    private val duoStatusPositionFlow = MutableStateFlow("TEMP")
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -106,6 +108,8 @@ class SettingsViewModelTest {
         every { preferencesDataSource.enableCameraMirror } returns enableCameraMirrorFlow
         every { preferencesDataSource.headerFontFamily } returns headerFontFamilyFlow
         every { preferencesDataSource.appLabelScale } returns appLabelScaleFlow
+        every { preferencesDataSource.openDrawerFromDockOnly } returns openDrawerFromDockOnlyFlow
+        every { preferencesDataSource.duoStatusPosition } returns duoStatusPositionFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -274,5 +278,19 @@ class SettingsViewModelTest {
         viewModel.setAppLabelScale("LARGE")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setAppLabelScale("LARGE") }
+    }
+
+    @Test
+    fun setOpenDrawerFromDockOnly_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setOpenDrawerFromDockOnly(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setOpenDrawerFromDockOnly(true) }
+    }
+
+    @Test
+    fun setDuoStatusPosition_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setDuoStatusPosition("TIME")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setDuoStatusPosition("TIME") }
     }
 }
