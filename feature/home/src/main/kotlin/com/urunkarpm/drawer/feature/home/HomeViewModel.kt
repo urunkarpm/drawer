@@ -41,7 +41,8 @@ data class GlancePrefs(
     val headerFontFamily: String = "SYSTEM",
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
-    val duoStatusPosition: String = "TEMP"
+    val duoStatusPosition: String = "TEMP",
+    val hasCompletedWalkthrough: Boolean = true
 )
 
 data class HomeDialogsState(
@@ -88,7 +89,8 @@ data class HomeUiState(
     val headerFontFamily: String = "SYSTEM",
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
-    val duoStatusPosition: String = "TEMP"
+    val duoStatusPosition: String = "TEMP",
+    val hasCompletedWalkthrough: Boolean = true
 )
 
 data class SurfaceThemePrefs(
@@ -132,7 +134,8 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.headerFontFamily,
         preferencesDataSource.appLabelScale,
         preferencesDataSource.openDrawerFromDockOnly,
-        preferencesDataSource.duoStatusPosition
+        preferencesDataSource.duoStatusPosition,
+        preferencesDataSource.hasCompletedWalkthrough
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -153,6 +156,7 @@ class HomeViewModel @Inject constructor(
         val appLabelScale = values[15] as String
         val openDrawerFromDockOnly = values[16] as Boolean
         val duoStatusPosition = values[17] as String
+        val hasCompletedWalkthrough = values[18] as Boolean
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -171,7 +175,8 @@ class HomeViewModel @Inject constructor(
             headerFontFamily,
             appLabelScale,
             openDrawerFromDockOnly,
-            duoStatusPosition
+            duoStatusPosition,
+            hasCompletedWalkthrough
         )
     }
 
@@ -267,7 +272,8 @@ class HomeViewModel @Inject constructor(
             headerFontFamily = glancePrefs.headerFontFamily,
             appLabelScale = glancePrefs.appLabelScale,
             openDrawerFromDockOnly = glancePrefs.openDrawerFromDockOnly,
-            duoStatusPosition = glancePrefs.duoStatusPosition
+            duoStatusPosition = glancePrefs.duoStatusPosition,
+            hasCompletedWalkthrough = glancePrefs.hasCompletedWalkthrough
         )
     }.stateIn(
         scope = viewModelScope,
@@ -590,6 +596,12 @@ class HomeViewModel @Inject constructor(
                     widgetRepository.updateDrawer(drawer.copy(orderIndex = i))
                 }
             }
+        }
+    }
+
+    fun completeWalkthrough() {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setHasCompletedWalkthrough(true)
         }
     }
 }

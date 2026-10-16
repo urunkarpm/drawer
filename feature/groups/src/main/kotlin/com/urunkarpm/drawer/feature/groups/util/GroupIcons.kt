@@ -50,11 +50,37 @@ object GroupIcons {
         "#607D8B"  // Blue Grey
     )
 
-    fun parseColor(hex: String, fallback: Color = Color(0xFF6750A4)): Color {
+    fun parseColor(hex: String?, fallback: Color = Color(0xFF6750A4)): Color {
+        if (hex.isNullOrBlank()) return fallback
         return try {
-            Color(android.graphics.Color.parseColor(hex))
+            val formatted = hex.trim().let { if (it.startsWith("#")) it else "#$it" }
+            Color(android.graphics.Color.parseColor(formatted))
         } catch (_: Exception) {
             fallback
         }
+    }
+
+    fun resolveCategoryColor(name: String, id: String = ""): Color {
+        val lower = name.lowercase().trim()
+        val hex = when {
+            lower.contains("finance") || lower.contains("bank") || lower.contains("money") || lower.contains("pay") -> "#4CAF50" // Green
+            lower.contains("media") || lower.contains("music") || lower.contains("audio") || lower.contains("song") -> "#9C27B0" // Purple
+            lower.contains("video") || lower.contains("stream") || lower.contains("movie") || lower.contains("tv") -> "#E53935" // Red
+            lower.contains("chat") || lower.contains("social") || lower.contains("message") || lower.contains("talk") -> "#009688" // Teal
+            lower.contains("work") || lower.contains("office") || lower.contains("business") || lower.contains("task") -> "#1E88E5" // Blue
+            lower.contains("tool") || lower.contains("util") || lower.contains("system") -> "#FF9800" // Orange
+            lower.contains("fit") || lower.contains("health") || lower.contains("gym") || lower.contains("run") -> "#E91E63" // Pink
+            lower.contains("star") || lower.contains("fav") -> "#FDD835" // Yellow
+            lower.contains("dev") || lower.contains("code") || lower.contains("git") -> "#5E35B1" // Deep Purple
+            lower.contains("shop") || lower.contains("cart") || lower.contains("store") -> "#FF9800" // Orange
+            lower.contains("game") || lower.contains("play") -> "#E91E63" // Pink
+            else -> {
+                val colors = availableColors
+                val hash = if (id.isNotEmpty()) id.hashCode() else name.hashCode()
+                val index = kotlin.math.abs(hash % colors.size)
+                colors[index]
+            }
+        }
+        return parseColor(hex)
     }
 }

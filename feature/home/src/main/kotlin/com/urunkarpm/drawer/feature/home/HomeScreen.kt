@@ -169,6 +169,7 @@ fun HomeScreen(
     }
     var appForCategorySelection by remember { mutableStateOf<Pair<AppInfo, String?>?>(null) }
     var isSettingsOpen by remember { mutableStateOf(false) }
+    var showManualWalkthrough by remember { mutableStateOf(false) }
     var isDuoStatusExpanded by remember { mutableStateOf(false) }
     var showHomeMenu by remember { mutableStateOf(false) }
     var isNotificationExpanded by remember { mutableStateOf(false) }
@@ -512,23 +513,16 @@ fun HomeScreen(
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                         .navigationBarsPadding()
-                        .pointerInput(isNotificationExpanded, hasNotifications) {
+                        .pointerInput(isNotificationExpanded) {
                             if (isNotificationExpanded) {
                                 var dragUp = 0f
-                                var startedOnEmpty = false
                                 detectVerticalDragGestures(
-                                    onDragStart = { offset ->
-                                        dragUp = 0f
-                                        startedOnEmpty = !hasNotifications || notificationBounds?.contains(offset) != true
-                                    },
+                                    onDragStart = { dragUp = 0f },
                                     onVerticalDrag = { change, dragAmount ->
-                                        if (startedOnEmpty) {
-                                            dragUp += dragAmount
-                                            if (dragUp < -30f) {
-                                                isNotificationExpanded = false
-                                                change.consume()
-                                                startedOnEmpty = false
-                                            }
+                                        dragUp += dragAmount
+                                        if (dragUp < -30f) {
+                                            isNotificationExpanded = false
+                                            change.consume()
                                         }
                                     }
                                 )
@@ -639,25 +633,16 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .nestedScroll(homeNestedScrollConnection)
                             .verticalScroll(homeScrollState, enabled = !dragDropState.isDragging && !isNotificationExpanded)
-                            .pointerInput(isNotificationExpanded, hasNotifications) {
+                            .pointerInput(isNotificationExpanded) {
                                 if (isNotificationExpanded) {
                                     var dragUp = 0f
-                                    var startedOnEmpty = false
                                     detectVerticalDragGestures(
-                                        onDragStart = { offset ->
-                                            dragUp = 0f
-                                            val colBounds = rootColumnBounds ?: Rect.Zero
-                                            val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                            startedOnEmpty = !hasNotifications || notificationBounds?.contains(rootPos) != true
-                                        },
+                                        onDragStart = { dragUp = 0f },
                                         onVerticalDrag = { change, dragAmount ->
-                                            if (startedOnEmpty) {
-                                                dragUp += dragAmount
-                                                if (dragUp < -30f) {
-                                                    isNotificationExpanded = false
-                                                    change.consume()
-                                                    startedOnEmpty = false
-                                                }
+                                            dragUp += dragAmount
+                                            if (dragUp < -30f) {
+                                                isNotificationExpanded = false
+                                                change.consume()
                                             }
                                         }
                                     )
@@ -791,6 +776,21 @@ fun HomeScreen(
         pageCount = { 2 }
     )
 
+    // Resistance connection for WidgetsPage pull from Home (page 1 -> page 0)
+    val widgetPageResistanceConnection = remember(pagerState) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // When on Home (page 1) dragging right towards Widgets (page 0), consume 60% of delta
+                // This adds deliberate physical resistance so swiping to Widgets requires an intentional pull.
+                if (pagerState.currentPage == 1 && available.x > 0f) {
+                    val consumedX = available.x * 0.60f
+                    return Offset(consumedX, 0f)
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
     LaunchedEffect(pagerState.currentPage, pagerState.targetPage) {
         if (pagerState.currentPage == 0 || pagerState.targetPage == 0) {
             viewModel.collapseAllWidgetDrawers()
@@ -811,8 +811,15 @@ fun HomeScreen(
     if (uiState.enableWidgetsPage) {
         HorizontalPager(
             state = pagerState,
-            userScrollEnabled = !dragDropState.isDragging && !uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen,
-            modifier = Modifier.fillMaxSize()
+            userScrollEnabled = !dragDropState.isDragging &&
+                !uiState.isAllAppsOpen &&
+                !isSettingsOpen &&
+                !isCameraOpen &&
+                !isNotificationExpanded &&
+                !groupsUiState.groups.any { it.group.isExpanded },
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(widgetPageResistanceConnection)
         ) { page ->
             if (page == 0) {
                 WidgetsPage(
@@ -943,7 +950,11 @@ fun HomeScreen(
             exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
         ) {
             com.urunkarpm.drawer.feature.settings.SettingsScreen(
-                onNavigateBack = { isSettingsOpen = false }
+                onNavigateBack = { isSettingsOpen = false },
+                onOpenWalkthrough = {
+                    isSettingsOpen = false
+                    showManualWalkthrough = true
+                }
             )
         }
 
@@ -1101,6 +1112,27 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+
+        // ── Walkthrough Tour Overlay (First Install & Revisit) ───────────────
+        val showWalkthrough = (!uiState.hasCompletedWalkthrough && !uiState.isLoading) || showManualWalkthrough
+        if (showWalkthrough) {
+            BackHandler {
+                showManualWalkthrough = false
+                viewModel.completeWalkthrough()
+            }
+        }
+        AnimatedVisibility(
+            visible = showWalkthrough,
+            enter = fadeIn(animationSpec = tween(300)),
+            exit = fadeOut(animationSpec = tween(250))
+        ) {
+            com.urunkarpm.drawer.feature.home.walkthrough.WalkthroughOverlay(
+                onDismiss = {
+                    showManualWalkthrough = false
+                    viewModel.completeWalkthrough()
+                }
+            )
         }
     }
 }

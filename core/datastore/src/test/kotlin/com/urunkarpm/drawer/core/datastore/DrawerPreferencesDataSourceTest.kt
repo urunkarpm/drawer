@@ -110,4 +110,17 @@ class DrawerPreferencesDataSourceTest {
         dataSource.setDuoStatusPosition("TIME")
         assertEquals("TIME", dataSource.duoStatusPosition.first())
     }
+
+    @Test
+    fun defaultHasCompletedWalkthroughIsFalse() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(false, dataSource.hasCompletedWalkthrough.first())
+    }
+
+    @Test
+    fun updateHasCompletedWalkthroughPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setHasCompletedWalkthrough(true)
+        assertEquals(true, dataSource.hasCompletedWalkthrough.first())
+    }
 }

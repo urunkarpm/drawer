@@ -64,8 +64,10 @@ class DrawerPreferencesDataSource @Inject constructor(
         val APP_LABEL_SCALE = stringPreferencesKey("app_label_scale")
         val OPEN_DRAWER_FROM_DOCK_ONLY = booleanPreferencesKey("open_drawer_from_dock_only")
         val DUO_STATUS_POSITION = stringPreferencesKey("duo_status_position")
+        val HAS_COMPLETED_WALKTHROUGH = booleanPreferencesKey("has_completed_walkthrough")
     }
 
+    val hasCompletedWalkthrough: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HAS_COMPLETED_WALKTHROUGH] ?: false }
     val openDrawerFromDockOnly: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] ?: false }
     val duoStatusPosition: Flow<String> = dataStore.data.map { it[PreferencesKeys.DUO_STATUS_POSITION] ?: "TEMP" }
 
@@ -309,5 +311,9 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setDuoStatusPosition(position: String) {
         dataStore.edit { it[PreferencesKeys.DUO_STATUS_POSITION] = position }
+    }
+
+    suspend fun setHasCompletedWalkthrough(completed: Boolean) {
+        dataStore.edit { it[PreferencesKeys.HAS_COMPLETED_WALKTHROUGH] = completed }
     }
 }

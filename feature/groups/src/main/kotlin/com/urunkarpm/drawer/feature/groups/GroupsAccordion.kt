@@ -387,7 +387,13 @@ private fun GroupCard(
 ) {
     val group = resolvedGroup.group
     val isExpanded = group.isExpanded
-    val groupColor = GroupIcons.parseColor(group.colorHex)
+    val groupColor = remember(group.colorHex, group.name, group.id) {
+        if (!group.colorHex.isNullOrBlank() && group.colorHex != "#6750A4") {
+            GroupIcons.parseColor(group.colorHex, fallback = GroupIcons.resolveCategoryColor(group.name, group.id))
+        } else {
+            GroupIcons.resolveCategoryColor(group.name, group.id)
+        }
+    }
     val groupIcon = GroupIcons.getIcon(group.iconName)
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
@@ -417,8 +423,8 @@ private fun GroupCard(
     val animatedBorderColor by animateColorAsState(
         targetValue = when {
             isDropTarget -> MaterialTheme.colorScheme.primary
-            hasNotification -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
             isExpanded -> groupColor.copy(alpha = 0.45f)
+            hasNotification -> groupColor.copy(alpha = 0.40f)
             else -> groupColor.copy(alpha = 0.22f)
         },
         animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
@@ -503,13 +509,10 @@ private fun GroupCard(
                         modifier = Modifier
                             .size(if (isCompact) 32.dp else 38.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (hasNotification) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                                else groupColor.copy(alpha = 0.16f)
-                            )
+                            .background(groupColor.copy(alpha = 0.16f))
                             .border(
                                 width = if (hasNotification) 1.5.dp else 1.dp,
-                                color = if (hasNotification) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                                color = if (hasNotification) groupColor.copy(alpha = 0.55f)
                                         else groupColor.copy(alpha = 0.32f),
                                 shape = RoundedCornerShape(12.dp)
                             ),
@@ -518,7 +521,7 @@ private fun GroupCard(
                         Icon(
                             imageVector = groupIcon,
                             contentDescription = group.name,
-                            tint = if (hasNotification) MaterialTheme.colorScheme.primary else groupColor,
+                            tint = groupColor,
                             modifier = Modifier.size(if (isCompact) 18.dp else 22.dp)
                         )
                         if (hasNotification) {

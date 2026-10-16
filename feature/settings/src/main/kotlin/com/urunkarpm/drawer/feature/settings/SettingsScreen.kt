@@ -121,7 +121,8 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
-    iconPackViewModel: IconPackViewModel = hiltViewModel()
+    iconPackViewModel: IconPackViewModel = hiltViewModel(),
+    onOpenWalkthrough: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val iconPackUiState by iconPackViewModel.uiState.collectAsStateWithLifecycle()
@@ -1131,6 +1132,34 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(modifier = Modifier.height(16.dp))
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "App Walkthrough",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Revisit the first-install tour and feature highlights",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = onOpenWalkthrough
+                        ) {
+                            Text("Start Tour")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
                     SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
                     Spacer(modifier = Modifier.height(8.dp))
 

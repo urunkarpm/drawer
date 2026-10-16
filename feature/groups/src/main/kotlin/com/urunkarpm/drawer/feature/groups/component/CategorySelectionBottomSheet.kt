@@ -27,6 +27,7 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,7 +74,13 @@ fun CategorySelectionBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(groups, key = { it.id }) { group ->
-                    val groupColor = GroupIcons.parseColor(group.colorHex)
+                    val groupColor = remember(group.colorHex, group.name, group.id) {
+                        if (!group.colorHex.isNullOrBlank() && group.colorHex != "#6750A4") {
+                            GroupIcons.parseColor(group.colorHex, fallback = GroupIcons.resolveCategoryColor(group.name, group.id))
+                        } else {
+                            GroupIcons.resolveCategoryColor(group.name, group.id)
+                        }
+                    }
                     val icon = GroupIcons.getIcon(group.iconName)
                     NavigationDrawerItem(
                         label = {

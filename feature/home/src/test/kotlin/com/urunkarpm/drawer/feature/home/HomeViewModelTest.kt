@@ -64,6 +64,7 @@ class HomeViewModelTest {
     private val appLabelScaleFlow = MutableStateFlow("NORMAL")
     private val openDrawerFromDockOnlyFlow = MutableStateFlow(false)
     private val duoStatusPositionFlow = MutableStateFlow("TEMP")
+    private val hasCompletedWalkthroughFlow = MutableStateFlow(true)
 
     private val sampleApps = listOf(
         AppInfo(
@@ -116,6 +117,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.appLabelScale } returns appLabelScaleFlow
         every { preferencesDataSource.openDrawerFromDockOnly } returns openDrawerFromDockOnlyFlow
         every { preferencesDataSource.duoStatusPosition } returns duoStatusPositionFlow
+        every { preferencesDataSource.hasCompletedWalkthrough } returns hasCompletedWalkthroughFlow
         every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
         every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
@@ -362,6 +364,24 @@ class HomeViewModelTest {
             assertEquals(3, slot.captured.spanY)
             assertEquals(210, slot.captured.heightDp)
 
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun completeWalkthrough_updatesPreferences() = runTest {
+        viewModel.completeWalkthrough()
+        testScheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setHasCompletedWalkthrough(true) }
+    }
+
+    @Test
+    fun uiState_reflectsHasCompletedWalkthrough() = runTest {
+        hasCompletedWalkthroughFlow.value = false
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+            assertFalse(expectMostRecentItem().hasCompletedWalkthrough)
             cancelAndIgnoreRemainingEvents()
         }
     }

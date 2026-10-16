@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -145,13 +146,19 @@ fun NotificationDrawer(
     )
 
     val notifScrollState = rememberScrollState()
-    val notifScrollBlocker = remember {
+    val notifScrollBlocker = remember(isExpanded) {
         object : NestedScrollConnection {
             override fun onPostScroll(
                 consumed: Offset,
                 available: Offset,
                 source: NestedScrollSource
-            ): Offset = Offset(0f, available.y)
+            ): Offset {
+                // If scrolling up past top or bottom of notifications, collapse drawer
+                if (isExpanded && available.y < -40f) {
+                    onExpandedChange(false)
+                }
+                return Offset(0f, available.y)
+            }
 
             override suspend fun onPostFling(
                 consumed: Velocity,
@@ -280,6 +287,21 @@ fun NotificationDrawer(
                             ) {
                                 onExpandedChange(!isExpanded)
                             }
+                            .pointerInput(isExpanded) {
+                                if (isExpanded) {
+                                    var dragY = 0f
+                                    detectVerticalDragGestures(
+                                        onDragStart = { dragY = 0f },
+                                        onVerticalDrag = { change, dragAmount ->
+                                            dragY += dragAmount
+                                            if (dragY < -30f) {
+                                                onExpandedChange(false)
+                                                change.consume()
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -294,7 +316,7 @@ fun NotificationDrawer(
                                 modifier = Modifier
                                     .size(26.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
