@@ -70,6 +70,7 @@ import com.urunkarpm.drawer.core.model.WidgetItem
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.filled.MoreVert
+import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 
 sealed class StandaloneRowItem {
@@ -83,9 +84,10 @@ fun WidgetsPage(
     standaloneWidgets: List<WidgetItem>,
     widgetHostManager: DrawerWidgetHostManager,
     onAddWidgetClick: (targetDrawerId: String?) -> Unit,
-    onCreateDrawer: (title: String) -> Unit,
+    onCreateDrawer: (title: String, iconName: String, colorHex: String) -> Unit,
+    onUpdateDrawer: (drawer: WidgetDrawer) -> Unit,
     onToggleDrawerExpand: (drawerId: String) -> Unit,
-    onRenameDrawer: (drawerId: String, newTitle: String) -> Unit,
+    onCollapseAllDrawers: () -> Unit = {},
     onDeleteDrawer: (drawerId: String, deleteChildren: Boolean) -> Unit,
     onDeleteWidget: (id: String, appWidgetId: Int) -> Unit,
     onMoveWidget: (index: Int, up: Boolean) -> Unit,
@@ -109,6 +111,7 @@ fun WidgetsPage(
     val horizontalPadding = if (screenWidth < 360) 12.dp else if (screenWidth >= 840) 24.dp else 16.dp
 
     var showCreateDrawerDialog by remember { mutableStateOf(false) }
+    var drawerBeingEdited by remember { mutableStateOf<WidgetDrawer?>(null) }
     var widgetToResize by remember { mutableStateOf<WidgetItem?>(null) }
     var widgetToMoveDrawer by remember { mutableStateOf<WidgetItem?>(null) }
     var showAddMenu by remember { mutableStateOf(false) }
@@ -131,9 +134,17 @@ fun WidgetsPage(
     }
 
     val isEmpty = drawers.isEmpty() && standaloneWidgets.isEmpty()
+    val hasExpandedDrawer = drawers.any { it.isExpanded }
 
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .autoCloseOnInactivity(
+                active = hasExpandedDrawer,
+                resetKey = drawers.find { it.isExpanded }?.id,
+                timeoutMs = 5000L,
+                onClose = { onCollapseAllDrawers() }
+            ),
         contentAlignment = Alignment.TopCenter
     ) {
         Box(
@@ -343,7 +354,7 @@ fun WidgetsPage(
                             widgetHostManager = widgetHostManager,
                             onToggleExpand = { onToggleDrawerExpand(drawer.id) },
                             onAddWidgetClick = { onAddWidgetClick(drawer.id) },
-                            onRenameDrawer = { newTitle -> onRenameDrawer(drawer.id, newTitle) },
+                            onEditDrawer = { drawerBeingEdited = drawer },
                             onMoveUp = { onMoveDrawer(index, true) },
                             onMoveDown = { onMoveDrawer(index, false) },
                             onDeleteDrawer = { deleteChildren -> onDeleteDrawer(drawer.id, deleteChildren) },
@@ -507,48 +518,28 @@ fun WidgetsPage(
 
     // Create New Drawer Dialog
     if (showCreateDrawerDialog) {
-        var drawerTitle by remember { mutableStateOf("") }
-        AlertDialog(
+        EditWidgetDrawerDialog(
+            drawer = null,
             onDismissRequest = { showCreateDrawerDialog = false },
-            shape = RoundedCornerShape(22.dp),
-            title = {
-                Text(
-                    text = "New Widget Drawer",
-                    fontFamily = LocalHeaderFontFamily.current,
-                    fontWeight = FontWeight.SemiBold
-                )
+            onSave = { title, iconName, colorHex ->
+                onCreateDrawer(title, iconName, colorHex)
+                showCreateDrawerDialog = false
+            }
+        )
+    }
+
+    // Edit Drawer Dialog
+    drawerBeingEdited?.let { drawerToEdit ->
+        EditWidgetDrawerDialog(
+            drawer = drawerToEdit,
+            onDismissRequest = { drawerBeingEdited = null },
+            onSave = { title, iconName, colorHex ->
+                onUpdateDrawer(drawerToEdit.copy(title = title, iconName = iconName, colorHex = colorHex))
+                drawerBeingEdited = null
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Group widgets of the same type together (e.g. Finance, Media, Social).")
-                    OutlinedTextField(
-                        value = drawerTitle,
-                        onValueChange = { drawerTitle = it },
-                        label = { Text("Drawer Name") },
-                        placeholder = { Text("e.g. Finance") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (drawerTitle.isNotBlank()) {
-                            onCreateDrawer(drawerTitle.trim())
-                            showCreateDrawerDialog = false
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Create")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateDrawerDialog = false }) {
-                    Text("Cancel")
-                }
+            onDelete = {
+                onDeleteDrawer(drawerToEdit.id, false)
+                drawerBeingEdited = null
             }
         )
     }

@@ -466,16 +466,42 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun createWidgetDrawer(title: String, spanX: Int = 4, spanY: Int = 3, onCreated: ((String) -> Unit)? = null) {
+    fun createWidgetDrawer(
+        title: String,
+        iconName: String = "folder",
+        colorHex: String = "#1E88E5",
+        spanX: Int = 4,
+        spanY: Int = 3,
+        onCreated: ((String) -> Unit)? = null
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val drawerId = widgetRepository.createDrawer(title.trim(), spanX, spanY)
+            val drawerId = widgetRepository.createDrawer(title.trim(), iconName, colorHex, spanX, spanY)
             onCreated?.invoke(drawerId)
+        }
+    }
+
+    fun createWidgetDrawer(
+        title: String,
+        spanX: Int,
+        spanY: Int
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            widgetRepository.createDrawer(title.trim(), spanX, spanY)
         }
     }
 
     fun updateWidgetDrawer(drawer: com.urunkarpm.drawer.core.model.WidgetDrawer) {
         viewModelScope.launch(Dispatchers.IO) {
             widgetRepository.updateDrawer(drawer)
+        }
+    }
+
+    fun collapseAllWidgetDrawers() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val expanded = uiState.value.widgetDrawers.filter { it.isExpanded }
+            expanded.forEach { drawer ->
+                widgetRepository.updateDrawer(drawer.copy(isExpanded = false))
+            }
         }
     }
 

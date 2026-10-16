@@ -50,7 +50,13 @@ class WidgetRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun createDrawer(title: String, spanX: Int, spanY: Int): String {
+    override suspend fun createDrawer(
+        title: String,
+        iconName: String,
+        colorHex: String,
+        spanX: Int,
+        spanY: Int
+    ): String {
         val currentDrawers = widgetDao.getAllDrawers().first()
         val nextOrder = currentDrawers.size
         val id = UUID.randomUUID().toString()
@@ -60,10 +66,16 @@ class WidgetRepositoryImpl @Inject constructor(
             orderIndex = nextOrder,
             spanX = spanX,
             spanY = spanY,
-            isExpanded = true
+            isExpanded = true,
+            iconName = iconName,
+            colorHex = colorHex
         )
         widgetDao.insertDrawer(entity)
         return id
+    }
+
+    override suspend fun createDrawer(title: String, spanX: Int, spanY: Int): String {
+        return createDrawer(title, "folder", "#1E88E5", spanX, spanY)
     }
 
     override suspend fun updateDrawer(drawer: WidgetDrawer) {

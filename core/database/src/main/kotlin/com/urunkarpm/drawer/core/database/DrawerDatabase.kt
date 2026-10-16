@@ -24,7 +24,7 @@ import com.urunkarpm.drawer.core.database.entity.WidgetItemEntity
         WidgetDrawerEntity::class,
         WidgetItemEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class DrawerDatabase : RoomDatabase() {

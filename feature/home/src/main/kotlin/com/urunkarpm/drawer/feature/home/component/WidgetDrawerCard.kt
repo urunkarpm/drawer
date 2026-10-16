@@ -92,7 +92,7 @@ fun WidgetDrawerCard(
     widgetHostManager: DrawerWidgetHostManager,
     onToggleExpand: () -> Unit,
     onAddWidgetClick: () -> Unit,
-    onRenameDrawer: (newTitle: String) -> Unit,
+    onEditDrawer: () -> Unit = {},
     onDeleteDrawer: (deleteChildren: Boolean) -> Unit,
     onDeleteWidget: (id: String, appWidgetId: Int) -> Unit,
     onExtractWidget: (id: String) -> Unit,
@@ -106,14 +106,17 @@ fun WidgetDrawerCard(
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    val drawerColor = remember(drawer.title, drawer.id) {
-        resolveWidgetDrawerColor(drawer.title, drawer.id)
+    val drawerColor = remember(drawer.colorHex, drawer.title, drawer.id) {
+        GroupIcons.parseColor(drawer.colorHex, fallback = resolveWidgetDrawerColor(drawer.title, drawer.id))
     }
-    val drawerIcon = remember(drawer.title) {
-        resolveWidgetDrawerIcon(drawer.title)
+    val drawerIcon = remember(drawer.iconName, drawer.title) {
+        if (drawer.iconName.isNotBlank() && drawer.iconName != "folder") {
+            GroupIcons.getIcon(drawer.iconName)
+        } else {
+            resolveWidgetDrawerIcon(drawer.title)
+        }
     }
 
     val chevronRotation by animateFloatAsState(
@@ -292,10 +295,10 @@ fun WidgetDrawerCard(
                             leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) }
                         )
                         DropdownMenuItem(
-                            text = { Text("Rename") },
+                            text = { Text("Edit") },
                             onClick = {
                                 showMenu = false
-                                showRenameDialog = true
+                                onEditDrawer()
                             },
                             leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }
                         )
@@ -391,50 +394,6 @@ fun WidgetDrawerCard(
                 }
             }
         }
-    }
-
-    // Rename Drawer Dialog
-    if (showRenameDialog) {
-        var newTitle by remember { mutableStateOf(drawer.title) }
-        AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            shape = RoundedCornerShape(22.dp),
-            title = {
-                Text(
-                    text = "Rename Drawer",
-                    fontFamily = LocalHeaderFontFamily.current,
-                    fontWeight = FontWeight.SemiBold
-                )
-            },
-            text = {
-                OutlinedTextField(
-                    value = newTitle,
-                    onValueChange = { newTitle = it },
-                    label = { Text("Drawer Name") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (newTitle.isNotBlank()) {
-                            onRenameDrawer(newTitle.trim())
-                            showRenameDialog = false
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
     }
 
     // Delete Drawer Confirmation Dialog

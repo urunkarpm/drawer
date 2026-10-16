@@ -18,7 +18,11 @@ data class WidgetDrawerEntity(
     @ColumnInfo(name = "span_y")
     val spanY: Int = 3,
     @ColumnInfo(name = "is_expanded")
-    val isExpanded: Boolean = true
+    val isExpanded: Boolean = true,
+    @ColumnInfo(name = "icon_name")
+    val iconName: String = "folder",
+    @ColumnInfo(name = "color_hex")
+    val colorHex: String = "#1E88E5"
 ) {
     fun toDomain(widgets: List<WidgetItem> = emptyList()): WidgetDrawer =
         WidgetDrawer(
@@ -28,6 +32,8 @@ data class WidgetDrawerEntity(
             spanX = spanX,
             spanY = spanY,
             isExpanded = isExpanded,
+            iconName = iconName,
+            colorHex = colorHex,
             widgets = widgets
         )
 
@@ -39,7 +45,9 @@ data class WidgetDrawerEntity(
                 orderIndex = drawer.orderIndex,
                 spanX = drawer.spanX,
                 spanY = drawer.spanY,
-                isExpanded = drawer.isExpanded
+                isExpanded = drawer.isExpanded,
+                iconName = drawer.iconName,
+                colorHex = drawer.colorHex
             )
     }
 }

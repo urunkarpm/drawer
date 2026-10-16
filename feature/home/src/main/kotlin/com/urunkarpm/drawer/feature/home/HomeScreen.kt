@@ -757,14 +757,10 @@ fun HomeScreen(
                     standaloneWidgets = uiState.standaloneWidgets,
                     widgetHostManager = widgetHostManager,
                     onAddWidgetClick = { targetDrawerId -> launchAddWidgetFlow(targetDrawerId) },
-                    onCreateDrawer = { title -> viewModel.createWidgetDrawer(title) },
+                    onCreateDrawer = { title, iconName, colorHex -> viewModel.createWidgetDrawer(title, iconName, colorHex) },
+                    onUpdateDrawer = { drawer -> viewModel.updateWidgetDrawer(drawer) },
                     onToggleDrawerExpand = { drawerId -> viewModel.toggleWidgetDrawerExpand(drawerId) },
-                    onRenameDrawer = { drawerId, newTitle ->
-                        val drawer = uiState.widgetDrawers.find { it.id == drawerId }
-                        if (drawer != null) {
-                            viewModel.updateWidgetDrawer(drawer.copy(title = newTitle))
-                        }
-                    },
+                    onCollapseAllDrawers = { viewModel.collapseAllWidgetDrawers() },
                     onDeleteDrawer = { drawerId, deleteChildren ->
                         if (deleteChildren) {
                             val drawer = uiState.widgetDrawers.find { it.id == drawerId }

@@ -10,5 +10,7 @@ data class WidgetDrawer(
     val spanX: Int = 4,
     val spanY: Int = 3,
     val isExpanded: Boolean = true,
+    val iconName: String = "folder",
+    val colorHex: String = "#1E88E5",
     val widgets: List<WidgetItem> = emptyList()
 )

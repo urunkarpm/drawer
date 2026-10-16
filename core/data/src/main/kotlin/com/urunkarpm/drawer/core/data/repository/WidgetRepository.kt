@@ -10,7 +10,19 @@ interface WidgetRepository {
     fun getStandaloneWidgets(): Flow<List<WidgetItem>>
     fun getWidgetsByDrawerId(drawerId: String): Flow<List<WidgetItem>>
 
-    suspend fun createDrawer(title: String, spanX: Int = 4, spanY: Int = 3): String
+    suspend fun createDrawer(
+        title: String,
+        iconName: String = "folder",
+        colorHex: String = "#1E88E5",
+        spanX: Int = 4,
+        spanY: Int = 3
+    ): String
+
+    suspend fun createDrawer(
+        title: String,
+        spanX: Int,
+        spanY: Int
+    ): String = createDrawer(title, "folder", "#1E88E5", spanX, spanY)
     suspend fun updateDrawer(drawer: WidgetDrawer)
     suspend fun deleteDrawer(id: String, deleteChildren: Boolean = false)
 
