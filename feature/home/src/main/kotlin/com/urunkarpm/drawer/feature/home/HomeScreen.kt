@@ -297,17 +297,26 @@ fun HomeScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val widgetHostManager = remember { DrawerWidgetHostManager(context.applicationContext) }
     var pendingAppWidgetId by remember { mutableStateOf<Int?>(null) }
+    var targetDrawerIdForAdd by remember { mutableStateOf<String?>(null) }
 
     fun completeWidgetAdd(appWidgetId: Int) {
         val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(appWidgetId)
         if (info != null) {
             val pkg = info.provider.packageName
             val cls = info.provider.className
-            viewModel.addWidget(appWidgetId, pkg, cls)
+            val targetDrawerId = targetDrawerIdForAdd
+            viewModel.addWidget(
+                appWidgetId = appWidgetId,
+                packageName = pkg,
+                providerClassName = cls,
+                drawerId = targetDrawerId
+            )
             coroutineScope.launch {
-                snackbarHostState.showSnackbar("Widget added to feed")
+                val dest = if (targetDrawerId != null) "drawer" else "feed"
+                snackbarHostState.showSnackbar("Widget added to $dest")
             }
         }
+        targetDrawerIdForAdd = null
     }
 
     val configureWidgetLauncher = rememberLauncherForActivityResult(
@@ -318,6 +327,7 @@ fun HomeScreen(
             completeWidgetAdd(id)
         } else if (id != null) {
             widgetHostManager.deleteAppWidgetId(id)
+            targetDrawerIdForAdd = null
         }
         pendingAppWidgetId = null
     }
@@ -341,10 +351,12 @@ fun HomeScreen(
         } else if (id != null) {
             widgetHostManager.deleteAppWidgetId(id)
             pendingAppWidgetId = null
+            targetDrawerIdForAdd = null
         }
     }
 
-    fun launchAddWidgetFlow() {
+    fun launchAddWidgetFlow(targetDrawerId: String? = null) {
+        targetDrawerIdForAdd = targetDrawerId
         val allocatedId = widgetHostManager.allocateAppWidgetId()
         pendingAppWidgetId = allocatedId
         val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
@@ -741,12 +753,24 @@ fun HomeScreen(
         ) { page ->
             if (page == 0) {
                 WidgetsPage(
-                    widgets = uiState.widgets,
+                    drawers = uiState.widgetDrawers,
+                    standaloneWidgets = uiState.standaloneWidgets,
                     widgetHostManager = widgetHostManager,
-                    onAddWidgetClick = { launchAddWidgetFlow() },
+                    onAddWidgetClick = { targetDrawerId -> launchAddWidgetFlow(targetDrawerId) },
+                    onCreateDrawer = { title -> viewModel.createWidgetDrawer(title) },
+                    onToggleDrawerExpand = { drawerId -> viewModel.toggleWidgetDrawerExpand(drawerId) },
+                    onRenameDrawer = { drawerId, newTitle ->
+                        val drawer = uiState.widgetDrawers.find { it.id == drawerId }
+                        if (drawer != null) {
+                            viewModel.updateWidgetDrawer(drawer.copy(title = newTitle))
+                        }
+                    },
+                    onDeleteDrawer = { drawerId, deleteChildren -> viewModel.deleteWidgetDrawer(drawerId, deleteChildren) },
                     onDeleteWidget = { id, appWidgetId -> viewModel.deleteWidget(id, appWidgetId) },
                     onMoveWidget = { index, up -> viewModel.moveWidget(index, up) },
-                    onResizeWidget = { id, newHeight -> viewModel.updateWidgetHeight(id, newHeight) },
+                    onUpdateWidgetSpan = { id, spanX, spanY, heightDp -> viewModel.updateWidgetSpan(id, spanX, spanY, heightDp) },
+                    onMoveWidgetToDrawer = { widgetId, drawerId -> viewModel.moveWidgetToDrawer(widgetId, drawerId) },
+                    onReorderWidgetInDrawer = { drawerId, fromIdx, toIdx -> viewModel.reorderWidgetsInDrawer(drawerId, fromIdx, toIdx) },
                     lockLayout = groupsUiState.lockLayout,
                     onBackToHome = {
                         coroutineScope.launch {
