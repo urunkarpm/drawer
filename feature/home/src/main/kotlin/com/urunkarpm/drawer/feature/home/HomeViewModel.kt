@@ -536,4 +536,19 @@ class HomeViewModel @Inject constructor(
             }
         }
     }
+
+    fun moveWidgetDrawer(index: Int, up: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = uiState.value.widgetDrawers.toMutableList()
+            val targetIndex = if (up) index - 1 else index + 1
+            if (targetIndex in list.indices) {
+                val temp = list[index]
+                list[index] = list[targetIndex]
+                list[targetIndex] = temp
+                list.forEachIndexed { i, drawer ->
+                    widgetRepository.updateDrawer(drawer.copy(orderIndex = i))
+                }
+            }
+        }
+    }
 }

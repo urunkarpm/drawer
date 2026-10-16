@@ -68,6 +68,10 @@ import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.model.WidgetDrawer
 import com.urunkarpm.drawer.core.model.WidgetItem
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.MoreVert
+import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
+
 sealed class StandaloneRowItem {
     data class Single(val widget: WidgetItem, val index: Int) : StandaloneRowItem()
     data class PairRow(val left: WidgetItem, val leftIndex: Int, val right: WidgetItem, val rightIndex: Int) : StandaloneRowItem()
@@ -85,6 +89,7 @@ fun WidgetsPage(
     onDeleteDrawer: (drawerId: String, deleteChildren: Boolean) -> Unit,
     onDeleteWidget: (id: String, appWidgetId: Int) -> Unit,
     onMoveWidget: (index: Int, up: Boolean) -> Unit,
+    onMoveDrawer: (index: Int, up: Boolean) -> Unit = { _, _ -> },
     onUpdateWidgetSpan: (id: String, spanX: Int, spanY: Int, heightDp: Int) -> Unit,
     onMoveWidgetToDrawer: (widgetId: String, drawerId: String?) -> Unit,
     onReorderWidgetInDrawer: (drawerId: String, fromIndex: Int, toIndex: Int) -> Unit,
@@ -327,16 +332,20 @@ fun WidgetsPage(
                     }
 
                     // 1. Widget Drawers (iPod Cover Flow stacks)
-                    items(
+                    itemsIndexed(
                         items = drawers,
-                        key = { it.id }
-                    ) { drawer ->
+                        key = { _, it -> it.id }
+                    ) { index, drawer ->
                         WidgetDrawerCard(
                             drawer = drawer,
+                            drawerIndex = index,
+                            totalDrawers = drawers.size,
                             widgetHostManager = widgetHostManager,
                             onToggleExpand = { onToggleDrawerExpand(drawer.id) },
                             onAddWidgetClick = { onAddWidgetClick(drawer.id) },
                             onRenameDrawer = { newTitle -> onRenameDrawer(drawer.id, newTitle) },
+                            onMoveUp = { onMoveDrawer(index, true) },
+                            onMoveDown = { onMoveDrawer(index, false) },
                             onDeleteDrawer = { deleteChildren -> onDeleteDrawer(drawer.id, deleteChildren) },
                             onDeleteWidget = onDeleteWidget,
                             onExtractWidget = { wId -> onMoveWidgetToDrawer(wId, null) },
@@ -447,7 +456,14 @@ fun WidgetsPage(
     widgetToMoveDrawer?.let { widget ->
         AlertDialog(
             onDismissRequest = { widgetToMoveDrawer = null },
-            title = { Text("Move into Drawer") },
+            shape = RoundedCornerShape(22.dp),
+            title = {
+                Text(
+                    text = "Move into Drawer",
+                    fontFamily = LocalHeaderFontFamily.current,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Select a drawer to add this widget to:")
@@ -494,7 +510,14 @@ fun WidgetsPage(
         var drawerTitle by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showCreateDrawerDialog = false },
-            title = { Text("New Widget Drawer") },
+            shape = RoundedCornerShape(22.dp),
+            title = {
+                Text(
+                    text = "New Widget Drawer",
+                    fontFamily = LocalHeaderFontFamily.current,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Group widgets of the same type together (e.g. Finance, Media, Social).")
@@ -551,18 +574,19 @@ private fun StandaloneWidgetCardItem(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
             contentColor = MaterialTheme.colorScheme.onSurface
-        )
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.30f))
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(widget.heightDp.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .padding(4.dp)
             ) {
                 AndroidView(
@@ -602,20 +626,20 @@ private fun StandaloneWidgetCardItem(
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(4.dp)
+                            .padding(6.dp)
                     ) {
                         Surface(
                             onClick = { showMenu = true },
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.70f),
                             modifier = Modifier.size(28.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "⋮",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }

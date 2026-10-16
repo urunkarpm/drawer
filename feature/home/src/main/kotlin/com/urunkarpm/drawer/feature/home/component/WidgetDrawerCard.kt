@@ -1,33 +1,57 @@
 package com.urunkarpm.drawer.feature.home.component
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,11 +60,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,13 +73,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
+import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.model.WidgetDrawer
 import com.urunkarpm.drawer.core.model.WidgetItem
+import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WidgetDrawerCard(
     drawer: WidgetDrawer,
@@ -71,6 +98,10 @@ fun WidgetDrawerCard(
     onExtractWidget: (id: String) -> Unit,
     onResizeWidget: (widget: WidgetItem) -> Unit,
     onReorderWidget: (fromIndex: Int, toIndex: Int) -> Unit,
+    drawerIndex: Int = 0,
+    totalDrawers: Int = 1,
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {},
     lockLayout: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -78,143 +109,273 @@ fun WidgetDrawerCard(
     var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
+    val drawerColor = remember(drawer.title, drawer.id) {
+        resolveWidgetDrawerColor(drawer.title, drawer.id)
+    }
+    val drawerIcon = remember(drawer.title) {
+        resolveWidgetDrawerIcon(drawer.title)
+    }
+
     val chevronRotation by animateFloatAsState(
         targetValue = if (drawer.isExpanded) 180f else 0f,
-        label = "chevronRotation"
+        animationSpec = spring(
+            dampingRatio = 0.72f,
+            stiffness = 380f
+        ),
+        label = "chevron_rotation"
+    )
+    val chevronBgColor by animateColorAsState(
+        targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "chevronBgColor"
+    )
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.42f) else drawerColor.copy(alpha = 0.22f),
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "drawerBorderColor"
     )
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+            containerColor = if (drawer.isExpanded)
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
+            else
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
             contentColor = MaterialTheme.colorScheme.onSurface
-        )
+        ),
+        border = BorderStroke(1.dp, animatedBorderColor)
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
-            // Header Row: Category Icon + Title + Count Badge + Controls
-            Row(
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            drawerColor.copy(alpha = 0.05f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        ) {
+            // Header Row (Single tap to expand/collapse, long press to open options)
+            val headerInteractionSource = remember { MutableInteractionSource() }
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onToggleExpand() }
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .combinedClickable(
+                        interactionSource = headerInteractionSource,
+                        indication = null,
+                        onClick = onToggleExpand,
+                        onLongClick = if (!lockLayout) { { showMenu = true } } else null
+                    )
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                        modifier = Modifier.size(36.dp)
+                    // Category Icon Badge (squircle RoundedCornerShape(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(drawerColor.copy(alpha = 0.18f))
+                            .border(
+                                width = 1.dp,
+                                color = drawerColor.copy(alpha = 0.30f),
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.FolderSpecial,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = drawerIcon,
+                            contentDescription = drawer.title,
+                            tint = drawerColor,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
 
-                    Column {
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = drawer.title,
+                            fontFamily = LocalHeaderFontFamily.current,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        val widgetCount = drawer.widgets.size
                         Text(
-                            text = if (drawer.widgets.size == 1) "1 widget" else "${drawer.widgets.size} widgets",
+                            text = if (widgetCount == 1) "1 widget" else "$widgetCount widgets",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
                     if (!lockLayout) {
-                        IconButton(
-                            onClick = onAddWidgetClick,
-                            modifier = Modifier.size(34.dp)
+                        // Quick Add button
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(drawerColor.copy(alpha = 0.15f))
+                                .clickable { onAddWidgetClick() },
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = "Add Widget to ${drawer.title}",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                tint = drawerColor,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
-                        Box {
-                            IconButton(
-                                onClick = { showMenu = true },
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Text(
-                                    text = "⋮",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                            DropdownMenu(
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Add Widget") },
-                                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                    onClick = {
-                                        showMenu = false
-                                        onAddWidgetClick()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Rename Drawer") },
-                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                                    onClick = {
-                                        showMenu = false
-                                        showRenameDialog = true
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Delete Drawer", color = MaterialTheme.colorScheme.error) },
-                                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
-                                    onClick = {
-                                        showMenu = false
-                                        showDeleteConfirmDialog = true
-                                    }
-                                )
-                            }
+                        // More options button
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .clickable { showMenu = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Options",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
+
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
 
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (drawer.isExpanded) "Collapse" else "Expand",
+                    // Tactile circular touch backing for chevron
+                    Box(
                         modifier = Modifier
-                            .rotate(chevronRotation)
-                            .size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(chevronBgColor)
+                            .clickable { onToggleExpand() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (drawer.isExpanded) "Collapse" else "Expand",
+                            modifier = Modifier
+                                .size(22.dp)
+                                .rotate(chevronRotation),
+                            tint = if (drawer.isExpanded) drawerColor else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (!lockLayout) {
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Add Widget") },
+                            onClick = {
+                                showMenu = false
+                                onAddWidgetClick()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Rename") },
+                            onClick = {
+                                showMenu = false
+                                showRenameDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }
+                        )
+                        if (drawerIndex > 0) {
+                            DropdownMenuItem(
+                                text = { Text("Move up") },
+                                onClick = {
+                                    showMenu = false
+                                    onMoveUp()
+                                },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null) }
+                            )
+                        }
+                        if (drawerIndex < totalDrawers - 1) {
+                            DropdownMenuItem(
+                                text = { Text("Move down") },
+                                onClick = {
+                                    showMenu = false
+                                    onMoveDown()
+                                },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null) }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                showDeleteConfirmDialog = true
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Outlined.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        )
+                    }
                 }
             }
 
-            // Expanded iPod Cover Flow Content
+            // Aesthetic open and close animation with organic spring physics and parallax drift
             AnimatedVisibility(
                 visible = drawer.isExpanded,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                enter = expandVertically(
+                    expandFrom = Alignment.Top,
+                    animationSpec = spring(
+                        dampingRatio = 0.82f,
+                        stiffness = 360f
+                    )
+                ) + slideInVertically(
+                    initialOffsetY = { -it / 6 },
+                    animationSpec = spring(
+                        dampingRatio = 0.85f,
+                        stiffness = 360f
+                    )
+                ) + fadeIn(
+                    animationSpec = tween(180, easing = FastOutSlowInEasing)
+                ),
+                exit = shrinkVertically(
+                    shrinkTowards = Alignment.Top,
+                    animationSpec = spring(
+                        dampingRatio = 0.90f,
+                        stiffness = 420f
+                    )
+                ) + slideOutVertically(
+                    targetOffsetY = { -it / 8 },
+                    animationSpec = spring(
+                        dampingRatio = 0.90f,
+                        stiffness = 420f
+                    )
+                ) + fadeOut(
+                    animationSpec = tween(140, easing = FastOutLinearInEasing)
+                )
             ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
                     val coverFlowHeight = (drawer.spanY * 70).coerceIn(190, 380)
                     IpodCoverFlowWidgetStack(
                         widgets = drawer.widgets,
@@ -237,7 +398,14 @@ fun WidgetDrawerCard(
         var newTitle by remember { mutableStateOf(drawer.title) }
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text("Rename Drawer") },
+            shape = RoundedCornerShape(22.dp),
+            title = {
+                Text(
+                    text = "Rename Drawer",
+                    fontFamily = LocalHeaderFontFamily.current,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
             text = {
                 OutlinedTextField(
                     value = newTitle,
@@ -273,7 +441,14 @@ fun WidgetDrawerCard(
     if (showDeleteConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete \"${drawer.title}\"?") },
+            shape = RoundedCornerShape(22.dp),
+            title = {
+                Text(
+                    text = "Delete \"${drawer.title}\"?",
+                    fontFamily = LocalHeaderFontFamily.current,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
             text = {
                 Text("Do you want to keep the widgets in this drawer as standalone widgets or delete all widgets?")
             },
@@ -307,4 +482,56 @@ fun WidgetDrawerCard(
             }
         )
     }
+}
+
+private fun resolveWidgetDrawerIcon(title: String): ImageVector {
+    val lower = title.lowercase()
+    return when {
+        lower.contains("finance") || lower.contains("bank") || lower.contains("money") || lower.contains("wallet") || lower.contains("crypto") ->
+            Icons.Default.AccountBalance
+        lower.contains("media") || lower.contains("music") || lower.contains("audio") || lower.contains("sound") || lower.contains("song") ->
+            Icons.Default.MusicNote
+        lower.contains("video") || lower.contains("movie") || lower.contains("play") || lower.contains("stream") || lower.contains("tv") ->
+            Icons.Default.PlayCircle
+        lower.contains("chat") || lower.contains("social") || lower.contains("message") || lower.contains("talk") ->
+            Icons.AutoMirrored.Filled.Chat
+        lower.contains("work") || lower.contains("office") || lower.contains("task") || lower.contains("note") ->
+            Icons.Default.Work
+        lower.contains("fit") || lower.contains("health") || lower.contains("gym") || lower.contains("run") ->
+            Icons.Default.FitnessCenter
+        lower.contains("game") || lower.contains("play") ->
+            Icons.Default.SportsEsports
+        lower.contains("dev") || lower.contains("code") || lower.contains("git") ->
+            Icons.Default.Code
+        lower.contains("tool") || lower.contains("util") || lower.contains("system") || lower.contains("setting") ->
+            Icons.Default.Build
+        lower.contains("star") || lower.contains("fav") ->
+            Icons.Default.Star
+        lower.contains("shop") || lower.contains("cart") || lower.contains("store") ->
+            Icons.Default.ShoppingCart
+        lower.contains("book") || lower.contains("read") || lower.contains("news") ->
+            Icons.Default.Bookmark
+        else -> Icons.Default.Folder
+    }
+}
+
+private fun resolveWidgetDrawerColor(title: String, drawerId: String): Color {
+    val lower = title.lowercase()
+    val hex = when {
+        lower.contains("finance") || lower.contains("bank") || lower.contains("money") -> "#4CAF50" // Green
+        lower.contains("media") || lower.contains("music") -> "#9C27B0" // Purple
+        lower.contains("video") || lower.contains("stream") -> "#E53935" // Red
+        lower.contains("chat") || lower.contains("social") -> "#009688" // Teal
+        lower.contains("work") || lower.contains("office") -> "#1E88E5" // Blue
+        lower.contains("tool") || lower.contains("util") -> "#FF9800" // Orange
+        lower.contains("fit") || lower.contains("health") -> "#E91E63" // Pink
+        lower.contains("star") || lower.contains("fav") -> "#FDD835" // Yellow
+        lower.contains("dev") || lower.contains("code") -> "#5E35B1" // Deep Purple
+        else -> {
+            val colors = GroupIcons.availableColors
+            val index = kotlin.math.abs(drawerId.hashCode() % colors.size)
+            colors[index]
+        }
+    }
+    return GroupIcons.parseColor(hex)
 }

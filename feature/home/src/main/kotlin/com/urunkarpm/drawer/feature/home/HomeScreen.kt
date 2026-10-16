@@ -779,6 +779,7 @@ fun HomeScreen(
                         viewModel.deleteWidget(id, appWidgetId)
                     },
                     onMoveWidget = { index, up -> viewModel.moveWidget(index, up) },
+                    onMoveDrawer = { index, up -> viewModel.moveWidgetDrawer(index, up) },
                     onUpdateWidgetSpan = { id, spanX, spanY, heightDp -> viewModel.updateWidgetSpan(id, spanX, spanY, heightDp) },
                     onMoveWidgetToDrawer = { widgetId, drawerId -> viewModel.moveWidgetToDrawer(widgetId, drawerId) },
                     onReorderWidgetInDrawer = { drawerId, fromIdx, toIdx -> viewModel.reorderWidgetsInDrawer(drawerId, fromIdx, toIdx) },
