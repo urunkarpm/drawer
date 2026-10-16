@@ -40,6 +40,7 @@ class HomeViewModelTest {
     private val appsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
     private val weatherFlow = MutableStateFlow<WeatherInfo?>(null)
     private val widgetsFlow = MutableStateFlow<List<com.urunkarpm.drawer.core.model.WidgetItem>>(emptyList())
+    private val drawersFlow = MutableStateFlow<List<com.urunkarpm.drawer.core.model.WidgetDrawer>>(emptyList())
     private val is24HourFlow = MutableStateFlow(true)
     private val showWeatherFlow = MutableStateFlow(true)
     private val weatherUnitFlow = MutableStateFlow("CELSIUS")
@@ -121,6 +122,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.surfaceStrokeOpacity } returns surfaceStrokeOpacityFlow
         every { preferencesDataSource.surfaceCornerRadius } returns surfaceCornerRadiusFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow
+        every { widgetRepository.getAllDrawers() } returns drawersFlow
 
         appsFlow.value = sampleApps
         weatherFlow.value = sampleWeather
@@ -305,4 +307,63 @@ class HomeViewModelTest {
             assertEquals("Calculator pinned to dock", state.userMessage)
         }
     }
+
+    @Test
+    fun createWidgetDrawer_delegatesToRepository() = runTest {
+        coEvery { widgetRepository.createDrawer("Finance", 4, 3) } returns "drawer-123"
+
+        viewModel.createWidgetDrawer("Finance", 4, 3)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { widgetRepository.createDrawer("Finance", 4, 3) }
+    }
+
+    @Test
+    fun deleteWidgetDrawer_delegatesToRepository() = runTest {
+        viewModel.deleteWidgetDrawer("drawer-123", deleteChildren = true)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { widgetRepository.deleteDrawer("drawer-123", true) }
+    }
+
+    @Test
+    fun moveWidgetToDrawer_delegatesToRepository() = runTest {
+        viewModel.moveWidgetToDrawer("widget-1", "drawer-123")
+        testScheduler.advanceUntilIdle()
+
+        coVerify { widgetRepository.assignWidgetToDrawer("widget-1", "drawer-123") }
+    }
+
+    @Test
+    fun updateWidgetSpan_updatesWidgetWithSpanAndHeight() = runTest {
+        val widget = com.urunkarpm.drawer.core.model.WidgetItem(
+            id = "w-1",
+            appWidgetId = 10,
+            packageName = "pkg",
+            providerClassName = "cls",
+            spanX = 4,
+            spanY = 2,
+            heightDp = 140
+        )
+
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            widgetsFlow.value = listOf(widget)
+            testScheduler.advanceUntilIdle()
+
+            viewModel.updateWidgetSpan("w-1", spanX = 2, spanY = 3, heightDp = 210)
+            testScheduler.advanceUntilIdle()
+
+            val slot = io.mockk.slot<com.urunkarpm.drawer.core.model.WidgetItem>()
+            coVerify { widgetRepository.updateWidget(capture(slot)) }
+            assertEquals(2, slot.captured.spanX)
+            assertEquals(3, slot.captured.spanY)
+            assertEquals(210, slot.captured.heightDp)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }
+

@@ -78,6 +78,8 @@ data class HomeUiState(
     val categoryAlignment: String = "TOP",
     val enableWidgetsPage: Boolean = true,
     val widgets: List<com.urunkarpm.drawer.core.model.WidgetItem> = emptyList(),
+    val widgetDrawers: List<com.urunkarpm.drawer.core.model.WidgetDrawer> = emptyList(),
+    val standaloneWidgets: List<com.urunkarpm.drawer.core.model.WidgetItem> = emptyList(),
     val surfaceThemeStyle: String = "LIQUID_GLASS",
     val surfaceOpacity: Float = 0.65f,
     val surfaceBlurRadius: Float = 25f,
@@ -196,6 +198,7 @@ class HomeViewModel @Inject constructor(
     val uiState: StateFlow<HomeUiState> = combine(
         appRepository.installedApps,
         weatherRepository.weatherInfo,
+        widgetRepository.getAllDrawers(),
         widgetRepository.getAllWidgets(),
         glancePrefsFlow,
         homeDialogsFlow,
@@ -205,10 +208,14 @@ class HomeViewModel @Inject constructor(
         val apps = args[0] as List<AppInfo>
         val weather = args[1] as? WeatherInfo
         @Suppress("UNCHECKED_CAST")
-        val widgetsList = args[2] as List<com.urunkarpm.drawer.core.model.WidgetItem>
-        val glancePrefs = args[3] as GlancePrefs
-        val dialogs = args[4] as HomeDialogsState
-        val surfacePrefs = args[5] as SurfaceThemePrefs
+        val drawersList = args[2] as List<com.urunkarpm.drawer.core.model.WidgetDrawer>
+        @Suppress("UNCHECKED_CAST")
+        val widgetsList = args[3] as List<com.urunkarpm.drawer.core.model.WidgetItem>
+        val glancePrefs = args[4] as GlancePrefs
+        val dialogs = args[5] as HomeDialogsState
+        val surfacePrefs = args[6] as SurfaceThemePrefs
+
+        val standalone = widgetsList.filter { it.drawerId == null }
 
         val filtered = if (dialogs.searchQuery.isBlank()) {
             apps
@@ -242,6 +249,8 @@ class HomeViewModel @Inject constructor(
             categoryAlignment = glancePrefs.categoryAlignment,
             enableWidgetsPage = glancePrefs.enableWidgetsPage,
             widgets = widgetsList,
+            widgetDrawers = drawersList,
+            standaloneWidgets = standalone,
             surfaceThemeStyle = surfacePrefs.surfaceThemeStyle,
             surfaceOpacity = surfacePrefs.surfaceOpacity,
             surfaceBlurRadius = surfacePrefs.surfaceBlurRadius,
@@ -388,7 +397,15 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun addWidget(appWidgetId: Int, packageName: String, providerClassName: String, heightDp: Int = 180) {
+    fun addWidget(
+        appWidgetId: Int,
+        packageName: String,
+        providerClassName: String,
+        drawerId: String? = null,
+        spanX: Int = 4,
+        spanY: Int = 2,
+        heightDp: Int = 180
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             val currentWidgets = uiState.value.widgets
             val nextOrder = currentWidgets.size
@@ -397,7 +414,10 @@ class HomeViewModel @Inject constructor(
                 appWidgetId = appWidgetId,
                 packageName = packageName,
                 providerClassName = providerClassName,
+                drawerId = drawerId,
                 orderIndex = nextOrder,
+                spanX = spanX,
+                spanY = spanY,
                 heightDp = heightDp
             )
             widgetRepository.addWidget(widget)
@@ -413,13 +433,73 @@ class HomeViewModel @Inject constructor(
     fun updateWidgetHeight(id: String, newHeightDp: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             val widget = uiState.value.widgets.find { it.id == id } ?: return@launch
-            widgetRepository.updateWidget(widget.copy(heightDp = newHeightDp.coerceIn(100, 500)))
+            widgetRepository.updateWidget(widget.copy(heightDp = newHeightDp.coerceIn(80, 600)))
+        }
+    }
+
+    fun updateWidgetSpan(id: String, spanX: Int, spanY: Int, heightDp: Int? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val widget = uiState.value.widgets.find { it.id == id } ?: return@launch
+            val computedHeight = heightDp ?: (spanY * 70)
+            widgetRepository.updateWidget(
+                widget.copy(
+                    spanX = spanX.coerceIn(1, 4),
+                    spanY = spanY.coerceIn(1, 6),
+                    heightDp = computedHeight.coerceIn(80, 600)
+                )
+            )
+        }
+    }
+
+    fun createWidgetDrawer(title: String, spanX: Int = 4, spanY: Int = 3, onCreated: ((String) -> Unit)? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val drawerId = widgetRepository.createDrawer(title.trim(), spanX, spanY)
+            onCreated?.invoke(drawerId)
+        }
+    }
+
+    fun updateWidgetDrawer(drawer: com.urunkarpm.drawer.core.model.WidgetDrawer) {
+        viewModelScope.launch(Dispatchers.IO) {
+            widgetRepository.updateDrawer(drawer)
+        }
+    }
+
+    fun toggleWidgetDrawerExpand(drawerId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val drawer = uiState.value.widgetDrawers.find { it.id == drawerId } ?: return@launch
+            widgetRepository.updateDrawer(drawer.copy(isExpanded = !drawer.isExpanded))
+        }
+    }
+
+    fun deleteWidgetDrawer(drawerId: String, deleteChildren: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            widgetRepository.deleteDrawer(drawerId, deleteChildren)
+        }
+    }
+
+    fun moveWidgetToDrawer(widgetId: String, drawerId: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            widgetRepository.assignWidgetToDrawer(widgetId, drawerId)
+        }
+    }
+
+    fun reorderWidgetsInDrawer(drawerId: String, fromIndex: Int, toIndex: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val drawer = uiState.value.widgetDrawers.find { it.id == drawerId } ?: return@launch
+            val list = drawer.widgets.toMutableList()
+            if (fromIndex in list.indices && toIndex in list.indices) {
+                val item = list.removeAt(fromIndex)
+                list.add(toIndex, item)
+                list.forEachIndexed { i, w ->
+                    widgetRepository.updateWidget(w.copy(orderIndex = i))
+                }
+            }
         }
     }
 
     fun moveWidget(index: Int, up: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            val list = uiState.value.widgets.toMutableList()
+            val list = uiState.value.standaloneWidgets.toMutableList()
             val targetIndex = if (up) index - 1 else index + 1
             if (targetIndex in list.indices) {
                 val temp = list[index]
