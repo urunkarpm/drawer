@@ -201,21 +201,25 @@ fun AllAppsDrawer(
             val horizontalPadding = if (screenWidth < 360) 12.dp else if (screenWidth >= 840) 24.dp else 16.dp
 
             val letterIndexMap = remember(displayedApps) {
-                val map = HashMap<String, Int>(30)
+                val map = HashMap<String, Int>(32)
                 map["#"] = 0
-                for (c in 'A'..'Z') {
-                    val s = c.toString()
-                    val exact = displayedApps.indexOfFirst {
-                        it.label.firstOrNull()?.uppercaseChar() == c
-                    }
-                    if (exact != -1) {
-                        map[s] = exact
-                    } else {
-                        val next = displayedApps.indexOfFirst {
-                            val fc = it.label.firstOrNull()?.uppercaseChar() ?: ' '
-                            fc.isLetter() && fc > c
+                for ((index, app) in displayedApps.withIndex()) {
+                    val fc = app.label.firstOrNull()?.uppercaseChar()
+                    if (fc != null && fc in 'A'..'Z') {
+                        val s = fc.toString()
+                        if (!map.containsKey(s)) {
+                            map[s] = index
                         }
-                        map[s] = if (next != -1) next else (displayedApps.size - 1).coerceAtLeast(0)
+                    }
+                }
+                var lastIdx = (displayedApps.size - 1).coerceAtLeast(0)
+                for (c in 'Z' downTo 'A') {
+                    val s = c.toString()
+                    val idx = map[s]
+                    if (idx != null) {
+                        lastIdx = idx
+                    } else {
+                        map[s] = lastIdx
                     }
                 }
                 map
@@ -359,7 +363,7 @@ fun AllAppsDrawer(
                         }
                     } else {
                         Box(modifier = Modifier.fillMaxSize()) {
-                            val scrubProvider = remember { { activeScrubLetter } }
+                            val scrubProvider: () -> String? = { activeScrubLetter }
 
                             LazyVerticalGrid(
                                 state = gridState,

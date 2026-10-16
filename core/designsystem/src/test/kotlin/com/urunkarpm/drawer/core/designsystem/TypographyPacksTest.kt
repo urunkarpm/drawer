@@ -19,6 +19,10 @@ class TypographyPacksTest {
         assertEquals(FontFamily.Monospace, headerFontFamilyFromName("MONOSPACE"))
         assertEquals(FontFamily.Cursive, headerFontFamilyFromName("CURSIVE"))
         assertEquals(TexasTroupeFontFamily, headerFontFamilyFromName("TEXAS_TROUPE"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.HelveticaFontFamily, headerFontFamilyFromName("HELVETICA"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.RobotoFontFamily, headerFontFamilyFromName("ROBOTO"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.TimesNewRomanFontFamily, headerFontFamilyFromName("TIMES_NEW_ROMAN"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.ArialFontFamily, headerFontFamilyFromName("ARIAL"))
     }
 
     @Test

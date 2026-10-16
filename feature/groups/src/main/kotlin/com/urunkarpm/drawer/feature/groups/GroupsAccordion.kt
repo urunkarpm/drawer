@@ -16,14 +16,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -171,31 +166,34 @@ fun GroupsAccordion(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     leftColumnGroups.forEach { (index, group) ->
-                        GroupCard(
-                            resolvedGroup = group,
-                            groupIndex = index,
-                            totalGroups = uiState.groups.size,
-                            isCompact = isCompactEffective,
-                            twoDrawersSideBySide = true,
-                            isDropTarget = hoveredGroupId == group.group.id,
-                            hasNotification = group.apps.any { it.packageName in notificationPackages },
-                            onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
-                            onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
-                            onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
-                            onEditGroup = { viewModel.startEditingGroup(group.group) },
-                            onMoveUp = { viewModel.moveGroupUp(index) },
-                            onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
-                            onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
-                            onAppClick = { app -> viewModel.launchApp(app) },
-                            onAppLongClick = { app -> viewModel.selectAppForAction(app, group.group) },
-                            iconLoader = { app -> viewModel.getAppIcon(app) },
-                            iconShape = iconShape,
-                            onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, group.group.id) } },
-                            onAppDrag = if (uiState.lockLayout) null else onAppDrag,
-                            onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
-                            lockLayout = uiState.lockLayout,
-                            isDragging = isDragging
-                        )
+                        key(group.group.id) {
+                            GroupCard(
+                                resolvedGroup = group,
+                                groupIndex = index,
+                                totalGroups = uiState.groups.size,
+                                isCompact = isCompactEffective,
+                                twoDrawersSideBySide = true,
+                                isDropTarget = hoveredGroupId == group.group.id,
+                                hasNotification = group.apps.any { it.packageName in notificationPackages },
+                                notificationPackages = notificationPackages,
+                                onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
+                                onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
+                                onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
+                                onEditGroup = { viewModel.startEditingGroup(group.group) },
+                                onMoveUp = { viewModel.moveGroupUp(index) },
+                                onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
+                                onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
+                                onAppClick = { app -> viewModel.launchApp(app) },
+                                onAppLongClick = { app -> viewModel.selectAppForAction(app, group.group) },
+                                iconLoader = { app -> viewModel.getAppIcon(app) },
+                                iconShape = iconShape,
+                                onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, group.group.id) } },
+                                onAppDrag = if (uiState.lockLayout) null else onAppDrag,
+                                onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
+                                lockLayout = uiState.lockLayout,
+                                isDragging = isDragging
+                            )
+                        }
                     }
                 }
 
@@ -205,67 +203,73 @@ fun GroupsAccordion(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     rightColumnGroups.forEach { (index, group) ->
-                        GroupCard(
-                            resolvedGroup = group,
-                            groupIndex = index,
-                            totalGroups = uiState.groups.size,
-                            isCompact = isCompactEffective,
-                            twoDrawersSideBySide = true,
-                            isDropTarget = hoveredGroupId == group.group.id,
-                            hasNotification = group.apps.any { it.packageName in notificationPackages },
-                            onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
-                            onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
-                            onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
-                            onEditGroup = { viewModel.startEditingGroup(group.group) },
-                            onMoveUp = { viewModel.moveGroupUp(index) },
-                            onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
-                            onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
-                            onAppClick = { app -> viewModel.launchApp(app) },
-                            onAppLongClick = { app -> viewModel.selectAppForAction(app, group.group) },
-                            iconLoader = { app -> viewModel.getAppIcon(app) },
-                            iconShape = iconShape,
-                            onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, group.group.id) } },
-                            onAppDrag = if (uiState.lockLayout) null else onAppDrag,
-                            onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
-                            lockLayout = uiState.lockLayout,
-                            isDragging = isDragging
-                        )
+                        key(group.group.id) {
+                            GroupCard(
+                                resolvedGroup = group,
+                                groupIndex = index,
+                                totalGroups = uiState.groups.size,
+                                isCompact = isCompactEffective,
+                                twoDrawersSideBySide = true,
+                                isDropTarget = hoveredGroupId == group.group.id,
+                                hasNotification = group.apps.any { it.packageName in notificationPackages },
+                                notificationPackages = notificationPackages,
+                                onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
+                                onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
+                                onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
+                                onEditGroup = { viewModel.startEditingGroup(group.group) },
+                                onMoveUp = { viewModel.moveGroupUp(index) },
+                                onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
+                                onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
+                                onAppClick = { app -> viewModel.launchApp(app) },
+                                onAppLongClick = { app -> viewModel.selectAppForAction(app, group.group) },
+                                iconLoader = { app -> viewModel.getAppIcon(app) },
+                                iconShape = iconShape,
+                                onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, group.group.id) } },
+                                onAppDrag = if (uiState.lockLayout) null else onAppDrag,
+                                onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
+                                lockLayout = uiState.lockLayout,
+                                isDragging = isDragging
+                            )
+                        }
                     }
                 }
             }
         } else {
             uiState.groups.forEachIndexed { index, resolvedGroup ->
-                GroupCard(
-                    resolvedGroup = resolvedGroup,
-                    groupIndex = index,
-                    totalGroups = uiState.groups.size,
-                    isCompact = false,
-                    twoDrawersSideBySide = false,
-                    isDropTarget = hoveredGroupId == resolvedGroup.group.id,
-                    hasNotification = resolvedGroup.apps.any { it.packageName in notificationPackages },
-                    onPositioned = { rect -> onGroupPositioned?.invoke(resolvedGroup.group.id, rect) },
-                    onAppPositioned = { app, rect -> onAppPositioned?.invoke(resolvedGroup.group.id, app, rect) },
-                    onToggleExpand = {
-                        viewModel.toggleGroupExpanded(resolvedGroup.group.id)
-                    },
-                    onEditGroup = { viewModel.startEditingGroup(resolvedGroup.group) },
-                    onMoveUp = { viewModel.moveGroupUp(index) },
-                    onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
-                    onDeleteGroup = { viewModel.deleteGroup(resolvedGroup.group.id) },
-                    onAppClick = { app ->
-                        viewModel.launchApp(app)
-                    },
-                    onAppLongClick = { app ->
-                        viewModel.selectAppForAction(app, resolvedGroup.group)
-                    },
-                    iconLoader = { app -> viewModel.getAppIcon(app) },
-                    iconShape = iconShape,
-                    onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, resolvedGroup.group.id) } },
-                    onAppDrag = if (uiState.lockLayout) null else onAppDrag,
-                    onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
-                    lockLayout = uiState.lockLayout,
-                    isDragging = isDragging
-                )
+                key(resolvedGroup.group.id) {
+                    GroupCard(
+                        resolvedGroup = resolvedGroup,
+                        groupIndex = index,
+                        totalGroups = uiState.groups.size,
+                        isCompact = false,
+                        twoDrawersSideBySide = false,
+                        isDropTarget = hoveredGroupId == resolvedGroup.group.id,
+                        hasNotification = resolvedGroup.apps.any { it.packageName in notificationPackages },
+                        notificationPackages = notificationPackages,
+                        onPositioned = { rect -> onGroupPositioned?.invoke(resolvedGroup.group.id, rect) },
+                        onAppPositioned = { app, rect -> onAppPositioned?.invoke(resolvedGroup.group.id, app, rect) },
+                        onToggleExpand = {
+                            viewModel.toggleGroupExpanded(resolvedGroup.group.id)
+                        },
+                        onEditGroup = { viewModel.startEditingGroup(resolvedGroup.group) },
+                        onMoveUp = { viewModel.moveGroupUp(index) },
+                        onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
+                        onDeleteGroup = { viewModel.deleteGroup(resolvedGroup.group.id) },
+                        onAppClick = { app ->
+                            viewModel.launchApp(app)
+                        },
+                        onAppLongClick = { app ->
+                            viewModel.selectAppForAction(app, resolvedGroup.group)
+                        },
+                        iconLoader = { app -> viewModel.getAppIcon(app) },
+                        iconShape = iconShape,
+                        onAppDragStart = if (uiState.lockLayout) null else onAppDragStart?.let { cb -> { app: AppInfo, rootPos: Offset -> cb(app, rootPos, resolvedGroup.group.id) } },
+                        onAppDrag = if (uiState.lockLayout) null else onAppDrag,
+                        onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
+                        lockLayout = uiState.lockLayout,
+                        isDragging = isDragging
+                    )
+                }
             }
         }
     }
@@ -371,6 +375,7 @@ private fun GroupCard(
     twoDrawersSideBySide: Boolean = false,
     isDropTarget: Boolean = false,
     hasNotification: Boolean = false,
+    notificationPackages: Set<String> = emptySet(),
     onPositioned: ((Rect) -> Unit)? = null,
     onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
     onAppDragStart: ((AppInfo, Offset) -> Unit)? = null,
@@ -393,7 +398,7 @@ private fun GroupCard(
         label = "chevron_rotation"
     )
     val chevronBgColor by animateColorAsState(
-        targetValue = if (isExpanded) groupColor.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        targetValue = if (isExpanded) groupColor.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "chevronBgColor"
     )
@@ -412,7 +417,8 @@ private fun GroupCard(
     val animatedBorderColor by animateColorAsState(
         targetValue = when {
             isDropTarget -> MaterialTheme.colorScheme.primary
-            isExpanded -> groupColor.copy(alpha = 0.42f)
+            hasNotification -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+            isExpanded -> groupColor.copy(alpha = 0.45f)
             else -> groupColor.copy(alpha = 0.22f)
         },
         animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
@@ -463,10 +469,11 @@ private fun GroupCard(
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            groupColor.copy(alpha = 0.05f),
-                            Color.Transparent
-                        )
+                        colors = if (isExpanded) {
+                            listOf(groupColor.copy(alpha = 0.05f), Color.Transparent)
+                        } else {
+                            listOf(Color.Transparent, Color.Transparent)
+                        }
                     )
                 )
         ) {
@@ -491,61 +498,19 @@ private fun GroupCard(
                         ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val infiniteTransition = rememberInfiniteTransition(label = "drawerGlow")
-                    val rawGlowAlpha by infiniteTransition.animateFloat(
-                        initialValue = 0.35f,
-                        targetValue = 0.95f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "glowAlpha"
-                    )
-                    val rawGlowRadiusDp by infiniteTransition.animateFloat(
-                        initialValue = 3f,
-                        targetValue = 7.5f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "glowRadius"
-                    )
-                    val glowAlpha = if (hasNotification) rawGlowAlpha else 0f
-                    val glowRadiusDp = if (hasNotification) rawGlowRadiusDp else 0f
-
+                    // Category Icon Badge with user's selected accent color and optional notification badge
                     Box(
                         modifier = Modifier
                             .size(if (isCompact) 32.dp else 38.dp)
-                            .then(
-                                if (hasNotification) {
-                                    Modifier
-                                        .drawBehind {
-                                            // Outer soft diffuse aura in assigned drawer color
-                                            drawCircle(
-                                                color = groupColor.copy(alpha = glowAlpha * 0.38f),
-                                                radius = size.maxDimension / 2f + glowRadiusDp.dp.toPx()
-                                            )
-                                            // Inner intense glow ring in assigned drawer color
-                                            drawCircle(
-                                                color = groupColor.copy(alpha = glowAlpha * 0.65f),
-                                                radius = size.maxDimension / 2f + 1.5.dp.toPx()
-                                            )
-                                        }
-                                        .border(
-                                            width = 1.5.dp,
-                                            color = groupColor.copy(alpha = glowAlpha),
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                } else Modifier
-                            )
                             .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (hasNotification) groupColor.copy(alpha = 0.32f)
-                                else groupColor.copy(alpha = 0.18f)
+                                if (hasNotification) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                else groupColor.copy(alpha = 0.16f)
                             )
                             .border(
-                                width = 1.dp,
-                                color = groupColor.copy(alpha = 0.30f),
+                                width = if (hasNotification) 1.5.dp else 1.dp,
+                                color = if (hasNotification) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                                        else groupColor.copy(alpha = 0.32f),
                                 shape = RoundedCornerShape(12.dp)
                             ),
                         contentAlignment = Alignment.Center
@@ -553,9 +518,19 @@ private fun GroupCard(
                         Icon(
                             imageVector = groupIcon,
                             contentDescription = group.name,
-                            tint = groupColor,
+                            tint = if (hasNotification) MaterialTheme.colorScheme.primary else groupColor,
                             modifier = Modifier.size(if (isCompact) 18.dp else 22.dp)
                         )
+                        if (hasNotification) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(if (isCompact) 2.5.dp else 3.dp)
+                                    .size(if (isCompact) 6.dp else 7.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
@@ -685,7 +660,7 @@ private fun GroupCard(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     HorizontalDivider(
                         thickness = 1.dp,
-                        color = groupColor.copy(alpha = 0.12f),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                         modifier = Modifier.padding(horizontal = if (isCompact) 10.dp else 16.dp)
                     )
 
@@ -729,6 +704,7 @@ private fun GroupCard(
                                     iconLoader = iconLoader,
                                     iconShape = iconShape,
                                     isCompact = isCompact,
+                                    notificationPackages = notificationPackages,
                                     onAppPositioned = onAppPositioned,
                                     onAppDragStart = onAppDragStart,
                                     onAppDrag = onAppDrag,
@@ -749,6 +725,7 @@ private fun GroupCard(
                                 iconLoader = iconLoader,
                                 iconShape = iconShape,
                                 isCompact = isCompact,
+                                notificationPackages = notificationPackages,
                                 onAppPositioned = onAppPositioned,
                                 onAppDragStart = onAppDragStart,
                                 onAppDrag = onAppDrag,
@@ -778,6 +755,7 @@ private fun GroupGridLayout(
     iconLoader: suspend (AppInfo) -> Drawable?,
     iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
     isCompact: Boolean = false,
+    notificationPackages: Set<String> = emptySet(),
     onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
     onAppDragStart: ((AppInfo, Offset) -> Unit)? = null,
     onAppDrag: ((Offset) -> Unit)? = null,
@@ -808,6 +786,7 @@ private fun GroupGridLayout(
                                 iconLoader = { iconLoader(app) },
                                 iconShape = iconShape,
                                 isCompact = isCompact,
+                                hasNotification = app.packageName in notificationPackages,
                                 onPositioned = onAppPositioned?.let { cb -> { rect -> cb(app, rect) } },
                                 onDragStart = onAppDragStart?.let { cb -> { rootPos: Offset -> cb(app, rootPos) } },
                                 onDrag = onAppDrag,
@@ -836,6 +815,7 @@ private fun GroupGridItem(
     iconLoader: suspend () -> Drawable?,
     iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
     isCompact: Boolean = false,
+    hasNotification: Boolean = false,
     onPositioned: ((Rect) -> Unit)? = null,
     onDragStart: ((Offset) -> Unit)? = null,
     onDrag: ((Offset) -> Unit)? = null,
@@ -885,14 +865,31 @@ private fun GroupGridItem(
         modifier = itemModifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AppIconImage(
-            key = app.componentKey,
-            size = if (isCompact) 38.dp else 48.dp,
-            label = app.label,
-            isWorkProfile = app.isWorkProfile,
-            iconShape = iconShape,
-            iconLoader = iconLoader
-        )
+        Box(
+            contentAlignment = Alignment.Center
+        ) {
+            AppIconImage(
+                key = app.componentKey,
+                size = if (isCompact) 38.dp else 48.dp,
+                label = app.label,
+                isWorkProfile = app.isWorkProfile,
+                iconShape = iconShape,
+                iconLoader = iconLoader
+            )
+            if (hasNotification) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(1.dp)
+                        .size(if (isCompact) 7.5.dp else 9.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(1.2.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = app.label,
@@ -914,6 +911,7 @@ private fun GroupListLayout(
     iconLoader: suspend (AppInfo) -> Drawable?,
     iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
     isCompact: Boolean = false,
+    notificationPackages: Set<String> = emptySet(),
     onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
     onAppDragStart: ((AppInfo, Offset) -> Unit)? = null,
     onAppDrag: ((Offset) -> Unit)? = null,
@@ -929,6 +927,7 @@ private fun GroupListLayout(
     ) {
         apps.forEach { app ->
             key(app.componentKey) {
+                val hasNotification = app.packageName in notificationPackages
                 val baseModifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
@@ -970,14 +969,30 @@ private fun GroupListLayout(
                     modifier = rowModifier,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AppIconImage(
-                        key = app.componentKey,
-                        size = if (isCompact) 32.dp else 40.dp,
-                        label = app.label,
-                        isWorkProfile = app.isWorkProfile,
-                        iconShape = iconShape,
-                        iconLoader = { iconLoader(app) }
-                    )
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AppIconImage(
+                            key = app.componentKey,
+                            size = if (isCompact) 32.dp else 40.dp,
+                            label = app.label,
+                            isWorkProfile = app.isWorkProfile,
+                            iconShape = iconShape,
+                            iconLoader = { iconLoader(app) }
+                        )
+                        if (hasNotification) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(if (isCompact) 6.5.dp else 7.5.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(1.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
                     val baseStyle = if (isCompact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
                     Text(

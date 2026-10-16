@@ -195,6 +195,9 @@ class HomeViewModel @Inject constructor(
         SurfaceThemePrefs(theme, opacity, blurRadius, strokeOpacity, cornerRadius)
     }
 
+    private var cachedAppsRef: List<AppInfo>? = null
+    private var cachedAppsByPkg: Map<String, AppInfo> = emptyMap()
+
     val uiState: StateFlow<HomeUiState> = combine(
         appRepository.installedApps,
         weatherRepository.weatherInfo,
@@ -222,7 +225,12 @@ class HomeViewModel @Inject constructor(
         } else {
             apps.filter { it.label.contains(dialogs.searchQuery, ignoreCase = true) }
         }
-        val appsByPkg = apps.associateBy { it.packageName }
+        val appsByPkg = if (cachedAppsRef === apps) {
+            cachedAppsByPkg
+        } else {
+            cachedAppsRef = apps
+            apps.associateBy { it.packageName }.also { cachedAppsByPkg = it }
+        }
         HomeUiState(
             installedApps = apps,
             installedAppsByPackage = appsByPkg,
@@ -268,6 +276,7 @@ class HomeViewModel @Inject constructor(
     )
 
     init {
+        collapseAllWidgetDrawers()
         refreshWeather()
         viewModelScope.launch(Dispatchers.IO) {
             dockRepository.dockItems.collect { dockItems ->
@@ -498,8 +507,14 @@ class HomeViewModel @Inject constructor(
 
     fun collapseAllWidgetDrawers() {
         viewModelScope.launch(Dispatchers.IO) {
-            val expanded = uiState.value.widgetDrawers.filter { it.isExpanded }
-            expanded.forEach { drawer ->
+            val fromState = uiState.value.widgetDrawers.filter { it.isExpanded }
+            val fromRepo = try {
+                widgetRepository.getAllDrawers().first().filter { it.isExpanded }
+            } catch (e: Exception) {
+                emptyList()
+            }
+            val toCollapse = (fromState + fromRepo).distinctBy { it.id }
+            toCollapse.forEach { drawer ->
                 widgetRepository.updateDrawer(drawer.copy(isExpanded = false))
             }
         }

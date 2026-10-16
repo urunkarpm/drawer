@@ -151,28 +151,30 @@ class MainActivity : ComponentActivity() {
                 windowManager.defaultDisplay
             }
             val modes = display?.supportedModes
-            val highRefreshMode = modes?.filter { it.refreshRate >= 119.0f }
-                ?.maxByOrNull { it.refreshRate }
+            // Target native 120Hz mode (closest to 120fps) for butter-smooth 120Hz frame pacing
+            val targetRate = 120.0f
+            val targetMode = modes?.minByOrNull { kotlin.math.abs(it.refreshRate - targetRate) }
                 ?: modes?.maxByOrNull { it.refreshRate }
-            val maxRate = highRefreshMode?.refreshRate ?: 120.0f
+            val refreshRate = targetMode?.refreshRate ?: 120.0f
             val params = window.attributes
-            if (highRefreshMode != null) {
-                params.preferredDisplayModeId = highRefreshMode.modeId
+            if (targetMode != null) {
+                params.preferredDisplayModeId = targetMode.modeId
             }
-            params.preferredRefreshRate = maxRate
+            params.preferredRefreshRate = refreshRate
 
-            // Lock display refresh rate bounds without barriers (Android 11+)
+            // Lock display refresh rate to 120Hz ceiling while allowing smooth base downclocking for battery
+            val minRate = if (refreshRate >= 119.0f) 60.0f else 0.0f
             runCatching {
                 val minField = params.javaClass.getField("preferredMinDisplayRefreshRate")
-                minField.set(params, maxRate)
+                minField.set(params, minRate)
             }
             runCatching {
                 val maxField = params.javaClass.getField("preferredMaxDisplayRefreshRate")
-                maxField.set(params, maxRate)
+                maxField.set(params, refreshRate)
             }
             window.attributes = params
 
-            // Set full-time frame rate on surface control without barriers
+            // Set 120Hz frame rate on surface control with seamless compatibility
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 runCatching {
                     val rootSurfaceControl = window.decorView.rootSurfaceControl
@@ -182,8 +184,17 @@ class MainActivity : ComponentActivity() {
                             Float::class.javaPrimitiveType,
                             Int::class.javaPrimitiveType
                         )
-                        setFrameRateMethod.invoke(rootSurfaceControl, maxRate, 0)
+                        setFrameRateMethod.invoke(rootSurfaceControl, refreshRate, 0)
                     }
+                }
+            }
+
+            // Android 14+ (API 34) frame rate category boost for butter-smooth touch interaction
+            if (android.os.Build.VERSION.SDK_INT >= 34) {
+                runCatching {
+                    val method = window.decorView.javaClass.getMethod("setFrameRateCategory", Int::class.javaPrimitiveType)
+                    // FRAME_RATE_CATEGORY_HIGH = 2
+                    method.invoke(window.decorView, 2)
                 }
             }
         } catch (_: Exception) {}

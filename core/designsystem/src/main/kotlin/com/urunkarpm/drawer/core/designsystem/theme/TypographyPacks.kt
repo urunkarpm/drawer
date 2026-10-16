@@ -11,12 +11,16 @@ val LocalHeaderFontFamily: ProvidableCompositionLocal<FontFamily> =
 val LocalAppLabelScale: ProvidableCompositionLocal<Float> =
     compositionLocalOf { 1.0f }
 
-fun headerFontFamilyFromName(name: String): FontFamily = when (name) {
+fun headerFontFamilyFromName(name: String): FontFamily = when (name.uppercase()) {
     "SYSTEM" -> FontFamily.SansSerif
     "SERIF" -> FontFamily.Serif
     "MONOSPACE" -> FontFamily.Monospace
     "CURSIVE" -> FontFamily.Cursive
     "TEXAS_TROUPE" -> TexasTroupeFontFamily
+    "HELVETICA" -> HelveticaFontFamily
+    "ROBOTO" -> RobotoFontFamily
+    "TIMES_NEW_ROMAN", "TIMES" -> TimesNewRomanFontFamily
+    "ARIAL" -> ArialFontFamily
     else -> FontFamily.Default
 }
 

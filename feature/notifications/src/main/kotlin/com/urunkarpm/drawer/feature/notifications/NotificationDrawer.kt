@@ -78,9 +78,11 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.key
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.border
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,14 +90,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
@@ -105,6 +115,9 @@ import com.urunkarpm.drawer.feature.notifications.component.NotificationRulesBot
 import com.urunkarpm.drawer.feature.notifications.component.QuickMuteBottomSheet
 import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlin.math.cos
+import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -528,8 +541,12 @@ fun NotificationDrawer(
 // ── Private helpers ────────────────────────────────────────────────────────────
 
 /**
- * Shows overlapping small app-icon circles (up to 4) in the collapsed notification
- * header, giving it an immersive, icon-rich look.
+ * Displays notification app icons in the notification card header.
+ *
+ * - If user has multiple notifications from similar/same apps, only one icon is shown
+ *   for that app ("one app one icon even if there are multiple notifications").
+ * - When there are multiple notifications from different apps, it keeps the app icons
+ *   switching in a circular motion like an orbit showing all the icons.
  */
 @Composable
 private fun NotificationIconStack(
@@ -537,33 +554,187 @@ private fun NotificationIconStack(
     iconLoader: (suspend (String) -> Drawable?)? = null,
     modifier: Modifier = Modifier
 ) {
-    val displayGroups = groups.take(4)
-    val iconSize = 26.dp
-    val overlap = 10.dp
+    val distinctApps = remember(groups) {
+        groups.distinctBy { it.packageName }
+    }
 
-    // Total width = iconSize + overlap*(n-1)
-    val totalWidth = iconSize + overlap * (displayGroups.size - 1).coerceAtLeast(0)
-    Box(modifier = modifier.height(iconSize).width(totalWidth)) {
-        displayGroups.forEachIndexed { index, group ->
-            val isAndroidSystem = group.packageName == "android"
+    if (distinctApps.isEmpty()) return
+
+    if (distinctApps.size == 1) {
+        // One app one icon even if there are multiple notifications
+        val group = distinctApps.first()
+        val isAndroidSystem = group.packageName == "android"
+        val iconSize = 26.dp
+
+        Box(
+            modifier = modifier.size(38.dp),
+            contentAlignment = Alignment.Center
+        ) {
             Box(
                 modifier = Modifier
-                    .offset(x = overlap * index)
                     .size(iconSize)
                     .clip(CircleShape)
                     .background(
-                        if (isAndroidSystem) androidx.compose.ui.graphics.Color(0xFF3DDC84)
+                        if (isAndroidSystem) Color(0xFF3DDC84)
                         else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        shape = CircleShape
                     )
             ) {
                 AppIconImage(
                     key = group.packageName,
                     size = iconSize,
                     label = group.appName,
+                    iconShape = CircleShape,
                     iconLoader = if (iconLoader != null) {
                         { iconLoader(group.packageName) }
                     } else null
                 )
+            }
+        }
+    } else {
+        // Multiple notifications from different apps:
+        // Keep the app icons switching in a circular motion like orbit showing all the icons
+        NotificationIconOrbit(
+            apps = distinctApps,
+            iconLoader = iconLoader,
+            modifier = modifier
+        )
+    }
+}
+
+/**
+ * Renders distinct app icons orbiting on a 3D tilted celestial track, smoothly switching
+ * the active foreground app in a circular motion while keeping all icons visible.
+ */
+@Composable
+private fun NotificationIconOrbit(
+    apps: List<AppNotificationGroup>,
+    iconLoader: (suspend (String) -> Drawable?)? = null,
+    modifier: Modifier = Modifier
+) {
+    val count = apps.size
+    val containerSize = 42.dp
+
+    // Dynamic sizing based on the number of apps to ensure zero clipping and optimal legibility
+    val radiusXDp = when {
+        count <= 3 -> 12.dp
+        count <= 5 -> 12.dp
+        else -> 12.5.dp
+    }
+    val radiusYDp = when {
+        count <= 3 -> 9.5.dp
+        count <= 5 -> 9.5.dp
+        else -> 10.dp
+    }
+    val baseIconSize = when {
+        count <= 3 -> 20.dp
+        count <= 5 -> 18.5.dp
+        else -> 17.dp
+    }
+
+    var stepIndex by remember(count) { mutableIntStateOf(0) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    LaunchedEffect(count, lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            while (isActive) {
+                delay(3500L) // Stable dwell time so each app icon is clearly readable in the foreground
+                stepIndex++
+            }
+        }
+    }
+
+    val stepAngle = (2.0 * Math.PI / count).toFloat()
+    val targetAngle = stepIndex * stepAngle
+
+    val animatedAngle = animateFloatAsState(
+        targetValue = targetAngle,
+        animationSpec = tween(
+            durationMillis = 500,
+            easing = FastOutSlowInEasing
+        ),
+        label = "orbitRotationAngle"
+    )
+
+    val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+
+    Box(
+        modifier = modifier
+            .size(containerSize)
+            .drawBehind {
+                val rx = radiusXDp.toPx()
+                val ry = radiusYDp.toPx()
+                drawOval(
+                    color = trackColor,
+                    topLeft = Offset(center.x - rx, center.y - ry),
+                    size = Size(rx * 2f, ry * 2f),
+                    style = Stroke(
+                        width = 1.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(4.dp.toPx(), 3.dp.toPx()),
+                            0f
+                        )
+                    )
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        // Front focal point is bottom-right at 60° (π/3), giving natural depth & visibility
+        val frontAngle = (Math.PI / 3.0).toFloat()
+
+        apps.forEachIndexed { index, group ->
+            key(group.packageName) {
+                val isAndroidSystem = group.packageName == "android"
+
+                // Base angle offset so index 0 starts in the foreground and successive indices rotate in
+                val baseOffset = frontAngle - (index * stepAngle)
+                // Layer ordering is step-based so zIndex never triggers relayout during the 120Hz continuous frame animation
+                val relPos = ((index - (stepIndex % count)) % count + count) % count
+                val zIndex = (count - relPos).toFloat()
+
+                Box(
+                    modifier = Modifier
+                        .zIndex(zIndex)
+                        .graphicsLayer {
+                            val currentAngle = animatedAngle.value + baseOffset
+                            val depth = ((sin(currentAngle.toDouble()).toFloat() + 1f) / 2f).coerceIn(0f, 1f)
+                            val scale = 0.72f + (0.28f * depth)
+                            val rx = radiusXDp.toPx()
+                            val ry = radiusYDp.toPx()
+                            translationX = rx * cos(currentAngle.toDouble()).toFloat()
+                            translationY = ry * sin(currentAngle.toDouble()).toFloat()
+                            scaleX = scale
+                            scaleY = scale
+                            this.alpha = 0.75f + (0.25f * depth)
+                            shadowElevation = (depth * 2.5f).dp.toPx()
+                            shape = CircleShape
+                            clip = true
+                        }
+                        .size(baseIconSize)
+                        .background(
+                            if (isAndroidSystem) Color(0xFF3DDC84)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                            shape = CircleShape
+                        )
+                ) {
+                    AppIconImage(
+                        key = group.packageName,
+                        size = baseIconSize,
+                        label = group.appName,
+                        iconShape = CircleShape,
+                        iconLoader = if (iconLoader != null) {
+                            { iconLoader(group.packageName) }
+                        } else null
+                    )
+                }
             }
         }
     }

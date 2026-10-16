@@ -89,6 +89,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.model.AppInfo
@@ -389,16 +390,13 @@ fun HomeScreen(
         }
     }
 
-    // Track cumulative vertical drag on the home screen to:
-    //  • drag UP (negative) → open All Apps (or collapse expanded notification drawer / category drawer)
-    //  • drag DOWN (positive) → expand notification drawer when notifications exist
-    var scrollDownAccumulator by remember { mutableFloatStateOf(0f) }
-    var scrollUpAccumulator by remember { mutableFloatStateOf(0f) }
-    var actionTriggeredInScroll by remember { mutableStateOf(false) }
-
     // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
     val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, areOtherDrawersOpen, dragDropState.isDragging, uiState.openDrawerFromDockOnly) {
         object : NestedScrollConnection {
+            private var scrollDownAccumulator = 0f
+            private var scrollUpAccumulator = 0f
+            private var actionTriggeredInScroll = false
+
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (actionTriggeredInScroll) {
                     if (available.y > 0f && scrollUpAccumulator < 0f) {
@@ -435,7 +433,7 @@ fun HomeScreen(
                     // Apply resistance to upward drag so normal scrolling does not unintentionally trigger app drawer
                     scrollUpAccumulator += available.y * 0.55f
                     if (isNotificationExpanded) {
-                        if (scrollUpAccumulator < -60f) {
+                        if (scrollUpAccumulator < -30f) {
                             isNotificationExpanded = false
                             scrollUpAccumulator = 0f
                             actionTriggeredInScroll = true
@@ -501,11 +499,41 @@ fun HomeScreen(
             }
 
             val homeContent: @Composable () -> Unit = {
+                val homeScrollState = rememberScrollState()
+
+                LaunchedEffect(isNotificationExpanded) {
+                    if (isNotificationExpanded) {
+                        homeScrollState.scrollTo(0)
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
-                        .navigationBarsPadding(),
+                        .navigationBarsPadding()
+                        .pointerInput(isNotificationExpanded, hasNotifications) {
+                            if (isNotificationExpanded) {
+                                var dragUp = 0f
+                                var startedOnEmpty = false
+                                detectVerticalDragGestures(
+                                    onDragStart = { offset ->
+                                        dragUp = 0f
+                                        startedOnEmpty = !hasNotifications || notificationBounds?.contains(offset) != true
+                                    },
+                                    onVerticalDrag = { change, dragAmount ->
+                                        if (startedOnEmpty) {
+                                            dragUp += dragAmount
+                                            if (dragUp < -30f) {
+                                                isNotificationExpanded = false
+                                                change.consume()
+                                                startedOnEmpty = false
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        },
                     contentAlignment = Alignment.TopCenter
                 ) {
                     Column(
@@ -518,7 +546,7 @@ fun HomeScreen(
                                 rootColumnBounds = coords.boundsInRoot()
                             }
                             // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
-                            .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups) {
+                            .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups, isDuoStatusExpanded) {
                                 if (!uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
                                     detectTapGestures(
                                         onTap = { offset ->
@@ -596,6 +624,7 @@ fun HomeScreen(
                         onToggleDuoStatusExpand = { isDuoStatusExpanded = !isDuoStatusExpanded },
                         modifier = Modifier
                             .fillMaxWidth()
+                            .zIndex(100f)
                             .onGloballyPositioned { coords ->
                                 glanceBounds = coords.boundsInRoot()
                             }
@@ -609,7 +638,31 @@ fun HomeScreen(
                             .weight(1f)
                             .fillMaxWidth()
                             .nestedScroll(homeNestedScrollConnection)
-                            .verticalScroll(rememberScrollState(), enabled = !dragDropState.isDragging),
+                            .verticalScroll(homeScrollState, enabled = !dragDropState.isDragging && !isNotificationExpanded)
+                            .pointerInput(isNotificationExpanded, hasNotifications) {
+                                if (isNotificationExpanded) {
+                                    var dragUp = 0f
+                                    var startedOnEmpty = false
+                                    detectVerticalDragGestures(
+                                        onDragStart = { offset ->
+                                            dragUp = 0f
+                                            val colBounds = rootColumnBounds ?: Rect.Zero
+                                            val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                            startedOnEmpty = !hasNotifications || notificationBounds?.contains(rootPos) != true
+                                        },
+                                        onVerticalDrag = { change, dragAmount ->
+                                            if (startedOnEmpty) {
+                                                dragUp += dragAmount
+                                                if (dragUp < -30f) {
+                                                    isNotificationExpanded = false
+                                                    change.consume()
+                                                    startedOnEmpty = false
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            },
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Spacer(modifier = Modifier.height(2.dp))
@@ -737,6 +790,16 @@ fun HomeScreen(
         initialPage = 1,
         pageCount = { 2 }
     )
+
+    LaunchedEffect(pagerState.currentPage, pagerState.targetPage) {
+        if (pagerState.currentPage == 0 || pagerState.targetPage == 0) {
+            viewModel.collapseAllWidgetDrawers()
+            if (isNotificationExpanded) isNotificationExpanded = false
+            if (groupsUiState.groups.any { it.group.isExpanded }) {
+                groupsViewModel.collapseAllGroups()
+            }
+        }
+    }
 
     // Back button: If user is on Widgets feed (page 0), pressing Back returns to main Home (page 1)
     BackHandler(enabled = uiState.enableWidgetsPage && pagerState.currentPage == 0 && !isCameraOpen && !isSettingsOpen && !showHomeMenu && !uiState.isAllAppsOpen && uiState.selectedAppForMenu == null && appForCategorySelection == null && !isNotificationExpanded && !groupsUiState.groups.any { it.group.isExpanded }) {

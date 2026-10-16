@@ -2,6 +2,7 @@ package com.urunkarpm.drawer.feature.home.component
 
 import android.content.BroadcastReceiver
 import android.content.Context
+import kotlinx.coroutines.delay
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
@@ -83,6 +84,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -162,10 +164,10 @@ fun DuoStatusIcon(
         label = "duoPressScale"
     )
 
-    // Gentle breathing pulse animation for charging glow
+    // Gentle breathing pulse animation for charging glow (active ONLY when actively charging)
     val isCharging = status.isCharging
-    val infiniteTransition = rememberInfiniteTransition(label = "chargingPulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
+    val chargingTransition = if (isCharging) rememberInfiniteTransition(label = "chargingPulse") else null
+    val pulseAlpha = chargingTransition?.animateFloat(
         initialValue = 0.40f,
         targetValue = 0.95f,
         animationSpec = infiniteRepeatable(
@@ -175,52 +177,24 @@ fun DuoStatusIcon(
         label = "glowPulseAlpha"
     )
 
-    // Subtle wave pulse on Wi-Fi icon when connected
-    val wifiPulseTransition = rememberInfiniteTransition(label = "wifiPulse")
-    val wifiWaveAlpha by wifiPulseTransition.animateFloat(
-        initialValue = 0.70f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "wifiWaveAlpha"
-    )
-
-    // Disconnected Alert Red Glow cycle
-    val redGlowTransition = rememberInfiniteTransition(label = "disconnectedRedGlow")
-    val redGlowFactor by redGlowTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 46000
-                0f at 0 using FastOutSlowInEasing
-                1f at 2500 using LinearEasing
-                0.60f at 7000 using LinearEasing
-                0.20f at 12000 using LinearEasing
-                0f at 16000 using LinearEasing
-                0f at 46000
-            },
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "redGlowFactor"
-    )
+    // Auto-close expanded view after 3 seconds
+    LaunchedEffect(isExpanded) {
+        if (isExpanded) {
+            delay(3000L)
+            onToggleExpand()
+        }
+    }
 
     val chargingGreen = Color(0xFF34C759)
     val activeColor = displayColor
     val inactiveColor = displayColor.copy(alpha = 0.22f)
     val activeBatteryColor = if (isCharging) chargingGreen else activeColor
     val inactiveBatteryColor = if (isCharging) chargingGreen.copy(alpha = 0.20f) else inactiveColor
-
-    val baseRedAlpha = 0.55f + 0.45f * redGlowFactor
-    val alertRed = Color(0xFFFF3B30).copy(alpha = baseRedAlpha)
-    val glowRedOuter = Color(0xFFFF3B30).copy(alpha = 0.45f * redGlowFactor)
-    val glowRedInner = Color(0xFFFF453A).copy(alpha = 0.65f * redGlowFactor)
+    val alertRed = Color(0xFFFF3B30)
 
     // Morph container dimensions seamlessly
-    val currentWidth = lerp(sizeDp.dp, 264.dp, expandProgress)
-    val currentHeight = lerp(sizeDp.dp, 136.dp, expandProgress)
+    val currentWidth = lerp(sizeDp.dp, 260.dp, expandProgress)
+    val currentHeight = lerp(sizeDp.dp, 108.dp, expandProgress)
     val currentCornerRadius = lerp((sizeDp / 2f).dp, 20.dp, expandProgress)
 
     Box(
@@ -236,17 +210,21 @@ fun DuoStatusIcon(
                     else -> TransformOrigin(1f, 0f)
                 }
             }
+            .shadow(
+                elevation = 8.dp * expandProgress,
+                shape = RoundedCornerShape(currentCornerRadius)
+            )
             .clip(RoundedCornerShape(currentCornerRadius))
             .background(
                 MaterialTheme.colorScheme.surface.copy(
-                    alpha = 0.90f * expandProgress
+                    alpha = 0.94f * expandProgress
                 )
             )
             .then(
                 if (expandProgress > 0.05f) {
                     Modifier.border(
                         width = 1.dp,
-                        color = displayColor.copy(alpha = 0.18f * expandProgress),
+                        color = displayColor.copy(alpha = 0.16f * expandProgress),
                         shape = RoundedCornerShape(currentCornerRadius)
                     )
                 } else {
@@ -271,6 +249,7 @@ fun DuoStatusIcon(
         if (expandProgress < 0.95f) {
             val iconAlpha = (1f - (expandProgress / 0.40f)).coerceIn(0f, 1f)
             val iconScale = 1f - expandProgress * 0.12f
+            val wedgePath = remember { Path() }
             Box(
                 modifier = Modifier
                     .size(sizeDp.dp)
@@ -308,8 +287,9 @@ fun DuoStatusIcon(
                     val activeSweep = (animatedProgress * totalBatteryArc).coerceIn(0f, totalBatteryArc)
                     if (activeSweep > 0f) {
                         if (isCharging) {
+                            val currentPulse = pulseAlpha?.value ?: 1f
                             drawArc(
-                                color = chargingGreen.copy(alpha = 0.25f * pulseAlpha),
+                                color = chargingGreen.copy(alpha = 0.25f * currentPulse),
                                 startAngle = startAngle,
                                 sweepAngle = activeSweep,
                                 useCenter = false,
@@ -318,7 +298,7 @@ fun DuoStatusIcon(
                                 style = Stroke(width = outerStroke * 2.2f, cap = StrokeCap.Round)
                             )
                             drawArc(
-                                color = chargingGreen.copy(alpha = 0.45f * pulseAlpha),
+                                color = chargingGreen.copy(alpha = 0.45f * currentPulse),
                                 startAngle = startAngle,
                                 sweepAngle = activeSweep,
                                 useCenter = false,
@@ -351,18 +331,6 @@ fun DuoStatusIcon(
                         val offset = dotOffsets[i]
                         val dotCenter = Offset(centerX + offset.x, centerY + offset.y)
                         if (!status.isCellularConnected) {
-                            if (redGlowFactor > 0f) {
-                                drawCircle(
-                                    color = glowRedOuter,
-                                    radius = dotRadius * 1.9f,
-                                    center = dotCenter
-                                )
-                                drawCircle(
-                                    color = glowRedInner,
-                                    radius = dotRadius * 1.4f,
-                                    center = dotCenter
-                                )
-                            }
                             drawCircle(
                                 color = alertRed,
                                 radius = dotRadius,
@@ -392,81 +360,39 @@ fun DuoStatusIcon(
                     val strokeMid = 14.0f * s
                     val rWedge = 18.0f * s
 
-                    val wedgePath = Path().apply {
-                        val startRad = Math.toRadians(226.0)
-                        val endRad = Math.toRadians(314.0)
-                        val pStartX = (wifiOriginX + rWedge * Math.cos(startRad)).toFloat()
-                        val pStartY = (wifiOriginY + rWedge * Math.sin(startRad)).toFloat()
-                        val pEndX = (wifiOriginX + rWedge * Math.cos(endRad)).toFloat()
-                        val pEndY = (wifiOriginY + rWedge * Math.sin(endRad)).toFloat()
+                    wedgePath.reset()
+                    val startRad = Math.toRadians(226.0)
+                    val endRad = Math.toRadians(314.0)
+                    val pStartX = (wifiOriginX + rWedge * Math.cos(startRad)).toFloat()
+                    val pStartY = (wifiOriginY + rWedge * Math.sin(startRad)).toFloat()
 
-                        moveTo(pStartX, pStartY)
-                        arcTo(
-                            rect = Rect(
-                                left = wifiOriginX - rWedge,
-                                top = wifiOriginY - rWedge,
-                                right = wifiOriginX + rWedge,
-                                bottom = wifiOriginY + rWedge
-                            ),
-                            startAngleDegrees = 226f,
-                            sweepAngleDegrees = 88f,
-                            forceMoveTo = false
-                        )
-                        quadraticBezierTo(
-                            x1 = wifiOriginX + 6.0f * s,
-                            y1 = wifiOriginY + 2.0f * s,
-                            x2 = wifiOriginX,
-                            y2 = wifiOriginY + 7.5f * s
-                        )
-                        quadraticBezierTo(
-                            x1 = wifiOriginX - 6.0f * s,
-                            y1 = wifiOriginY + 2.0f * s,
-                            x2 = pStartX,
-                            y2 = pStartY
-                        )
-                        close()
-                    }
+                    wedgePath.moveTo(pStartX, pStartY)
+                    wedgePath.arcTo(
+                        rect = Rect(
+                            left = wifiOriginX - rWedge,
+                            top = wifiOriginY - rWedge,
+                            right = wifiOriginX + rWedge,
+                            bottom = wifiOriginY + rWedge
+                        ),
+                        startAngleDegrees = 226f,
+                        sweepAngleDegrees = 88f,
+                        forceMoveTo = false
+                    )
+                    wedgePath.quadraticBezierTo(
+                        x1 = wifiOriginX + 6.0f * s,
+                        y1 = wifiOriginY + 2.0f * s,
+                        x2 = wifiOriginX,
+                        y2 = wifiOriginY + 7.5f * s
+                    )
+                    wedgePath.quadraticBezierTo(
+                        x1 = wifiOriginX - 6.0f * s,
+                        y1 = wifiOriginY + 2.0f * s,
+                        x2 = pStartX,
+                        y2 = pStartY
+                    )
+                    wedgePath.close()
 
                     if (!status.isWifiConnected) {
-                        if (redGlowFactor > 0f) {
-                            drawArc(
-                                color = glowRedOuter,
-                                startAngle = 226.0f,
-                                sweepAngle = 88.0f,
-                                useCenter = false,
-                                topLeft = Offset(wifiOriginX - rTop, wifiOriginY - rTop),
-                                size = Size(rTop * 2f, rTop * 2f),
-                                style = Stroke(width = strokeTop * 2.2f, cap = StrokeCap.Round)
-                            )
-                            drawArc(
-                                color = glowRedOuter,
-                                startAngle = 225.0f,
-                                sweepAngle = 90.0f,
-                                useCenter = false,
-                                topLeft = Offset(wifiOriginX - rMid, wifiOriginY - rMid),
-                                size = Size(rMid * 2f, rMid * 2f),
-                                style = Stroke(width = strokeMid * 2.2f, cap = StrokeCap.Round)
-                            )
-                            drawArc(
-                                color = glowRedInner,
-                                startAngle = 226.0f,
-                                sweepAngle = 88.0f,
-                                useCenter = false,
-                                topLeft = Offset(wifiOriginX - rTop, wifiOriginY - rTop),
-                                size = Size(rTop * 2f, rTop * 2f),
-                                style = Stroke(width = strokeTop * 1.5f, cap = StrokeCap.Round)
-                            )
-                            drawArc(
-                                color = glowRedInner,
-                                startAngle = 225.0f,
-                                sweepAngle = 90.0f,
-                                useCenter = false,
-                                topLeft = Offset(wifiOriginX - rMid, wifiOriginY - rMid),
-                                size = Size(rMid * 2f, rMid * 2f),
-                                style = Stroke(width = strokeMid * 1.5f, cap = StrokeCap.Round)
-                            )
-                        }
-
                         drawArc(
                             color = alertRed,
                             startAngle = 226.0f,
@@ -525,11 +451,11 @@ fun DuoStatusIcon(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
                     .graphicsLayer {
                         alpha = cardAlpha
                     },
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 // Step 1: BATTERY — Live status with unrolling progress bar
                 val batteryAlpha = ((expandProgress - 0.20f) / 0.60f).coerceIn(0f, 1f)
@@ -550,15 +476,15 @@ fun DuoStatusIcon(
                     ) {
                         Text(
                             text = "Battery",
-                            fontSize = 11.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = displayColor.copy(alpha = 0.65f),
-                            letterSpacing = 0.5.sp
+                            letterSpacing = 0.3.sp
                         )
                         Text(
                             text = "${status.batteryPercent}%${if (status.isCharging) " • Charging" else ""}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = if (status.isCharging) chargingGreen else displayColor
                         )
                     }
@@ -579,7 +505,8 @@ fun DuoStatusIcon(
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(
                                     if (isCharging) {
-                                        chargingGreen.copy(alpha = 0.85f + 0.15f * pulseAlpha)
+                                        val pulse = pulseAlpha?.value ?: 1f
+                                        chargingGreen.copy(alpha = (0.85f + 0.15f * pulse).coerceIn(0f, 1f))
                                     } else {
                                         activeBatteryColor
                                     }
@@ -601,56 +528,13 @@ fun DuoStatusIcon(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Mini standalone Wi-Fi icon with live wave pulse
-                        Canvas(modifier = Modifier.size(18.dp)) {
-                            val s = size.minDimension / 140f
-                            val wX = size.width / 2f
-                            val wY = size.height * 0.85f
-                            val isB = status.isWifiConnected && status.wifiLevel >= 1
-                            val isM = status.isWifiConnected && status.wifiLevel >= 2
-                            val isT = status.isWifiConnected && status.wifiLevel >= 3
-
-                            val wavePulse = if (status.isWifiConnected) 0.80f + 0.20f * wifiWaveAlpha else 1f
-                            val colorTop = if (!status.isWifiConnected) alertRed else if (isT) activeColor.copy(alpha = wavePulse) else inactiveColor
-                            val colorMid = if (!status.isWifiConnected) alertRed else if (isM) activeColor else inactiveColor
-                            val colorBase = if (!status.isWifiConnected) alertRed else if (isB) activeColor else inactiveColor
-
-                            drawArc(
-                                color = colorTop,
-                                startAngle = 226f,
-                                sweepAngle = 88f,
-                                useCenter = false,
-                                topLeft = Offset(wX - 55f * s, wY - 55f * s),
-                                size = Size(110f * s, 110f * s),
-                                style = Stroke(width = 11f * s, cap = StrokeCap.Round)
-                            )
-                            drawArc(
-                                color = colorMid,
-                                startAngle = 225f,
-                                sweepAngle = 90f,
-                                useCenter = false,
-                                topLeft = Offset(wX - 32f * s, wY - 32f * s),
-                                size = Size(64f * s, 64f * s),
-                                style = Stroke(width = 10f * s, cap = StrokeCap.Round)
-                            )
-                            drawCircle(
-                                color = colorBase,
-                                radius = 7f * s,
-                                center = Offset(wX, wY - 7f * s)
-                            )
-                        }
-                        Text(
-                            text = "Wi-Fi",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = displayColor.copy(alpha = 0.65f),
-                            letterSpacing = 0.5.sp
-                        )
-                    }
+                    Text(
+                        text = "Wi-Fi",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = displayColor.copy(alpha = 0.65f),
+                        letterSpacing = 0.3.sp
+                    )
 
                     Text(
                         text = if (status.isWifiConnected) {
@@ -663,8 +547,8 @@ fun DuoStatusIcon(
                         } else {
                             "Disconnected"
                         },
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = if (status.isWifiConnected) displayColor else alertRed
                     )
                 }
@@ -682,26 +566,21 @@ fun DuoStatusIcon(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Text(
+                        text = "Carrier",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = displayColor.copy(alpha = 0.65f),
+                        letterSpacing = 0.3.sp
+                    )
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "Carrier",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = displayColor.copy(alpha = 0.65f),
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
                         // 4 dots unfurl sequentially
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             for (i in 1..4) {
@@ -717,7 +596,7 @@ fun DuoStatusIcon(
                                 }
                                 Box(
                                     modifier = Modifier
-                                        .size(6.dp)
+                                        .size(5.5.dp)
                                         .graphicsLayer {
                                             scaleX = 0.35f + 0.65f * dotAnimScale
                                             scaleY = 0.35f + 0.65f * dotAnimScale
@@ -741,8 +620,8 @@ fun DuoStatusIcon(
                             } else {
                                 "No Service"
                             },
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = if (status.isCellularConnected) displayColor else alertRed
                         )
                     }
@@ -754,9 +633,13 @@ fun DuoStatusIcon(
 
 /**
  * State holder that monitors live Battery, Wi-Fi, and Cellular conditions.
+ * Tied directly to Activity lifecycle so all broadcast receivers and IPC callbacks
+ * are completely unregistered when the screen is off or app is in background,
+ * eliminating background battery drain.
  */
 @Composable
 fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var batteryPercent by remember { mutableIntStateOf(100) }
     var isCharging by remember { mutableStateOf(false) }
     var isWifiConnected by remember { mutableStateOf(false) }
@@ -764,50 +647,27 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     var isCellularConnected by remember { mutableStateOf(false) }
     var cellularLevel by remember { mutableIntStateOf(0) }
 
-    // 1. Observe Battery
-    DisposableEffect(context) {
-        val batteryReceiver = object : BroadcastReceiver() {
-            override fun onReceive(c: Context?, intent: Intent?) {
-                intent?.let { updateBattery(it) }
-            }
+    DisposableEffect(lifecycleOwner, context) {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
 
-            private fun updateBattery(intent: Intent) {
-                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                batteryPercent = if (level >= 0 && scale > 0) {
-                    ((level * 100f) / scale).roundToInt().coerceIn(0, 100)
-                } else 100
+        var batteryReceiver: BroadcastReceiver? = null
+        var networkCallback: ConnectivityManager.NetworkCallback? = null
+        var telephonyCallback: Any? = null
+        var phoneStateListener: Any? = null
 
-                val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-                isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                        status == BatteryManager.BATTERY_STATUS_FULL
-            }
-        }
-
-        val stickyIntent = context.registerReceiver(
-            batteryReceiver,
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-        )
-        stickyIntent?.let {
-            val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-            val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        fun updateBattery(intent: Intent) {
+            val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
             batteryPercent = if (level >= 0 && scale > 0) {
                 ((level * 100f) / scale).roundToInt().coerceIn(0, 100)
             } else 100
-            val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+
+            val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
             isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                     status == BatteryManager.BATTERY_STATUS_FULL
         }
-
-        onDispose {
-            runCatching { context.unregisterReceiver(batteryReceiver) }
-        }
-    }
-
-    // 2. Observe Wi-Fi and Connectivity
-    DisposableEffect(context) {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-        val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
 
         fun queryWifi() {
             runCatching {
@@ -833,69 +693,106 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             }
         }
 
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                queryWifi()
-            }
-
-            override fun onLost(network: Network) {
-                queryWifi()
-            }
-        }
-
-        runCatching {
-            cm?.registerDefaultNetworkCallback(callback)
-            queryWifi()
-        }
-
-        onDispose {
-            runCatching { cm?.unregisterNetworkCallback(callback) }
-        }
-    }
-
-    // 3. Observe Cellular Signal Quality
-    DisposableEffect(context) {
-        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-
         fun updateFromSignal(signalStrength: SignalStrength?) {
             val level = signalStrength?.level?.coerceIn(0, 4) ?: 0
             cellularLevel = level
             if (level > 0) isCellularConnected = true
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val callback = object : TelephonyCallback(), TelephonyCallback.SignalStrengthsListener {
-                override fun onSignalStrengthsChanged(signalStrength: SignalStrength) {
-                    updateFromSignal(signalStrength)
-                }
-            }
+        fun startListening() {
             runCatching {
-                tm?.registerTelephonyCallback(context.mainExecutor, callback)
-                updateFromSignal(tm?.signalStrength)
-            }
-            onDispose {
-                runCatching { tm?.unregisterTelephonyCallback(callback) }
-            }
-        } else {
-            val listener = object : PhoneStateListener() {
-                @Deprecated("Deprecated in Java")
-                override fun onSignalStrengthsChanged(signalStrength: SignalStrength?) {
-                    updateFromSignal(signalStrength)
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(c: Context?, intent: Intent?) {
+                        intent?.let { updateBattery(it) }
+                    }
                 }
+                batteryReceiver = receiver
+                val stickyIntent = context.registerReceiver(
+                    receiver,
+                    IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+                )
+                stickyIntent?.let { updateBattery(it) }
             }
+
             runCatching {
-                @Suppress("DEPRECATION")
-                tm?.listen(listener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val callback = object : ConnectivityManager.NetworkCallback() {
+                    override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                        queryWifi()
+                    }
+
+                    override fun onLost(network: Network) {
+                        queryWifi()
+                    }
+                }
+                networkCallback = callback
+                cm?.registerDefaultNetworkCallback(callback)
+                queryWifi()
+            }
+
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val callback = object : TelephonyCallback(), TelephonyCallback.SignalStrengthsListener {
+                        override fun onSignalStrengthsChanged(signalStrength: SignalStrength) {
+                            updateFromSignal(signalStrength)
+                        }
+                    }
+                    telephonyCallback = callback
+                    tm?.registerTelephonyCallback(context.mainExecutor, callback)
                     updateFromSignal(tm?.signalStrength)
-                }
-            }
-            onDispose {
-                runCatching {
+                } else {
+                    val listener = object : PhoneStateListener() {
+                        @Deprecated("Deprecated in Java")
+                        override fun onSignalStrengthsChanged(signalStrength: SignalStrength?) {
+                            updateFromSignal(signalStrength)
+                        }
+                    }
+                    phoneStateListener = listener
                     @Suppress("DEPRECATION")
-                    tm?.listen(listener, PhoneStateListener.LISTEN_NONE)
+                    tm?.listen(listener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        updateFromSignal(tm?.signalStrength)
+                    }
                 }
             }
+        }
+
+        fun stopListening() {
+            runCatching {
+                batteryReceiver?.let { context.unregisterReceiver(it) }
+                batteryReceiver = null
+            }
+            runCatching {
+                networkCallback?.let { cm?.unregisterNetworkCallback(it) }
+                networkCallback = null
+            }
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    (telephonyCallback as? TelephonyCallback)?.let { tm?.unregisterTelephonyCallback(it) }
+                    telephonyCallback = null
+                } else {
+                    @Suppress("DEPRECATION")
+                    (phoneStateListener as? PhoneStateListener)?.let { tm?.listen(it, PhoneStateListener.LISTEN_NONE) }
+                    phoneStateListener = null
+                }
+            }
+        }
+
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
+                startListening()
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                stopListening()
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+            startListening()
+        }
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            stopListening()
         }
     }
 

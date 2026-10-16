@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,10 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -347,6 +352,10 @@ fun SettingsScreen(
 
             DRAWER_TYPOGRAPHY -> {
                 val fontName = when (uiState.headerFontFamily) {
+                    "HELVETICA" -> "Helvetica"
+                    "ROBOTO" -> "Roboto"
+                    "TIMES_NEW_ROMAN", "TIMES" -> "Times New Roman"
+                    "ARIAL" -> "Arial"
                     "TEXAS_TROUPE" -> "Texas Troupe"
                     "SYSTEM" -> "System Sans"
                     "SERIF" -> "Serif"
@@ -387,6 +396,26 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        ThemeOptionChip(
+                            label = "Helvetica",
+                            selected = uiState.headerFontFamily == "HELVETICA",
+                            onClick = { viewModel.setHeaderFontFamily("HELVETICA") }
+                        )
+                        ThemeOptionChip(
+                            label = "Roboto",
+                            selected = uiState.headerFontFamily == "ROBOTO",
+                            onClick = { viewModel.setHeaderFontFamily("ROBOTO") }
+                        )
+                        ThemeOptionChip(
+                            label = "Times New Roman",
+                            selected = uiState.headerFontFamily == "TIMES_NEW_ROMAN",
+                            onClick = { viewModel.setHeaderFontFamily("TIMES_NEW_ROMAN") }
+                        )
+                        ThemeOptionChip(
+                            label = "Arial",
+                            selected = uiState.headerFontFamily == "ARIAL",
+                            onClick = { viewModel.setHeaderFontFamily("ARIAL") }
+                        )
                         ThemeOptionChip(
                             label = "Texas Troupe",
                             selected = uiState.headerFontFamily == "TEXAS_TROUPE",
@@ -433,6 +462,26 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+                            val fontBio = when (uiState.headerFontFamily) {
+                                "HELVETICA" -> "1957 • Clean, neutral, neo-grotesque sans-serif (BMW, NYC Subway)"
+                                "ROBOTO" -> "2011 • Geometric-leaning sans-serif designed by Google for Android"
+                                "TIMES_NEW_ROMAN", "TIMES" -> "1931 • Classic, high-legibility serif built for The Times"
+                                "ARIAL" -> "1982 • Ubiquitous, widely installed modern digital sans-serif"
+                                "TEXAS_TROUPE" -> "Display decorative western header font"
+                                "SYSTEM" -> "Android native system sans-serif"
+                                "SERIF" -> "Standard book serif"
+                                "MONOSPACE" -> "Fixed-width terminal typeface"
+                                "CURSIVE" -> "Fluid handwriting cursive script"
+                                else -> ""
+                            }
+                            if (fontBio.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = fontBio,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                )
+                            }
                         }
                     }
 
@@ -559,6 +608,87 @@ fun SettingsScreen(
                             onClick = { viewModel.setSurfaceThemeStyle("TRANSPARENT") },
                             modifier = Modifier.weight(1f)
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "Preview",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(72.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val previewShape = RoundedCornerShape(uiState.surfaceCornerRadius.dp)
+                                val previewIcons = listOf(
+                                    Icons.Default.Phone to Color(0xFF10B981),
+                                    Icons.Default.Email to Color(0xFF3B82F6),
+                                    Icons.Default.CameraAlt to Color(0xFFEC4899),
+                                    Icons.Default.Language to Color(0xFFF59E0B)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .width(224.dp)
+                                        .height(52.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    com.urunkarpm.drawer.core.designsystem.component.DockSurfaceBackground(
+                                        backgroundStyle = uiState.surfaceThemeStyle,
+                                        shape = previewShape,
+                                        surfaceOpacity = uiState.surfaceOpacity,
+                                        surfaceBlurRadius = uiState.surfaceBlurRadius,
+                                        surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                                        modifier = Modifier.matchParentSize()
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        previewIcons.forEach { (icon, tint) ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(34.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(tint.copy(alpha = 0.20f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = icon,
+                                                    contentDescription = null,
+                                                    tint = tint,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            val styleDescription = when (uiState.surfaceThemeStyle) {
+                                "LIQUID_GLASS" -> "Liquid Glass: Multi-layer luminous glass gradient with top specular shine"
+                                "BLUR" -> "Frosted Blur: Translucent acrylic diffusion with soft frosted borders"
+                                "SOLID" -> "Solid: 100% opaque Material 3 floating shelf with elevation"
+                                "TRANSPARENT" -> "Clear: Minimal floating icons with zero container chrome"
+                                else -> ""
+                            }
+                            if (styleDescription.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = styleDescription,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                )
+                            }
+                        }
                     }
 
                     if (uiState.surfaceThemeStyle == "LIQUID_GLASS" || uiState.surfaceThemeStyle == "BLUR") {

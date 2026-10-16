@@ -9,8 +9,8 @@ android {
 
     defaultConfig {
         applicationId = "com.urunkarpm.drawer"
-        versionCode = 8
-        versionName = "1.2.1"
+        versionCode = 9
+        versionName = "1.2.2"
     }
 
     val keystoreFile = rootProject.file("keystore/drawer-release.jks")
@@ -43,6 +43,9 @@ android {
         }
         debug {
             applicationIdSuffix = ""
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }

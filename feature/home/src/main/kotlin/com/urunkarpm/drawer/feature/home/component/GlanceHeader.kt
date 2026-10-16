@@ -281,6 +281,7 @@ fun GlanceHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .zIndex(100f)
             .padding(top = duoTopPadding),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top

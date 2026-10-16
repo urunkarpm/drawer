@@ -80,6 +80,7 @@ import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.DockItem
 import com.urunkarpm.drawer.feature.dock.component.DockActionBottomSheet
+import com.urunkarpm.drawer.core.designsystem.component.DockSurfaceBackground
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,50 +95,11 @@ fun DockBar(
 
     val shape = RoundedCornerShape(uiState.cornerRadiusDp.dp)
 
-    val backgroundColor = when (uiState.backgroundStyle) {
-        "SOLID" -> MaterialTheme.colorScheme.surfaceContainerHigh
-        "TRANSPARENT" -> Color.Transparent
-        "LIQUID_GLASS" -> MaterialTheme.colorScheme.surface.copy(
-            alpha = uiState.surfaceOpacity.coerceIn(0.10f, 0.95f)
-        )
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(
-            alpha = uiState.surfaceOpacity.coerceIn(0.10f, 0.95f)
-        )
-    }
-
-    val animatedBorderWidth by animateDpAsState(
-        targetValue = if (isDropTarget) 2.5.dp else if (uiState.backgroundStyle == "LIQUID_GLASS") 1.2.dp else 1.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "dockBorderWidth"
-    )
-    val animatedBorderColor by animateColorAsState(
-        targetValue = if (isDropTarget) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = uiState.surfaceStrokeOpacity.coerceIn(0f, 1f)),
-        label = "dockBorderColor"
-    )
     val animatedScale by animateFloatAsState(
         targetValue = if (isDropTarget) 1.04f else 1f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "dockScale"
     )
-
-    val surfaceBorder: BorderStroke? = when {
-        isDropTarget -> BorderStroke(animatedBorderWidth, animatedBorderColor)
-        uiState.backgroundStyle == "TRANSPARENT" -> null
-        uiState.backgroundStyle == "LIQUID_GLASS" -> {
-            val strokeAlpha = uiState.surfaceStrokeOpacity.coerceIn(0f, 1f)
-            BorderStroke(
-                width = animatedBorderWidth,
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = (strokeAlpha * 0.90f).coerceIn(0f, 1f)),
-                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = (strokeAlpha * 0.30f).coerceIn(0f, 1f))
-                    )
-                )
-            )
-        }
-        else -> BorderStroke(animatedBorderWidth, animatedBorderColor)
-    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -156,13 +118,15 @@ fun DockBar(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Surface(
+                DockSurfaceBackground(
+                    backgroundStyle = uiState.backgroundStyle,
                     shape = shape,
-                    color = if (isDropTarget) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else backgroundColor,
-                    shadowElevation = if (isDropTarget) 8.dp else if (uiState.backgroundStyle == "SOLID") 4.dp else if (uiState.backgroundStyle == "LIQUID_GLASS") 4.dp else 0.dp,
-                    border = surfaceBorder,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceBlurRadius = uiState.surfaceBlurRadius,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                    isDropTarget = isDropTarget,
                     modifier = Modifier.matchParentSize()
-                ) {}
+                )
 
                 Box(
                     modifier = Modifier
@@ -254,13 +218,15 @@ fun DockBar(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Surface(
+                DockSurfaceBackground(
+                    backgroundStyle = uiState.backgroundStyle,
                     shape = shape,
-                    color = if (isDropTarget) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else backgroundColor,
-                    shadowElevation = if (isDropTarget) 8.dp else if (uiState.backgroundStyle == "SOLID") 4.dp else if (uiState.backgroundStyle == "LIQUID_GLASS") 4.dp else 0.dp,
-                    border = surfaceBorder,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceBlurRadius = uiState.surfaceBlurRadius,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                    isDropTarget = isDropTarget,
                     modifier = Modifier.matchParentSize()
-                ) {}
+                )
 
                 // Foreground content: crisp, unblurred icons uniformly scaled and distributed
                 Row(

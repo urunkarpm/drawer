@@ -128,12 +128,13 @@ fun WidgetDrawerCard(
         label = "chevron_rotation"
     )
     val chevronBgColor by animateColorAsState(
-        targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
         label = "chevronBgColor"
     )
     val animatedBorderColor by animateColorAsState(
-        targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.42f) else drawerColor.copy(alpha = 0.22f),
+        targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.45f)
+                      else drawerColor.copy(alpha = 0.22f),
         animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
         label = "drawerBorderColor"
     )
@@ -155,10 +156,11 @@ fun WidgetDrawerCard(
                 .fillMaxWidth()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            drawerColor.copy(alpha = 0.05f),
-                            Color.Transparent
-                        )
+                        colors = if (drawer.isExpanded) {
+                            listOf(drawerColor.copy(alpha = 0.05f), Color.Transparent)
+                        } else {
+                            listOf(Color.Transparent, Color.Transparent)
+                        }
                     )
                 )
         ) {
@@ -180,15 +182,15 @@ fun WidgetDrawerCard(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Category Icon Badge (squircle RoundedCornerShape(12.dp))
+                    // Category Icon Badge with user's selected accent color
                     Box(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(drawerColor.copy(alpha = 0.18f))
+                            .background(drawerColor.copy(alpha = 0.16f))
                             .border(
                                 width = 1.dp,
-                                color = drawerColor.copy(alpha = 0.30f),
+                                color = drawerColor.copy(alpha = 0.32f),
                                 shape = RoundedCornerShape(12.dp)
                             ),
                         contentAlignment = Alignment.Center
@@ -197,7 +199,7 @@ fun WidgetDrawerCard(
                             imageVector = drawerIcon,
                             contentDescription = drawer.title,
                             tint = drawerColor,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
@@ -222,12 +224,12 @@ fun WidgetDrawerCard(
                     }
 
                     if (!lockLayout) {
-                        // Quick Add button
+                        // Quick Add button with drawerColor accent
                         Box(
                             modifier = Modifier
                                 .size(30.dp)
                                 .clip(CircleShape)
-                                .background(drawerColor.copy(alpha = 0.15f))
+                                .background(drawerColor.copy(alpha = 0.14f))
                                 .clickable { onAddWidgetClick() },
                             contentAlignment = Alignment.Center
                         ) {

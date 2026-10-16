@@ -13,6 +13,22 @@ val TexasTroupeFontFamily = FontFamily(
     Font(R.font.texas_troupe_fp, FontWeight.Normal)
 )
 
+val HelveticaFontFamily = FontFamily(
+    Font(R.font.helvetica_fp, FontWeight.Normal)
+)
+
+val RobotoFontFamily = FontFamily(
+    Font(R.font.roboto_fp, FontWeight.Normal)
+)
+
+val TimesNewRomanFontFamily = FontFamily(
+    Font(R.font.times_new_roman_fp, FontWeight.Normal)
+)
+
+val ArialFontFamily = FontFamily(
+    Font(R.font.arial_fp, FontWeight.Normal)
+)
+
 val Typography = Typography(
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,

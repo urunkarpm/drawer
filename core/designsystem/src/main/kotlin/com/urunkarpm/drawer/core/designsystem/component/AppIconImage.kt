@@ -209,8 +209,7 @@ private fun AsyncAppIconContent(
 
     if (loadedBitmap == null && iconLoader != null) {
         LaunchedEffect(effectiveKey) {
-            // ponytail: use NonCancellable to ensure fast scrolling doesn't abort icon pack loading before it reaches the cache; ceiling is small unbounded background work; upgrade path is a dedicated image loader queue.
-            val bmp = withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            val bmp = withContext(Dispatchers.IO) {
                 AppIconCache.get(effectiveKey) ?: run {
                     val d = iconLoader()
                     d?.toImageBitmapSafe()?.also {

@@ -66,7 +66,7 @@ class WidgetRepositoryImpl @Inject constructor(
             orderIndex = nextOrder,
             spanX = spanX,
             spanY = spanY,
-            isExpanded = true,
+            isExpanded = false,
             iconName = iconName,
             colorHex = colorHex
         )

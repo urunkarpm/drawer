@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,11 +100,27 @@ fun WidgetsPage(
     onBackToHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    DisposableEffect(Unit) {
-        widgetHostManager.startListening()
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
+                widgetHostManager.startListening()
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                widgetHostManager.stopListening()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+            widgetHostManager.startListening()
+        }
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             widgetHostManager.stopListening()
         }
+    }
+
+    LaunchedEffect(Unit) {
+        onCollapseAllDrawers()
     }
 
     val configuration = LocalConfiguration.current
