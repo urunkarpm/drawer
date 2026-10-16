@@ -196,9 +196,18 @@ class AppRepositoryImpl @Inject constructor(
             val intent = Intent(Intent.ACTION_DELETE).apply {
                 data = Uri.fromParts("package", packageName, null)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val targetApp = _installedApps.value.find { it.packageName == packageName }
+                if (targetApp != null && targetApp.userHandleId != 0) {
+                    val targetUser = userManager.userProfiles.find { it.hashCode() == targetApp.userHandleId }
+                    if (targetUser != null) {
+                        putExtra(Intent.EXTRA_USER, targetUser)
+                    }
+                }
             }
             context.startActivity(intent)
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            android.util.Log.e("AppRepository", "Failed to start uninstall activity for $packageName", e)
+        }
     }
 
     private val iconCache = LruCache<String, Drawable>(500)

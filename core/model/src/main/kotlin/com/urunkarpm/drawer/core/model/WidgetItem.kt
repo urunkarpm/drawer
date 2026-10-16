@@ -8,6 +8,9 @@ data class WidgetItem(
     val appWidgetId: Int,
     val packageName: String,
     val providerClassName: String,
-    val orderIndex: Int,
+    val drawerId: String? = null,
+    val orderIndex: Int = 0,
+    val spanX: Int = 4,
+    val spanY: Int = 2,
     val heightDp: Int = 180
 )

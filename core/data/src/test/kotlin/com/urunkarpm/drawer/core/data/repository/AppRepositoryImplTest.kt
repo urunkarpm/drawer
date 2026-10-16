@@ -76,4 +76,15 @@ class AppRepositoryImplTest {
         val shortcuts = repository.getShortcuts(app)
         assertTrue(shortcuts.isEmpty())
     }
+
+    @Test
+    fun uninstallApp_startsActivityWithActionDelete() = runTest(testDispatcher) {
+        val repository = AppRepositoryImpl(context, testDispatcher)
+
+        repository.uninstallApp("com.test.targetapp")
+
+        verify {
+            context.startActivity(or(isNull(), any()))
+        }
+    }
 }

@@ -11,6 +11,8 @@ import com.urunkarpm.drawer.core.database.entity.AppGroupItemEntity
 import com.urunkarpm.drawer.core.database.entity.DockItemEntity
 import com.urunkarpm.drawer.core.database.entity.IconPackOverrideEntity
 import com.urunkarpm.drawer.core.database.entity.MutedAppRuleEntity
+import com.urunkarpm.drawer.core.database.entity.WidgetDrawerEntity
+import com.urunkarpm.drawer.core.database.entity.WidgetItemEntity
 
 @Database(
     entities = [
@@ -19,9 +21,10 @@ import com.urunkarpm.drawer.core.database.entity.MutedAppRuleEntity
         DockItemEntity::class,
         MutedAppRuleEntity::class,
         IconPackOverrideEntity::class,
-        com.urunkarpm.drawer.core.database.entity.WidgetItemEntity::class
+        WidgetDrawerEntity::class,
+        WidgetItemEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class DrawerDatabase : RoomDatabase() {
