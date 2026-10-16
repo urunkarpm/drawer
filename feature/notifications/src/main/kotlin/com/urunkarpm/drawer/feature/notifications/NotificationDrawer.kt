@@ -2,6 +2,8 @@ package com.urunkarpm.drawer.feature.notifications
 
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -11,6 +13,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -120,8 +125,8 @@ fun NotificationDrawer(
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow
+            dampingRatio = 0.72f,
+            stiffness = 380f
         ),
         label = "notif_chevron"
     )
@@ -216,13 +221,26 @@ fun NotificationDrawer(
         // ── Notifications Card ────────────────────────────────────────────────
         } else {
             val hasNotifications = uiState.activeNotifications.isNotEmpty()
+            val chevronBgColor by animateColorAsState(
+                targetValue = if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+                label = "chevronBgColor"
+            )
+            val cardBorderColor by animateColorAsState(
+                targetValue = if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.40f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+                label = "notifBorderColor"
+            )
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                    containerColor = if (isExpanded)
+                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
+                    else
+                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                border = BorderStroke(1.dp, cardBorderColor),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -239,10 +257,14 @@ fun NotificationDrawer(
                 ) {
 
                     // ── Collapsed header (always visible) ─────────────────────
+                    val headerInteractionSource = remember { MutableInteractionSource() }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
+                            .clickable(
+                                interactionSource = headerInteractionSource,
+                                indication = null
+                            ) {
                                 onExpandedChange(!isExpanded)
                             }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -313,13 +335,13 @@ fun NotificationDrawer(
                             modifier = Modifier
                                 .size(30.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                .background(chevronBgColor),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.KeyboardArrowDown,
                                 contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .size(20.dp)
                                     .rotate(chevronRotation)
@@ -333,12 +355,18 @@ fun NotificationDrawer(
                         enter = expandVertically(
                             expandFrom = Alignment.Top,
                             animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMediumLow
+                                dampingRatio = 0.82f,
+                                stiffness = 360f
+                            )
+                        ) + slideInVertically(
+                            initialOffsetY = { -it / 6 },
+                            animationSpec = spring(
+                                dampingRatio = 0.85f,
+                                stiffness = 360f
                             )
                         ) + fadeIn(
                             animationSpec = tween(
-                                durationMillis = 200,
+                                durationMillis = 260,
                                 easing = FastOutSlowInEasing
                             )
                         ),
@@ -347,6 +375,12 @@ fun NotificationDrawer(
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioNoBouncy,
                                 stiffness = Spring.StiffnessMedium
+                            )
+                        ) + slideOutVertically(
+                            targetOffsetY = { -it / 8 },
+                            animationSpec = tween(
+                                durationMillis = 180,
+                                easing = FastOutLinearInEasing
                             )
                         ) + fadeOut(
                             animationSpec = tween(

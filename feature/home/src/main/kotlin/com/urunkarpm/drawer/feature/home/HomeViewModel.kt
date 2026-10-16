@@ -407,8 +407,11 @@ class HomeViewModel @Inject constructor(
         heightDp: Int = 180
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val currentWidgets = uiState.value.widgets
-            val nextOrder = currentWidgets.size
+            val nextOrder = if (drawerId != null) {
+                uiState.value.widgetDrawers.find { it.id == drawerId }?.widgets?.size ?: 0
+            } else {
+                uiState.value.standaloneWidgets.size
+            }
             val widget = com.urunkarpm.drawer.core.model.WidgetItem(
                 id = java.util.UUID.randomUUID().toString(),
                 appWidgetId = appWidgetId,
@@ -426,7 +429,19 @@ class HomeViewModel @Inject constructor(
 
     fun deleteWidget(id: String, appWidgetId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
+            val widgetToDelete = uiState.value.widgets.find { it.id == id }
             widgetRepository.deleteWidget(id, appWidgetId)
+            val drawerId = widgetToDelete?.drawerId
+            if (drawerId != null) {
+                val drawer = uiState.value.widgetDrawers.find { it.id == drawerId }
+                drawer?.widgets?.filter { it.id != id }?.forEachIndexed { i, w ->
+                    widgetRepository.updateWidget(w.copy(orderIndex = i))
+                }
+            } else {
+                uiState.value.standaloneWidgets.filter { it.id != id }.forEachIndexed { i, w ->
+                    widgetRepository.updateWidget(w.copy(orderIndex = i))
+                }
+            }
         }
     }
 
@@ -479,7 +494,17 @@ class HomeViewModel @Inject constructor(
 
     fun moveWidgetToDrawer(widgetId: String, drawerId: String?) {
         viewModelScope.launch(Dispatchers.IO) {
-            widgetRepository.assignWidgetToDrawer(widgetId, drawerId)
+            val targetOrder = if (drawerId != null) {
+                uiState.value.widgetDrawers.find { it.id == drawerId }?.widgets?.size ?: 0
+            } else {
+                uiState.value.standaloneWidgets.size
+            }
+            val widget = uiState.value.widgets.find { it.id == widgetId }
+            if (widget != null) {
+                widgetRepository.updateWidget(widget.copy(drawerId = drawerId, orderIndex = targetOrder))
+            } else {
+                widgetRepository.assignWidgetToDrawer(widgetId, drawerId)
+            }
         }
     }
 

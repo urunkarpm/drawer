@@ -7,6 +7,8 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
@@ -148,12 +150,22 @@ fun AllAppsDrawer(
                     durationMillis = 280,
                     easing = FastOutSlowInEasing
                 )
+            ) + fadeIn(
+                animationSpec = tween(
+                    durationMillis = 240,
+                    easing = FastOutSlowInEasing
+                )
             ),
             exit = slideOutVertically(
                 targetOffsetY = { it },
                 animationSpec = tween(
                     durationMillis = 220,
                     easing = FastOutLinearInEasing
+                )
+            ) + fadeOut(
+                animationSpec = tween(
+                    durationMillis = 180,
+                    easing = FastOutSlowInEasing
                 )
             ),
             modifier = modifier

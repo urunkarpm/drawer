@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,7 +38,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,8 +52,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -98,10 +102,19 @@ fun IpodCoverFlowWidgetStack(
         pageCount = { widgets.size }
     )
 
+    // Clamp pager index if the active widget was removed
+    LaunchedEffect(widgets.size) {
+        if (widgets.isNotEmpty() && pagerState.currentPage >= widgets.size) {
+            pagerState.scrollToPage(widgets.size - 1)
+        }
+    }
+
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
     // Side padding lets previous and next cards peek into view on left and right
     val horizontalPadding = if (screenWidth < 360) 40.dp else 56.dp
+
+    var verticalDragAccumulator by remember { mutableFloatStateOf(0f) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -111,74 +124,118 @@ fun IpodCoverFlowWidgetStack(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(heightDp.dp)
+                // Support vertical swipe cycling (drag up -> next widget, drag down -> previous widget)
+                .pointerInput(pagerState.currentPage, widgets.size) {
+                    detectVerticalDragGestures(
+                        onDragStart = { verticalDragAccumulator = 0f },
+                        onDragEnd = { verticalDragAccumulator = 0f },
+                        onDragCancel = { verticalDragAccumulator = 0f },
+                        onVerticalDrag = { change, dragAmount ->
+                            verticalDragAccumulator += dragAmount
+                            if (verticalDragAccumulator < -45f) {
+                                // Swiped up -> cycle to next widget
+                                if (pagerState.currentPage < widgets.size - 1) {
+                                    coroutineScope.launch {
+                                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                    }
+                                }
+                                verticalDragAccumulator = 0f
+                                change.consume()
+                            } else if (verticalDragAccumulator > 45f) {
+                                // Swiped down -> cycle to previous widget
+                                if (pagerState.currentPage > 0) {
+                                    coroutineScope.launch {
+                                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                    }
+                                }
+                                verticalDragAccumulator = 0f
+                                change.consume()
+                            }
+                        }
+                    )
+                }
         ) {
             HorizontalPager(
                 state = pagerState,
+                key = { page -> widgets.getOrNull(page)?.id ?: page },
                 contentPadding = PaddingValues(horizontal = horizontalPadding),
                 pageSpacing = 0.dp,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val widget = widgets.getOrNull(page) ?: return@HorizontalPager
 
-                // Calculate offset relative to active center page
-                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                // Relative offset: 0 = active center, -1 = previous (left), +1 = next (right)
+                val pageOffset = (page - pagerState.currentPage) + pagerState.currentPageOffsetFraction
                 val absOffset = abs(pageOffset)
-                val isCenter = absOffset < 0.25f
+                val isCenter = page == pagerState.currentPage
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
+                            // 3D Cover Flow Transform math:
+                            // Left card (pageOffset < 0): rotates inward facing right (positive rotationY)
+                            // Right card (pageOffset > 0): rotates inward facing left (negative rotationY)
+                            val rotationAngle = if (pageOffset < 0) {
+                                (absOffset * 40f).coerceIn(0f, 48f)
+                            } else if (pageOffset > 0) {
+                                -(absOffset * 40f).coerceIn(0f, 48f)
+                            } else {
+                                0f
+                            }
+
+                            // Tuck background cards inwards towards center
+                            val translationAmount = if (pageOffset < 0) {
+                                (absOffset * 26.dp.toPx())
+                            } else if (pageOffset > 0) {
+                                -(absOffset * 26.dp.toPx())
+                            } else {
+                                0f
+                            }
+
                             cameraDistance = 16f * density
-                            // iPod Cover Flow 3D Perspective
-                            rotationY = (pageOffset * 38f).coerceIn(-48f, 48f)
+                            rotationY = rotationAngle
                             val scale = (1f - (absOffset * 0.14f)).coerceIn(0.72f, 1f)
                             scaleX = scale
                             scaleY = scale
-                            // Tuck adjacent cards inwards so their edges stay beautifully visible
-                            translationX = (pageOffset * 28.dp.toPx())
+                            translationX = translationAmount
                             alpha = (1f - (absOffset * 0.08f)).coerceIn(0.75f, 1f)
-                            shadowElevation = (16.dp * (1f - absOffset.coerceIn(0f, 1f))).toPx()
+                            shadowElevation = if (isCenter) 16.dp.toPx() else 4.dp.toPx()
                         }
-                        .zIndex(100f - absOffset * 10f)
-                        .then(
-                            if (!isCenter) {
-                                Modifier.clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(page)
-                                    }
-                                }
-                            } else Modifier
-                        ),
+                        .zIndex(if (isCenter) 100f else (50f - absOffset * 10f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    CoverFlowWidgetItemCard(
-                        widget = widget,
-                        page = page,
-                        totalWidgets = widgets.size,
-                        isCenter = isCenter,
-                        absOffset = absOffset,
-                        widgetHostManager = widgetHostManager,
-                        onDelete = { onDeleteWidget(widget.id, widget.appWidgetId) },
-                        onExtract = { onExtractWidget(widget.id) },
-                        onResize = { onResizeWidget(widget) },
-                        onMoveLeft = {
-                            if (page > 0) {
-                                onReorderWidget(page, page - 1)
-                                coroutineScope.launch { pagerState.animateScrollToPage(page - 1) }
-                            }
-                        },
-                        onMoveRight = {
-                            if (page < widgets.size - 1) {
-                                onReorderWidget(page, page + 1)
-                                coroutineScope.launch { pagerState.animateScrollToPage(page + 1) }
-                            }
-                        },
-                        lockLayout = lockLayout
-                    )
+                    key(widget.id, widget.appWidgetId) {
+                        CoverFlowWidgetItemCard(
+                            widget = widget,
+                            page = page,
+                            totalWidgets = widgets.size,
+                            isCenter = isCenter,
+                            absOffset = absOffset,
+                            widgetHostManager = widgetHostManager,
+                            onBringToCenter = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(page)
+                                }
+                            },
+                            onDelete = { onDeleteWidget(widget.id, widget.appWidgetId) },
+                            onExtract = { onExtractWidget(widget.id) },
+                            onResize = { onResizeWidget(widget) },
+                            onMoveLeft = {
+                                if (page > 0) {
+                                    onReorderWidget(page, page - 1)
+                                    coroutineScope.launch { pagerState.animateScrollToPage(page - 1) }
+                                }
+                            },
+                            onMoveRight = {
+                                if (page < widgets.size - 1) {
+                                    onReorderWidget(page, page + 1)
+                                    coroutineScope.launch { pagerState.animateScrollToPage(page + 1) }
+                                }
+                            },
+                            lockLayout = lockLayout
+                        )
+                    }
                 }
             }
         }
@@ -231,6 +288,7 @@ private fun CoverFlowWidgetItemCard(
     isCenter: Boolean,
     absOffset: Float,
     widgetHostManager: DrawerWidgetHostManager,
+    onBringToCenter: () -> Unit,
     onDelete: () -> Unit,
     onExtract: () -> Unit,
     onResize: () -> Unit,
@@ -255,7 +313,7 @@ private fun CoverFlowWidgetItemCard(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Widget Host View
+            // Widget Host View (strictly isolated to widget.appWidgetId)
             AndroidView(
                 factory = { ctx ->
                     try {
@@ -291,8 +349,8 @@ private fun CoverFlowWidgetItemCard(
                     .padding(4.dp)
             )
 
-            // Dynamic 3D lighting / scrim for side recessed cards
-            if (absOffset > 0.05f) {
+            // Background Card: Scrim Overlay intercepts clicks to bring that card to center
+            if (!isCenter) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -300,15 +358,21 @@ private fun CoverFlowWidgetItemCard(
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = (absOffset * 0.25f).coerceIn(0f, 0.40f)),
-                                    Color.Black.copy(alpha = (absOffset * 0.45f).coerceIn(0f, 0.55f))
+                                    Color.Black.copy(alpha = (absOffset * 0.25f).coerceIn(0.12f, 0.40f)),
+                                    Color.Black.copy(alpha = (absOffset * 0.45f).coerceIn(0.20f, 0.55f))
                                 )
                             )
                         )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onBringToCenter()
+                        }
                 )
             }
 
-            // Context Menu button on the active card
+            // Context Menu button: ONLY on the active center card
             if (isCenter && !lockLayout) {
                 Box(
                     modifier = Modifier
@@ -318,7 +382,7 @@ private fun CoverFlowWidgetItemCard(
                     Surface(
                         onClick = { showMenu = true },
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
                         modifier = Modifier.size(28.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {

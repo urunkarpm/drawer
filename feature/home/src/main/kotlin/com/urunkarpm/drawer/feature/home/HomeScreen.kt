@@ -765,8 +765,19 @@ fun HomeScreen(
                             viewModel.updateWidgetDrawer(drawer.copy(title = newTitle))
                         }
                     },
-                    onDeleteDrawer = { drawerId, deleteChildren -> viewModel.deleteWidgetDrawer(drawerId, deleteChildren) },
-                    onDeleteWidget = { id, appWidgetId -> viewModel.deleteWidget(id, appWidgetId) },
+                    onDeleteDrawer = { drawerId, deleteChildren ->
+                        if (deleteChildren) {
+                            val drawer = uiState.widgetDrawers.find { it.id == drawerId }
+                            drawer?.widgets?.forEach { w ->
+                                widgetHostManager.deleteAppWidgetId(w.appWidgetId)
+                            }
+                        }
+                        viewModel.deleteWidgetDrawer(drawerId, deleteChildren)
+                    },
+                    onDeleteWidget = { id, appWidgetId ->
+                        widgetHostManager.deleteAppWidgetId(appWidgetId)
+                        viewModel.deleteWidget(id, appWidgetId)
+                    },
                     onMoveWidget = { index, up -> viewModel.moveWidget(index, up) },
                     onUpdateWidgetSpan = { id, spanX, spanY, heightDp -> viewModel.updateWidgetSpan(id, spanX, spanY, heightDp) },
                     onMoveWidgetToDrawer = { widgetId, drawerId -> viewModel.moveWidgetToDrawer(widgetId, drawerId) },

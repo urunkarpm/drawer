@@ -3,6 +3,7 @@ package com.urunkarpm.drawer.feature.groups
 import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -13,11 +14,14 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.BorderStroke
@@ -377,15 +381,21 @@ private fun GroupCard(
     modifier: Modifier = Modifier
 ) {
     val group = resolvedGroup.group
+    val isExpanded = group.isExpanded
     val groupColor = GroupIcons.parseColor(group.colorHex)
     val groupIcon = GroupIcons.getIcon(group.iconName)
     val chevronRotation by animateFloatAsState(
-        targetValue = if (group.isExpanded) 180f else 0f,
+        targetValue = if (isExpanded) 180f else 0f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow
+            dampingRatio = 0.72f,
+            stiffness = 380f
         ),
         label = "chevron_rotation"
+    )
+    val chevronBgColor by animateColorAsState(
+        targetValue = if (isExpanded) groupColor.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "chevronBgColor"
     )
     var showMenu by remember { mutableStateOf(false) }
 
@@ -395,12 +405,17 @@ private fun GroupCard(
         label = "groupScale"
     )
     val animatedBorderWidth by animateDpAsState(
-        targetValue = if (isDropTarget) 2.dp else 0.dp,
+        targetValue = if (isDropTarget) 2.dp else 1.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "groupBorderWidth"
     )
     val animatedBorderColor by animateColorAsState(
-        targetValue = if (isDropTarget) MaterialTheme.colorScheme.primary else Color.Transparent,
+        targetValue = when {
+            isDropTarget -> MaterialTheme.colorScheme.primary
+            isExpanded -> groupColor.copy(alpha = 0.42f)
+            else -> groupColor.copy(alpha = 0.22f)
+        },
+        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
         label = "groupBorderColor"
     )
 
@@ -435,15 +450,13 @@ private fun GroupCard(
         colors = CardDefaults.cardColors(
             containerColor = if (isDropTarget)
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+            else if (isExpanded)
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
             else
                 MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
             contentColor = MaterialTheme.colorScheme.onSurface
         ),
-        border = if (isDropTarget) {
-            BorderStroke(animatedBorderWidth, animatedBorderColor)
-        } else {
-            BorderStroke(1.dp, groupColor.copy(alpha = 0.22f))
-        }
+        border = BorderStroke(animatedBorderWidth, animatedBorderColor)
     ) {
         Column(
             modifier = Modifier
@@ -458,124 +471,125 @@ private fun GroupCard(
                 )
         ) {
             // Header Row (Single tap to expand/collapse, long press to edit/reorder)
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Surface(
+            val headerInteractionSource = remember { MutableInteractionSource() }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        interactionSource = headerInteractionSource,
+                        indication = null,
+                        onClick = onToggleExpand,
+                        onLongClick = if (!lockLayout) { { showMenu = true } } else null
+                    )
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .combinedClickable(
-                            onClick = onToggleExpand,
-                            onLongClick = if (!lockLayout) { { showMenu = true } } else null
+                        .padding(
+                            horizontal = if (isCompact) 10.dp else 16.dp,
+                            vertical = if (isCompact) 10.dp else 12.dp
                         ),
-                    color = Color.Transparent
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
+                    val infiniteTransition = rememberInfiniteTransition(label = "drawerGlow")
+                    val rawGlowAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.35f,
+                        targetValue = 0.95f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "glowAlpha"
+                    )
+                    val rawGlowRadiusDp by infiniteTransition.animateFloat(
+                        initialValue = 3f,
+                        targetValue = 7.5f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "glowRadius"
+                    )
+                    val glowAlpha = if (hasNotification) rawGlowAlpha else 0f
+                    val glowRadiusDp = if (hasNotification) rawGlowRadiusDp else 0f
+
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                horizontal = if (isCompact) 10.dp else 16.dp,
-                                vertical = if (isCompact) 10.dp else 12.dp
-                            ),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val infiniteTransition = rememberInfiniteTransition(label = "drawerGlow")
-                        val rawGlowAlpha by infiniteTransition.animateFloat(
-                            initialValue = 0.35f,
-                            targetValue = 0.95f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
-                                repeatMode = RepeatMode.Reverse
-                            ),
-                            label = "glowAlpha"
-                        )
-                        val rawGlowRadiusDp by infiniteTransition.animateFloat(
-                            initialValue = 3f,
-                            targetValue = 7.5f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(durationMillis = 1100, easing = FastOutSlowInEasing),
-                                repeatMode = RepeatMode.Reverse
-                            ),
-                            label = "glowRadius"
-                        )
-                        val glowAlpha = if (hasNotification) rawGlowAlpha else 0f
-                        val glowRadiusDp = if (hasNotification) rawGlowRadiusDp else 0f
-
-                        Box(
-                            modifier = Modifier
-                                .size(if (isCompact) 32.dp else 38.dp)
-                                .then(
-                                    if (hasNotification) {
-                                        Modifier
-                                            .drawBehind {
-                                                // Outer soft diffuse aura in assigned drawer color
-                                                drawCircle(
-                                                    color = groupColor.copy(alpha = glowAlpha * 0.38f),
-                                                    radius = size.maxDimension / 2f + glowRadiusDp.dp.toPx()
-                                                )
-                                                // Inner intense glow ring in assigned drawer color
-                                                drawCircle(
-                                                    color = groupColor.copy(alpha = glowAlpha * 0.65f),
-                                                    radius = size.maxDimension / 2f + 1.5.dp.toPx()
-                                                )
-                                            }
-                                            .border(
-                                                width = 1.5.dp,
-                                                color = groupColor.copy(alpha = glowAlpha),
-                                                shape = RoundedCornerShape(12.dp)
+                            .size(if (isCompact) 32.dp else 38.dp)
+                            .then(
+                                if (hasNotification) {
+                                    Modifier
+                                        .drawBehind {
+                                            // Outer soft diffuse aura in assigned drawer color
+                                            drawCircle(
+                                                color = groupColor.copy(alpha = glowAlpha * 0.38f),
+                                                radius = size.maxDimension / 2f + glowRadiusDp.dp.toPx()
                                             )
-                                    } else Modifier
-                                )
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (hasNotification) groupColor.copy(alpha = 0.32f)
-                                    else groupColor.copy(alpha = 0.18f)
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = groupColor.copy(alpha = 0.30f),
-                                    shape = RoundedCornerShape(12.dp)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = groupIcon,
-                                contentDescription = group.name,
-                                tint = groupColor,
-                                modifier = Modifier.size(if (isCompact) 18.dp else 22.dp)
+                                            // Inner intense glow ring in assigned drawer color
+                                            drawCircle(
+                                                color = groupColor.copy(alpha = glowAlpha * 0.65f),
+                                                radius = size.maxDimension / 2f + 1.5.dp.toPx()
+                                            )
+                                        }
+                                        .border(
+                                            width = 1.5.dp,
+                                            color = groupColor.copy(alpha = glowAlpha),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                } else Modifier
                             )
-                        }
-
-                        Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
-
-                        Text(
-                            text = group.name,
-                            fontFamily = LocalHeaderFontFamily.current,
-                            style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (hasNotification) groupColor.copy(alpha = 0.32f)
+                                else groupColor.copy(alpha = 0.18f)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = groupColor.copy(alpha = 0.30f),
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = groupIcon,
+                            contentDescription = group.name,
+                            tint = groupColor,
+                            modifier = Modifier.size(if (isCompact) 18.dp else 22.dp)
                         )
+                    }
 
-                        // Tactile circular touch backing for chevron
-                        Box(
+                    Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
+
+                    Text(
+                        text = group.name,
+                        fontFamily = LocalHeaderFontFamily.current,
+                        style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // Tactile circular touch backing for chevron
+                    Box(
+                        modifier = Modifier
+                            .size(if (isCompact) 26.dp else 30.dp)
+                            .clip(CircleShape)
+                            .background(chevronBgColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (group.isExpanded) "Collapse" else "Expand",
                             modifier = Modifier
-                                .size(if (isCompact) 26.dp else 30.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = if (group.isExpanded) "Collapse" else "Expand",
-                                modifier = Modifier
-                                    .size(if (isCompact) 18.dp else 22.dp)
-                                    .rotate(chevronRotation),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                                .size(if (isCompact) 18.dp else 22.dp)
+                                .rotate(chevronRotation),
+                            tint = if (isExpanded) groupColor else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
+            }
 
                 if (!lockLayout) {
                     DropdownMenu(
@@ -628,18 +642,24 @@ private fun GroupCard(
                 }
             }
 
-            // ponytail: Silky smooth drawer expansion anchored from top with physics spring; ceiling: fixed spring constants; upgrade path: customizable motion duration.
+            // Aesthetic open and close animation with organic spring physics and parallax drift
             AnimatedVisibility(
                 visible = group.isExpanded,
                 enter = expandVertically(
                     expandFrom = Alignment.Top,
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow
+                        dampingRatio = 0.82f,
+                        stiffness = 360f
+                    )
+                ) + slideInVertically(
+                    initialOffsetY = { -it / 6 },
+                    animationSpec = spring(
+                        dampingRatio = 0.85f,
+                        stiffness = 360f
                     )
                 ) + fadeIn(
                     animationSpec = tween(
-                        durationMillis = 200,
+                        durationMillis = 260,
                         easing = FastOutSlowInEasing
                     )
                 ),
@@ -648,6 +668,12 @@ private fun GroupCard(
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = Spring.StiffnessMedium
+                    )
+                ) + slideOutVertically(
+                    targetOffsetY = { -it / 8 },
+                    animationSpec = tween(
+                        durationMillis = 180,
+                        easing = FastOutLinearInEasing
                     )
                 ) + fadeOut(
                     animationSpec = tween(
@@ -740,7 +766,6 @@ private fun GroupCard(
             }
         }
     }
-}
 }
 }
 
