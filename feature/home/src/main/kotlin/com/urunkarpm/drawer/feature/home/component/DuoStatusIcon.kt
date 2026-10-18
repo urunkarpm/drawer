@@ -97,21 +97,104 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import android.os.SystemClock
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
- * Snapshot of device system status: Battery, Wi-Fi, and Cellular signal strength.
+ * Snapshot of device system status: Battery, Wi-Fi, Cellular signal strength, and charging metrics.
  */
 @Immutable
 data class DuoSystemStatus(
     val batteryPercent: Int = 100,
     val isCharging: Boolean = false,
+    val chargingWatts: Float? = null,
+    val batteryTempCelsius: Float? = null,
     val isWifiConnected: Boolean = false,
     val wifiLevel: Int = 0, // 0..4
     val isCellularConnected: Boolean = false,
     val cellularLevel: Int = 0 // 0..4
 )
+
+// ponytail: Instantaneous wattage calculated via BatteryManager CURRENT_NOW * EXTRA_VOLTAGE with microamp/milliamp auto-scaling; ceiling: hardware driver support varies across OEM chipsets; upgrade path: Android 14+ BatteryState/Health HAL services.
+private fun readBatteryChargingStats(
+    context: Context,
+    intent: Intent?,
+    isCharging: Boolean
+): Pair<Float?, Float?> {
+    val tempRaw = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+    val tempCelsius = if (tempRaw > 0) tempRaw / 10f else null
+
+    if (!isCharging) return null to tempCelsius
+
+    val voltageMv = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+    val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+
+    val currentNow = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
+    val currentAvg = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) ?: 0
+    val current = if (currentNow != 0 && currentNow != Int.MIN_VALUE) currentNow else currentAvg
+    val absCurrent = kotlin.math.abs(current)
+
+    val amps = when {
+        absCurrent > 20_000 -> absCurrent / 1_000_000f // microamperes (µA)
+        absCurrent > 0 -> absCurrent / 1_000f         // milliamperes (mA) fallback
+        else -> 0f
+    }
+    val volts = if (voltageMv > 0) voltageMv / 1000f else 0f
+    val watts = volts * amps
+    val chargingWatts = if (watts in 0.1f..240f) watts else null
+
+    return chargingWatts to tempCelsius
+}
+
+// ponytail: Lightweight HttpURLConnection speed test streaming 2MB from Cloudflare Edge without third-party SDKs; ceiling: single-threaded download burst test rather than multi-connection full-saturation test; upgrade path: full WebSocket/Multi-stream NDT7 or Ookla speed test engine.
+private suspend fun executeQuickSpeedTest(): String = withContext(Dispatchers.IO) {
+    var connection: HttpURLConnection? = null
+    try {
+        val url = URL("https://speed.cloudflare.com/__down?bytes=2000000")
+        connection = (url.openConnection() as HttpURLConnection).apply {
+            connectTimeout = 3000
+            readTimeout = 3500
+            setRequestProperty("User-Agent", "DrawerLauncher/1.0")
+            useCaches = false
+            defaultUseCaches = false
+        }
+        connection.connect()
+        val startTime = SystemClock.elapsedRealtime()
+        var totalBytes = 0L
+        val buffer = ByteArray(8192)
+        connection.inputStream.use { input ->
+            while (true) {
+                val read = input.read(buffer)
+                if (read == -1) break
+                totalBytes += read
+                if (SystemClock.elapsedRealtime() - startTime > 3500) break
+            }
+        }
+        val durationMs = (SystemClock.elapsedRealtime() - startTime).coerceAtLeast(80L)
+        val durationSec = durationMs / 1000.0
+        val bits = totalBytes * 8.0
+        val bps = bits / durationSec
+        val mbps = bps / 1_000_000.0
+        if (mbps >= 1.0) {
+            String.format(Locale.US, "%.1f Mbps", mbps)
+        } else if (bps > 0) {
+            String.format(Locale.US, "%.0f Kbps", (bps / 1000.0).coerceAtLeast(0.0))
+        } else {
+            "Unavailable"
+        }
+    } catch (_: Exception) {
+        "Failed"
+    } finally {
+        connection?.disconnect()
+    }
+}
 
 /**
  * Unified Duo Status Icon inspired by iOS 27 on iPhone Duo.
@@ -177,11 +260,68 @@ fun DuoStatusIcon(
         label = "glowPulseAlpha"
     )
 
-    // Auto-close expanded view after 3 seconds
-    LaunchedEffect(isExpanded) {
+    val scope = rememberCoroutineScope()
+    // ponytail: SharedPreferences used directly for instantaneous last recorded speed without DataStore flow overhead; ceiling: main-thread disk read on initial load; upgrade path: DataStore Preferences flow.
+    val prefs = remember(context) { context.getSharedPreferences("duo_status_prefs", Context.MODE_PRIVATE) }
+    var lastRecordedSpeed by remember { mutableStateOf(prefs.getString("last_speed", null)) }
+    var isSpeedTesting by remember { mutableStateOf(false) }
+    var speedTestTriggeredThisSession by remember { mutableStateOf(false) }
+    var timerResetKey by remember { mutableIntStateOf(0) }
+
+    var liveWatts by remember { mutableStateOf<Float?>(status.chargingWatts) }
+    var liveTemp by remember { mutableStateOf<Float?>(status.batteryTempCelsius) }
+
+    LaunchedEffect(status.chargingWatts, status.batteryTempCelsius) {
+        liveWatts = status.chargingWatts
+        liveTemp = status.batteryTempCelsius
+    }
+
+    LaunchedEffect(isExpanded, status.isCharging) {
+        if (isExpanded && status.isCharging) {
+            while (true) {
+                val sticky = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                val (w, t) = readBatteryChargingStats(context, sticky, true)
+                if (w != null) liveWatts = w
+                if (t != null) liveTemp = t
+                delay(1500L)
+            }
+        }
+    }
+
+    fun triggerSpeedTest() {
+        if (isSpeedTesting) return
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        if (!status.isWifiConnected && !status.isCellularConnected) {
+            lastRecordedSpeed = "Offline"
+            prefs.edit().putString("last_speed", "Offline").apply()
+            return
+        }
+        isSpeedTesting = true
+        speedTestTriggeredThisSession = true
+        timerResetKey++
+        scope.launch {
+            val result = executeQuickSpeedTest()
+            isSpeedTesting = false
+            if (result != "Failed" && result != "Unavailable") {
+                lastRecordedSpeed = result
+                prefs.edit().putString("last_speed", result).apply()
+            } else {
+                lastRecordedSpeed = "Unavailable"
+            }
+            timerResetKey++
+        }
+    }
+
+    // Auto-close expanded view: 15s when connected to power or running speed test; 3s otherwise
+    LaunchedEffect(isExpanded, timerResetKey, status.isCharging, speedTestTriggeredThisSession) {
         if (isExpanded) {
-            delay(3000L)
-            onToggleExpand()
+            val durationMs = if (status.isCharging || speedTestTriggeredThisSession || isSpeedTesting) 15_000L else 3_000L
+            delay(durationMs)
+            if (!isSpeedTesting) {
+                onToggleExpand()
+            }
+        } else {
+            speedTestTriggeredThisSession = false
         }
     }
 
@@ -193,8 +333,9 @@ fun DuoStatusIcon(
     val alertRed = Color(0xFFFF3B30)
 
     // Morph container dimensions seamlessly
-    val currentWidth = lerp(sizeDp.dp, 260.dp, expandProgress)
-    val currentHeight = lerp(sizeDp.dp, 108.dp, expandProgress)
+    val baseExpandedHeight = if (status.isCharging) 156.dp else 134.dp
+    val currentWidth = lerp(sizeDp.dp, 268.dp, expandProgress)
+    val currentHeight = lerp(sizeDp.dp, baseExpandedHeight, expandProgress)
     val currentCornerRadius = lerp((sizeDp / 2f).dp, 20.dp, expandProgress)
 
     Box(
@@ -236,7 +377,9 @@ fun DuoStatusIcon(
                 indication = null,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onToggleExpand()
+                    if (!isExpanded) {
+                        onToggleExpand()
+                    }
                 }
             ),
         contentAlignment = when {
@@ -445,7 +588,7 @@ fun DuoStatusIcon(
             }
         }
 
-        // ── Layer 2: Expanded Breakdown 3-Step Card with Rich Staggered Motion ──
+        // ── Layer 2: Expanded Breakdown 4-Step Card with Rich Staggered Motion ──
         if (expandProgress > 0.05f) {
             // ponytail: charging pulse and morph staggers run strictly in graphicsLayer; ceiling: simple alpha/translate lerp; upgrade path: vector path morphing.
             Column(
@@ -457,7 +600,7 @@ fun DuoStatusIcon(
                     },
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Step 1: BATTERY — Live status with unrolling progress bar
+                // Step 1: BATTERY — Live status with unrolling progress bar and charging metrics
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -466,7 +609,7 @@ fun DuoStatusIcon(
                             alpha = ((ep - 0.20f) / 0.60f).coerceIn(0f, 1f)
                             translationY = (1f - ((ep - 0.20f) / 0.80f).coerceIn(0f, 1f)) * -10f
                         },
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -513,17 +656,49 @@ fun DuoStatusIcon(
                                 }
                         )
                     }
+
+                    if (status.isCharging) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 1.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val powerText = liveWatts?.let { String.format(Locale.US, "%.1f W", it) } ?: "Charging"
+                            Text(
+                                text = "⚡ $powerText",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = chargingGreen
+                            )
+                            val tempText = liveTemp?.let { String.format(Locale.US, "%.1f°C", it) }
+                            if (tempText != null) {
+                                Text(
+                                    text = "🌡 $tempText",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = displayColor.copy(alpha = 0.75f)
+                                )
+                            }
+                        }
+                    }
                 }
 
-                // Step 2: WI-FI — Signal waves with live network wave pulse
+                // Step 2: WI-FI — Signal waves with live network wave pulse (tap to speed test)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer {
                             val ep = expandProgress
-                            alpha = ((ep - 0.32f) / 0.60f).coerceIn(0f, 1f)
-                            translationX = (1f - ((ep - 0.32f) / 0.68f).coerceIn(0f, 1f)) * 18f
-                        },
+                            alpha = ((ep - 0.28f) / 0.60f).coerceIn(0f, 1f)
+                            translationX = (1f - ((ep - 0.28f) / 0.68f).coerceIn(0f, 1f)) * 18f
+                        }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { triggerSpeedTest() }
+                        ),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -558,8 +733,8 @@ fun DuoStatusIcon(
                         .fillMaxWidth()
                         .graphicsLayer {
                             val ep = expandProgress
-                            alpha = ((ep - 0.44f) / 0.56f).coerceIn(0f, 1f)
-                            translationX = (1f - ((ep - 0.44f) / 0.56f).coerceIn(0f, 1f)) * 18f
+                            alpha = ((ep - 0.36f) / 0.56f).coerceIn(0f, 1f)
+                            translationX = (1f - ((ep - 0.36f) / 0.56f).coerceIn(0f, 1f)) * 18f
                         },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -582,7 +757,7 @@ fun DuoStatusIcon(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             for (i in 1..4) {
-                                val dotThreshold = 0.42f + (i * 0.07f)
+                                val dotThreshold = 0.36f + (i * 0.06f)
                                 val isFilled = status.isCellularConnected && status.cellularLevel >= i
                                 val dotColor = if (!status.isCellularConnected) {
                                     alertRed
@@ -625,6 +800,63 @@ fun DuoStatusIcon(
                         )
                     }
                 }
+
+                // Step 4: SPEED TEST — Quick latency/bandwidth measurement from connected source
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            val ep = expandProgress
+                            alpha = ((ep - 0.44f) / 0.56f).coerceIn(0f, 1f)
+                            translationX = (1f - ((ep - 0.44f) / 0.56f).coerceIn(0f, 1f)) * 18f
+                        }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { triggerSpeedTest() }
+                        ),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Speed",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = displayColor.copy(alpha = 0.65f),
+                        letterSpacing = 0.3.sp
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val speedText = when {
+                            isSpeedTesting -> "Testing..."
+                            !lastRecordedSpeed.isNullOrBlank() -> lastRecordedSpeed!!
+                            !status.isWifiConnected && !status.isCellularConnected -> "Offline"
+                            else -> "Tap to test"
+                        }
+                        val speedColor = when {
+                            isSpeedTesting -> chargingGreen
+                            speedText == "Offline" || speedText == "Error" || speedText == "Unavailable" -> alertRed
+                            else -> displayColor
+                        }
+
+                        Text(
+                            text = speedText,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = speedColor
+                        )
+                        if (!isSpeedTesting) {
+                            Text(
+                                text = "↺",
+                                fontSize = 11.sp,
+                                color = displayColor.copy(alpha = 0.45f)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -641,6 +873,8 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var batteryPercent by remember { mutableIntStateOf(100) }
     var isCharging by remember { mutableStateOf(false) }
+    var chargingWatts by remember { mutableStateOf<Float?>(null) }
+    var batteryTempCelsius by remember { mutableStateOf<Float?>(null) }
     var isWifiConnected by remember { mutableStateOf(false) }
     var wifiLevel by remember { mutableIntStateOf(0) }
     var isCellularConnected by remember { mutableStateOf(false) }
@@ -666,6 +900,10 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
             isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                     status == BatteryManager.BATTERY_STATUS_FULL
+
+            val (w, t) = readBatteryChargingStats(context, intent, isCharging)
+            chargingWatts = w
+            batteryTempCelsius = t
         }
 
         fun queryWifi() {
@@ -798,6 +1036,8 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     return DuoSystemStatus(
         batteryPercent = batteryPercent,
         isCharging = isCharging,
+        chargingWatts = chargingWatts,
+        batteryTempCelsius = batteryTempCelsius,
         isWifiConnected = isWifiConnected,
         wifiLevel = wifiLevel,
         isCellularConnected = isCellularConnected,

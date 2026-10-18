@@ -266,11 +266,20 @@ fun NotificationDrawer(
             }
             var isTouching by remember { mutableStateOf(false) }
 
-            // ponytail: endless vertical notification scroll list with height cap; ceiling: 100k virtual items; upgrade path: custom circular snap list.
+            // ponytail: disable infinite scroll when <= 3 notifications to avoid duplicate cards visible simultaneously; ceiling: threshold is fixed at 3 items based on max drawer height; upgrade path: dynamically measure viewport height vs item height.
+            val isInfinite = notifCount > 3
             val endlessMultiplier = 10_000
-            val itemCount = if (notifCount > 1) notifCount * endlessMultiplier else notifCount
-            val initialItemIndex = if (notifCount > 1) (endlessMultiplier / 2) * notifCount else 0
+            val itemCount = if (isInfinite) notifCount * endlessMultiplier else notifCount
+            val initialItemIndex = if (isInfinite) (endlessMultiplier / 2) * notifCount else 0
             val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialItemIndex)
+
+            LaunchedEffect(isInfinite) {
+                if (isInfinite) {
+                    listState.scrollToItem((endlessMultiplier / 2) * notifCount)
+                } else {
+                    listState.scrollToItem(0)
+                }
+            }
 
             // ponytail: auto-close notification drawer 3s after scrolling or touch stops via snapshotFlow without recomposing composable; ceiling: fixed 3000ms delay; upgrade path: configurable timeout in preferences.
             LaunchedEffect(isExpanded, uiState.selectedItemForMute, uiState.showRulesSheet) {
@@ -504,12 +513,12 @@ fun NotificationDrawer(
                                     items(
                                         count = itemCount,
                                         key = { index ->
-                                            val actualIndex = if (notifCount > 0) ((index % notifCount) + notifCount) % notifCount else 0
+                                            val actualIndex = if (isInfinite && notifCount > 0) ((index % notifCount) + notifCount) % notifCount else index
                                             val key = uiState.activeNotifications.getOrNull(actualIndex)?.key ?: index
-                                            "$key-$index"
+                                            if (isInfinite) "$key-$index" else "$key"
                                         }
                                     ) { index ->
-                                        val actualIndex = if (notifCount > 0) ((index % notifCount) + notifCount) % notifCount else 0
+                                        val actualIndex = if (isInfinite && notifCount > 0) ((index % notifCount) + notifCount) % notifCount else index
                                         val item = uiState.activeNotifications.getOrNull(actualIndex)
                                         if (item != null) {
                                             EndlessNotificationCard(

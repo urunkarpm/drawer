@@ -672,6 +672,18 @@ fun HomeScreen(
                         .navigationBarsPadding(),
                     contentAlignment = Alignment.TopCenter
                 ) {
+                    if (isDuoStatusExpanded) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .zIndex(90f)
+                                .pointerInput(Unit) {
+                                    detectTapGestures {
+                                        isDuoStatusExpanded = false
+                                    }
+                                }
+                        )
+                    }
                     Column(
                         modifier = Modifier
                             .fillMaxHeight()
