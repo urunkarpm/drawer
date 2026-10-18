@@ -101,12 +101,15 @@ import androidx.compose.ui.window.Dialog
 import android.os.SystemClock
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.roundToInt
 
 /**
@@ -375,47 +378,138 @@ private fun resolveOemChargingBrand(
     }
 }
 
-// ponytail: Lightweight HttpURLConnection speed test streaming 2MB from Cloudflare Edge without third-party SDKs; ceiling: single-threaded download burst test rather than multi-connection full-saturation test; upgrade path: full WebSocket/Multi-stream NDT7 or Ookla speed test engine.
-private suspend fun executeQuickSpeedTest(): String = withContext(Dispatchers.IO) {
-    var connection: HttpURLConnection? = null
-    try {
-        val url = URL("https://speed.cloudflare.com/__down?bytes=2000000")
-        connection = (url.openConnection() as HttpURLConnection).apply {
-            connectTimeout = 3000
-            readTimeout = 3500
-            setRequestProperty("User-Agent", "DrawerLauncher/1.0")
-            useCaches = false
-            defaultUseCaches = false
-        }
-        connection.connect()
-        val startTime = SystemClock.elapsedRealtime()
-        var totalBytes = 0L
-        val buffer = ByteArray(8192)
-        connection.inputStream.use { input ->
-            while (true) {
-                val read = input.read(buffer)
-                if (read == -1) break
-                totalBytes += read
-                if (SystemClock.elapsedRealtime() - startTime > 3500) break
+// ponytail: Dual-stream warm-up filtered throughput engine using Google Global Edge CDN (153MB) with Cloudflare (25MB) fallback; ceiling: 2-stream 2.4s HTTP GET window instead of multi-gigabit socket daemon; upgrade path: NDT7 or Ookla speedtest-cli daemon.
+private suspend fun executeQuickSpeedTest(
+    context: Context? = null,
+    onProgress: ((String) -> Unit)? = null
+): String = withContext(Dispatchers.IO) {
+    val primaryUrl = "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
+    val fallbackUrl = "https://speed.cloudflare.com/__down?bytes=25000000"
+    val userAgent = "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
+    suspend fun runDualStream(targetUrl: String): Double? {
+        val sharedMeasuredBytes = AtomicLong(0L)
+        var sharedMeasureStartTime = 0L
+        val lock = Any()
+        var lastProgressEmitTime = 0L
+
+        suspend fun streamWorker(): Boolean {
+            var connection: HttpURLConnection? = null
+            return try {
+                val url = URL(targetUrl)
+                connection = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 3000
+                    readTimeout = 3500
+                    setRequestProperty("User-Agent", userAgent)
+                    setRequestProperty("Accept-Encoding", "identity")
+                    setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate")
+                    setRequestProperty("Pragma", "no-cache")
+                    useCaches = false
+                    defaultUseCaches = false
+                }
+                connection.connect()
+                if (connection.responseCode !in 200..299) return false
+
+                var firstByteTime = 0L
+                var warmupDone = false
+                val buffer = ByteArray(65536)
+
+                connection.inputStream.use { input ->
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read == -1) break
+                        val now = SystemClock.elapsedRealtime()
+                        if (firstByteTime == 0L) firstByteTime = now
+
+                        val elapsedTotal = now - firstByteTime
+                        if (!warmupDone) {
+                            if (elapsedTotal >= 400L) { // 400ms TCP slow-start warmup discard
+                                warmupDone = true
+                                synchronized(lock) {
+                                    if (sharedMeasureStartTime == 0L) {
+                                        sharedMeasureStartTime = now
+                                    }
+                                }
+                            }
+                        } else {
+                            val currentTotal = sharedMeasuredBytes.addAndGet(read.toLong())
+                            val dt = now - sharedMeasureStartTime
+                            if (dt > 250L && now - lastProgressEmitTime > 200L && onProgress != null) {
+                                lastProgressEmitTime = now
+                                val liveBps = (currentTotal * 8.0) / (dt / 1000.0)
+                                val liveMbps = liveBps / 1_000_000.0
+                                val progressText = if (liveMbps >= 100.0) {
+                                    String.format(Locale.US, "%.0f Mbps", liveMbps)
+                                } else if (liveMbps >= 1.0) {
+                                    String.format(Locale.US, "%.1f Mbps", liveMbps)
+                                } else {
+                                    String.format(Locale.US, "%.0f Kbps", (liveMbps * 1000.0).coerceAtLeast(1.0))
+                                }
+                                withContext(Dispatchers.Main) {
+                                    onProgress(progressText)
+                                }
+                            }
+                            if (elapsedTotal >= 2400L) break
+                        }
+                    }
+                }
+                true
+            } catch (_: Exception) {
+                false
+            } finally {
+                connection?.disconnect()
             }
         }
-        val durationMs = (SystemClock.elapsedRealtime() - startTime).coerceAtLeast(80L)
-        val durationSec = durationMs / 1000.0
-        val bits = totalBytes * 8.0
-        val bps = bits / durationSec
-        val mbps = bps / 1_000_000.0
-        if (mbps >= 1.0) {
-            String.format(Locale.US, "%.1f Mbps", mbps)
-        } else if (bps > 0) {
-            String.format(Locale.US, "%.0f Kbps", (bps / 1000.0).coerceAtLeast(0.0))
-        } else {
-            "Unavailable"
+
+        coroutineScope {
+            val s1 = async { streamWorker() }
+            val s2 = async { streamWorker() }
+            s1.await() || s2.await()
         }
-    } catch (_: Exception) {
-        "Failed"
-    } finally {
-        connection?.disconnect()
+
+        val totalBytes = sharedMeasuredBytes.get()
+        val now = SystemClock.elapsedRealtime()
+        return@runDualStream if (sharedMeasureStartTime > 0L && totalBytes > 0L) {
+            val durationSec = (now - sharedMeasureStartTime).coerceAtLeast(200L) / 1000.0
+            (totalBytes * 8.0) / (durationSec * 1_000_000.0)
+        } else {
+            null
+        }
     }
+
+    // Try primary (Google Global Edge CDN)
+    var mbpsResult = runDualStream(primaryUrl)
+
+    // Fallback to Cloudflare if primary failed (e.g. region where Google is blocked)
+    if (mbpsResult == null || mbpsResult <= 0.01) {
+        mbpsResult = runDualStream(fallbackUrl)
+    }
+
+    if (mbpsResult != null && mbpsResult > 0.01) {
+        return@withContext when {
+            mbpsResult >= 100.0 -> String.format(Locale.US, "%.0f Mbps", mbpsResult)
+            mbpsResult >= 1.0 -> String.format(Locale.US, "%.1f Mbps", mbpsResult)
+            else -> String.format(Locale.US, "%.0f Kbps", (mbpsResult * 1000.0).coerceAtLeast(1.0))
+        }
+    }
+
+    // Native Platform Link Speed Fallback if completely offline / blocked
+    if (context != null) {
+        runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val caps = cm?.getNetworkCapabilities(cm.activeNetwork)
+            if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+                val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                val linkSpeed = wm?.connectionInfo?.linkSpeed ?: -1
+                if (linkSpeed > 0) return@withContext "$linkSpeed Mbps"
+            } else if (caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true) {
+                val kbps = caps.linkDownstreamBandwidthKbps
+                if (kbps > 1000) return@withContext "${kbps / 1000} Mbps"
+            }
+        }
+    }
+
+    "Unavailable"
 }
 
 /**
@@ -487,8 +581,20 @@ fun DuoStatusIcon(
     val prefs = remember(context) { context.getSharedPreferences("duo_status_prefs", Context.MODE_PRIVATE) }
     var lastRecordedSpeed by remember { mutableStateOf(prefs.getString("last_speed", null)) }
     var isSpeedTesting by remember { mutableStateOf(false) }
+    var liveTestingSpeed by remember { mutableStateOf<String?>(null) }
     var speedTestTriggeredThisSession by remember { mutableStateOf(false) }
     var timerResetKey by remember { mutableIntStateOf(0) }
+
+    val retestRotationTransition = rememberInfiniteTransition(label = "retestRotation")
+    val retestRotation by retestRotationTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "retestSpin"
+    )
 
     var liveWatts by remember { mutableStateOf<Float?>(status.chargingWatts) }
     var liveMaxWatts by remember { mutableStateOf<Float?>(status.chargingMaxWatts) }
@@ -525,14 +631,19 @@ fun DuoStatusIcon(
             return
         }
         isSpeedTesting = true
+        liveTestingSpeed = "Testing..."
         speedTestTriggeredThisSession = true
         timerResetKey++
         scope.launch {
-            val result = executeQuickSpeedTest()
+            val result = executeQuickSpeedTest(context) { liveMbps ->
+                liveTestingSpeed = liveMbps
+            }
             isSpeedTesting = false
+            liveTestingSpeed = null
             if (result != "Failed" && result != "Unavailable") {
                 lastRecordedSpeed = result
                 prefs.edit().putString("last_speed", result).apply()
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             } else {
                 lastRecordedSpeed = "Unavailable"
             }
@@ -1079,7 +1190,7 @@ fun DuoStatusIcon(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         val speedText = when {
-                            isSpeedTesting -> "Testing..."
+                            isSpeedTesting -> liveTestingSpeed ?: "Testing..."
                             !lastRecordedSpeed.isNullOrBlank() -> lastRecordedSpeed!!
                             !status.isWifiConnected && !status.isCellularConnected -> "Offline"
                             else -> "Tap to test"
@@ -1096,13 +1207,16 @@ fun DuoStatusIcon(
                             fontWeight = FontWeight.SemiBold,
                             color = speedColor
                         )
-                        if (!isSpeedTesting) {
-                            Text(
-                                text = "↺",
-                                fontSize = 11.sp,
-                                color = displayColor.copy(alpha = 0.45f)
-                            )
-                        }
+                        Text(
+                            text = "↺",
+                            fontSize = 11.sp,
+                            color = if (isSpeedTesting) chargingGreen else displayColor.copy(alpha = 0.45f),
+                            modifier = Modifier.graphicsLayer {
+                                if (isSpeedTesting) {
+                                    rotationZ = retestRotation
+                                }
+                            }
+                        )
                     }
                 }
             }
