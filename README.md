@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v1.2.4-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v1.2.6-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -31,13 +31,25 @@ Everything you need to get things done is reachable in under a second; everythin
 
 ---
 
+## 🌟 What's New in v1.2.6
+
+* **⚡ Frecency App Suggestions:** Predictive app launching powered by an on-device algorithm combining frequency and recency. Your next app is ready before you even search.
+* **🔋 Live Charging Power & Health Stats:** Tap the glance status header to inspect real-time charging wattage (`W`), voltage, current (`mA`), battery temperature, and OEM fast-charging brand detection (Warp Charge, VOOC, TurboPower, Mi Turbo Charge with dual-cell wattage).
+* **🌐 Instant Ad-Free Speed Test:** Built-in network benchmark inside the status popup powered by dual-stream Google Edge CDN with Cloudflare fallback—test your connection speed in seconds with zero telemetry or bloated third-party apps.
+* **🎨 Dynamic Pantone Wallpaper Engine:** Built-in generative wallpaper studio featuring Pantone color harmonies, customizable duotones, gradients, and analog grain textures.
+* **🔤 Curated Typography Packs:** Personalize your header clock with Google Sans, DS-Digital, Evil Empire, Hypik, Spookyy, or Texas Troupe, and scale app labels with granular text size controls.
+* **🧭 Interactive Guided Walkthrough:** Guided interactive onboarding tour that walks you through gestures, widget setups, and drawer organization.
+* **🛡️ Hardened Widget Host Engine:** Bulletproof widget lifecycle management (`DrawerWidgetHostManager`), smooth vertical cycling gestures, resistance physics, and a 5-second auto-collapse timer.
+
+---
+
 ## 🧠 How Drawer Reclaims Your Focus & Time
 
 ```
   Traditional Launchers                     Drawer Launcher
  ┌──────────────────────┐                  ┌──────────────────────┐
- │ [App] [App] [App]  🔴│  Visual Clutter  │      09:41 AM        │  Clean Header
- │ [App] [App] [App]  🔴│  Badge Overload  │    22°C  Sunny       │  At-a-Glance
+ │ [App] [App] [App]  🔴│  Visual Clutter  │      09:41 AM        │  Glance Header &
+ │ [App] [App] [App]  🔴│  Badge Overload  │  22°C ☀️  45W Turbo  │  Live Charging Stats
  │ [App] [App] [App]  🔴│  News Feed       │                      │
  │ ── Page 1 of 6 ──────│  Endless Swiping │ ┌──────────────────┐ │  Single Focus Area
  │ 🔍 Sponsored search  │  Ad Tracking     │ │ 📁 Work (4 apps) │ │  Expandable Drawer
@@ -58,22 +70,26 @@ Widgets are powerful for productivity, but standard launchers force you to dedic
 * **Cover Flow 3D Stacking:** Flip smoothly through interactive productivity widgets (Calendar, Tasks, Notes, Music) with tactile, physics-based depth.
 * **Widget Accordion Drawers:** Tuck widgets into collapsible drawers. Pull up your day's schedule or task list with a tap, take action, and let it auto-collapse in 5 seconds.
 * **Interactive Resizing:** Customize widget heights and grid spans to fit your exact information density requirements.
+* **Bulletproof Engine:** Engineered with robust lifecycle hooks to prevent widget freezing and host memory leaks.
 
-### 3. 🔕 Distraction Firewall — Notification Hub with Quick Mute
+### 3. ⚡ Zero-Lag Launching & Smart Frecency Suggestions
+When you know what you want to do, every millisecond of friction matters.
+* **Frecency Predictive Row:** Surfaces your most relevant apps dynamically based on a smart frequency + recency calculation.
+* **Instant Type-to-Filter:** Press a key and launch target apps in sub-milliseconds.
+* **Thumb-Glide Alphabet Rail:** Slide your thumb down the screen edge to jump instantly to any letter index—effortless single-handed navigation on large devices.
+* **Hidden Apps Vault:** Conceal apps you rarely need (or apps that trigger unhealthy habits) so you aren’t tempted by idle dopamine loops.
+
+### 4. 🔕 Distraction Firewall — Notification Hub with Quick Mute
 Notifications are the single biggest killer of deep work and flow state. Drawer puts you firmly in control:
 * **Swipe-Up Notification Hub:** See incoming alerts neatly grouped by application—no chaotic notification shade pulling down over your workspace.
 * **Home-Screen Quick Mute:** A chat group or noisy app breaking your concentration? Mute it for **1 hour**, **24 hours**, or **permanently** right from the launcher—without digging through system settings menus.
 * **Privacy Mask Mode:** Instantly masks message previews on your home screen to keep sensitive work emails, two-factor codes, and private messages hidden from passersby.
 
-### 4. ⚡ Zero-Lag Launching: Search & Thumb-Glide Alphabet Rail
-When you know what you want to do, every millisecond of friction matters.
-* **Instant Type-to-Filter:** Press a key and launch target apps in sub-milliseconds.
-* **Thumb-Glide Alphabet Rail:** Slide your thumb down the screen edge to jump instantly to any letter index—effortless single-handed navigation on large devices.
-* **Hidden Apps Vault:** Conceal apps you rarely need (or apps that trigger unhealthy habits) so you aren’t tempted by idle dopamine loops.
-
-### 5. 🪞 Floating Frosted Glass Dock & Mirror Glance
-* **Quick Access Workhorses:** Pin 1 to 5 vital daily drivers (Phone, Browser, Notes, Terminal) in an elegant, blurred frosted glass bar.
-* **Mirror Glance Widget:** Heading into an important client pitch or team video call? Tap the discreet front-camera glance right on your home screen to check your appearance without opening a heavy camera application.
+### 5. 🔋 Live Power Stats, Quick Speed Test & Frosted Glass Dock
+* **Live Battery & Fast-Charging Telemetry:** Tap the status icon to see real-time charging wattage (`W`), voltage (`V`), current (`mA`), battery temperature, and OEM fast-charging brand detection.
+* **Dual-Stream Speed Test:** Run an instantaneous download speed test powered by Google Edge CDN and Cloudflare directly from the status popup.
+* **Floating Glass Dock:** Pin 1 to 5 vital daily drivers (Phone, Browser, Notes, Terminal) in an elegant, blurred frosted glass bar.
+* **Mirror Glance Widget:** Heading into an important video call? Tap the discreet front-camera glance right on your home screen to check your appearance without opening a heavy camera application.
 
 ### 6. 🛡️ 100% Offline, Ad-Free, & Zero Battery Drain
 * **Zero Analytics & Trackers:** No cloud telemetry, no background pings, no accounts, and no data harvesting. 100% of your data stays on your device.
@@ -87,11 +103,14 @@ When you know what you want to do, every millisecond of friction matters.
 | :--- | :---: | :---: | :---: |
 | **Mindset** | App Storefront & Feeds | Tweaker's Sandbox | **Intentional Productivity** |
 | **Organization** | Rigid icons & nested folders | Complex grid layouts | **Accordion Drawers & 3D Stacks** |
+| **App Predictions** | Ad/sponsored recommendations | Static recent apps | **On-Device Frecency Engine** |
+| **Power Telemetry** | Basic percentage only | Requires 3rd-party apps | **Live Wattage, V/mA & OEM Turbo** |
+| **Speed Benchmark** | ❌ None (ad-laden apps) | ❌ None | **Built-in Google Edge Speed Test** |
 | **Distraction Defense** | Badges & push alerts | Basic badge toggles | **Home Screen Quick Mute & Privacy Mask** |
 | **Widget Handling** | Screen hogging | Static placement | **Collapsible Widget Drawers & Cover Flow** |
+| **Wallpapers & Fonts** | Fixed system defaults | Limited fonts | **Pantone Studio & Typography Packs** |
 | **Privacy & Telemetry** | Cloud sync & ad analytics | Often tracks crash analytics | **100% Offline & Zero Telemetry** |
 | **Setup Time** | Cluttered by default | 30+ minutes configuring | **Productive in under 60 seconds** |
-| **Ad-Free Weather & Clock** | ❌ Sponsored news/weather | ⚠️ Varies | ✅ **100% Pure, Zero Ads** |
 
 ---
 
@@ -135,6 +154,9 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 ## 🎨 Visual Customization Options
 
 Make your productivity workspace match your personal aesthetic:
+* **Dynamic Pantone Wallpaper Studio:** Procedural wallpaper generator with customizable harmonies, duotones, and analog grain.
+* **Curated Typography Packs:** Select your clock font from Google Sans, DS-Digital, Evil Empire, Hypik, Spookyy, and Texas Troupe.
+* **App Label Scaling:** Fine-tune label text size across groups, dock, and all-apps drawer with `LocalAppLabelScale`.
 * **Deep AMOLED Pitch Black:** Ultra-battery-efficient, high-contrast black styling.
 * **Material You Dynamic Theming:** Automatically adapts accent colors based on your wallpaper.
 * **Third-Party Icon Packs:** Full compatibility with icon packs from Google Play, plus per-app icon overrides.
@@ -151,23 +173,24 @@ For engineers and contributors, Drawer is engineered according to Google's offic
 ```
 ├── app/                  # Main application module, navigation & initialization
 ├── core/
-│   ├── common/           # Shared coroutine dispatchers, extensions, utilities
+│   ├── common/           # Coroutine dispatchers, DrawerWidgetHostManager, utilities
 │   ├── model/            # Pure domain models (AppDrawer, WidgetItem, DockItem)
-│   ├── designsystem/     # Glassmorphic components, theme definitions, typography
+│   ├── designsystem/     # Glassmorphic components, Pantone wallpaper, typography
 │   ├── database/         # Room database, DAOs, and persistence entities
 │   ├── datastore/        # Jetpack Preferences DataStore for user preferences
-│   └── data/             # Repositories reconciling DB, installed apps & system state
+│   └── data/             # Repositories reconciling DB, installed apps & frecency state
 └── feature/
-    ├── home/             # Main screen orchestrator, gestures, search & grid layout
+    ├── home/             # Main screen orchestrator, DuoStatusIcon, speed test & walkthrough
     ├── groups/           # App drawer accordion management & categorized grouping
     ├── dock/             # Floating frosted glass dock & fast action bar
     ├── notifications/    # System notification listener, quick-mute & privacy masking
     ├── iconpacks/        # Icon pack parsing, caching & custom shape masking
-    └── settings/         # Visual customization, backup/restore & launcher tour
+    └── settings/         # Visual customization, typography packs, backup & tour
 ```
 
 * **UI Layer:** 100% Jetpack Compose with Material 3 design tokens.
 * **Asynchronous Streams:** Kotlin Coroutines and reactive `StateFlow` / `SharedFlow`.
+* **Predictive Algorithm:** On-device Frecency ranking reconciling launch count and timestamps.
 * **Persistence:** AndroidX Room DB + Jetpack DataStore (zero raw SQLite/SharedPreferences).
 * **Performance:** Hardware-accelerated graphics with RenderEffect runtime blur shaders (Android 12+) and legacy-safe fallbacks.
 
