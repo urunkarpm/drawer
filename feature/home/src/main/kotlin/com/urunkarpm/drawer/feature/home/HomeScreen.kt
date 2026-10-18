@@ -585,6 +585,15 @@ fun HomeScreen(
                 // ponytail: native window.setBackgroundBlurRadius blurs wallpaper on Android 12+ without flat surface scrims covering wallpaper; ceiling: Android < 12 shows clean transparent wallpaper; upgrade path: RenderEffect-based RenderNode blur.
                 .background(Color.Transparent)
         ) {
+            if (uiState.dynamicWallpaperEnabled) {
+                com.urunkarpm.drawer.core.designsystem.component.DynamicPantoneWallpaper(
+                    speedSeconds = uiState.wallpaperGradientSpeedSeconds,
+                    blurPercent = uiState.wallpaperGradientBlurPercent,
+                    paletteId = uiState.wallpaperGradientPalette,
+                    angleStyle = uiState.wallpaperGradientAngle,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
             val homeContent: @Composable () -> Unit = {
                 val homeScrollState = rememberScrollState()
 
@@ -1247,7 +1256,27 @@ fun HomeScreen(
                 onDismiss = {
                     showManualWalkthrough = false
                     viewModel.completeWalkthrough()
-                }
+                },
+                twoDrawersSideBySide = uiState.twoDrawersSideBySide,
+                onSetTwoDrawersSideBySide = viewModel::setTwoDrawersSideBySide,
+                is24Hour = uiState.is24Hour,
+                onSetIs24Hour = viewModel::setIs24Hour,
+                showWeather = uiState.showWeather,
+                onSetShowWeather = viewModel::setShowWeather,
+                adaptiveIconShape = uiState.adaptiveIconShape,
+                onSetAdaptiveIconShape = viewModel::setAdaptiveIconShape,
+                drawerThemeMode = uiState.drawerThemeMode,
+                onSetDrawerThemeMode = viewModel::setDrawerThemeMode,
+                surfaceThemeStyle = uiState.surfaceThemeStyle,
+                onSetSurfaceThemeStyle = viewModel::setSurfaceThemeStyle,
+                dockMesmerizingGlow = uiState.dockMesmerizingGlow,
+                onSetDockMesmerizingGlow = viewModel::setDockMesmerizingGlow,
+                headerFontFamily = uiState.headerFontFamily,
+                onSetHeaderFontFamily = viewModel::setHeaderFontFamily,
+                stealthTheme = uiState.stealthTheme,
+                onSetStealthTheme = viewModel::setStealthTheme,
+                isDynamicWallpaper = uiState.dynamicWallpaperEnabled,
+                onSelectDynamicWallpaper = viewModel::setDynamicWallpaperEnabled
             )
         }
     }

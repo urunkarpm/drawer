@@ -46,7 +46,13 @@ data class GlancePrefs(
     val hideDrawerIcons: Boolean = false,
     val stealthTheme: Boolean = false,
     val stealthContrastLevel: String = "LOW",
-    val stealthLimitBrightness: Boolean = false
+    val stealthLimitBrightness: Boolean = false,
+    val dynamicWallpaperEnabled: Boolean = false,
+    val wallpaperGradientSpeedSeconds: Int = 3,
+    val wallpaperGradientBlurPercent: Int = 40,
+    val wallpaperGradientPalette: String = "FULL_SPECTRUM",
+    val wallpaperGradientAngle: String = "DIAGONAL",
+    val dockMesmerizingGlow: Boolean = true
 )
 
 data class HomeDialogsState(
@@ -98,7 +104,13 @@ data class HomeUiState(
     val hideDrawerIcons: Boolean = false,
     val stealthTheme: Boolean = false,
     val stealthContrastLevel: String = "LOW",
-    val stealthLimitBrightness: Boolean = false
+    val stealthLimitBrightness: Boolean = false,
+    val dynamicWallpaperEnabled: Boolean = false,
+    val wallpaperGradientSpeedSeconds: Int = 3,
+    val wallpaperGradientBlurPercent: Int = 40,
+    val wallpaperGradientPalette: String = "FULL_SPECTRUM",
+    val wallpaperGradientAngle: String = "DIAGONAL",
+    val dockMesmerizingGlow: Boolean = true
 )
 
 data class SurfaceThemePrefs(
@@ -147,7 +159,13 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.hideDrawerIcons,
         preferencesDataSource.stealthTheme,
         preferencesDataSource.stealthContrastLevel,
-        preferencesDataSource.stealthLimitBrightness
+        preferencesDataSource.stealthLimitBrightness,
+        preferencesDataSource.dynamicWallpaperEnabled,
+        preferencesDataSource.wallpaperGradientSpeedSeconds,
+        preferencesDataSource.wallpaperGradientBlurPercent,
+        preferencesDataSource.wallpaperGradientPalette,
+        preferencesDataSource.wallpaperGradientAngle,
+        preferencesDataSource.dockMesmerizingGlow
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -173,6 +191,12 @@ class HomeViewModel @Inject constructor(
         val stealthTheme = values[20] as Boolean
         val stealthContrastLevel = values[21] as String
         val stealthLimitBrightness = values[22] as Boolean
+        val dynamicWallpaperEnabled = values[23] as Boolean
+        val wallpaperGradientSpeedSeconds = values[24] as Int
+        val wallpaperGradientBlurPercent = values[25] as Int
+        val wallpaperGradientPalette = values[26] as String
+        val wallpaperGradientAngle = values[27] as String
+        val dockMesmerizingGlow = values[28] as Boolean
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -196,7 +220,13 @@ class HomeViewModel @Inject constructor(
             hideDrawerIcons,
             stealthTheme,
             stealthContrastLevel,
-            stealthLimitBrightness
+            stealthLimitBrightness,
+            dynamicWallpaperEnabled,
+            wallpaperGradientSpeedSeconds,
+            wallpaperGradientBlurPercent,
+            wallpaperGradientPalette,
+            wallpaperGradientAngle,
+            dockMesmerizingGlow
         )
     }
 
@@ -297,7 +327,13 @@ class HomeViewModel @Inject constructor(
             hideDrawerIcons = glancePrefs.hideDrawerIcons,
             stealthTheme = glancePrefs.stealthTheme,
             stealthContrastLevel = glancePrefs.stealthContrastLevel,
-            stealthLimitBrightness = glancePrefs.stealthLimitBrightness
+            stealthLimitBrightness = glancePrefs.stealthLimitBrightness,
+            dynamicWallpaperEnabled = glancePrefs.dynamicWallpaperEnabled,
+            wallpaperGradientSpeedSeconds = glancePrefs.wallpaperGradientSpeedSeconds,
+            wallpaperGradientBlurPercent = glancePrefs.wallpaperGradientBlurPercent,
+            wallpaperGradientPalette = glancePrefs.wallpaperGradientPalette,
+            wallpaperGradientAngle = glancePrefs.wallpaperGradientAngle,
+            dockMesmerizingGlow = glancePrefs.dockMesmerizingGlow
         )
     }.stateIn(
         scope = viewModelScope,
@@ -637,6 +673,67 @@ class HomeViewModel @Inject constructor(
     fun completeWalkthrough() {
         viewModelScope.launch(Dispatchers.IO) {
             preferencesDataSource.setHasCompletedWalkthrough(true)
+        }
+    }
+
+    fun setDynamicWallpaperEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setDynamicWallpaperEnabled(enabled)
+        }
+    }
+
+    // ponytail: Direct preference mutations from walkthrough flow; ceiling: doesn't validate conflicting preference matrix; upgrade path: unified batch configuration transaction.
+    fun setTwoDrawersSideBySide(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setTwoDrawersSideBySide(enabled)
+        }
+    }
+
+    fun setIs24Hour(is24: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setIs24Hour(is24)
+        }
+    }
+
+    fun setShowWeather(show: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setShowWeather(show)
+        }
+    }
+
+    fun setAdaptiveIconShape(shape: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setAdaptiveIconShape(shape)
+        }
+    }
+
+    fun setDrawerThemeMode(mode: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setDrawerThemeMode(mode)
+        }
+    }
+
+    fun setSurfaceThemeStyle(style: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setSurfaceThemeStyle(style)
+        }
+    }
+
+    fun setDockMesmerizingGlow(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setDockMesmerizingGlow(enabled)
+        }
+    }
+
+    fun setHeaderFontFamily(font: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setHeaderFontFamily(font)
+        }
+    }
+
+    fun setStealthTheme(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setStealthTheme(enabled)
         }
     }
 }

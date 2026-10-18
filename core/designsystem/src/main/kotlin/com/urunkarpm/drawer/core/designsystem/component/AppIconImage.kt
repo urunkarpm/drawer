@@ -74,13 +74,17 @@ fun Drawable.toImageBitmapSafe(sizePx: Int = 192): ImageBitmap? {
     return try {
         if (this is BitmapDrawable && bitmap != null) {
             val bmp = bitmap
-            if (bmp.width <= sizePx && bmp.height <= sizePx) {
+            if (bmp.width >= sizePx && bmp.height >= sizePx) {
                 return bmp.asImageBitmap()
             }
         }
         val targetSize = sizePx.coerceIn(144, 256)
         val bmp = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
+        canvas.drawFilter = android.graphics.PaintFlagsDrawFilter(
+            0,
+            android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG
+        )
         setBounds(0, 0, canvas.width, canvas.height)
         draw(canvas)
         bmp.asImageBitmap()

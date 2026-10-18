@@ -323,6 +323,7 @@ fun GlanceHeader(
                         Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = amPm,
+                            fontFamily = LocalHeaderFontFamily.current,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Normal,
                             color = subtextColor,
@@ -344,6 +345,7 @@ fun GlanceHeader(
                 ) {
                     Text(
                         text = formattedDate,
+                        fontFamily = LocalHeaderFontFamily.current,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = subtextColor,
@@ -443,6 +445,7 @@ fun GlanceHeader(
                 ) {
                     Text(
                         text = weatherLocationText,
+                        fontFamily = LocalHeaderFontFamily.current,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = subtextColor,

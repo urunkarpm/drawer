@@ -29,6 +29,26 @@ val ArialFontFamily = FontFamily(
     Font(R.font.arial_fp, FontWeight.Normal)
 )
 
+val GoogleSansFontFamily = FontFamily(
+    Font(R.font.google_sans_fp, FontWeight.Normal)
+)
+
+val SpookyyFontFamily = FontFamily(
+    Font(R.font.spookyy_fp, FontWeight.Normal)
+)
+
+val DsDigitalFontFamily = FontFamily(
+    Font(R.font.ds_digital_fp, FontWeight.Normal)
+)
+
+val EvilEmpireFontFamily = FontFamily(
+    Font(R.font.evil_empire_fp, FontWeight.Normal)
+)
+
+val HypikFontFamily = FontFamily(
+    Font(R.font.hypik_fp, FontWeight.Normal)
+)
+
 val Typography = Typography(
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,

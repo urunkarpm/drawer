@@ -125,6 +125,7 @@ fun DockBar(
                     surfaceBlurRadius = uiState.surfaceBlurRadius,
                     surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                     isDropTarget = isDropTarget,
+                    isMesmerizingGlow = uiState.mesmerizingGlow,
                     modifier = Modifier.matchParentSize()
                 )
 
@@ -225,6 +226,7 @@ fun DockBar(
                     surfaceBlurRadius = uiState.surfaceBlurRadius,
                     surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                     isDropTarget = isDropTarget,
+                    isMesmerizingGlow = uiState.mesmerizingGlow,
                     modifier = Modifier.matchParentSize()
                 )
 

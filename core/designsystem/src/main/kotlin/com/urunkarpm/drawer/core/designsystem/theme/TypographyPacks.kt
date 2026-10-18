@@ -21,6 +21,11 @@ fun headerFontFamilyFromName(name: String): FontFamily = when (name.uppercase())
     "ROBOTO" -> RobotoFontFamily
     "TIMES_NEW_ROMAN", "TIMES" -> TimesNewRomanFontFamily
     "ARIAL" -> ArialFontFamily
+    "GOOGLE_SANS", "GOOGLE SANS", "PRODUCT_SANS" -> GoogleSansFontFamily
+    "SPOOKYY" -> SpookyyFontFamily
+    "DS_DIGITAL", "DS-DIGITAL", "DIGITAL" -> DsDigitalFontFamily
+    "EVIL_EMPIRE", "EVIL EMPIRE" -> EvilEmpireFontFamily
+    "HYPIK" -> HypikFontFamily
     else -> FontFamily.Default
 }
 

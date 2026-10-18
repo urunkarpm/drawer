@@ -33,6 +33,15 @@ data class ThemeSettings(
     val enableWidgetsPage: Boolean = true
 )
 
+data class WallpaperSettings(
+    val dynamicWallpaperEnabled: Boolean = false,
+    val wallpaperGradientSpeedSeconds: Int = 3,
+    val wallpaperGradientBlurPercent: Int = 40,
+    val wallpaperGradientPalette: String = "FULL_SPECTRUM",
+    val wallpaperGradientAngle: String = "DIAGONAL",
+    val dockMesmerizingGlow: Boolean = true
+)
+
 data class GlanceSettings(
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
@@ -72,7 +81,8 @@ data class MiscSettings(
     val notificationSwipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
     val stealthTheme: Boolean = false,
     val stealthContrastLevel: String = "LOW",
-    val stealthLimitBrightness: Boolean = false
+    val stealthLimitBrightness: Boolean = false,
+    val drawerNotificationGlow: Boolean = true
 )
 
 data class SettingsActionState(
@@ -102,7 +112,15 @@ private data class MiscPart2(
 private data class MiscPart3(
     val stealthTheme: Boolean,
     val stealthContrastLevel: String,
-    val stealthLimitBrightness: Boolean
+    val stealthLimitBrightness: Boolean,
+    val drawerNotificationGlow: Boolean
+)
+
+private data class GradientVisuals(
+    val speed: Int,
+    val blur: Int,
+    val palette: String,
+    val angle: String
 )
 
 data class SettingsUiState(
@@ -151,7 +169,14 @@ data class SettingsUiState(
     val userMessage: String? = null,
     val stealthTheme: Boolean = false,
     val stealthContrastLevel: String = "LOW",
-    val stealthLimitBrightness: Boolean = false
+    val stealthLimitBrightness: Boolean = false,
+    val drawerNotificationGlow: Boolean = true,
+    val dynamicWallpaperEnabled: Boolean = false,
+    val wallpaperGradientSpeedSeconds: Int = 3,
+    val wallpaperGradientBlurPercent: Int = 40,
+    val wallpaperGradientPalette: String = "FULL_SPECTRUM",
+    val wallpaperGradientAngle: String = "DIAGONAL",
+    val dockMesmerizingGlow: Boolean = true
 )
 
 @HiltViewModel
@@ -258,9 +283,10 @@ class SettingsViewModel @Inject constructor(
     private val miscFlowPart3 = combine(
         preferencesDataSource.stealthTheme,
         preferencesDataSource.stealthContrastLevel,
-        preferencesDataSource.stealthLimitBrightness
-    ) { stealthTheme, stealthContrastLevel, stealthLimitBrightness ->
-        MiscPart3(stealthTheme, stealthContrastLevel, stealthLimitBrightness)
+        preferencesDataSource.stealthLimitBrightness,
+        preferencesDataSource.drawerNotificationGlow
+    ) { stealthTheme, stealthContrastLevel, stealthLimitBrightness, drawerNotificationGlow ->
+        MiscPart3(stealthTheme, stealthContrastLevel, stealthLimitBrightness, drawerNotificationGlow)
     }
 
     private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3) { p1, p2, p3 ->
@@ -277,7 +303,8 @@ class SettingsViewModel @Inject constructor(
             notificationSwipeLeftAction = p1.swipeLeft,
             stealthTheme = p3.stealthTheme,
             stealthContrastLevel = p3.stealthContrastLevel,
-            stealthLimitBrightness = p3.stealthLimitBrightness
+            stealthLimitBrightness = p3.stealthLimitBrightness,
+            drawerNotificationGlow = p3.drawerNotificationGlow
         )
     }
 
@@ -292,13 +319,41 @@ class SettingsViewModel @Inject constructor(
         Triple(font, scale, action)
     }
 
+    private val wallpaperVisualsFlow = combine(
+        preferencesDataSource.wallpaperGradientSpeedSeconds,
+        preferencesDataSource.wallpaperGradientBlurPercent,
+        preferencesDataSource.wallpaperGradientPalette,
+        preferencesDataSource.wallpaperGradientAngle
+    ) { speed, blur, palette, angle ->
+        GradientVisuals(speed, blur, palette, angle)
+    }
+
+    private val wallpaperFlow = combine(
+        preferencesDataSource.dynamicWallpaperEnabled,
+        preferencesDataSource.dockMesmerizingGlow,
+        wallpaperVisualsFlow
+    ) { enabled, glow, visuals ->
+        WallpaperSettings(
+            dynamicWallpaperEnabled = enabled,
+            wallpaperGradientSpeedSeconds = visuals.speed,
+            wallpaperGradientBlurPercent = visuals.blur,
+            wallpaperGradientPalette = visuals.palette,
+            wallpaperGradientAngle = visuals.angle,
+            dockMesmerizingGlow = glow
+        )
+    }
+
+    private val themeAndWallpaperFlow = combine(themeFlow, wallpaperFlow) { theme, wallpaper ->
+        theme to wallpaper
+    }
+
     val uiState: StateFlow<SettingsUiState> = combine(
-        themeFlow,
+        themeAndWallpaperFlow,
         glanceFlow,
         dockAndSurfaceFlow,
         miscFlow,
         typographyAndActionFlow
-    ) { theme, glance, (dock, surface), misc, (headerFontFamily, appLabelScale, action) ->
+    ) { (theme, wallpaper), glance, (dock, surface), misc, (headerFontFamily, appLabelScale, action) ->
         SettingsUiState(
             themeMode = theme.themeMode,
             drawerThemeMode = theme.drawerThemeMode,
@@ -345,13 +400,56 @@ class SettingsViewModel @Inject constructor(
             userMessage = action.userMessage,
             stealthTheme = misc.stealthTheme,
             stealthContrastLevel = misc.stealthContrastLevel,
-            stealthLimitBrightness = misc.stealthLimitBrightness
+            stealthLimitBrightness = misc.stealthLimitBrightness,
+            drawerNotificationGlow = misc.drawerNotificationGlow,
+            dynamicWallpaperEnabled = wallpaper.dynamicWallpaperEnabled,
+            wallpaperGradientSpeedSeconds = wallpaper.wallpaperGradientSpeedSeconds,
+            wallpaperGradientBlurPercent = wallpaper.wallpaperGradientBlurPercent,
+            wallpaperGradientPalette = wallpaper.wallpaperGradientPalette,
+            wallpaperGradientAngle = wallpaper.wallpaperGradientAngle,
+            dockMesmerizingGlow = wallpaper.dockMesmerizingGlow
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = SettingsUiState()
     )
+
+    fun setDynamicWallpaperEnabled(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDynamicWallpaperEnabled(enabled)
+        }
+    }
+
+    fun setWallpaperGradientSpeedSeconds(seconds: Int) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setWallpaperGradientSpeedSeconds(seconds)
+        }
+    }
+
+    fun setWallpaperGradientBlurPercent(percent: Int) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setWallpaperGradientBlurPercent(percent)
+        }
+    }
+
+    fun setWallpaperGradientPalette(palette: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setWallpaperGradientPalette(palette)
+        }
+    }
+
+    fun setWallpaperGradientAngle(angle: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setWallpaperGradientAngle(angle)
+        }
+    }
+
+    fun setDockMesmerizingGlow(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDockMesmerizingGlow(enabled)
+        }
+    }
 
     fun setOpenDrawerFromDockOnly(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
@@ -555,6 +653,12 @@ class SettingsViewModel @Inject constructor(
     fun setStealthLimitBrightness(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setStealthLimitBrightness(enabled)
+        }
+    }
+
+    fun setDrawerNotificationGlow(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDrawerNotificationGlow(enabled)
         }
     }
 

@@ -5,12 +5,16 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -177,6 +181,7 @@ fun GroupsAccordion(
                                 twoDrawersSideBySide = true,
                                 isDropTarget = hoveredGroupId == group.group.id,
                                 hasNotification = group.apps.any { it.packageName in notificationPackages },
+                                drawerNotificationGlow = uiState.drawerNotificationGlow,
                                 notificationPackages = notificationPackages,
                                 onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
                                 onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
@@ -215,6 +220,7 @@ fun GroupsAccordion(
                                 twoDrawersSideBySide = true,
                                 isDropTarget = hoveredGroupId == group.group.id,
                                 hasNotification = group.apps.any { it.packageName in notificationPackages },
+                                drawerNotificationGlow = uiState.drawerNotificationGlow,
                                 notificationPackages = notificationPackages,
                                 onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
                                 onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
@@ -249,6 +255,7 @@ fun GroupsAccordion(
                         twoDrawersSideBySide = false,
                         isDropTarget = hoveredGroupId == resolvedGroup.group.id,
                         hasNotification = resolvedGroup.apps.any { it.packageName in notificationPackages },
+                        drawerNotificationGlow = uiState.drawerNotificationGlow,
                         notificationPackages = notificationPackages,
                         onPositioned = { rect -> onGroupPositioned?.invoke(resolvedGroup.group.id, rect) },
                         onAppPositioned = { app, rect -> onAppPositioned?.invoke(resolvedGroup.group.id, app, rect) },
@@ -380,6 +387,7 @@ private fun GroupCard(
     twoDrawersSideBySide: Boolean = false,
     isDropTarget: Boolean = false,
     hasNotification: Boolean = false,
+    drawerNotificationGlow: Boolean = true,
     notificationPackages: Set<String> = emptySet(),
     onPositioned: ((Rect) -> Unit)? = null,
     onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
@@ -401,6 +409,64 @@ private fun GroupCard(
         }
     }
     val groupIcon = GroupIcons.getIcon(group.iconName)
+
+    val notifyingPkgs = remember(resolvedGroup.apps, notificationPackages) {
+        resolvedGroup.apps.map { it.packageName }.filter { it in notificationPackages }.toSet()
+    }
+    // ponytail: in-memory drawer notification acknowledgment state; ceiling: resets across process restarts; upgrade path: persist in Room/DataStore.
+    var acknowledgedPkgs by remember(group.id) { mutableStateOf<Set<String>>(emptySet()) }
+
+    LaunchedEffect(notifyingPkgs) {
+        if (notifyingPkgs.isEmpty()) {
+            acknowledgedPkgs = emptySet()
+        } else {
+            acknowledgedPkgs = acknowledgedPkgs.intersect(notifyingPkgs)
+        }
+    }
+
+    LaunchedEffect(isExpanded, notifyingPkgs) {
+        if (isExpanded && notifyingPkgs.isNotEmpty()) {
+            delay(1500L)
+            acknowledgedPkgs = notifyingPkgs
+        }
+    }
+
+    val hasUnacknowledgedNotification = notifyingPkgs.any { it !in acknowledgedPkgs }
+    val isGlowing = drawerNotificationGlow && hasUnacknowledgedNotification
+
+    val infiniteTransition = rememberInfiniteTransition(label = "drawerGlowPulse")
+    val pulseScale by if (isGlowing) {
+        infiniteTransition.animateFloat(
+            initialValue = 1.0f,
+            targetValue = 1.15f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseScale"
+        )
+    } else {
+        remember { mutableFloatStateOf(1.0f) }
+    }
+
+    val pulseAlpha by if (isGlowing) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.35f,
+            targetValue = 0.85f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseAlpha"
+        )
+    } else {
+        remember { mutableFloatStateOf(0.40f) }
+    }
+
+    val handleAppClick: (AppInfo) -> Unit = { app ->
+        acknowledgedPkgs = notifyingPkgs
+        onAppClick(app)
+    }
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = spring(
@@ -497,7 +563,10 @@ private fun GroupCard(
                     .combinedClickable(
                         interactionSource = headerInteractionSource,
                         indication = null,
-                        onClick = onToggleExpand,
+                        onClick = {
+                            acknowledgedPkgs = notifyingPkgs
+                            onToggleExpand()
+                        },
                         onLongClick = if (!lockLayout) { { showMenu = true } } else null
                     )
             ) {
@@ -511,40 +580,67 @@ private fun GroupCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (!hideDrawerIcons) {
-                        // Category Icon Badge with subtle corporate tint and precision border
+                        // Category Icon Badge with glowing pulse if unacknowledged notification is active
                         Box(
-                            modifier = Modifier
-                                .size(if (isCompact) 30.dp else 34.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(groupColor.copy(alpha = 0.12f))
-                                .border(
-                                    width = if (hasNotification) 1.5.dp else 1.dp,
-                                    color = if (hasNotification) groupColor.copy(alpha = 0.50f)
-                                            else groupColor.copy(alpha = 0.25f),
-                                    shape = RoundedCornerShape(10.dp)
-                                ),
+                            modifier = Modifier.size(if (isCompact) 30.dp else 34.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = groupIcon,
-                                contentDescription = group.name,
-                                tint = groupColor,
-                                modifier = Modifier.size(if (isCompact) 16.dp else 18.dp)
-                            )
-                            if (hasNotification) {
+                            if (isGlowing) {
+                                // Soft pulsating aura around the drawer icon
                                 Box(
                                     modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(if (isCompact) 2.dp else 2.5.dp)
-                                        .size(if (isCompact) 6.dp else 7.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary)
+                                        .matchParentSize()
+                                        .graphicsLayer {
+                                            scaleX = pulseScale
+                                            scaleY = pulseScale
+                                            alpha = pulseAlpha
+                                        }
+                                        .background(
+                                            color = groupColor.copy(alpha = 0.35f),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
                                 )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isGlowing) groupColor.copy(alpha = 0.18f + 0.08f * pulseAlpha)
+                                        else groupColor.copy(alpha = 0.12f)
+                                    )
+                                    .border(
+                                        width = if (isGlowing) 1.5.dp else if (hasNotification) 1.5.dp else 1.dp,
+                                        color = if (isGlowing) groupColor.copy(alpha = pulseAlpha)
+                                                else if (hasNotification) groupColor.copy(alpha = 0.50f)
+                                                else groupColor.copy(alpha = 0.25f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = groupIcon,
+                                    contentDescription = group.name,
+                                    tint = groupColor,
+                                    modifier = Modifier.size(if (isCompact) 16.dp else 18.dp)
+                                )
+                                // ponytail: Notification indicator dot displays only when drawer glowing is disabled to avoid visual clutter and duplicate indicator states; ceiling: static dot; upgrade path: numeric count badge.
+                                if (hasNotification && !drawerNotificationGlow) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(if (isCompact) 2.dp else 2.5.dp)
+                                            .size(if (isCompact) 6.dp else 7.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary)
+                                    )
+                                }
                             }
                         }
 
                         Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
-                    } else if (hasNotification) {
+                    } else if (hasNotification && !drawerNotificationGlow) {
                         Box(
                             modifier = Modifier
                                 .size(if (isCompact) 7.dp else 8.dp)
@@ -736,7 +832,7 @@ private fun GroupCard(
                                 GroupGridLayout(
                                     apps = resolvedGroup.apps,
                                     columnCount = group.columnCount,
-                                    onAppClick = onAppClick,
+                                    onAppClick = handleAppClick,
                                     onAppLongClick = onAppLongClick,
                                     iconLoader = iconLoader,
                                     iconShape = iconShape,
@@ -757,7 +853,7 @@ private fun GroupCard(
                         GroupViewType.LIST -> {
                             GroupListLayout(
                                 apps = resolvedGroup.apps,
-                                onAppClick = onAppClick,
+                                onAppClick = handleAppClick,
                                 onAppLongClick = onAppLongClick,
                                 iconLoader = iconLoader,
                                 iconShape = iconShape,

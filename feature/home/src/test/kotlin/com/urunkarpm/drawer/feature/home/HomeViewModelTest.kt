@@ -69,6 +69,12 @@ class HomeViewModelTest {
     private val stealthThemeFlow = MutableStateFlow(false)
     private val stealthContrastLevelFlow = MutableStateFlow("LOW")
     private val stealthLimitBrightnessFlow = MutableStateFlow(false)
+    private val dynamicWallpaperEnabledFlow = MutableStateFlow(false)
+    private val wallpaperGradientSpeedSecondsFlow = MutableStateFlow(3)
+    private val wallpaperGradientBlurPercentFlow = MutableStateFlow(40)
+    private val wallpaperGradientPaletteFlow = MutableStateFlow("FULL_SPECTRUM")
+    private val wallpaperGradientAngleFlow = MutableStateFlow("DIAGONAL")
+    private val dockMesmerizingGlowFlow = MutableStateFlow(true)
 
     private val sampleApps = listOf(
         AppInfo(
@@ -126,6 +132,12 @@ class HomeViewModelTest {
         every { preferencesDataSource.stealthTheme } returns stealthThemeFlow
         every { preferencesDataSource.stealthContrastLevel } returns stealthContrastLevelFlow
         every { preferencesDataSource.stealthLimitBrightness } returns stealthLimitBrightnessFlow
+        every { preferencesDataSource.dynamicWallpaperEnabled } returns dynamicWallpaperEnabledFlow
+        every { preferencesDataSource.wallpaperGradientSpeedSeconds } returns wallpaperGradientSpeedSecondsFlow
+        every { preferencesDataSource.wallpaperGradientBlurPercent } returns wallpaperGradientBlurPercentFlow
+        every { preferencesDataSource.wallpaperGradientPalette } returns wallpaperGradientPaletteFlow
+        every { preferencesDataSource.wallpaperGradientAngle } returns wallpaperGradientAngleFlow
+        every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
         every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
         every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
@@ -421,6 +433,37 @@ class HomeViewModelTest {
             assertFalse(expectMostRecentItem().hasCompletedWalkthrough)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun setDynamicWallpaperEnabled_updatesPreferences() = runTest {
+        viewModel.setDynamicWallpaperEnabled(true)
+        testScheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setDynamicWallpaperEnabled(true) }
+    }
+
+    @Test
+    fun walkthroughPreferenceSetters_updatePreferences() = runTest {
+        viewModel.setTwoDrawersSideBySide(true)
+        viewModel.setIs24Hour(false)
+        viewModel.setShowWeather(false)
+        viewModel.setAdaptiveIconShape("CIRCLE")
+        viewModel.setDrawerThemeMode("DARK")
+        viewModel.setSurfaceThemeStyle("SOLID")
+        viewModel.setDockMesmerizingGlow(false)
+        viewModel.setHeaderFontFamily("MONOSPACE")
+        viewModel.setStealthTheme(true)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setTwoDrawersSideBySide(true) }
+        coVerify { preferencesDataSource.setIs24Hour(false) }
+        coVerify { preferencesDataSource.setShowWeather(false) }
+        coVerify { preferencesDataSource.setAdaptiveIconShape("CIRCLE") }
+        coVerify { preferencesDataSource.setDrawerThemeMode("DARK") }
+        coVerify { preferencesDataSource.setSurfaceThemeStyle("SOLID") }
+        coVerify { preferencesDataSource.setDockMesmerizingGlow(false) }
+        coVerify { preferencesDataSource.setHeaderFontFamily("MONOSPACE") }
+        coVerify { preferencesDataSource.setStealthTheme(true) }
     }
 }
 

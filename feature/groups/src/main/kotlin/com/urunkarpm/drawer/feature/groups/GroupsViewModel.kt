@@ -38,6 +38,7 @@ data class GroupsUiState(
     val groupBeingEdited: AppGroup? = null,
     val showCreateDialog: Boolean = false,
     val lockLayout: Boolean = false,
+    val drawerNotificationGlow: Boolean = true,
     val allApps: List<AppInfo> = emptyList() // ponytail: exposed for bulk add
 )
 
@@ -60,13 +61,20 @@ class GroupsViewModel @Inject constructor(
         GroupsDialogsState(selectedApp, groupBeingEdited, showCreate)
     }
 
+    private val groupPrefsFlow = combine(
+        preferencesDataSource.multiGroupApps,
+        preferencesDataSource.lockLayout,
+        preferencesDataSource.drawerNotificationGlow
+    ) { multiGroup, lockLayout, drawerGlow ->
+        Triple(multiGroup, lockLayout, drawerGlow)
+    }
+
     val uiState: StateFlow<GroupsUiState> = combine(
         appGroupRepository.groups,
         appRepository.installedApps,
-        preferencesDataSource.multiGroupApps,
-        preferencesDataSource.lockLayout,
+        groupPrefsFlow,
         dialogsState
-    ) { groups, installedApps, multiGroup, lockLayout, dialogs ->
+    ) { groups, installedApps, (multiGroup, lockLayout, drawerGlow), dialogs ->
         // Primary lookup: packageName/activityName
         val appMap = installedApps.associateBy { "${it.packageName}/${it.activityName}" }
         // Fallback lookup: packageName only (first match) - handles cases where activityName differs
@@ -90,6 +98,7 @@ class GroupsViewModel @Inject constructor(
             groupBeingEdited = dialogs.groupBeingEdited,
             showCreateDialog = dialogs.showCreateDialog,
             lockLayout = lockLayout,
+            drawerNotificationGlow = drawerGlow,
             allApps = installedApps.sortedBy { it.label.lowercase() }
         )
     }.stateIn(

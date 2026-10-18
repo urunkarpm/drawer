@@ -26,6 +26,7 @@ fun DockSurfaceBackground(
     surfaceBlurRadius: Float,
     surfaceStrokeOpacity: Float,
     isDropTarget: Boolean = false,
+    isMesmerizingGlow: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val opacity = surfaceOpacity.coerceIn(0.10f, 1.0f)
@@ -74,7 +75,11 @@ fun DockSurfaceBackground(
             val frostedBorder = BorderStroke(
                 1.5.dp,
                 Brush.verticalGradient(
-                    colors = listOf(
+                    colors = if (isMesmerizingGlow) listOf(
+                        Color(0x99FFBE98), // Pantone Peach Fuzz ambient rim
+                        Color.White.copy(alpha = (0.60f * opacity).coerceIn(0f, 1f)),
+                        Color(0x806667AB)  // Pantone Very Peri ambient base
+                    ) else listOf(
                         Color.White.copy(alpha = (0.50f * opacity).coerceIn(0f, 1f)),
                         Color.White.copy(alpha = (0.15f * opacity).coerceIn(0f, 1f)),
                         Color.White.copy(alpha = (0.35f * opacity).coerceIn(0f, 1f))
@@ -88,12 +93,28 @@ fun DockSurfaceBackground(
                     .background(frostedGradient)
                     .border(frostedBorder, shape)
             ) {
-                // Subtle frosted inner diffuse overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White.copy(alpha = 0.05f))
-                )
+                // Subtle frosted inner diffuse overlay with chromatic refraction
+                if (isMesmerizingGlow) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0x18FFBE98),
+                                        Color.Transparent,
+                                        Color(0x186667AB)
+                                    )
+                                )
+                            )
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White.copy(alpha = 0.05f))
+                    )
+                }
             }
         }
 
@@ -109,7 +130,11 @@ fun DockSurfaceBackground(
             val glassBorder = BorderStroke(
                 1.5.dp,
                 Brush.verticalGradient(
-                    colors = listOf(
+                    colors = if (isMesmerizingGlow) listOf(
+                        Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
+                        Color(0xB3FFBE98), // Pantone Peach Fuzz prismatic refraction
+                        Color(0x996667AB)  // Pantone Very Peri luminous glow
+                    ) else listOf(
                         Color.White.copy(alpha = (0.90f * strokeAlpha).coerceIn(0f, 1f)),
                         Color.White.copy(alpha = (0.25f * strokeAlpha).coerceIn(0f, 1f)),
                         MaterialTheme.colorScheme.primary.copy(alpha = (0.45f * strokeAlpha).coerceIn(0f, 1f))
@@ -123,14 +148,20 @@ fun DockSurfaceBackground(
                     .background(glassGradient)
                     .border(glassBorder, shape)
             ) {
-                // Specular top light sweep line across the top rim of the liquid glass
+                // Specular chromatic top light sweep line across the top rim of the liquid glass
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(2.dp)
+                        .height(2.5.dp)
                         .background(
                             Brush.horizontalGradient(
-                                colors = listOf(
+                                colors = if (isMesmerizingGlow) listOf(
+                                    Color.Transparent,
+                                    Color(0xB3FFBE98),
+                                    Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
+                                    Color(0xB36667AB),
+                                    Color.Transparent
+                                ) else listOf(
                                     Color.Transparent,
                                     Color.White.copy(alpha = (0.75f * strokeAlpha).coerceIn(0f, 1f)),
                                     Color.Transparent

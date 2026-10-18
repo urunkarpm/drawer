@@ -23,6 +23,11 @@ class TypographyPacksTest {
         assertEquals(com.urunkarpm.drawer.core.designsystem.theme.RobotoFontFamily, headerFontFamilyFromName("ROBOTO"))
         assertEquals(com.urunkarpm.drawer.core.designsystem.theme.TimesNewRomanFontFamily, headerFontFamilyFromName("TIMES_NEW_ROMAN"))
         assertEquals(com.urunkarpm.drawer.core.designsystem.theme.ArialFontFamily, headerFontFamilyFromName("ARIAL"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.GoogleSansFontFamily, headerFontFamilyFromName("GOOGLE_SANS"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.SpookyyFontFamily, headerFontFamilyFromName("SPOOKYY"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.DsDigitalFontFamily, headerFontFamilyFromName("DS_DIGITAL"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.EvilEmpireFontFamily, headerFontFamilyFromName("EVIL_EMPIRE"))
+        assertEquals(com.urunkarpm.drawer.core.designsystem.theme.HypikFontFamily, headerFontFamilyFromName("HYPIK"))
     }
 
     @Test

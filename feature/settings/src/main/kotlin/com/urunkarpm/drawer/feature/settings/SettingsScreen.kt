@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,6 +33,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileDownload
@@ -50,6 +53,8 @@ import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -216,7 +221,11 @@ fun SettingsScreen(
                 }
                 val appearanceSummary = buildString {
                     append(themeLabel)
-                    if (uiState.wallpaperBlur) append(" • Blur (${uiState.wallpaperBlurRadius.toInt()}px)")
+                    if (uiState.dynamicWallpaperEnabled) {
+                        append(" • Pantone Gradient (${uiState.wallpaperGradientSpeedSeconds}s)")
+                    } else if (uiState.wallpaperBlur) {
+                        append(" • Blur (${uiState.wallpaperBlurRadius.toInt()}px)")
+                    }
                     if (uiState.hideStatusBar) append(" • Fullscreen")
                 }
 
@@ -349,6 +358,153 @@ fun SettingsScreen(
                             valueLabel = "${uiState.wallpaperBlurRadius.toInt()} px"
                         )
                     }
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Dynamic Pantone Wallpaper",
+                        subtitle = "Smooth morphing Pantone validated gradient with 40% blur",
+                        checked = uiState.dynamicWallpaperEnabled,
+                        onCheckedChange = { viewModel.setDynamicWallpaperEnabled(it) }
+                    )
+
+                    if (uiState.dynamicWallpaperEnabled) {
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "Gradient Shift Speed",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Frequency of smooth gradient color morphing",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(2 to "2s", 3 to "3s", 5 to "5s", 8 to "8s", 12 to "12s").forEach { (speed, label) ->
+                                ThemeOptionChip(
+                                    label = label,
+                                    selected = uiState.wallpaperGradientSpeedSeconds == speed,
+                                    onClick = { viewModel.setWallpaperGradientSpeedSeconds(speed) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        SettingsDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+                        Text(
+                            text = "Pantone Harmonic Palette",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Harmonized authentic Pantone tones across the spectrum",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                ThemeOptionChip(
+                                    label = "Full Spectrum",
+                                    selected = uiState.wallpaperGradientPalette == "FULL_SPECTRUM",
+                                    onClick = { viewModel.setWallpaperGradientPalette("FULL_SPECTRUM") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ThemeOptionChip(
+                                    label = "Color of Year",
+                                    selected = uiState.wallpaperGradientPalette == "PANTONE_COTY",
+                                    onClick = { viewModel.setWallpaperGradientPalette("PANTONE_COTY") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ThemeOptionChip(
+                                    label = "Aurora",
+                                    selected = uiState.wallpaperGradientPalette == "AURORA_BOREALIS",
+                                    onClick = { viewModel.setWallpaperGradientPalette("AURORA_BOREALIS") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                ThemeOptionChip(
+                                    label = "Sunset",
+                                    selected = uiState.wallpaperGradientPalette == "SUNSET_CHROMA",
+                                    onClick = { viewModel.setWallpaperGradientPalette("SUNSET_CHROMA") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ThemeOptionChip(
+                                    label = "Twilight",
+                                    selected = uiState.wallpaperGradientPalette == "DEEP_TWILIGHT",
+                                    onClick = { viewModel.setWallpaperGradientPalette("DEEP_TWILIGHT") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ThemeOptionChip(
+                                    label = "Pastel",
+                                    selected = uiState.wallpaperGradientPalette == "PASTEL_DREAM",
+                                    onClick = { viewModel.setWallpaperGradientPalette("PASTEL_DREAM") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        SettingsDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+                        Text(
+                            text = "Gradient Flow Direction",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(
+                                "DIAGONAL" to "Diagonal",
+                                "VERTICAL" to "Vertical",
+                                "RADIAL" to "Radial"
+                            ).forEach { (dir, label) ->
+                                ThemeOptionChip(
+                                    label = label,
+                                    selected = uiState.wallpaperGradientAngle == dir,
+                                    onClick = { viewModel.setWallpaperGradientAngle(dir) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        SettingsSliderRow(
+                            title = "Gradient Blur Intensity",
+                            subtitle = "Frosted glass diffusion applied over gradient",
+                            value = uiState.wallpaperGradientBlurPercent.toFloat(),
+                            onValueChange = { viewModel.setWallpaperGradientBlurPercent(it.toInt()) },
+                            valueRange = 0f..100f,
+                            steps = 19,
+                            valueLabel = "${uiState.wallpaperGradientBlurPercent}%"
+                        )
+
+                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        SettingsSwitchRow(
+                            title = "Mesmerizing Dock Prismatic Glow",
+                            subtitle = "Iridescent glass sheen catching light from the gradient wallpaper",
+                            checked = uiState.dockMesmerizingGlow,
+                            onCheckedChange = { viewModel.setDockMesmerizingGlow(it) }
+                        )
+                    }
                 }
             }
 
@@ -393,56 +549,125 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ThemeOptionChip(
-                            label = "Helvetica",
-                            selected = uiState.headerFontFamily == "HELVETICA",
-                            onClick = { viewModel.setHeaderFontFamily("HELVETICA") }
+                    var fontDropdownExpanded by remember { mutableStateOf(false) }
+                    val currentFontKey = uiState.headerFontFamily
+                    val currentFontFamily = headerFontFamilyFromName(currentFontKey)
+
+                    val fontOptions = remember {
+                        listOf(
+                            "GOOGLE_SANS" to "Google Sans",
+                            "SPOOKYY" to "Spookyy",
+                            "DS_DIGITAL" to "DS-Digital",
+                            "EVIL_EMPIRE" to "Evil Empire",
+                            "HYPIK" to "Hypik",
+                            "HELVETICA" to "Helvetica",
+                            "ROBOTO" to "Roboto",
+                            "TIMES_NEW_ROMAN" to "Times New Roman",
+                            "ARIAL" to "Arial",
+                            "TEXAS_TROUPE" to "Texas Troupe",
+                            "SYSTEM" to "System Sans",
+                            "MONOSPACE" to "Monospace",
+                            "SERIF" to "Serif",
+                            "CURSIVE" to "Cursive"
                         )
-                        ThemeOptionChip(
-                            label = "Roboto",
-                            selected = uiState.headerFontFamily == "ROBOTO",
-                            onClick = { viewModel.setHeaderFontFamily("ROBOTO") }
-                        )
-                        ThemeOptionChip(
-                            label = "Times New Roman",
-                            selected = uiState.headerFontFamily == "TIMES_NEW_ROMAN",
-                            onClick = { viewModel.setHeaderFontFamily("TIMES_NEW_ROMAN") }
-                        )
-                        ThemeOptionChip(
-                            label = "Arial",
-                            selected = uiState.headerFontFamily == "ARIAL",
-                            onClick = { viewModel.setHeaderFontFamily("ARIAL") }
-                        )
-                        ThemeOptionChip(
-                            label = "Texas Troupe",
-                            selected = uiState.headerFontFamily == "TEXAS_TROUPE",
-                            onClick = { viewModel.setHeaderFontFamily("TEXAS_TROUPE") }
-                        )
-                        ThemeOptionChip(
-                            label = "System Sans",
-                            selected = uiState.headerFontFamily == "SYSTEM",
-                            onClick = { viewModel.setHeaderFontFamily("SYSTEM") }
-                        )
-                        ThemeOptionChip(
-                            label = "Serif",
-                            selected = uiState.headerFontFamily == "SERIF",
-                            onClick = { viewModel.setHeaderFontFamily("SERIF") }
-                        )
-                        ThemeOptionChip(
-                            label = "Monospace",
-                            selected = uiState.headerFontFamily == "MONOSPACE",
-                            onClick = { viewModel.setHeaderFontFamily("MONOSPACE") }
-                        )
-                        ThemeOptionChip(
-                            label = "Cursive",
-                            selected = uiState.headerFontFamily == "CURSIVE",
-                            onClick = { viewModel.setHeaderFontFamily("CURSIVE") }
-                        )
+                    }
+
+                    val currentFontDisplayName = fontOptions.find { it.first == currentFontKey }?.second
+                        ?: currentFontKey
+
+                    // ponytail: DropdownMenu showing fonts rendered directly in their actual custom typeface; ceiling: scrollable dropdown popup; upgrade path: modal bottom sheet with search.
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { fontDropdownExpanded = true }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = currentFontDisplayName,
+                                        fontFamily = currentFontFamily,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Sample: 12:45 • Social • Notes",
+                                        fontFamily = currentFontFamily,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Icon(
+                                    imageVector = if (fontDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select font",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = fontDropdownExpanded,
+                            onDismissRequest = { fontDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .heightIn(max = 420.dp)
+                        ) {
+                            fontOptions.forEach { (key, label) ->
+                                val font = headerFontFamilyFromName(key)
+                                val isSelected = currentFontKey == key
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f).padding(vertical = 4.dp)) {
+                                                Text(
+                                                    text = label,
+                                                    fontFamily = font,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "12:30 • Workspace • Apps",
+                                                    fontFamily = font,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        viewModel.setHeaderFontFamily(key)
+                                        fontDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -465,6 +690,11 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             val fontBio = when (uiState.headerFontFamily) {
+                                "GOOGLE_SANS", "GOOGLE SANS" -> "Geometric modern sans-serif designed for Google Pixel & Material Design"
+                                "SPOOKYY" -> "Quirky playful hand-cut Halloween-themed display typeface"
+                                "DS_DIGITAL", "DS-DIGITAL" -> "Authentic 7-segment retro digital LCD display font"
+                                "EVIL_EMPIRE" -> "Bold angular stencil display font with high-impact sci-fi aesthetic"
+                                "HYPIK" -> "Futuristic cyber-geometric cyberpunk display font"
                                 "HELVETICA" -> "1957 • Clean, neutral, neo-grotesque sans-serif (BMW, NYC Subway)"
                                 "ROBOTO" -> "2011 • Geometric-leaning sans-serif designed by Google for Android"
                                 "TIMES_NEW_ROMAN", "TIMES" -> "1931 • Classic, high-legibility serif built for The Times"
@@ -977,6 +1207,15 @@ fun SettingsScreen(
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+                    SettingsSwitchRow(
+                        title = "Glowing Drawer Icon",
+                        subtitle = "Pulse glow the drawer icon when an app inside has a notification until acknowledged",
+                        checked = uiState.drawerNotificationGlow,
+                        onCheckedChange = { viewModel.setDrawerNotificationGlow(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1172,9 +1411,17 @@ fun SettingsScreen(
             }
 
             DRAWER_ABOUT -> {
+                // ponytail: dynamically read package versionName at runtime rather than hardcoding string; ceiling: fallback to 1.2.4 if packageInfo fails; upgrade path: inject BuildConfig via DI.
+                val installedVersion = remember(context) {
+                    runCatching {
+                        val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                        pInfo.versionName ?: "1.2.4"
+                    }.getOrDefault("1.2.4")
+                }
+
                 SettingsDrawerCard(
                     title = "About Drawer",
-                    subtitle = "Version 1.0.0 (API 37) • Offline & Private",
+                    subtitle = "Version $installedVersion • Offline & Private",
                     icon = Icons.Outlined.Info,
                     iconTint = Color(0xFF64748B),
                     isExpanded = DRAWER_ABOUT in expandedDrawers,
@@ -1188,7 +1435,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Version 1.0.0 (API 37)",
+                        text = "Version $installedVersion (API ${android.os.Build.VERSION.SDK_INT})",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1197,7 +1444,45 @@ fun SettingsScreen(
                         text = "A personalisation-first launcher built with 100% Jetpack Compose and offline privacy. Zero tracking, zero telemetry.",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // About Creator Section
+                    Text(
+                        text = "Developer",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Designed and crafted by Prasenjeet Urunkar with a focus on fluid gesture navigation, deep aesthetic personalisation, and offline privacy.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val webIntent = Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://uprasenjeet.vercel.app")
+                            )
+                            context.startActivity(webIntent)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("uprasenjeet.vercel.app")
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
                     SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -1248,11 +1533,7 @@ fun SettingsScreen(
                         }
                         OutlinedButton(
                             onClick = {
-                                val currentVersion = runCatching {
-                                    val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                                    pInfo.versionName ?: "1.0.0"
-                                }.getOrDefault("1.0.0")
-                                viewModel.checkForUpdates(currentVersion)
+                                viewModel.checkForUpdates(installedVersion)
                             },
                             enabled = !uiState.isCheckingForUpdate
                         ) {

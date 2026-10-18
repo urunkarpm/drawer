@@ -39,6 +39,7 @@ class GroupsViewModelTest {
     private val installedAppsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
     private val multiGroupFlow = MutableStateFlow(false)
     private val lockLayoutFlow = MutableStateFlow(false)
+    private val drawerNotificationGlowFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: GroupsViewModel
 
@@ -68,6 +69,7 @@ class GroupsViewModelTest {
         every { appRepository.installedApps } returns installedAppsFlow
         every { preferencesDataSource.multiGroupApps } returns multiGroupFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
+        every { preferencesDataSource.drawerNotificationGlow } returns drawerNotificationGlowFlow
 
         groupsFlow.value = listOf(sampleGroup)
         installedAppsFlow.value = listOf(appZ, appA)
@@ -170,5 +172,17 @@ class GroupsViewModelTest {
     fun launchApp_delegatesToAppRepository() = runTest {
         viewModel.launchApp(appA)
         verify { appRepository.launchApp(appA) }
+    }
+
+    @Test
+    fun uiState_reflectsDrawerNotificationGlowPreference() = runTest {
+        viewModel.uiState.test {
+            val initial = awaitItem()
+            assertTrue(initial.drawerNotificationGlow)
+
+            drawerNotificationGlowFlow.value = false
+            val updated = awaitItem()
+            assertFalse(updated.drawerNotificationGlow)
+        }
     }
 }

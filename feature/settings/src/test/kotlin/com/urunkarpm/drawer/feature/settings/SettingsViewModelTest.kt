@@ -70,6 +70,13 @@ class SettingsViewModelTest {
     private val stealthThemeFlow = MutableStateFlow(false)
     private val stealthContrastLevelFlow = MutableStateFlow("LOW")
     private val stealthLimitBrightnessFlow = MutableStateFlow(false)
+    private val drawerNotificationGlowFlow = MutableStateFlow(true)
+    private val dynamicWallpaperEnabledFlow = MutableStateFlow(false)
+    private val wallpaperGradientSpeedSecondsFlow = MutableStateFlow(3)
+    private val wallpaperGradientBlurPercentFlow = MutableStateFlow(40)
+    private val wallpaperGradientPaletteFlow = MutableStateFlow("FULL_SPECTRUM")
+    private val wallpaperGradientAngleFlow = MutableStateFlow("DIAGONAL")
+    private val dockMesmerizingGlowFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -118,6 +125,13 @@ class SettingsViewModelTest {
         every { preferencesDataSource.stealthTheme } returns stealthThemeFlow
         every { preferencesDataSource.stealthContrastLevel } returns stealthContrastLevelFlow
         every { preferencesDataSource.stealthLimitBrightness } returns stealthLimitBrightnessFlow
+        every { preferencesDataSource.drawerNotificationGlow } returns drawerNotificationGlowFlow
+        every { preferencesDataSource.dynamicWallpaperEnabled } returns dynamicWallpaperEnabledFlow
+        every { preferencesDataSource.wallpaperGradientSpeedSeconds } returns wallpaperGradientSpeedSecondsFlow
+        every { preferencesDataSource.wallpaperGradientBlurPercent } returns wallpaperGradientBlurPercentFlow
+        every { preferencesDataSource.wallpaperGradientPalette } returns wallpaperGradientPaletteFlow
+        every { preferencesDataSource.wallpaperGradientAngle } returns wallpaperGradientAngleFlow
+        every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -331,5 +345,31 @@ class SettingsViewModelTest {
         viewModel.setStealthLimitBrightness(true)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setStealthLimitBrightness(true) }
+    }
+
+    @Test
+    fun setDrawerNotificationGlow_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setDrawerNotificationGlow(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setDrawerNotificationGlow(false) }
+    }
+
+    @Test
+    fun setDynamicWallpaperPreferences_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setDynamicWallpaperEnabled(true)
+        viewModel.setWallpaperGradientSpeedSeconds(5)
+        viewModel.setWallpaperGradientBlurPercent(50)
+        viewModel.setWallpaperGradientPalette("AURORA_BOREALIS")
+        viewModel.setWallpaperGradientAngle("RADIAL")
+        viewModel.setDockMesmerizingGlow(false)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setDynamicWallpaperEnabled(true) }
+        coVerify { preferencesDataSource.setWallpaperGradientSpeedSeconds(5) }
+        coVerify { preferencesDataSource.setWallpaperGradientBlurPercent(50) }
+        coVerify { preferencesDataSource.setWallpaperGradientPalette("AURORA_BOREALIS") }
+        coVerify { preferencesDataSource.setWallpaperGradientAngle("RADIAL") }
+        coVerify { preferencesDataSource.setDockMesmerizingGlow(false) }
     }
 }

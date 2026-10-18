@@ -118,9 +118,61 @@ class DrawerPreferencesDataSourceTest {
     }
 
     @Test
-    fun updateHasCompletedWalkthroughPersists() = runTest {
+    fun defaultDrawerNotificationGlowIsTrue() = runTest {
         val dataSource = createDataSource(backgroundScope)
-        dataSource.setHasCompletedWalkthrough(true)
-        assertEquals(true, dataSource.hasCompletedWalkthrough.first())
+        assertEquals(true, dataSource.drawerNotificationGlow.first())
+    }
+
+    @Test
+    fun defaultDynamicWallpaperPreferencesAreCorrect() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(false, dataSource.dynamicWallpaperEnabled.first())
+        assertEquals(3, dataSource.wallpaperGradientSpeedSeconds.first())
+        assertEquals(40, dataSource.wallpaperGradientBlurPercent.first())
+        assertEquals("FULL_SPECTRUM", dataSource.wallpaperGradientPalette.first())
+        assertEquals("DIAGONAL", dataSource.wallpaperGradientAngle.first())
+        assertEquals(true, dataSource.dockMesmerizingGlow.first())
+    }
+
+    @Test
+    fun updateDynamicWallpaperEnabledPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setDynamicWallpaperEnabled(true)
+        assertEquals(true, dataSource.dynamicWallpaperEnabled.first())
+    }
+
+    @Test
+    fun updateWallpaperGradientSpeedPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setWallpaperGradientSpeedSeconds(5)
+        assertEquals(5, dataSource.wallpaperGradientSpeedSeconds.first())
+    }
+
+    @Test
+    fun updateWallpaperGradientBlurPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setWallpaperGradientBlurPercent(50)
+        assertEquals(50, dataSource.wallpaperGradientBlurPercent.first())
+    }
+
+    @Test
+    fun updateWallpaperGradientPalettePersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setWallpaperGradientPalette("AURORA_BOREALIS")
+        assertEquals("AURORA_BOREALIS", dataSource.wallpaperGradientPalette.first())
+    }
+
+    @Test
+    fun updateWallpaperGradientAnglePersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setWallpaperGradientAngle("RADIAL")
+        assertEquals("RADIAL", dataSource.wallpaperGradientAngle.first())
+    }
+
+    @Test
+    fun updateDockMesmerizingGlowPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setDockMesmerizingGlow(false)
+        assertEquals(false, dataSource.dockMesmerizingGlow.first())
     }
 }

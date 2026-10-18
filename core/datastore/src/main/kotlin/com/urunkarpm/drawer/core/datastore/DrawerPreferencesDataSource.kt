@@ -69,12 +69,27 @@ class DrawerPreferencesDataSource @Inject constructor(
         val STEALTH_THEME = booleanPreferencesKey("stealth_theme")
         val STEALTH_CONTRAST_LEVEL = stringPreferencesKey("stealth_contrast_level")
         val STEALTH_LIMIT_BRIGHTNESS = booleanPreferencesKey("stealth_limit_brightness")
+        val DRAWER_NOTIFICATION_GLOW = booleanPreferencesKey("drawer_notification_glow")
+        val DYNAMIC_WALLPAPER_ENABLED = booleanPreferencesKey("dynamic_wallpaper_enabled")
+        val WALLPAPER_GRADIENT_SPEED_SECONDS = androidx.datastore.preferences.core.intPreferencesKey("wallpaper_gradient_speed_seconds")
+        val WALLPAPER_GRADIENT_BLUR_PERCENT = androidx.datastore.preferences.core.intPreferencesKey("wallpaper_gradient_blur_percent")
+        val WALLPAPER_GRADIENT_PALETTE = stringPreferencesKey("wallpaper_gradient_palette")
+        val WALLPAPER_GRADIENT_ANGLE = stringPreferencesKey("wallpaper_gradient_angle")
+        val DOCK_MESMERIZING_GLOW = booleanPreferencesKey("dock_mesmerizing_glow")
     }
+
+    val dynamicWallpaperEnabled: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_WALLPAPER_ENABLED] ?: false }
+    val wallpaperGradientSpeedSeconds: Flow<Int> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_GRADIENT_SPEED_SECONDS] ?: 3 }
+    val wallpaperGradientBlurPercent: Flow<Int> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_GRADIENT_BLUR_PERCENT] ?: 40 }
+    val wallpaperGradientPalette: Flow<String> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_GRADIENT_PALETTE] ?: "FULL_SPECTRUM" }
+    val wallpaperGradientAngle: Flow<String> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_GRADIENT_ANGLE] ?: "DIAGONAL" }
+    val dockMesmerizingGlow: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DOCK_MESMERIZING_GLOW] ?: true }
 
     val hasCompletedWalkthrough: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HAS_COMPLETED_WALKTHROUGH] ?: false }
     val openDrawerFromDockOnly: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] ?: false }
     val duoStatusPosition: Flow<String> = dataStore.data.map { it[PreferencesKeys.DUO_STATUS_POSITION] ?: "TEMP" }
     val hideDrawerIcons: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_DRAWER_ICONS] ?: false }
+    val drawerNotificationGlow: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DRAWER_NOTIFICATION_GLOW] ?: true }
     val stealthTheme: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.STEALTH_THEME] ?: false }
     val stealthContrastLevel: Flow<String> = dataStore.data.map { it[PreferencesKeys.STEALTH_CONTRAST_LEVEL] ?: "LOW" }
     val stealthLimitBrightness: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] ?: false }
@@ -339,5 +354,33 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setStealthLimitBrightness(enabled: Boolean) {
         dataStore.edit { it[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] = enabled }
+    }
+
+    suspend fun setDrawerNotificationGlow(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.DRAWER_NOTIFICATION_GLOW] = enabled }
+    }
+
+    suspend fun setDynamicWallpaperEnabled(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.DYNAMIC_WALLPAPER_ENABLED] = enabled }
+    }
+
+    suspend fun setWallpaperGradientSpeedSeconds(seconds: Int) {
+        dataStore.edit { it[PreferencesKeys.WALLPAPER_GRADIENT_SPEED_SECONDS] = seconds }
+    }
+
+    suspend fun setWallpaperGradientBlurPercent(percent: Int) {
+        dataStore.edit { it[PreferencesKeys.WALLPAPER_GRADIENT_BLUR_PERCENT] = percent }
+    }
+
+    suspend fun setWallpaperGradientPalette(palette: String) {
+        dataStore.edit { it[PreferencesKeys.WALLPAPER_GRADIENT_PALETTE] = palette }
+    }
+
+    suspend fun setWallpaperGradientAngle(angle: String) {
+        dataStore.edit { it[PreferencesKeys.WALLPAPER_GRADIENT_ANGLE] = angle }
+    }
+
+    suspend fun setDockMesmerizingGlow(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.DOCK_MESMERIZING_GLOW] = enabled }
     }
 }

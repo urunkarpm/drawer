@@ -42,6 +42,7 @@ class DockViewModelTest {
     private val iconSizeFlow = MutableStateFlow(56f)
     private val showLabelsFlow = MutableStateFlow(false)
     private val autoArrangeAppsFlow = MutableStateFlow(true)
+    private val dockMesmerizingGlowFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: DockViewModel
 
@@ -70,6 +71,7 @@ class DockViewModelTest {
         every { preferencesDataSource.dockIconSize } returns iconSizeFlow
         every { preferencesDataSource.dockShowLabels } returns showLabelsFlow
         every { preferencesDataSource.autoArrangeApps } returns autoArrangeAppsFlow
+        every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
 
         dockItemsFlow.value = listOf(sampleDockItem)
         installedAppsFlow.value = listOf(sampleApp)

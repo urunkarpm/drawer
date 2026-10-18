@@ -30,7 +30,8 @@ data class DockUiState(
     val surfaceStrokeOpacity: Float = 0.40f,
     val selectedDockItemForMenu: Pair<DockItem, AppInfo?>? = null,
     val isEditMode: Boolean = false,
-    val autoArrangeApps: Boolean = true
+    val autoArrangeApps: Boolean = true,
+    val mesmerizingGlow: Boolean = true
 )
 
 @HiltViewModel
@@ -56,25 +57,26 @@ class DockViewModel @Inject constructor(
     private val dockLayoutPrefsFlow = combine(
         preferencesDataSource.dockIconSize,
         preferencesDataSource.dockShowLabels,
-        preferencesDataSource.autoArrangeApps
-    ) { iconSize, showLabels, autoArrangeApps ->
-        Triple(iconSize, showLabels, autoArrangeApps)
+        preferencesDataSource.autoArrangeApps,
+        preferencesDataSource.dockMesmerizingGlow
+    ) { iconSize, showLabels, autoArrangeApps, mesmerizingGlow ->
+        DockLayoutPreferences(iconSize, showLabels, autoArrangeApps, mesmerizingGlow)
     }
 
     private val dockPreferencesFlow = combine(
         dockThemePrefsFlow,
         dockLayoutPrefsFlow
     ) { theme, layout ->
-        val (iconSize, showLabels, autoArrangeApps) = layout
         DockPreferences(
             backgroundStyle = theme.themeStyle,
-            iconSize = iconSize,
-            showLabels = showLabels,
+            iconSize = layout.iconSize,
+            showLabels = layout.showLabels,
             cornerRadius = theme.cornerRadius,
             opacity = theme.opacity,
             blurRadius = theme.blurRadius,
             strokeOpacity = theme.strokeOpacity,
-            autoArrangeApps = autoArrangeApps
+            autoArrangeApps = layout.autoArrangeApps,
+            mesmerizingGlow = layout.mesmerizingGlow
         )
     }
 
@@ -111,7 +113,8 @@ class DockViewModel @Inject constructor(
             surfaceStrokeOpacity = prefs.strokeOpacity,
             selectedDockItemForMenu = selectedItem,
             isEditMode = isEditMode,
-            autoArrangeApps = prefs.autoArrangeApps
+            autoArrangeApps = prefs.autoArrangeApps,
+            mesmerizingGlow = prefs.mesmerizingGlow
         )
     }.stateIn(
         scope = viewModelScope,
@@ -127,6 +130,13 @@ private data class DockThemePreferences(
     val cornerRadius: Float
 )
 
+private data class DockLayoutPreferences(
+    val iconSize: Float,
+    val showLabels: Boolean,
+    val autoArrangeApps: Boolean,
+    val mesmerizingGlow: Boolean
+)
+
 private data class DockPreferences(
     val backgroundStyle: String,
     val iconSize: Float,
@@ -135,7 +145,8 @@ private data class DockPreferences(
     val opacity: Float,
     val blurRadius: Float,
     val strokeOpacity: Float,
-    val autoArrangeApps: Boolean
+    val autoArrangeApps: Boolean,
+    val mesmerizingGlow: Boolean
 )
 
     fun reorderDock(fromPosition: Int, toPosition: Int) {

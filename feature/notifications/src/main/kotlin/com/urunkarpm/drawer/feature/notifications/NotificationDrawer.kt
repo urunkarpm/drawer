@@ -5,6 +5,7 @@ import android.graphics.drawable.Drawable
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -622,36 +623,27 @@ private fun NotificationIconStack(
     if (distinctApps.size == 1) {
         // One app one icon even if there are multiple notifications
         val group = distinctApps.first()
-        val isAndroidSystem = group.packageName == "android"
-        val iconSize = 28.dp
+        val iconSize = 30.dp
 
         Box(
             modifier = modifier.size(38.dp),
             contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(iconSize)
-                    .graphicsLayer {
-                        shadowElevation = 3.dp.toPx()
-                        shape = CircleShape
-                        clip = true
-                    }
-                    .background(
-                        if (isAndroidSystem) Color(0xFF3DDC84)
-                        else Color.Transparent
-                    )
-            ) {
-                AppIconImage(
-                    key = group.packageName,
-                    size = iconSize,
-                    label = group.appName,
-                    iconShape = CircleShape,
-                    iconLoader = if (iconLoader != null) {
-                        { iconLoader(group.packageName) }
-                    } else null
-                )
-            }
+            // ponytail: Borderless high-resolution app icon with subtle natural elevation replaces harsh grey border outline; ceiling: circular clip; upgrade path: match launcher adaptive shape.
+            AppIconImage(
+                key = group.packageName,
+                size = iconSize,
+                label = group.appName,
+                iconShape = CircleShape,
+                iconLoader = if (iconLoader != null) {
+                    { iconLoader(group.packageName) }
+                } else null,
+                modifier = Modifier.graphicsLayer {
+                    shadowElevation = 2.dp.toPx()
+                    shape = CircleShape
+                    clip = true
+                }
+            )
         }
     } else {
         // Multiple notifications from different apps:
@@ -665,10 +657,11 @@ private fun NotificationIconStack(
 }
 
 /**
- * Renders distinct app icons cycling horizontally in a seamless 3D turntable motion,
- * smoothly switching one icon into the foreground while the other recedes into the background.
+ * Renders distinct app icons cycling smoothly in a 3D elliptical orbit,
+ * bringing each notifying app into the spotlight while supporting icons
+ * glide along a depth-curved trajectory.
  */
-// ponytail: horizontal depth cycling calculates X position and scale/alpha via simple sine/cosine wave without requiring complex 3D scene graphs or canvas paths; ceiling is fixed horizontal layout; upgrade path is customizable orbit trajectory.
+// ponytail: continuous depth orbital projection calculates 2.5D elliptical (X, Y, depth) coordinates and dynamic zIndex/alpha/scale in draw & layout phase; ceiling: fixed semi-axes (rx, ry); upgrade path: interactive touch orbit scrubbing or 3D perspective distortion.
 @Composable
 private fun NotificationIconOrbit(
     apps: List<AppNotificationGroup>,
@@ -678,86 +671,95 @@ private fun NotificationIconOrbit(
     val count = apps.size
     val containerSize = 42.dp
 
-    val radiusXDp = 10.dp
+    // Stable ordering so existing apps don't randomly shuffle positions when a new notification arrives
+    val stableApps = remember(apps.map { it.packageName }.toSet()) { apps }
+
+    // Orbital geometry
+    val radiusXDp = when {
+        count <= 2 -> 8.5.dp
+        count <= 3 -> 10.dp
+        else -> 11.dp
+    }
+    val radiusYDp = when {
+        count <= 2 -> 3.8.dp
+        count <= 3 -> 4.5.dp
+        else -> 5.dp
+    }
     val baseIconSize = when {
-        count <= 2 -> 23.dp
-        count <= 4 -> 21.dp
-        else -> 19.5.dp
+        count <= 2 -> 24.dp
+        count <= 3 -> 22.dp
+        else -> 20.5.dp
     }
 
-    var stepIndex by remember(count) { mutableIntStateOf(0) }
+    val rotationAngle = remember { Animatable(0f) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     LaunchedEffect(count, lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
             while (isActive) {
-                delay(3500L) // Stable dwell time so each app icon is clearly readable in the foreground
-                stepIndex++
+                delay(3200L) // Stable dwell time so the spotlighted foreground app is crisp and readable
+                val step = (2.0 * Math.PI / count).toFloat()
+                rotationAngle.animateTo(
+                    targetValue = rotationAngle.value + step,
+                    animationSpec = tween(
+                        durationMillis = 750,
+                        easing = FastOutSlowInEasing
+                    )
+                )
+                val twoPi = (2.0 * Math.PI).toFloat()
+                if (rotationAngle.value >= twoPi) {
+                    rotationAngle.snapTo(rotationAngle.value % twoPi)
+                }
             }
         }
     }
 
     val stepAngle = (2.0 * Math.PI / count).toFloat()
-    val targetAngle = stepIndex * stepAngle
-
-    val animatedAngle = animateFloatAsState(
-        targetValue = targetAngle,
-        animationSpec = tween(
-            durationMillis = 600,
-            easing = FastOutSlowInEasing
-        ),
-        label = "orbitRotationAngle"
-    )
-
     // Symmetrical offset for 2 icons so both overlap gracefully while resting; centered for 3+
-    val baseAngle = if (count == 2) (Math.PI / 4.5).toFloat() else 0f
+    val baseAngle = if (count == 2) (Math.PI / 4.0).toFloat() else 0f
 
     Box(
         modifier = modifier.size(containerSize),
         contentAlignment = Alignment.Center
     ) {
-        apps.forEachIndexed { index, group ->
+        stableApps.forEachIndexed { index, group ->
             key(group.packageName) {
-                val isAndroidSystem = group.packageName == "android"
-                val isTarget = (index == (stepIndex % count))
+                val currentAngle = rotationAngle.value + baseAngle - (index * stepAngle)
+                val cosVal = cos(currentAngle.toDouble()).toFloat()
+                val sinVal = sin(currentAngle.toDouble()).toFloat()
+                // Continuous depth: 1.0 (dead front) to 0.0 (far rear)
+                val depth = ((cosVal + 1f) / 2f).coerceIn(0f, 1f)
 
-                // ponytail: orbit math evaluated strictly in draw phase via graphicsLayer; ceiling: static zIndex tiers; upgrade path: custom LayoutModifier with layout-phase zIndex.
-                Box(
+                // ponytail: Borderless high-fidelity orbiting app icon with depth-scaled natural shadow replaces harsh grey border outline; ceiling: recomposition per frame during step animation; upgrade path: custom LayoutModifier with layout-phase zIndex.
+                AppIconImage(
+                    key = group.packageName,
+                    size = baseIconSize,
+                    label = group.appName,
+                    iconShape = CircleShape,
+                    iconLoader = if (iconLoader != null) {
+                        { iconLoader(group.packageName) }
+                    } else null,
                     modifier = Modifier
-                        .zIndex(if (isTarget) 2f else 1f)
+                        .zIndex(depth)
                         .graphicsLayer {
-                            val currentAngle = animatedAngle.value + baseAngle - (index * stepAngle)
-                            val cosVal = cos(currentAngle.toDouble()).toFloat()
-                            val sinVal = sin(currentAngle.toDouble()).toFloat()
-                            val depth = ((cosVal + 1f) / 2f).coerceIn(0f, 1f)
-                            val scale = 0.72f + (0.28f * depth)
+                            val scale = 0.70f + (0.30f * depth)
                             val rx = radiusXDp.toPx()
+                            val ry = radiusYDp.toPx()
 
                             translationX = rx * sinVal
-                            translationY = 0f // Pure horizontal motion
+                            translationY = ry * cosVal // True 2.5D elliptical curve
                             scaleX = scale
                             scaleY = scale
-                            this.alpha = 0.65f + (0.35f * depth)
-                            shadowElevation = (depth * 3.5f).dp.toPx()
+                            this.alpha = when {
+                                count <= 3 -> 0.58f + (0.42f * depth)
+                                count == 4 -> 0.35f + (0.65f * depth)
+                                else -> ((depth - 0.16f) / 0.84f).coerceIn(0f, 1f)
+                            }
+                            shadowElevation = (depth * 3.dp.toPx()).coerceAtLeast(0f)
                             shape = CircleShape
                             clip = true
                         }
-                        .size(baseIconSize)
-                        .background(
-                            if (isAndroidSystem) Color(0xFF3DDC84)
-                            else Color.Transparent
-                        )
-                ) {
-                    AppIconImage(
-                        key = group.packageName,
-                        size = baseIconSize,
-                        label = group.appName,
-                        iconShape = CircleShape,
-                        iconLoader = if (iconLoader != null) {
-                            { iconLoader(group.packageName) }
-                        } else null
-                    )
-                }
+                )
             }
         }
     }
@@ -801,29 +803,21 @@ private fun AppNotificationGroupCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val isAndroidSystem = group.packageName == "android"
-                    Box(
+                    AppIconImage(
+                        key = group.packageName,
+                        size = 24.dp,
+                        label = group.appName,
+                        iconShape = CircleShape,
+                        iconLoader = if (iconLoader != null) {
+                            { iconLoader(group.packageName) }
+                        } else null,
                         modifier = Modifier
                             .size(24.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isAndroidSystem) androidx.compose.ui.graphics.Color(0xFF3DDC84)
-                                else Color.Transparent
-                            )
                             .then(
                                 if (stealthTheme) Modifier.graphicsLayer { alpha = StealthColors.iconAlpha }
                                 else Modifier
                             )
-                    ) {
-                        AppIconImage(
-                            key = group.packageName,
-                            size = 24.dp,
-                            label = group.appName,
-                            iconLoader = if (iconLoader != null) {
-                                { iconLoader(group.packageName) }
-                            } else null
-                        )
-                    }
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = group.appName,
