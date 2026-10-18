@@ -1,103 +1,191 @@
-# ✨ Drawer
-### *The launcher your phone has always deserved.*
-
-> **Zero clutter. Zero ads. Zero tracking. Just pure speed, total control, and breathtaking beauty.**
-
----
-
-Tired of home screens packed with newsfeeds you never asked for, invasive trackers draining your battery, and clunky animations? 
-
-Say hello to **Drawer** — the refreshingly minimal, lightning-fast home screen crafted to make your phone feel brand new. Everything you need is right at your fingertips, and everything you don’t is out of your way.
-
----
-
-## 🚀 Why You’ll Fall In Love With Drawer
-
-### 📂 Smart Accordion Drawers — Tame the App Chaos
-Never scroll through endless pages of random icons again.
-- **Collapsible Categories:** Group your apps into elegant, expandable drawers like *Work*, *Social*, *Finance*, *Games*, and *Creativity*.
-- **One Tap Expands, One Tap Closes:** Keep your screen pristine and open only what you need.
-- **Your Style, Your Rules:** Personalize every single category with custom icons, vibrant colors, and tailor-made sorting (A–Z or your custom layout).
-- **Multi-Drawer Freedom:** Have an app belong in both *Work* and *Chat*? Add it to both without limits!
+<p align="center">
+  <h1 align="center">✨ Drawer</h1>
+  <p align="center"><strong>The intentional Android home screen built for peak focus, fluid speed, and zero clutter.</strong></p>
+  <p align="center">
+    <em>Stop doom-scrolling through icon grids. Turn your phone back into a high-leverage productivity tool.</em>
+  </p>
+  <p align="center">
+    <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v1.2.4-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
+    <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
+    <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
+    <img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%20Zero%20Telemetry-success.svg?style=for-the-badge" alt="100% Offline" />
+  </p>
+</p>
 
 ---
 
-### 🪟 The Floating Glass Dock — Pure Modern Elegance
-Give your everyday favorites a VIP seat.
-- **Frosted Glass Aesthetic:** A sleek floating bar with real-time blur that seamlessly complements any wallpaper.
-- **0 to 5 Quick Apps:** Keep your dock minimal with 1 app, or fill it with your top 5 essentials.
-- **Drag & Drop Intuition:** Effortlessly rearrange icons or drop new apps right into the dock.
-- **Tailor Every Pixel:** Adjust icon sizes, corner roundness, and toggle labels on or off.
+<p align="center">
+  <img src="screen.png" width="370" alt="Drawer Home Screen" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="widgets_screen.png" width="370" alt="Drawer Widget Drawers & Cover Flow" />
+</p>
 
 ---
 
-### 🪞 Instant Mirror Glance — Quick Check on the Go
-Heading into a video call, meeting, or night out? 
-- A discreet, ultra-clear front-camera mirror widget right on your home screen.
-- One glance to check your hair or smile — no need to open a separate camera app.
+## 🎯 The 24-Hour Productivity Challenge
+
+> **Install Drawer and use it for just one single day.**  
+> If your phone doesn’t feel noticeably faster, less stressful, and dramatically less distracting within 24 hours, you can switch back with two taps. But once you experience a home screen that respects your attention and works at the speed of thought, you will never look at a standard launcher the same way again.
+
+Most mobile launchers are designed like digital billboards: cluttered screens, recommended apps, unprompted news feeds, and chaotic notification badges competing for your dopaminergic attention.
+
+**Drawer was built on a different philosophy: Intentionality.**  
+Everything you need to get things done is reachable in under a second; everything else stays effortlessly out of your line of sight.
 
 ---
 
-### 🌤️ Beautiful At-A-Glance Header
-Start your day with effortless clarity.
-- **Live Time & Date:** A clean, modern typography clock in 12 or 24-hour style.
-- **Real-Time Weather:** Live temperature, forecasts, and weather conditions right where you can see them.
-- **100% Ad-Free Weather:** No sponsor banners, no paywalls, no pop-up video ads. Ever.
+## 🧠 How Drawer Reclaims Your Focus & Time
+
+```
+  Traditional Launchers                     Drawer Launcher
+ ┌──────────────────────┐                  ┌──────────────────────┐
+ │ [App] [App] [App]  🔴│  Visual Clutter  │      09:41 AM        │  Clean Header
+ │ [App] [App] [App]  🔴│  Badge Overload  │    22°C  Sunny       │  At-a-Glance
+ │ [App] [App] [App]  🔴│  News Feed       │                      │
+ │ ── Page 1 of 6 ──────│  Endless Swiping │ ┌──────────────────┐ │  Single Focus Area
+ │ 🔍 Sponsored search  │  Ad Tracking     │ │ 📁 Work (4 apps) │ │  Expandable Drawer
+ └──────────────────────┘                  │ └──────────────────┘ │
+                                           │   [ 📞  💬  🌐 ]     │  Floating Glass Dock
+                                           └──────────────────────┘
+```
+
+### 1. 🗂️ Accordion Drawers — Context-Driven Organization
+Instead of spreading 80+ apps across 5 sprawling home screen pages, group your tools by your mental workflow:
+* **Workflow Buckets:** Group apps into expandable categories like **`Deep Work`**, **`Communication`**, **`Finance`**, **`Learning`**, and **`Essentials`**.
+* **One Tap Expands, One Tap Closes:** Expand only the drawer you need right now. Everything else stays collapsed, shielding your brain from visual overwhelm.
+* **Multi-Drawer Versatility:** Need an app like Slack in both *Work* and *Chat*? Add it to both without duplicating shortcuts or wrestling with folder restrictions.
+* **Smart Auto-Collapse:** Keeps your screen pristine automatically so you're never greeted by yesterday's mess.
+
+### 2. 🪟 3D iPod Cover Flow & Expandable Widget Drawers
+Widgets are powerful for productivity, but standard launchers force you to dedicate entire screen pages to them.
+* **Cover Flow 3D Stacking:** Flip smoothly through interactive productivity widgets (Calendar, Tasks, Notes, Music) with tactile, physics-based depth.
+* **Widget Accordion Drawers:** Tuck widgets into collapsible drawers. Pull up your day's schedule or task list with a tap, take action, and let it auto-collapse in 5 seconds.
+* **Interactive Resizing:** Customize widget heights and grid spans to fit your exact information density requirements.
+
+### 3. 🔕 Distraction Firewall — Notification Hub with Quick Mute
+Notifications are the single biggest killer of deep work and flow state. Drawer puts you firmly in control:
+* **Swipe-Up Notification Hub:** See incoming alerts neatly grouped by application—no chaotic notification shade pulling down over your workspace.
+* **Home-Screen Quick Mute:** A chat group or noisy app breaking your concentration? Mute it for **1 hour**, **24 hours**, or **permanently** right from the launcher—without digging through system settings menus.
+* **Privacy Mask Mode:** Instantly masks message previews on your home screen to keep sensitive work emails, two-factor codes, and private messages hidden from passersby.
+
+### 4. ⚡ Zero-Lag Launching: Search & Thumb-Glide Alphabet Rail
+When you know what you want to do, every millisecond of friction matters.
+* **Instant Type-to-Filter:** Press a key and launch target apps in sub-milliseconds.
+* **Thumb-Glide Alphabet Rail:** Slide your thumb down the screen edge to jump instantly to any letter index—effortless single-handed navigation on large devices.
+* **Hidden Apps Vault:** Conceal apps you rarely need (or apps that trigger unhealthy habits) so you aren’t tempted by idle dopamine loops.
+
+### 5. 🪞 Floating Frosted Glass Dock & Mirror Glance
+* **Quick Access Workhorses:** Pin 1 to 5 vital daily drivers (Phone, Browser, Notes, Terminal) in an elegant, blurred frosted glass bar.
+* **Mirror Glance Widget:** Heading into an important client pitch or team video call? Tap the discreet front-camera glance right on your home screen to check your appearance without opening a heavy camera application.
+
+### 6. 🛡️ 100% Offline, Ad-Free, & Zero Battery Drain
+* **Zero Analytics & Trackers:** No cloud telemetry, no background pings, no accounts, and no data harvesting. 100% of your data stays on your device.
+* **Pure 120Hz Smoothness:** Crafted in modern Jetpack Compose with optimized redraw cycles, true AMOLED black themes, and zero background battery drain.
 
 ---
 
-### 🔕 Silence The Noise — Notification Drawer with Quick Mute
-Reclaim your focus from notifications that never stop buzzing.
-- **Unified Notification Hub:** Swipe up to see all your notifications gathered neatly by app.
-- **Swipe to Dismiss:** Clean up clutter with satisfying, fluid swipe gestures.
-- **Instant Quick Mute:** That chat group blowing up your phone? Mute it for **1 hour**, **24 hours**, or **forever** right from your launcher.
-- **Privacy Mask Mode:** Hide preview text on your home screen so prying eyes can’t read your personal messages.
+## 📊 Stock Launchers vs. Drawer
+
+| Capability | Stock / OEM Launchers | Nova / Third-Party | ✨ **Drawer** |
+| :--- | :---: | :---: | :---: |
+| **Mindset** | App Storefront & Feeds | Tweaker's Sandbox | **Intentional Productivity** |
+| **Organization** | Rigid icons & nested folders | Complex grid layouts | **Accordion Drawers & 3D Stacks** |
+| **Distraction Defense** | Badges & push alerts | Basic badge toggles | **Home Screen Quick Mute & Privacy Mask** |
+| **Widget Handling** | Screen hogging | Static placement | **Collapsible Widget Drawers & Cover Flow** |
+| **Privacy & Telemetry** | Cloud sync & ad analytics | Often tracks crash analytics | **100% Offline & Zero Telemetry** |
+| **Setup Time** | Cluttered by default | 30+ minutes configuring | **Productive in under 60 seconds** |
+| **Ad-Free Weather & Clock** | ❌ Sponsored news/weather | ⚠️ Varies | ✅ **100% Pure, Zero Ads** |
 
 ---
 
-### ⚡ Lightning-Fast Search & A–Z Alphabet Scroll
-Find any app in the blink of an eye.
-- **Thumb-Glide Alphabet Bar:** Slide your finger down the edge of your screen to jump instantly to any letter.
-- **Instant Search:** Type one letter and watch your apps filter in real-time.
-- **Hidden Apps Vault:** Keep sensitive apps tucked safely out of sight.
+## 🚀 Get Started in Under 60 Seconds
+
+You don't need an hour to configure Drawer. It comes with an intuitive, guided onboarding tour and takes less than a minute to set up:
+
+```
+Step 1: Download & Install ───► Step 2: Set as Default ───► Step 3: Group by Intent
+Download app-release.apk         Press Home → Drawer → Always       Create 3-4 Focus Drawers
+```
+
+### Option A: Install Pre-Built APK (Fastest)
+1. Download the latest [`app-release.apk`](app-release.apk) directly from this repository or from the [GitHub Releases](https://github.com/urunkarpm/drawer/releases) page.
+2. Open the downloaded file on your Android device and tap **Install**.
+3. Press your **Home** button, select **Drawer**, and choose **Always**.
+4. Follow the brief built-in welcome tour to configure your first drawers!
+
+### Option B: Build from Source
+If you are a developer and want to inspect the code or build it yourself:
+
+```bash
+# Clone the repository
+git clone https://github.com/urunkarpm/drawer.git
+cd Drawer
+
+# Build the release APK with Gradle
+./gradlew assembleRelease
+
+# The compiled APK will be generated at:
+# app/build/outputs/apk/release/app-release.apk
+```
+
+To install directly to a connected device via ADB:
+```bash
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
 
 ---
 
-### 🎨 Infinite Visual Customization
-Dress up your home screen to match your exact vibe.
-- **Pitch Black AMOLED Mode:** Save battery and enjoy deep, inky blacks on modern screens.
-- **Material You Dynamic Colors:** Drawer intelligently samples colors from your wallpaper to create a harmonious theme.
-- **Full Icon Pack Freedom:** Download your favorite icon pack from Google Play and apply it instantly, or customize icons one-by-one.
-- **Adaptive Icon Shapes:** Transform ordinary icons into modern **Squircles**, **Circles**, **Teardrops**, or **Rounded Squares**.
+## 🎨 Visual Customization Options
+
+Make your productivity workspace match your personal aesthetic:
+* **Deep AMOLED Pitch Black:** Ultra-battery-efficient, high-contrast black styling.
+* **Material You Dynamic Theming:** Automatically adapts accent colors based on your wallpaper.
+* **Third-Party Icon Packs:** Full compatibility with icon packs from Google Play, plus per-app icon overrides.
+* **Adaptive Shapes:** Choose squircle, circle, teardrop, or rounded square icons to maintain uniform geometry.
+* **Double-Tap to Lock:** Double-tap any blank area to sleep your device cleanly without interfering with biometric face or fingerprint unlock.
+* **One-Tap Backup & Restore:** Export your complete setup (drawers, widgets, icons, dock layout) to a portable file and restore it in seconds.
 
 ---
 
-### 👆 Double-Tap to Sleep & Fluid Gestures
-Every interaction feels weightless and natural.
-- **Double-Tap Lock:** Double-tap anywhere on empty space to turn off and lock your screen.
-- **Biometrics-Friendly:** Locks smoothly without breaking your fingerprint scanner or face unlock.
-- **Drag & Drop Everywhere:** Drag apps straight from your drawer into categories or onto the dock with zero fuss.
+## 🏗️ Architecture & Tech Stack
+
+For engineers and contributors, Drawer is engineered according to Google's official Modern Android Development (MAD) architecture:
+
+```
+├── app/                  # Main application module, navigation & initialization
+├── core/
+│   ├── common/           # Shared coroutine dispatchers, extensions, utilities
+│   ├── model/            # Pure domain models (AppDrawer, WidgetItem, DockItem)
+│   ├── designsystem/     # Glassmorphic components, theme definitions, typography
+│   ├── database/         # Room database, DAOs, and persistence entities
+│   ├── datastore/        # Jetpack Preferences DataStore for user preferences
+│   └── data/             # Repositories reconciling DB, installed apps & system state
+└── feature/
+    ├── home/             # Main screen orchestrator, gestures, search & grid layout
+    ├── groups/           # App drawer accordion management & categorized grouping
+    ├── dock/             # Floating frosted glass dock & fast action bar
+    ├── notifications/    # System notification listener, quick-mute & privacy masking
+    ├── iconpacks/        # Icon pack parsing, caching & custom shape masking
+    └── settings/         # Visual customization, backup/restore & launcher tour
+```
+
+* **UI Layer:** 100% Jetpack Compose with Material 3 design tokens.
+* **Asynchronous Streams:** Kotlin Coroutines and reactive `StateFlow` / `SharedFlow`.
+* **Persistence:** AndroidX Room DB + Jetpack DataStore (zero raw SQLite/SharedPreferences).
+* **Performance:** Hardware-accelerated graphics with RenderEffect runtime blur shaders (Android 12+) and legacy-safe fallbacks.
 
 ---
 
-### 🛡️ Ironclad Privacy — Zero Trackers, Zero Telemetry
-Your phone is your private space, and Drawer keeps it that way.
-- 🚫 **No Ads:** No sponsored suggestions, no pop-ups, no promoted games.
-- 🚫 **No Cloud Tracking:** We don't collect your data, your search history, or what apps you use.
-- 🚫 **No Accounts Required:** Install and use immediately. No logins, no passwords.
-- 🔒 **Everything Stays On Your Device:** 100% offline-first architecture.
+## 🤝 Contributing
+
+We welcome community feedback, pull requests, and ideas!
+* Found a bug or have a feature idea? Open an [Issue](https://github.com/urunkarpm/drawer/issues).
+* Want to contribute code? Fork the repo, create a feature branch (`git checkout -b feat/my-enhancement`), and submit a Pull Request.
 
 ---
 
-### 💾 One-Tap Backup & Restore
-Never lose your perfect setup.
-- Back up your categories, dock, customized icons, and settings to a single file.
-- Restore your complete layout on any device in seconds.
+## 📜 License
 
----
-
-## 🌟 Ready to upgrade your home screen?
-
-1. Install **Drawer**.
-2. Tap your phone’s **Home** button and select **Drawer** $\rightarrow$ **Always**.
-3. Breathe in the clean, uncluttered bliss of a truly personal launcher.
+Drawer is open-source software licensed under the [Apache License 2.0](LICENSE).
+Your device, your data, your launcher.
