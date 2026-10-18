@@ -19,14 +19,6 @@
 
 ---
 
-<p align="center">
-  <img src="screen.png" width="370" alt="Drawer Home Screen" />
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="widgets_screen.png" width="370" alt="Drawer Widget Drawers & Cover Flow" />
-</p>
-
----
-
 ## 🎯 The 24-Hour Productivity Challenge
 
 > **Install Drawer and use it for just one single day.**  
