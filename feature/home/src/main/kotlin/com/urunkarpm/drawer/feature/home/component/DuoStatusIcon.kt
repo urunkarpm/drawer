@@ -96,12 +96,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import android.os.SystemClock
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -115,6 +117,8 @@ data class DuoSystemStatus(
     val batteryPercent: Int = 100,
     val isCharging: Boolean = false,
     val chargingWatts: Float? = null,
+    val chargingMaxWatts: Float? = null,
+    val chargingStandard: String? = null,
     val batteryTempCelsius: Float? = null,
     val isWifiConnected: Boolean = false,
     val wifiLevel: Int = 0, // 0..4
@@ -122,35 +126,253 @@ data class DuoSystemStatus(
     val cellularLevel: Int = 0 // 0..4
 )
 
-// ponytail: Instantaneous wattage calculated via BatteryManager CURRENT_NOW * EXTRA_VOLTAGE with microamp/milliamp auto-scaling; ceiling: hardware driver support varies across OEM chipsets; upgrade path: Android 14+ BatteryState/Health HAL services.
+@Immutable
+private data class BatteryChargingDetails(
+    val liveWatts: Float?,
+    val maxWatts: Float?,
+    val standardLabel: String?,
+    val tempCelsius: Float?
+)
+
+// ponytail: Dual-cell series battery correction (2S), kernel power-supply sysfs probe, and OEM standard brand resolution (SuperVOOC, Warp, Dash, HyperCharge, Super Fast, TurboPower); ceiling: OEM kernel/HAL driver variations without root; upgrade path: Android 14+ BatteryState/Health HAL services.
 private fun readBatteryChargingStats(
     context: Context,
     intent: Intent?,
     isCharging: Boolean
-): Pair<Float?, Float?> {
+): BatteryChargingDetails {
     val tempRaw = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
     val tempCelsius = if (tempRaw > 0) tempRaw / 10f else null
 
-    if (!isCharging) return null to tempCelsius
+    if (!isCharging) {
+        return BatteryChargingDetails(
+            liveWatts = null,
+            maxWatts = null,
+            standardLabel = null,
+            tempCelsius = tempCelsius
+        )
+    }
 
-    val voltageMv = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
     val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+    val manufacturer = Build.MANUFACTURER.orEmpty()
+    val model = Build.MODEL.orEmpty()
 
+    // 1. Hardware Negotiated Charger Contract (Maximum Capability)
+    // Sourced from hidden Intent extras populated by kernel power supply drivers
+    val maxCurrentUa = intent?.getIntExtra("max_charging_current", -1)?.takeIf { it > 0 }
+    val maxVoltageUv = intent?.getIntExtra("max_charging_voltage", -1)?.takeIf { it > 0 }
+
+    var negotiatedWatts: Float? = if (maxCurrentUa != null && maxVoltageUv != null) {
+        val v = maxVoltageUv / 1_000_000f
+        val a = maxCurrentUa / 1_000_000f
+        (v * a).takeIf { it in 1f..300f }
+    } else null
+
+    // Fallback: Query Linux sysfs nodes if readable (supported on many ColorOS, OxygenOS, HyperOS builds)
+    if (negotiatedWatts == null) {
+        negotiatedWatts = runCatching {
+            val vFiles = listOf(
+                "/sys/class/power_supply/usb/voltage_max",
+                "/sys/class/power_supply/usb/voltage_now",
+                "/sys/class/power_supply/main/voltage_max"
+            )
+            val aFiles = listOf(
+                "/sys/class/power_supply/usb/current_max",
+                "/sys/class/power_supply/usb/current_now",
+                "/sys/class/power_supply/main/current_max"
+            )
+            var vVal: Float? = null
+            for (path in vFiles) {
+                val f = File(path)
+                if (f.canRead()) {
+                    val raw = f.readText().trim().toLongOrNull() ?: continue
+                    if (raw > 1_000_000) { vVal = raw / 1_000_000f; break }
+                    else if (raw > 1_000) { vVal = raw / 1_000f; break }
+                }
+            }
+            var aVal: Float? = null
+            for (path in aFiles) {
+                val f = File(path)
+                if (f.canRead()) {
+                    val raw = f.readText().trim().toLongOrNull() ?: continue
+                    if (raw > 100_000) { aVal = raw / 1_000_000f; break }
+                    else if (raw > 100) { aVal = raw / 1_000f; break }
+                }
+            }
+            if (vVal != null && aVal != null && vVal > 0f && aVal > 0f) {
+                (vVal * aVal).takeIf { it in 1f..300f }
+            } else null
+        }.getOrNull()
+    }
+
+    // 2. Real-Time Battery Delivery (Instantaneous power hitting battery cells)
+    val voltageMv = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
     val currentNow = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) ?: 0
     val currentAvg = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) ?: 0
     val current = if (currentNow != 0 && currentNow != Int.MIN_VALUE) currentNow else currentAvg
     val absCurrent = kotlin.math.abs(current)
 
     val amps = when {
-        absCurrent > 20_000 -> absCurrent / 1_000_000f // microamperes (µA)
-        absCurrent > 0 -> absCurrent / 1_000f         // milliamperes (mA) fallback
+        absCurrent >= 100_000 -> absCurrent / 1_000_000f // microamperes (µA)
+        absCurrent in 100..20_000 -> absCurrent / 1_000f // milliamperes (mA) fallback
+        absCurrent in 20_001..99_999 -> absCurrent / 1_000_000f
         else -> 0f
     }
-    val volts = if (voltageMv > 0) voltageMv / 1000f else 0f
-    val watts = volts * amps
-    val chargingWatts = if (watts in 0.1f..240f) watts else null
+    val rawVolts = if (voltageMv > 0) voltageMv / 1000f else 0f
 
-    return chargingWatts to tempCelsius
+    // 3. Dual-Cell Series Battery Detection
+    // High wattage (SuperVOOC/HyperCharge/Warp 65+) uses two 4.2V/4.4V cells in series.
+    // Standard Android BatteryManager only measures single cell voltage (~4.2V) or single branch current,
+    // reporting exactly HALF the true battery intake wattage unless corrected.
+    val isDualCell = isDualCellBattery(rawVolts, manufacturer, model, negotiatedWatts)
+    val effectiveVolts = if (isDualCell) rawVolts * 2f else rawVolts
+    val liveWatts = if (effectiveVolts > 0f && amps > 0f) {
+        val calc = effectiveVolts * amps
+        if (calc in 0.1f..250f) calc else null
+    } else null
+
+    // 4. Resolve Official OEM Charging Standard / Brand Name
+    // Use negotiated max watts if available, otherwise estimate from live dual-cell power + screen dissipation
+    val referenceWatts = negotiatedWatts ?: liveWatts?.let { it + 3.0f } ?: 10f
+    val standardLabel = resolveOemChargingBrand(referenceWatts, manufacturer, model)
+
+    return BatteryChargingDetails(
+        liveWatts = liveWatts,
+        maxWatts = negotiatedWatts,
+        standardLabel = standardLabel,
+        tempCelsius = tempCelsius
+    )
+}
+
+private fun isDualCellBattery(
+    rawVolts: Float,
+    manufacturer: String,
+    model: String,
+    negotiatedWatts: Float?
+): Boolean {
+    // If voltage already reads > 6V, the kernel driver is already reporting total series pack voltage
+    if (rawVolts > 6.0f) return false
+
+    // If negotiated charger wattage is >= 30W on modern USB-C, it is almost universally a dual-cell setup
+    if (negotiatedWatts != null && negotiatedWatts >= 30f) return true
+
+    // Check hardware sysfs nodes for secondary cell fuel gauge or dual BMS
+    val hasSysfsSecondary = runCatching {
+        File("/sys/class/power_supply/battery/sub_batt_volt").exists() ||
+        File("/sys/class/power_supply/battery-cg2").exists() ||
+        File("/sys/class/power_supply/bms2").exists()
+    }.getOrDefault(false)
+    if (hasSysfsSecondary) return true
+
+    val m = manufacturer.lowercase(Locale.ROOT)
+    val mod = model.lowercase(Locale.ROOT)
+
+    // OnePlus dual-cell fast-charging lineup (OnePlus 8T onwards: 8T, 9, 10, 11, 12, Nord 2/3/4, Ace, Open)
+    if (m.contains("oneplus")) {
+        val dualSeries = listOf("8t", "9", "10", "11", "12", "nord 2", "nord 3", "nord 4", "ace", "open")
+        if (dualSeries.any { mod.contains(it) }) return true
+        return true
+    }
+
+    // OPPO Find X and Reno series with SuperVOOC (65W+)
+    if (m.contains("oppo")) {
+        if (mod.contains("find") || mod.contains("reno") || mod.contains("k10") || mod.contains("k11")) return true
+    }
+
+    // Realme GT and Pro+ series with SuperDart / UltraDart (65W - 240W)
+    if (m.contains("realme")) {
+        if (mod.contains("gt") || mod.contains("pro+") || mod.contains("master")) return true
+    }
+
+    // Xiaomi / Redmi / POCO high-wattage HyperCharge (67W / 120W / 210W)
+    if (m.contains("xiaomi") || m.contains("redmi") || m.contains("poco")) {
+        if (mod.contains("pro") || mod.contains("ultra") || mod.contains("gt") || mod.contains("hyper")) return true
+    }
+
+    // Vivo / iQOO FlashCharge (80W / 120W / 200W)
+    if (m.contains("vivo") || m.contains("iqoo")) {
+        if (mod.contains("pro") || mod.contains("neo") || mod.contains("legend")) return true
+    }
+
+    return false
+}
+
+private fun resolveOemChargingBrand(
+    watts: Float,
+    manufacturer: String,
+    model: String
+): String {
+    val m = manufacturer.lowercase(Locale.ROOT)
+    val mod = model.lowercase(Locale.ROOT)
+    return when {
+        m.contains("oneplus") -> when {
+            watts >= 70f -> "SuperVOOC 80W+"
+            watts >= 50f -> if (mod.contains("8t") || mod.contains("9")) "Warp Charge 65" else "SuperVOOC 65W"
+            watts >= 25f -> "Warp Charge 30"
+            watts >= 15f -> "Dash Charge"
+            else -> "Charging"
+        }
+        m.contains("oppo") -> when {
+            watts >= 60f -> "SuperVOOC 80W+"
+            watts >= 45f -> "SuperVOOC 65W"
+            watts >= 25f -> "SuperVOOC 33W"
+            watts >= 15f -> "VOOC Flash Charge"
+            else -> "Charging"
+        }
+        m.contains("realme") -> when {
+            watts >= 65f -> "SuperDart"
+            watts >= 25f -> "Dart Charge"
+            watts >= 15f -> "Quick Charge"
+            else -> "Charging"
+        }
+        m.contains("xiaomi") || m.contains("redmi") || m.contains("poco") -> when {
+            watts >= 90f -> "HyperCharge 120W"
+            watts >= 50f -> "Mi Turbo Charge 67W"
+            watts >= 25f -> "Mi Turbo Charge 33W"
+            watts >= 15f -> "Quick Charge"
+            else -> "Charging"
+        }
+        m.contains("samsung") -> when {
+            watts >= 35f -> "Super Fast 2.0 (45W)"
+            watts >= 20f -> "Super Fast (25W)"
+            watts >= 12f -> "Fast Charging"
+            else -> "Cable Charging"
+        }
+        m.contains("google") -> when {
+            watts >= 24f -> "Rapidly Charging (30W)"
+            watts >= 15f -> "Rapidly Charging"
+            watts >= 7.5f -> "Charging"
+            else -> "Charging slowly"
+        }
+        m.contains("motorola") -> when {
+            watts >= 45f -> "TurboPower 68W+"
+            watts >= 25f -> "TurboPower 30W"
+            watts >= 15f -> "TurboPower"
+            else -> "Charging"
+        }
+        m.contains("vivo") || m.contains("iqoo") -> when {
+            watts >= 65f -> "FlashCharge 80W+"
+            watts >= 30f -> "FlashCharge 44W"
+            watts >= 15f -> "FlashCharge"
+            else -> "Charging"
+        }
+        m.contains("huawei") || m.contains("honor") -> when {
+            watts >= 50f -> "SuperCharge 66W+"
+            watts >= 30f -> "SuperCharge 40W"
+            watts >= 18f -> "SuperCharge 22.5W"
+            else -> "Charging"
+        }
+        m.contains("nothing") -> when {
+            watts >= 40f -> "Super Fast (45W)"
+            watts >= 25f -> "Fast Charging (33W)"
+            else -> "Charging"
+        }
+        else -> when {
+            watts >= 45f -> "Ultra Fast Charging"
+            watts >= 18f -> "Fast Charging"
+            watts >= 7.5f -> "Standard Charging"
+            else -> "Charging slowly"
+        }
+    }
 }
 
 // ponytail: Lightweight HttpURLConnection speed test streaming 2MB from Cloudflare Edge without third-party SDKs; ceiling: single-threaded download burst test rather than multi-connection full-saturation test; upgrade path: full WebSocket/Multi-stream NDT7 or Ookla speed test engine.
@@ -269,10 +491,14 @@ fun DuoStatusIcon(
     var timerResetKey by remember { mutableIntStateOf(0) }
 
     var liveWatts by remember { mutableStateOf<Float?>(status.chargingWatts) }
+    var liveMaxWatts by remember { mutableStateOf<Float?>(status.chargingMaxWatts) }
+    var liveStandard by remember { mutableStateOf<String?>(status.chargingStandard) }
     var liveTemp by remember { mutableStateOf<Float?>(status.batteryTempCelsius) }
 
-    LaunchedEffect(status.chargingWatts, status.batteryTempCelsius) {
+    LaunchedEffect(status.chargingWatts, status.chargingMaxWatts, status.chargingStandard, status.batteryTempCelsius) {
         liveWatts = status.chargingWatts
+        liveMaxWatts = status.chargingMaxWatts
+        liveStandard = status.chargingStandard
         liveTemp = status.batteryTempCelsius
     }
 
@@ -280,9 +506,11 @@ fun DuoStatusIcon(
         if (isExpanded && status.isCharging) {
             while (true) {
                 val sticky = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                val (w, t) = readBatteryChargingStats(context, sticky, true)
-                if (w != null) liveWatts = w
-                if (t != null) liveTemp = t
+                val details = readBatteryChargingStats(context, sticky, true)
+                if (details.liveWatts != null) liveWatts = details.liveWatts
+                if (details.maxWatts != null) liveMaxWatts = details.maxWatts
+                if (details.standardLabel != null) liveStandard = details.standardLabel
+                if (details.tempCelsius != null) liveTemp = details.tempCelsius
                 delay(1500L)
             }
         }
@@ -312,10 +540,10 @@ fun DuoStatusIcon(
         }
     }
 
-    // Auto-close expanded view: 15s when connected to power or running speed test; 3s otherwise
+    // Auto-close expanded view: 20s when connected to power or running speed test; 10s otherwise
     LaunchedEffect(isExpanded, timerResetKey, status.isCharging, speedTestTriggeredThisSession) {
         if (isExpanded) {
-            val durationMs = if (status.isCharging || speedTestTriggeredThisSession || isSpeedTesting) 15_000L else 3_000L
+            val durationMs = if (status.isCharging || speedTestTriggeredThisSession || isSpeedTesting) 20_000L else 10_000L
             delay(durationMs)
             if (!isSpeedTesting) {
                 onToggleExpand()
@@ -623,11 +851,17 @@ fun DuoStatusIcon(
                             color = displayColor.copy(alpha = 0.65f),
                             letterSpacing = 0.3.sp
                         )
+                        val standardSuffix = if (status.isCharging) {
+                            val label = liveStandard ?: status.chargingStandard
+                            if (!label.isNullOrBlank()) " • $label" else " • Charging"
+                        } else ""
                         Text(
-                            text = "${status.batteryPercent}%${if (status.isCharging) " • Charging" else ""}",
+                            text = "${status.batteryPercent}%$standardSuffix",
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (status.isCharging) chargingGreen else displayColor
+                            color = if (status.isCharging) chargingGreen else displayColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -665,9 +899,23 @@ fun DuoStatusIcon(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val powerText = liveWatts?.let { String.format(Locale.US, "%.1f W", it) } ?: "Charging"
+                            val powerText = buildString {
+                                append("⚡ ")
+                                val currentW = liveWatts ?: status.chargingWatts
+                                val maxW = liveMaxWatts ?: status.chargingMaxWatts
+                                if (currentW != null && currentW > 0.1f) {
+                                    append(String.format(Locale.US, "%.1f W", currentW))
+                                } else if (maxW != null && maxW > 0f) {
+                                    append(String.format(Locale.US, "%.0f W", maxW))
+                                } else {
+                                    append("Charging")
+                                }
+                                if (maxW != null && currentW != null && maxW > currentW + 4f) {
+                                    append(String.format(Locale.US, " (max %.0fW)", maxW))
+                                }
+                            }
                             Text(
-                                text = "⚡ $powerText",
+                                text = powerText,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = chargingGreen
@@ -874,6 +1122,8 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     var batteryPercent by remember { mutableIntStateOf(100) }
     var isCharging by remember { mutableStateOf(false) }
     var chargingWatts by remember { mutableStateOf<Float?>(null) }
+    var chargingMaxWatts by remember { mutableStateOf<Float?>(null) }
+    var chargingStandard by remember { mutableStateOf<String?>(null) }
     var batteryTempCelsius by remember { mutableStateOf<Float?>(null) }
     var isWifiConnected by remember { mutableStateOf(false) }
     var wifiLevel by remember { mutableIntStateOf(0) }
@@ -901,9 +1151,11 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                     status == BatteryManager.BATTERY_STATUS_FULL
 
-            val (w, t) = readBatteryChargingStats(context, intent, isCharging)
-            chargingWatts = w
-            batteryTempCelsius = t
+            val stats = readBatteryChargingStats(context, intent, isCharging)
+            chargingWatts = stats.liveWatts
+            chargingMaxWatts = stats.maxWatts
+            chargingStandard = stats.standardLabel
+            batteryTempCelsius = stats.tempCelsius
         }
 
         fun queryWifi() {
@@ -1037,6 +1289,8 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
         batteryPercent = batteryPercent,
         isCharging = isCharging,
         chargingWatts = chargingWatts,
+        chargingMaxWatts = chargingMaxWatts,
+        chargingStandard = chargingStandard,
         batteryTempCelsius = batteryTempCelsius,
         isWifiConnected = isWifiConnected,
         wifiLevel = wifiLevel,

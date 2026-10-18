@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -375,16 +377,33 @@ fun GlanceHeader(
                     .zIndex(10f),
                 contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier.wrapContentSize(align = Alignment.TopCenter, unbounded = true)
-                ) {
-                    DuoStatusIcon(
-                        displayColor = displayColor,
-                        sizeDp = 37,
-                        isExpanded = isDuoStatusExpanded,
-                        onToggleExpand = onToggleDuoStatusExpand,
-                        duoStatusPosition = "CENTER"
-                    )
+                // Collapsed Duo Status Icon in regular header layout flow
+                DuoStatusIcon(
+                    displayColor = displayColor,
+                    sizeDp = 37,
+                    isExpanded = false,
+                    onToggleExpand = onToggleDuoStatusExpand,
+                    duoStatusPosition = "CENTER"
+                )
+
+                if (isDuoStatusExpanded) {
+                    Popup(
+                        alignment = Alignment.TopCenter,
+                        onDismissRequest = onToggleDuoStatusExpand,
+                        properties = PopupProperties(
+                            focusable = false,
+                            dismissOnClickOutside = true,
+                            dismissOnBackPress = true
+                        )
+                    ) {
+                        DuoStatusIcon(
+                            displayColor = displayColor,
+                            sizeDp = 37,
+                            isExpanded = true,
+                            onToggleExpand = onToggleDuoStatusExpand,
+                            duoStatusPosition = "CENTER"
+                        )
+                    }
                 }
             }
         } else {

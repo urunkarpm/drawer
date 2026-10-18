@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("drawer.android.application")
     id("drawer.android.application.compose")
@@ -14,13 +17,19 @@ android {
     }
 
     val keystoreFile = rootProject.file("keystore/drawer-release.jks")
+    val keystorePropsFile = rootProject.file("keystore.properties")
+    val keystoreProps = Properties().apply {
+        if (keystorePropsFile.exists()) {
+            FileInputStream(keystorePropsFile).use { load(it) }
+        }
+    }
     signingConfigs {
         if (keystoreFile.exists()) {
             create("release") {
                 storeFile = keystoreFile
-                storePassword = "DrawerReleaseKey2026!"
-                keyAlias = "drawer"
-                keyPassword = "DrawerReleaseKey2026!"
+                storePassword = keystoreProps.getProperty("storePassword") ?: "wiwss2350"
+                keyAlias = keystoreProps.getProperty("keyAlias") ?: "drawer"
+                keyPassword = keystoreProps.getProperty("keyPassword") ?: "wiwss2350"
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true

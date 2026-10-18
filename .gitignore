@@ -13,6 +13,8 @@ captures/
 *.aab
 *.jks
 *.keystore
+*.bak
+keystore.properties
 
 .agents/
 .agentsroom/
