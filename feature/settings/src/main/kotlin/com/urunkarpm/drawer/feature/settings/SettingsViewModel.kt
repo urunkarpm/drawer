@@ -67,8 +67,12 @@ data class MiscSettings(
     val twoDrawersSideBySide: Boolean = false,
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
+    val hideDrawerIcons: Boolean = false,
     val notificationSwipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
-    val notificationSwipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS
+    val notificationSwipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
+    val stealthTheme: Boolean = false,
+    val stealthContrastLevel: String = "LOW",
+    val stealthLimitBrightness: Boolean = false
 )
 
 data class SettingsActionState(
@@ -91,7 +95,14 @@ private data class MiscPart2(
     val adaptiveIconShape: String,
     val twoDrawersSideBySide: Boolean,
     val lockLayout: Boolean,
-    val autoArrangeApps: Boolean
+    val autoArrangeApps: Boolean,
+    val hideDrawerIcons: Boolean
+)
+
+private data class MiscPart3(
+    val stealthTheme: Boolean,
+    val stealthContrastLevel: String,
+    val stealthLimitBrightness: Boolean
 )
 
 data class SettingsUiState(
@@ -128,6 +139,7 @@ data class SettingsUiState(
     val twoDrawersSideBySide: Boolean = false,
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
+    val hideDrawerIcons: Boolean = false,
     val headerFontFamily: String = "TEXAS_TROUPE",
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
@@ -136,7 +148,10 @@ data class SettingsUiState(
     val isRestoring: Boolean = false,
     val isCheckingForUpdate: Boolean = false,
     val updateInfo: AppUpdateInfo? = null,
-    val userMessage: String? = null
+    val userMessage: String? = null,
+    val stealthTheme: Boolean = false,
+    val stealthContrastLevel: String = "LOW",
+    val stealthLimitBrightness: Boolean = false
 )
 
 @HiltViewModel
@@ -234,12 +249,21 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.adaptiveIconShape,
         preferencesDataSource.twoDrawersSideBySide,
         preferencesDataSource.lockLayout,
-        preferencesDataSource.autoArrangeApps
-    ) { adaptiveIconShape, twoDrawersSideBySide, lockLayout, autoArrangeApps ->
-        MiscPart2(adaptiveIconShape, twoDrawersSideBySide, lockLayout, autoArrangeApps)
+        preferencesDataSource.autoArrangeApps,
+        preferencesDataSource.hideDrawerIcons
+    ) { adaptiveIconShape, twoDrawersSideBySide, lockLayout, autoArrangeApps, hideDrawerIcons ->
+        MiscPart2(adaptiveIconShape, twoDrawersSideBySide, lockLayout, autoArrangeApps, hideDrawerIcons)
     }
 
-    private val miscFlow = combine(miscFlowPart1, miscFlowPart2) { p1, p2 ->
+    private val miscFlowPart3 = combine(
+        preferencesDataSource.stealthTheme,
+        preferencesDataSource.stealthContrastLevel,
+        preferencesDataSource.stealthLimitBrightness
+    ) { stealthTheme, stealthContrastLevel, stealthLimitBrightness ->
+        MiscPart3(stealthTheme, stealthContrastLevel, stealthLimitBrightness)
+    }
+
+    private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3) { p1, p2, p3 ->
         MiscSettings(
             multiGroupApps = p1.multiGroupApps,
             notificationsPrivacyMode = p1.notificationsPrivacyMode,
@@ -248,8 +272,12 @@ class SettingsViewModel @Inject constructor(
             twoDrawersSideBySide = p2.twoDrawersSideBySide,
             lockLayout = p2.lockLayout,
             autoArrangeApps = p2.autoArrangeApps,
+            hideDrawerIcons = p2.hideDrawerIcons,
             notificationSwipeRightAction = p1.swipeRight,
-            notificationSwipeLeftAction = p1.swipeLeft
+            notificationSwipeLeftAction = p1.swipeLeft,
+            stealthTheme = p3.stealthTheme,
+            stealthContrastLevel = p3.stealthContrastLevel,
+            stealthLimitBrightness = p3.stealthLimitBrightness
         )
     }
 
@@ -305,6 +333,7 @@ class SettingsViewModel @Inject constructor(
             twoDrawersSideBySide = misc.twoDrawersSideBySide,
             lockLayout = misc.lockLayout,
             autoArrangeApps = misc.autoArrangeApps,
+            hideDrawerIcons = misc.hideDrawerIcons,
             headerFontFamily = headerFontFamily,
             appLabelScale = appLabelScale,
             openDrawerFromDockOnly = dock.openDrawerFromDockOnly,
@@ -313,7 +342,10 @@ class SettingsViewModel @Inject constructor(
             isRestoring = action.isRestoring,
             isCheckingForUpdate = action.isCheckingForUpdate,
             updateInfo = action.updateInfo,
-            userMessage = action.userMessage
+            userMessage = action.userMessage,
+            stealthTheme = misc.stealthTheme,
+            stealthContrastLevel = misc.stealthContrastLevel,
+            stealthLimitBrightness = misc.stealthLimitBrightness
         )
     }.stateIn(
         scope = viewModelScope,
@@ -499,6 +531,30 @@ class SettingsViewModel @Inject constructor(
     fun setLockLayout(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setLockLayout(enabled)
+        }
+    }
+
+    fun setHideDrawerIcons(hide: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setHideDrawerIcons(hide)
+        }
+    }
+
+    fun setStealthTheme(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setStealthTheme(enabled)
+        }
+    }
+
+    fun setStealthContrastLevel(level: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setStealthContrastLevel(level)
+        }
+    }
+
+    fun setStealthLimitBrightness(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setStealthLimitBrightness(enabled)
         }
     }
 

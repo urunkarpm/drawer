@@ -38,19 +38,19 @@ object GroupIcons {
         availableIcons[name] ?: Icons.Default.Folder
 
     val availableColors: List<String> = listOf(
-        "#1E88E5", // Blue
-        "#E91E63", // Pink
-        "#4CAF50", // Green
-        "#FF9800", // Orange
-        "#9C27B0", // Purple
-        "#009688", // Teal
-        "#E53935", // Red
-        "#5E35B1", // Deep Purple
-        "#FDD835", // Yellow
-        "#607D8B"  // Blue Grey
+        "#1E3A8A", // Executive Navy
+        "#0F766E", // Deep Corporate Teal
+        "#065F46", // Financial Forest Green
+        "#334155", // Slate / Charcoal
+        "#475569", // Titanium Gray
+        "#64748B", // Steel Blue
+        "#831843", // Deep Bordeaux Wine
+        "#92400E", // Warm Bronze / Amber
+        "#3730A3", // Enterprise Indigo
+        "#1E293B"  // Midnight Obsidian
     )
 
-    fun parseColor(hex: String?, fallback: Color = Color(0xFF6750A4)): Color {
+    fun parseColor(hex: String?, fallback: Color = Color(0xFF334155)): Color {
         if (hex.isNullOrBlank()) return fallback
         return try {
             val formatted = hex.trim().let { if (it.startsWith("#")) it else "#$it" }
@@ -63,17 +63,17 @@ object GroupIcons {
     fun resolveCategoryColor(name: String, id: String = ""): Color {
         val lower = name.lowercase().trim()
         val hex = when {
-            lower.contains("finance") || lower.contains("bank") || lower.contains("money") || lower.contains("pay") -> "#4CAF50" // Green
-            lower.contains("media") || lower.contains("music") || lower.contains("audio") || lower.contains("song") -> "#9C27B0" // Purple
-            lower.contains("video") || lower.contains("stream") || lower.contains("movie") || lower.contains("tv") -> "#E53935" // Red
-            lower.contains("chat") || lower.contains("social") || lower.contains("message") || lower.contains("talk") -> "#009688" // Teal
-            lower.contains("work") || lower.contains("office") || lower.contains("business") || lower.contains("task") -> "#1E88E5" // Blue
-            lower.contains("tool") || lower.contains("util") || lower.contains("system") -> "#FF9800" // Orange
-            lower.contains("fit") || lower.contains("health") || lower.contains("gym") || lower.contains("run") -> "#E91E63" // Pink
-            lower.contains("star") || lower.contains("fav") -> "#FDD835" // Yellow
-            lower.contains("dev") || lower.contains("code") || lower.contains("git") -> "#5E35B1" // Deep Purple
-            lower.contains("shop") || lower.contains("cart") || lower.contains("store") -> "#FF9800" // Orange
-            lower.contains("game") || lower.contains("play") -> "#E91E63" // Pink
+            lower.contains("finance") || lower.contains("bank") || lower.contains("money") || lower.contains("pay") -> "#065F46" // Financial Forest Green
+            lower.contains("media") || lower.contains("music") || lower.contains("audio") || lower.contains("song") -> "#831843" // Deep Bordeaux
+            lower.contains("video") || lower.contains("stream") || lower.contains("movie") || lower.contains("tv") -> "#9F1239" // Refined Wine
+            lower.contains("chat") || lower.contains("social") || lower.contains("message") || lower.contains("talk") -> "#0F766E" // Deep Corporate Teal
+            lower.contains("work") || lower.contains("office") || lower.contains("business") || lower.contains("task") -> "#1E3A8A" // Executive Navy
+            lower.contains("tool") || lower.contains("util") || lower.contains("system") -> "#475569" // Titanium Gray
+            lower.contains("fit") || lower.contains("health") || lower.contains("gym") || lower.contains("run") -> "#0E7490" // Refined Petrol Cyan
+            lower.contains("star") || lower.contains("fav") -> "#92400E" // Warm Bronze
+            lower.contains("dev") || lower.contains("code") || lower.contains("git") -> "#3730A3" // Enterprise Indigo
+            lower.contains("shop") || lower.contains("cart") || lower.contains("store") -> "#78350F" // Amber Earth
+            lower.contains("game") || lower.contains("play") -> "#6D28D9" // Royal Amethyst
             else -> {
                 val colors = availableColors
                 val hash = if (id.isNotEmpty()) id.hashCode() else name.hashCode()

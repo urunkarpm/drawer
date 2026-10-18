@@ -1,6 +1,8 @@
 package com.urunkarpm.drawer.feature.notifications
 
+import android.app.Activity
 import android.graphics.drawable.Drawable
+import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -18,6 +20,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -81,6 +84,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -91,13 +95,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -112,6 +112,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.model.NotificationItem
 import com.urunkarpm.drawer.core.model.NotificationSwipeAction
+import com.urunkarpm.drawer.core.designsystem.theme.StealthColors
 import com.urunkarpm.drawer.feature.notifications.component.NotificationRulesBottomSheet
 import com.urunkarpm.drawer.feature.notifications.component.QuickMuteBottomSheet
 import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
@@ -130,7 +131,11 @@ fun NotificationDrawer(
     // Optional icon loader: given a package name, loads the app icon drawable.
     // Passed in from HomeScreen which already owns an AppRepository reference.
     iconLoader: (suspend (String) -> Drawable?)? = null,
-    isDragging: Boolean = false
+    isDragging: Boolean = false,
+    // ponytail: stealth colors applied only to notification cards; no new libraries; ceiling: no per-app masking; upgrade path: StealthColors(dark, light) factory.
+    stealthTheme: Boolean = false,
+    stealthContrastLevel: String = "LOW",
+    stealthLimitBrightness: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val muteSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -170,6 +175,36 @@ fun NotificationDrawer(
     LaunchedEffect(isExpanded) {
         if (!isExpanded) {
             notifScrollState.scrollTo(0)
+        }
+    }
+
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val shouldLimitBrightness = stealthTheme && stealthLimitBrightness && isExpanded
+
+    DisposableEffect(shouldLimitBrightness) {
+        val window = activity?.window
+        val prevBrightness = window?.attributes?.screenBrightness
+        if (shouldLimitBrightness && window != null) {
+            val lp = window.attributes
+            lp.screenBrightness = 0.25f
+            window.attributes = lp
+        }
+        onDispose {
+            if (window != null) {
+                val lp = window.attributes
+                lp.screenBrightness = prevBrightness ?: WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                window.attributes = lp
+            }
+        }
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        val window = activity?.window
+        if (window != null) {
+            val lp = window.attributes
+            lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            window.attributes = lp
         }
     }
 
@@ -379,7 +414,7 @@ fun NotificationDrawer(
                                 tint = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .size(20.dp)
-                                    .rotate(chevronRotation)
+                                    .graphicsLayer { rotationZ = chevronRotation }
                             )
                         }
                     }
@@ -475,7 +510,9 @@ fun NotificationDrawer(
                                                 },
                                                 onQuickMute = { item ->
                                                     viewModel.selectItemForMute(item)
-                                                }
+                                                },
+                                                stealthTheme = stealthTheme,
+                                                stealthContrastLevel = stealthContrastLevel
                                             )
                                         }
                                     }
@@ -586,7 +623,7 @@ private fun NotificationIconStack(
         // One app one icon even if there are multiple notifications
         val group = distinctApps.first()
         val isAndroidSystem = group.packageName == "android"
-        val iconSize = 26.dp
+        val iconSize = 28.dp
 
         Box(
             modifier = modifier.size(38.dp),
@@ -595,15 +632,14 @@ private fun NotificationIconStack(
             Box(
                 modifier = Modifier
                     .size(iconSize)
-                    .clip(CircleShape)
+                    .graphicsLayer {
+                        shadowElevation = 3.dp.toPx()
+                        shape = CircleShape
+                        clip = true
+                    }
                     .background(
                         if (isAndroidSystem) Color(0xFF3DDC84)
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        shape = CircleShape
+                        else Color.Transparent
                     )
             ) {
                 AppIconImage(
@@ -629,9 +665,10 @@ private fun NotificationIconStack(
 }
 
 /**
- * Renders distinct app icons orbiting on a 3D tilted celestial track, smoothly switching
- * the active foreground app in a circular motion while keeping all icons visible.
+ * Renders distinct app icons cycling horizontally in a seamless 3D turntable motion,
+ * smoothly switching one icon into the foreground while the other recedes into the background.
  */
+// ponytail: horizontal depth cycling calculates X position and scale/alpha via simple sine/cosine wave without requiring complex 3D scene graphs or canvas paths; ceiling is fixed horizontal layout; upgrade path is customizable orbit trajectory.
 @Composable
 private fun NotificationIconOrbit(
     apps: List<AppNotificationGroup>,
@@ -641,21 +678,11 @@ private fun NotificationIconOrbit(
     val count = apps.size
     val containerSize = 42.dp
 
-    // Dynamic sizing based on the number of apps to ensure zero clipping and optimal legibility
-    val radiusXDp = when {
-        count <= 3 -> 12.dp
-        count <= 5 -> 12.dp
-        else -> 12.5.dp
-    }
-    val radiusYDp = when {
-        count <= 3 -> 9.5.dp
-        count <= 5 -> 9.5.dp
-        else -> 10.dp
-    }
+    val radiusXDp = 10.dp
     val baseIconSize = when {
-        count <= 3 -> 20.dp
-        count <= 5 -> 18.5.dp
-        else -> 17.dp
+        count <= 2 -> 23.dp
+        count <= 4 -> 21.dp
+        else -> 19.5.dp
     }
 
     var stepIndex by remember(count) { mutableIntStateOf(0) }
@@ -676,75 +703,49 @@ private fun NotificationIconOrbit(
     val animatedAngle = animateFloatAsState(
         targetValue = targetAngle,
         animationSpec = tween(
-            durationMillis = 500,
+            durationMillis = 600,
             easing = FastOutSlowInEasing
         ),
         label = "orbitRotationAngle"
     )
 
-    val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+    // Symmetrical offset for 2 icons so both overlap gracefully while resting; centered for 3+
+    val baseAngle = if (count == 2) (Math.PI / 4.5).toFloat() else 0f
 
     Box(
-        modifier = modifier
-            .size(containerSize)
-            .drawBehind {
-                val rx = radiusXDp.toPx()
-                val ry = radiusYDp.toPx()
-                drawOval(
-                    color = trackColor,
-                    topLeft = Offset(center.x - rx, center.y - ry),
-                    size = Size(rx * 2f, ry * 2f),
-                    style = Stroke(
-                        width = 1.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(
-                            floatArrayOf(4.dp.toPx(), 3.dp.toPx()),
-                            0f
-                        )
-                    )
-                )
-            },
+        modifier = modifier.size(containerSize),
         contentAlignment = Alignment.Center
     ) {
-        // Front focal point is bottom-right at 60° (π/3), giving natural depth & visibility
-        val frontAngle = (Math.PI / 3.0).toFloat()
-
         apps.forEachIndexed { index, group ->
             key(group.packageName) {
                 val isAndroidSystem = group.packageName == "android"
+                val isTarget = (index == (stepIndex % count))
 
-                // Base angle offset so index 0 starts in the foreground and successive indices rotate in
-                val baseOffset = frontAngle - (index * stepAngle)
-                // Layer ordering is step-based so zIndex never triggers relayout during the 120Hz continuous frame animation
-                val relPos = ((index - (stepIndex % count)) % count + count) % count
-                val zIndex = (count - relPos).toFloat()
-
+                // ponytail: orbit math evaluated strictly in draw phase via graphicsLayer; ceiling: static zIndex tiers; upgrade path: custom LayoutModifier with layout-phase zIndex.
                 Box(
                     modifier = Modifier
-                        .zIndex(zIndex)
+                        .zIndex(if (isTarget) 2f else 1f)
                         .graphicsLayer {
-                            val currentAngle = animatedAngle.value + baseOffset
-                            val depth = ((sin(currentAngle.toDouble()).toFloat() + 1f) / 2f).coerceIn(0f, 1f)
+                            val currentAngle = animatedAngle.value + baseAngle - (index * stepAngle)
+                            val cosVal = cos(currentAngle.toDouble()).toFloat()
+                            val sinVal = sin(currentAngle.toDouble()).toFloat()
+                            val depth = ((cosVal + 1f) / 2f).coerceIn(0f, 1f)
                             val scale = 0.72f + (0.28f * depth)
                             val rx = radiusXDp.toPx()
-                            val ry = radiusYDp.toPx()
-                            translationX = rx * cos(currentAngle.toDouble()).toFloat()
-                            translationY = ry * sin(currentAngle.toDouble()).toFloat()
+
+                            translationX = rx * sinVal
+                            translationY = 0f // Pure horizontal motion
                             scaleX = scale
                             scaleY = scale
-                            this.alpha = 0.75f + (0.25f * depth)
-                            shadowElevation = (depth * 2.5f).dp.toPx()
+                            this.alpha = 0.65f + (0.35f * depth)
+                            shadowElevation = (depth * 3.5f).dp.toPx()
                             shape = CircleShape
                             clip = true
                         }
                         .size(baseIconSize)
                         .background(
                             if (isAndroidSystem) Color(0xFF3DDC84)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                            shape = CircleShape
+                            else Color.Transparent
                         )
                 ) {
                     AppIconImage(
@@ -774,13 +775,15 @@ private fun AppNotificationGroupCard(
     onMarkAsRead: (NotificationItem) -> Unit,
     onQuickMute: (NotificationItem) -> Unit,
     modifier: Modifier = Modifier,
-    onInteraction: () -> Unit = {}
+    onInteraction: () -> Unit = {},
+    stealthTheme: Boolean = false,
+    stealthContrastLevel: String = "LOW"
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-            contentColor = MaterialTheme.colorScheme.onSurface
+            containerColor = if (stealthTheme) StealthColors.cardBackground else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            contentColor = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurface
         ),
         modifier = modifier.fillMaxWidth()
     ) {
@@ -805,7 +808,11 @@ private fun AppNotificationGroupCard(
                             .clip(CircleShape)
                             .background(
                                 if (isAndroidSystem) androidx.compose.ui.graphics.Color(0xFF3DDC84)
-                                else MaterialTheme.colorScheme.surfaceVariant
+                                else Color.Transparent
+                            )
+                            .then(
+                                if (stealthTheme) Modifier.graphicsLayer { alpha = StealthColors.iconAlpha }
+                                else Modifier
                             )
                     ) {
                         AppIconImage(
@@ -822,7 +829,7 @@ private fun AppNotificationGroupCard(
                         text = group.appName,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel) else MaterialTheme.colorScheme.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -860,7 +867,9 @@ private fun AppNotificationGroupCard(
                             onOpen = { onOpen(item) },
                             onDismiss = { onDismiss(item) },
                             onMarkAsRead = { onMarkAsRead(item) },
-                            onInteraction = onInteraction
+                            onInteraction = onInteraction,
+                            stealthTheme = stealthTheme,
+                            stealthContrastLevel = stealthContrastLevel
                         )
                     }
                 }
@@ -882,7 +891,9 @@ private fun DismissibleNotificationRow(
     onDismiss: () -> Unit,
     onMarkAsRead: () -> Unit,
     modifier: Modifier = Modifier,
-    onInteraction: () -> Unit = {}
+    onInteraction: () -> Unit = {},
+    stealthTheme: Boolean = false,
+    stealthContrastLevel: String = "LOW"
 ) {
     var pendingAction by remember { mutableStateOf<NotificationSwipeAction?>(null) }
     val haptic = LocalHapticFeedback.current
@@ -1018,7 +1029,7 @@ private fun DismissibleNotificationRow(
             content = {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    color = if (stealthTheme) StealthColors.cardBackground else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                     tonalElevation = 1.dp,
                     modifier = modifier
                         .fillMaxWidth()
@@ -1039,7 +1050,7 @@ private fun DismissibleNotificationRow(
                                 text = if (privacyMode) appName else item.title,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
@@ -1048,7 +1059,7 @@ private fun DismissibleNotificationRow(
                             Text(
                                 text = formatTimeAgo(item.postTimeMillis),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             if (item.isClearable) {
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -1062,7 +1073,7 @@ private fun DismissibleNotificationRow(
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Dismiss notification",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(15.dp)
                                     )
                                 }
@@ -1074,7 +1085,7 @@ private fun DismissibleNotificationRow(
                             Text(
                                 text = item.text,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 3,
                                 overflow = TextOverflow.Ellipsis,
                                 lineHeight = 18.sp

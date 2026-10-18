@@ -31,14 +31,33 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import android.app.role.RoleManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -51,7 +70,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,51 +103,105 @@ fun WalkthroughOverlay(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 4 })
+    var showDefaultDialog by remember { mutableStateOf(false) }
 
-    val pages = listOf(
-        WalkthroughPageData(
-            badge = "DESIGN ETHOS",
-            title = "Minimalism Shouldn't Be Boring",
-            headline = "Zero Clutter. Breathtaking Beauty.",
-            description = "Tired of launchers that treat minimalism like a sterile black-and-white spreadsheet? Drawer brings serene focus paired with liquid frosted glass, fluid 120Hz physics, and Material You dynamic color harmony.",
-            timeSavedTitle = "Escapes Attention Traps",
-            timeSavedDesc = "Zero newsfeeds, zero promoted ads, and zero algorithms hijacking your attention. Pick up your phone, do what you came for, and move on.",
-            icon = Icons.Default.Star,
-            accentColor = Color(0xFF6366F1)
-        ),
-        WalkthroughPageData(
-            badge = "ORGANIZATION",
-            title = "Collapsible Accordions",
-            headline = "Tame the App Chaos in One Tap.",
-            description = "Stop endlessly scrolling across 5 pages of random icons. Group your apps into elegant, collapsible drawers — Work, Social, Media, Tools. Open only what you need; collapse the rest instantly.",
-            timeSavedTitle = "15–20 Minutes Saved Daily",
-            timeSavedDesc = "Everything is grouped by context. An app can belong to multiple drawers without duplication limits.",
-            icon = Icons.Default.Star,
-            accentColor = Color(0xFF0EA5E9)
-        ),
-        WalkthroughPageData(
-            badge = "SUB-SECOND SPEED",
-            title = "Floating Dock & Thumb-Glide",
-            headline = "Launch Any App in Under a Second.",
-            description = "Pin your 0–5 essential favorites on the floating frosted glass dock for instant muscle memory. Need another app? Glide your thumb down the edge alphabet bar or type a single letter in instant search.",
-            timeSavedTitle = "Instant Muscle Memory",
-            timeSavedDesc = "Sub-second launches with zero lag, zero folder clicks, and full keyboard-auto-open support.",
-            icon = Icons.Default.Search,
-            accentColor = Color(0xFF10B981)
-        ),
-        WalkthroughPageData(
-            badge = "RECLAIM FOCUS",
-            title = "Notification Hub & Quick Mute",
-            headline = "Silence the Noise on Your Terms.",
-            description = "Active notifications gathered cleanly by app. Swipe to dismiss, toggle privacy mode to mask personal message previews from prying eyes, and quick-mute chatty apps right from your launcher.",
-            timeSavedTitle = "Cuts Distractions in Half",
-            timeSavedDesc = "Snooze noisy group chats for 1 hour, 24 hours, or forever in a single tap without digging through OS settings.",
-            icon = Icons.Default.NotificationsOff,
-            accentColor = Color(0xFFF59E0B)
+    val roleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        onDismiss()
+    }
+
+    fun launchDefaultPrompt() {
+        // ponytail: RoleManager on Q+, fallback to ACTION_HOME_SETTINGS; ceiling: relies on system activity result; upgrade path: custom animated in-app visual guide.
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val roleManager = context.getSystemService(RoleManager::class.java)
+                if (roleManager?.isRoleAvailable(RoleManager.ROLE_HOME) == true && !roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
+                    val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
+                    roleLauncher.launch(intent)
+                    return
+                }
+            }
+            val intent = Intent(Settings.ACTION_HOME_SETTINGS)
+            roleLauncher.launch(intent)
+        } catch (_: Exception) {
+            try {
+                val fallback = Intent(Settings.ACTION_SETTINGS)
+                roleLauncher.launch(fallback)
+            } catch (_: Exception) {
+                onDismiss()
+            }
+        }
+    }
+
+    // ponytail: Dynamic page-count state linked directly to page list; ceiling: Pager only handles sequential slide steps; upgrade path: Deep-linking directly to specific walkthrough slide from Settings if desired.
+    val pages = remember {
+        listOf(
+            WalkthroughPageData(
+                badge = "EXECUTIVE SUITE",
+                title = "Engineered for Focus",
+                headline = "Zero distractions. Pure executive velocity.",
+                description = "Designed for professionals who command their tools with precision. Drawer eliminates algorithm feeds, noisy promotions, and attention sinks in favor of a disciplined, high-performance workspace.",
+                timeSavedTitle = "Reclaim Cognitive Bandwidth",
+                timeSavedDesc = "Clean architecture, zero unsolicited feeds, and instantaneous sub-second app execution.",
+                icon = Icons.Default.Security,
+                accentColor = Color(0xFF1E3A8A) // Executive Navy
+            ),
+            WalkthroughPageData(
+                badge = "WORKSPACE ARCHITECTURE",
+                title = "Contextual Drawers",
+                headline = "Structure your enterprise and personal apps effortlessly.",
+                description = "Organize business tools, communications, finance, and productivity into discrete, collapsible workspace drawers. One tap expands; one tap collapses.",
+                timeSavedTitle = "Unified Enterprise Hierarchy",
+                timeSavedDesc = "Multi-drawer assignment with dedicated work-profile segregation and immediate context switching.",
+                icon = Icons.Default.Folder,
+                accentColor = Color(0xFF0F766E) // Deep Corporate Teal
+            ),
+            WalkthroughPageData(
+                badge = "WIDGET ARCHITECTURE",
+                title = "iPod CoverFlow Widgets",
+                headline = "Stack and glide through live interactive data cards.",
+                description = "Swipe left into your dedicated live widget feed. Group companion widgets into CoverFlow drawers with realistic 3D depth and inertia, or deploy standalone multi-span glance tiles.",
+                timeSavedTitle = "Fluid Real-Time Awareness",
+                timeSavedDesc = "Check calendars, market ticks, and system stats with continuous CoverFlow paging and zero home clutter.",
+                icon = Icons.Default.Widgets,
+                accentColor = Color(0xFF6D28D9) // Royal Violet
+            ),
+            WalkthroughPageData(
+                badge = "INSTANT RETRIEVAL",
+                title = "Executive Dock & Command Bar",
+                headline = "Launch critical tools in under a second.",
+                description = "Keep mission-critical productivity apps on the precision floating dock. Slide down the responsive alphabet index or invoke the ergonomic command bar for instant keyboard filtering.",
+                timeSavedTitle = "Precision Muscle Memory",
+                timeSavedDesc = "Ergonomic single-hand reach with zero animation delay and full keyboard-auto-open acceleration.",
+                icon = Icons.Default.Search,
+                accentColor = Color(0xFF065F46) // Financial Forest Green
+            ),
+            WalkthroughPageData(
+                badge = "VISUAL DISCRETION",
+                title = "Stealth Theme & Surfaces",
+                headline = "Designed for boardroom discretion and battery longevity.",
+                description = "Activate Stealth Mode for ultra-low-contrast typography, true OLED pitch-black backgrounds, and muted glyphs that shield your screen from wandering eyes in tight executive spaces.",
+                timeSavedTitle = "Shoulder-Surfer Protection",
+                timeSavedDesc = "Minimal visual footprint preserves OLED battery life and protects confidential workflows from side angles.",
+                icon = Icons.Default.VisibilityOff,
+                accentColor = Color(0xFF475569) // Stealth Slate
+            ),
+            WalkthroughPageData(
+                badge = "CONFIDENTIALITY & CONTROL",
+                title = "Notification Hub & Privacy",
+                headline = "Take total ownership of your alerts.",
+                description = "Consolidate active notifications cleanly by application. Apply confidentiality masking to keep sensitive client messages private during meetings, or quick-mute noisy threads on demand.",
+                timeSavedTitle = "Meeting & Presentation Ready",
+                timeSavedDesc = "Instant privacy masking prevents previews from exposing private discussions in professional environments.",
+                icon = Icons.Default.NotificationsOff,
+                accentColor = Color(0xFF334155) // Slate Charcoal
+            )
         )
-    )
+    }
+    val pagerState = rememberPagerState(pageCount = { pages.size })
 
     // Full-screen scrim backdrop
     Box(
@@ -262,13 +339,16 @@ fun WalkthroughOverlay(
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = page.accentColor.copy(alpha = 0.2f),
+                                    color = page.accentColor.copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, page.accentColor.copy(alpha = 0.35f)),
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = "⏱️",
-                                            fontSize = 16.sp
+                                        Icon(
+                                            imageVector = page.icon,
+                                            contentDescription = null,
+                                            tint = page.accentColor,
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -364,7 +444,11 @@ fun WalkthroughOverlay(
                         Button(
                             onClick = {
                                 if (isLastPage) {
-                                    onDismiss()
+                                    if (!isDefaultLauncher(context)) {
+                                        showDefaultDialog = true
+                                    } else {
+                                        onDismiss()
+                                    }
                                 } else {
                                     coroutineScope.launch {
                                         pagerState.animateScrollToPage(pagerState.currentPage + 1)
@@ -409,6 +493,87 @@ fun WalkthroughOverlay(
                 }
             }
         }
+
+        if (showDefaultDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDefaultDialog = false
+                    onDismiss()
+                },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Home,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Set as Default Launcher?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Make Drawer your default home app so your workspace drawers, executive dock, and live widget feed are always one tap away.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "QUICK GUIDE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    letterSpacing = 0.8.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "When the system prompt appears, select Drawer and tap \"Always\" (or choose Drawer under Default Home App in Settings).",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDefaultDialog = false
+                            launchDefaultPrompt()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Set as Default", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showDefaultDialog = false
+                            onDismiss()
+                        }
+                    ) {
+                        Text("Maybe Later")
+                    }
+                },
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
     }
 }
 
@@ -442,44 +607,184 @@ private fun WalkthroughVisualCard(
         ) {
             when (pageIndex) {
                 0 -> {
-                    // Philosophy preview: Frosted glass card with glow
+                    // Executive Suite preview: Minimalist metallic badge with crisp typography
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = accentColor.copy(alpha = 0.18f),
-                            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
+                            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.45f))
                         ) {
-                            Text(
-                                text = "✨ Drawer",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
-                                color = accentColor,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "DRAWER WORKSPACE",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    letterSpacing = 1.4.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Zero Ads • Zero Trackers • Pure 120Hz Speed",
+                            text = "Zero Trackers • Enterprise Focus • Pure Velocity",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 1 -> {
-                    // Smart Accordions preview: Collapsible categories mockup
+                    // Workspace Architecture preview: Discrete contextual drawers
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        CategoryPillMockup(title = "💼 Work", count = "4 apps", accentColor = accentColor, isExpanded = true)
-                        CategoryPillMockup(title = "💬 Social & Chat", count = "6 apps", accentColor = accentColor, isExpanded = false)
+                        CategoryPillMockup(
+                            title = "Enterprise & Finance",
+                            count = "4 apps",
+                            icon = Icons.Default.Folder,
+                            accentColor = accentColor,
+                            isExpanded = true
+                        )
+                        CategoryPillMockup(
+                            title = "Operations & Comms",
+                            count = "6 apps",
+                            icon = Icons.AutoMirrored.Filled.Chat,
+                            accentColor = accentColor,
+                            isExpanded = false
+                        )
                     }
                 }
                 2 -> {
-                    // Floating Dock & Search preview
+                    // ponytail: Static visual representation of 3D CoverFlow deck; ceiling: Doesn't execute real gesture-driven carousel in walkthrough preview; upgrade path: Interactive mini-pager preview if users request live test drive.
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy((-12).dp)
+                        ) {
+                            // Left tucked card
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier.size(width = 64.dp, height = 52.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "Calendar",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                            }
+
+                            // Center active CoverFlow card
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.5.dp, accentColor.copy(alpha = 0.7f)),
+                                shadowElevation = 8.dp,
+                                modifier = Modifier.size(width = 112.dp, height = 68.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(8.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "LIVE FEED",
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = accentColor,
+                                            letterSpacing = 0.8.sp
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.Widgets,
+                                            contentDescription = null,
+                                            tint = accentColor,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "Market Ticker",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "+2.4% • 4,892.1",
+                                        fontSize = 9.sp,
+                                        color = Color(0xFF16A34A),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            // Right tucked card
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier.size(width = 64.dp, height = 52.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "Battery",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Carousel indicator dots
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.outlineVariant)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 12.dp, height = 4.dp)
+                                    .clip(CircleShape)
+                                    .background(accentColor)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.outlineVariant)
+                            )
+                        }
+                    }
+                }
+                3 -> {
+                    // Precision Dock & Search preview
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
@@ -487,10 +792,10 @@ private fun WalkthroughVisualCard(
                         // Search bar mockup
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                             modifier = Modifier
-                                .fillMaxWidth(0.85f)
+                                .fillMaxWidth(0.9f)
                                 .height(32.dp)
                         ) {
                             Row(
@@ -501,40 +806,46 @@ private fun WalkthroughVisualCard(
                                     imageVector = Icons.Default.Search,
                                     contentDescription = null,
                                     tint = accentColor,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Search apps or type 'w'...",
+                                    text = "Search workspace apps...",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // Floating dock slots
+                        // Precision dock slots with clean vector icons
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            repeat(4) { slotIndex ->
+                            val dockIcons = listOf(
+                                Icons.Default.Call,
+                                Icons.AutoMirrored.Filled.Chat,
+                                Icons.Default.Language,
+                                Icons.Default.PhotoCamera
+                            )
+                            dockIcons.forEachIndexed { slotIndex, icon ->
                                 Surface(
-                                    shape = CircleShape,
-                                    color = if (slotIndex == 0) accentColor.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant,
-                                    border = BorderStroke(1.dp, if (slotIndex == 0) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                    modifier = Modifier.size(36.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (slotIndex == 0) accentColor.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (slotIndex == 0) accentColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                    ),
+                                    modifier = Modifier.size(34.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = when (slotIndex) {
-                                                0 -> "📞"
-                                                1 -> "💬"
-                                                2 -> "🌐"
-                                                else -> "📷"
-                                            },
-                                            fontSize = 16.sp
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = if (slotIndex == 0) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -542,45 +853,130 @@ private fun WalkthroughVisualCard(
                         }
                     }
                 }
-                3 -> {
-                    // Notification hub preview: Quick Mute chips
+                4 -> {
+                    // ponytail: Simplified static mockup of low-contrast stealth surface; ceiling: Uses hardcoded dark palette rather than reactive dynamic theme engine in preview; upgrade path: Dynamically render user's chosen contrast tier if interactive theme preview needed.
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF09090B),
+                        border = BorderStroke(1.dp, Color(0xFF27272A)),
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(76.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFF18181B),
+                                    border = BorderStroke(1.dp, Color(0xFF27272A)),
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.VisibilityOff,
+                                            contentDescription = null,
+                                            tint = Color(0xFF71717A),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "STEALTH SURFACE",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        letterSpacing = 1.1.sp,
+                                        color = Color(0xFF71717A)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Subdued contrast • Side-shielded",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF52525B)
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF18181B),
+                                border = BorderStroke(1.dp, Color(0xFF27272A))
+                            ) {
+                                Text(
+                                    text = "OLED 0%",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF71717A),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                5 -> {
+                    // Confidentiality & Notification control preview
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.Center
                     ) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
-                                modifier = Modifier.padding(8.dp),
+                                modifier = Modifier.padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("💬", fontSize = 16.sp)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text("Group Chat (42 msgs)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
-                                        Text("Active notifications", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = accentColor.copy(alpha = 0.2f),
-                                        border = BorderStroke(1.dp, accentColor)
+                                        shape = CircleShape,
+                                        color = accentColor.copy(alpha = 0.15f),
+                                        modifier = Modifier.size(28.dp)
                                     ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.NotificationsActive,
+                                                contentDescription = null,
+                                                tint = accentColor,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
                                         Text(
-                                            "Mute 1h",
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            "Client Executive Brief",
+                                            fontWeight = FontWeight.SemiBold,
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                        Text(
+                                            "Privacy mask enabled",
                                             style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = accentColor
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = accentColor.copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
+                                ) {
+                                    Text(
+                                        "Mute 1h",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = accentColor
+                                    )
                                 }
                             }
                         }
@@ -595,15 +991,16 @@ private fun WalkthroughVisualCard(
 private fun CategoryPillMockup(
     title: String,
     count: String,
+    icon: ImageVector,
     accentColor: Color,
     isExpanded: Boolean
 ) {
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = if (isExpanded) accentColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+        color = if (isExpanded) accentColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
         border = BorderStroke(
             1.dp,
-            if (isExpanded) accentColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+            if (isExpanded) accentColor.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -612,17 +1009,40 @@ private fun CategoryPillMockup(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurface
+                )
+            }
             Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = if (isExpanded) "▼ $count" else "▶ $count",
+                text = count.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                letterSpacing = 0.5.sp
             )
         }
     }
+}
+
+private fun isDefaultLauncher(context: Context): Boolean {
+    // ponytail: standard platform check via RoleManager on Q+ and PackageManager fallback; ceiling: relies on MATCH_DEFAULT_ONLY filter; upgrade path: BroadcastReceiver on ACTION_PREFERRED_ACTIVITY_CHANGED.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val roleManager = context.getSystemService(RoleManager::class.java)
+        if (roleManager?.isRoleAvailable(RoleManager.ROLE_HOME) == true) {
+            return roleManager.isRoleHeld(RoleManager.ROLE_HOME)
+        }
+    }
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+    val resolveInfo = context.packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+    return resolveInfo?.activityInfo?.packageName == context.packageName
 }

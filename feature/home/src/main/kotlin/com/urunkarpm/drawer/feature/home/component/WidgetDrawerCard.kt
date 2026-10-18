@@ -72,13 +72,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.model.WidgetDrawer
@@ -103,6 +104,7 @@ fun WidgetDrawerCard(
     onMoveUp: () -> Unit = {},
     onMoveDown: () -> Unit = {},
     lockLayout: Boolean = false,
+    hideDrawerIcons: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -133,20 +135,20 @@ fun WidgetDrawerCard(
         label = "chevronBgColor"
     )
     val animatedBorderColor by animateColorAsState(
-        targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.45f)
-                      else drawerColor.copy(alpha = 0.22f),
+        targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.35f)
+                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
         animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
         label = "drawerBorderColor"
     )
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (drawer.isExpanded)
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
+                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
             else
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
             contentColor = MaterialTheme.colorScheme.onSurface
         ),
         border = BorderStroke(1.dp, animatedBorderColor)
@@ -157,7 +159,7 @@ fun WidgetDrawerCard(
                 .background(
                     Brush.verticalGradient(
                         colors = if (drawer.isExpanded) {
-                            listOf(drawerColor.copy(alpha = 0.05f), Color.Transparent)
+                            listOf(drawerColor.copy(alpha = 0.04f), Color.Transparent)
                         } else {
                             listOf(Color.Transparent, Color.Transparent)
                         }
@@ -179,31 +181,33 @@ fun WidgetDrawerCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Category Icon Badge with user's selected accent color
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(drawerColor.copy(alpha = 0.16f))
-                            .border(
-                                width = 1.dp,
-                                color = drawerColor.copy(alpha = 0.32f),
-                                shape = RoundedCornerShape(12.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = drawerIcon,
-                            contentDescription = drawer.title,
-                            tint = drawerColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    if (!hideDrawerIcons) {
+                        // Category Icon Badge with executive corporate tint
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(drawerColor.copy(alpha = 0.12f))
+                                .border(
+                                    width = 1.dp,
+                                    color = drawerColor.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = drawerIcon,
+                                contentDescription = drawer.title,
+                                tint = drawerColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -217,19 +221,21 @@ fun WidgetDrawerCard(
                         )
                         val widgetCount = drawer.widgets.size
                         Text(
-                            text = if (widgetCount == 1) "1 widget" else "$widgetCount widgets",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = if (widgetCount == 1) "1 WIDGET" else "$widgetCount WIDGETS",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.6.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                         )
                     }
 
                     if (!lockLayout) {
-                        // Quick Add button with drawerColor accent
+                        // Quick Add button with subtle accent
                         Box(
                             modifier = Modifier
-                                .size(30.dp)
+                                .size(28.dp)
                                 .clip(CircleShape)
-                                .background(drawerColor.copy(alpha = 0.14f))
+                                .background(drawerColor.copy(alpha = 0.12f))
                                 .clickable { onAddWidgetClick() },
                             contentAlignment = Alignment.Center
                         ) {
@@ -237,18 +243,18 @@ fun WidgetDrawerCard(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = "Add Widget to ${drawer.title}",
                                 tint = drawerColor,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
                         // More options button
                         Box(
                             modifier = Modifier
-                                .size(30.dp)
+                                .size(28.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f))
                                 .clickable { showMenu = true },
                             contentAlignment = Alignment.Center
                         ) {
@@ -256,17 +262,17 @@ fun WidgetDrawerCard(
                                 imageVector = Icons.Default.MoreVert,
                                 contentDescription = "Options",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                     }
 
                     // Tactile circular touch backing for chevron
                     Box(
                         modifier = Modifier
-                            .size(30.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
                             .background(chevronBgColor)
                             .clickable { onToggleExpand() },
@@ -276,8 +282,8 @@ fun WidgetDrawerCard(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = if (drawer.isExpanded) "Collapse" else "Expand",
                             modifier = Modifier
-                                .size(22.dp)
-                                .rotate(chevronRotation),
+                                .size(20.dp)
+                                .graphicsLayer { rotationZ = chevronRotation },
                             tint = if (drawer.isExpanded) drawerColor else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -381,7 +387,7 @@ fun WidgetDrawerCard(
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
                 ) {
-                    val coverFlowHeight = (drawer.spanY * 70).coerceIn(190, 380)
+                    val coverFlowHeight = (drawer.spanY * 70).coerceIn(140, 420)
                     IpodCoverFlowWidgetStack(
                         widgets = drawer.widgets,
                         widgetHostManager = widgetHostManager,
@@ -479,15 +485,15 @@ private fun resolveWidgetDrawerIcon(title: String): ImageVector {
 private fun resolveWidgetDrawerColor(title: String, drawerId: String): Color {
     val lower = title.lowercase()
     val hex = when {
-        lower.contains("finance") || lower.contains("bank") || lower.contains("money") -> "#4CAF50" // Green
-        lower.contains("media") || lower.contains("music") -> "#9C27B0" // Purple
-        lower.contains("video") || lower.contains("stream") -> "#E53935" // Red
-        lower.contains("chat") || lower.contains("social") -> "#009688" // Teal
-        lower.contains("work") || lower.contains("office") -> "#1E88E5" // Blue
-        lower.contains("tool") || lower.contains("util") -> "#FF9800" // Orange
-        lower.contains("fit") || lower.contains("health") -> "#E91E63" // Pink
-        lower.contains("star") || lower.contains("fav") -> "#FDD835" // Yellow
-        lower.contains("dev") || lower.contains("code") -> "#5E35B1" // Deep Purple
+        lower.contains("finance") || lower.contains("bank") || lower.contains("money") -> "#065F46" // Financial Forest Green
+        lower.contains("media") || lower.contains("music") -> "#831843" // Deep Bordeaux
+        lower.contains("video") || lower.contains("stream") -> "#9F1239" // Refined Wine
+        lower.contains("chat") || lower.contains("social") -> "#0F766E" // Deep Corporate Teal
+        lower.contains("work") || lower.contains("office") -> "#1E3A8A" // Executive Navy
+        lower.contains("tool") || lower.contains("util") -> "#475569" // Titanium Gray
+        lower.contains("fit") || lower.contains("health") -> "#0E7490" // Refined Petrol Cyan
+        lower.contains("star") || lower.contains("fav") -> "#92400E" // Warm Bronze
+        lower.contains("dev") || lower.contains("code") -> "#3730A3" // Enterprise Indigo
         else -> {
             val colors = GroupIcons.availableColors
             val index = kotlin.math.abs(drawerId.hashCode() % colors.size)

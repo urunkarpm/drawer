@@ -97,6 +97,7 @@ fun WidgetsPage(
     onMoveWidgetToDrawer: (widgetId: String, drawerId: String?) -> Unit,
     onReorderWidgetInDrawer: (drawerId: String, fromIndex: Int, toIndex: Int) -> Unit,
     lockLayout: Boolean = false,
+    hideDrawerIcons: Boolean = false,
     onBackToHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -180,16 +181,17 @@ fun WidgetsPage(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        modifier = Modifier.size(72.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                        modifier = Modifier.size(64.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Widgets,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(32.dp)
                             )
                         }
                     }
@@ -197,7 +199,7 @@ fun WidgetsPage(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "Widgets Feed",
+                        text = "Workspace Widgets",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -206,7 +208,7 @@ fun WidgetsPage(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Stack widgets into categories with 3D iPod Cover Flow drawers or add standalone widgets.",
+                        text = "Organize widgets into structured categorical drawers or pin standalone workspace metrics.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -220,7 +222,7 @@ fun WidgetsPage(
                     ) {
                         FilledTonalButton(
                             onClick = { onAddWidgetClick(null) },
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -229,7 +231,7 @@ fun WidgetsPage(
 
                         OutlinedButton(
                             onClick = { showCreateDrawerDialog = true },
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(imageVector = Icons.Default.CreateNewFolder, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -257,9 +259,9 @@ fun WidgetsPage(
                                 modifier = Modifier.clickable { onBackToHome() }
                             ) {
                                 Text(
-                                    text = "Widgets",
+                                    text = "Widgets Feed",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -276,8 +278,9 @@ fun WidgetsPage(
                                     // New Drawer Button
                                     Surface(
                                         onClick = { showCreateDrawerDialog = true },
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -286,7 +289,7 @@ fun WidgetsPage(
                                             Icon(
                                                 imageVector = Icons.Default.CreateNewFolder,
                                                 contentDescription = "New Drawer",
-                                                modifier = Modifier.size(16.dp),
+                                                modifier = Modifier.size(15.dp),
                                                 tint = MaterialTheme.colorScheme.onSurface
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
@@ -300,34 +303,37 @@ fun WidgetsPage(
                                     }
 
                                     // Add Widget Button
-                                    Surface(
-                                        onClick = {
-                                            if (drawers.isEmpty()) {
-                                                onAddWidgetClick(null)
-                                            } else {
-                                                showAddMenu = true
-                                            }
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                    Box {
+                                        Surface(
+                                            onClick = {
+                                                if (drawers.isEmpty()) {
+                                                    onAddWidgetClick(null)
+                                                } else {
+                                                    showAddMenu = true
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Add,
-                                                contentDescription = "Add Widget",
-                                                modifier = Modifier.size(16.dp),
-                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "Add",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Add,
+                                                    contentDescription = "Add Widget",
+                                                    modifier = Modifier.size(15.dp),
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Add",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
                                         }
 
                                         DropdownMenu(
@@ -379,7 +385,8 @@ fun WidgetsPage(
                             onExtractWidget = { wId -> onMoveWidgetToDrawer(wId, null) },
                             onResizeWidget = { w -> widgetToResize = w },
                             onReorderWidget = { fromIdx, toIdx -> onReorderWidgetInDrawer(drawer.id, fromIdx, toIdx) },
-                            lockLayout = lockLayout
+                            lockLayout = lockLayout,
+                            hideDrawerIcons = hideDrawerIcons
                         )
                     }
 
@@ -484,7 +491,7 @@ fun WidgetsPage(
     widgetToMoveDrawer?.let { widget ->
         AlertDialog(
             onDismissRequest = { widgetToMoveDrawer = null },
-            shape = RoundedCornerShape(22.dp),
+            shape = RoundedCornerShape(16.dp),
             title = {
                 Text(
                     text = "Move into Drawer",
@@ -582,19 +589,19 @@ private fun StandaloneWidgetCardItem(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.94f),
             contentColor = MaterialTheme.colorScheme.onSurface
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.30f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(widget.heightDp.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .padding(4.dp)
             ) {
                 AndroidView(
@@ -611,19 +618,24 @@ private fun StandaloneWidgetCardItem(
                     },
                     update = { view ->
                         if (view is AppWidgetHostView) {
-                            view.layoutParams = android.view.ViewGroup.LayoutParams(
-                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                            )
                             val density = view.resources.displayMetrics.density
-                            val widthDp = (view.width / density).toInt().coerceAtLeast(120)
-                            val bundle = Bundle().apply {
-                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
-                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
-                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, widget.heightDp)
-                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, widget.heightDp)
+                            val widthDp = if (view.width > 0) (view.width / density).toInt() else (if (widget.spanX <= 2) 160 else 340)
+                            val heightDp = widget.heightDp
+                            val lastTag = view.tag as? Pair<Int, Int>
+                            if (lastTag?.first != widthDp || lastTag.second != heightDp) {
+                                view.tag = Pair(widthDp, heightDp)
+                                view.layoutParams = android.view.ViewGroup.LayoutParams(
+                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                val bundle = Bundle().apply {
+                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
+                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
+                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp)
+                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, heightDp)
+                                }
+                                view.updateAppWidgetSize(bundle, widthDp, heightDp, widthDp, heightDp)
                             }
-                            view.updateAppWidgetOptions(bundle)
                         }
                     },
                     modifier = Modifier.fillMaxSize()
@@ -638,9 +650,10 @@ private fun StandaloneWidgetCardItem(
                     ) {
                         Surface(
                             onClick = { showMenu = true },
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.70f),
-                            modifier = Modifier.size(28.dp)
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                            modifier = Modifier.size(26.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(

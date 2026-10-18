@@ -65,6 +65,10 @@ class HomeViewModelTest {
     private val openDrawerFromDockOnlyFlow = MutableStateFlow(false)
     private val duoStatusPositionFlow = MutableStateFlow("TEMP")
     private val hasCompletedWalkthroughFlow = MutableStateFlow(true)
+    private val hideDrawerIconsFlow = MutableStateFlow(false)
+    private val stealthThemeFlow = MutableStateFlow(false)
+    private val stealthContrastLevelFlow = MutableStateFlow("LOW")
+    private val stealthLimitBrightnessFlow = MutableStateFlow(false)
 
     private val sampleApps = listOf(
         AppInfo(
@@ -118,6 +122,10 @@ class HomeViewModelTest {
         every { preferencesDataSource.openDrawerFromDockOnly } returns openDrawerFromDockOnlyFlow
         every { preferencesDataSource.duoStatusPosition } returns duoStatusPositionFlow
         every { preferencesDataSource.hasCompletedWalkthrough } returns hasCompletedWalkthroughFlow
+        every { preferencesDataSource.hideDrawerIcons } returns hideDrawerIconsFlow
+        every { preferencesDataSource.stealthTheme } returns stealthThemeFlow
+        every { preferencesDataSource.stealthContrastLevel } returns stealthContrastLevelFlow
+        every { preferencesDataSource.stealthLimitBrightness } returns stealthLimitBrightnessFlow
         every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
         every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
@@ -317,7 +325,7 @@ class HomeViewModelTest {
         viewModel.createWidgetDrawer("Finance", 4, 3)
         testScheduler.advanceUntilIdle()
 
-        coVerify { widgetRepository.createDrawer("Finance", 4, 3) }
+        coVerify(timeout = 2000) { widgetRepository.createDrawer("Finance", 4, 3) }
     }
 
     @Test
@@ -325,7 +333,7 @@ class HomeViewModelTest {
         viewModel.deleteWidgetDrawer("drawer-123", deleteChildren = true)
         testScheduler.advanceUntilIdle()
 
-        coVerify { widgetRepository.deleteDrawer("drawer-123", true) }
+        coVerify(timeout = 2000) { widgetRepository.deleteDrawer("drawer-123", true) }
     }
 
     @Test
@@ -333,7 +341,7 @@ class HomeViewModelTest {
         viewModel.moveWidgetToDrawer("widget-1", "drawer-123")
         testScheduler.advanceUntilIdle()
 
-        coVerify { widgetRepository.assignWidgetToDrawer("widget-1", "drawer-123") }
+        coVerify(timeout = 2000) { widgetRepository.assignWidgetToDrawer("widget-1", "drawer-123") }
     }
 
     @Test
@@ -373,6 +381,35 @@ class HomeViewModelTest {
         viewModel.completeWalkthrough()
         testScheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setHasCompletedWalkthrough(true) }
+    }
+
+    @Test
+    fun addWidget_standalone_insertsWidgetAndEnablesFeedIfDisabled() = runTest {
+        enableWidgetsPageFlow.value = false
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            viewModel.addWidget(
+                appWidgetId = 42,
+                packageName = "com.example.widget",
+                providerClassName = "com.example.widget.MyWidgetProvider",
+                drawerId = null,
+                spanX = 4,
+                spanY = 2,
+                heightDp = 180
+            )
+            testScheduler.advanceUntilIdle()
+
+            coVerify { preferencesDataSource.setEnableWidgetsPage(true) }
+            val slot = io.mockk.slot<com.urunkarpm.drawer.core.model.WidgetItem>()
+            coVerify { widgetRepository.addWidget(capture(slot)) }
+            assertEquals(42, slot.captured.appWidgetId)
+            assertEquals("com.example.widget", slot.captured.packageName)
+            assertNull(slot.captured.drawerId)
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test

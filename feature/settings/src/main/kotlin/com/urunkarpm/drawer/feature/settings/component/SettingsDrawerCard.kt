@@ -36,7 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -146,7 +146,7 @@ fun SettingsDrawerCard(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = if (isExpanded) "Collapse $title" else "Expand $title",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.rotate(chevronRotation)
+                        modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
                     )
                 }
             }

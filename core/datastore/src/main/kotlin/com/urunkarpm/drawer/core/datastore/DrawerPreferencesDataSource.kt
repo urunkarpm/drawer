@@ -65,11 +65,19 @@ class DrawerPreferencesDataSource @Inject constructor(
         val OPEN_DRAWER_FROM_DOCK_ONLY = booleanPreferencesKey("open_drawer_from_dock_only")
         val DUO_STATUS_POSITION = stringPreferencesKey("duo_status_position")
         val HAS_COMPLETED_WALKTHROUGH = booleanPreferencesKey("has_completed_walkthrough")
+        val HIDE_DRAWER_ICONS = booleanPreferencesKey("hide_drawer_icons")
+        val STEALTH_THEME = booleanPreferencesKey("stealth_theme")
+        val STEALTH_CONTRAST_LEVEL = stringPreferencesKey("stealth_contrast_level")
+        val STEALTH_LIMIT_BRIGHTNESS = booleanPreferencesKey("stealth_limit_brightness")
     }
 
     val hasCompletedWalkthrough: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HAS_COMPLETED_WALKTHROUGH] ?: false }
     val openDrawerFromDockOnly: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] ?: false }
     val duoStatusPosition: Flow<String> = dataStore.data.map { it[PreferencesKeys.DUO_STATUS_POSITION] ?: "TEMP" }
+    val hideDrawerIcons: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_DRAWER_ICONS] ?: false }
+    val stealthTheme: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.STEALTH_THEME] ?: false }
+    val stealthContrastLevel: Flow<String> = dataStore.data.map { it[PreferencesKeys.STEALTH_CONTRAST_LEVEL] ?: "LOW" }
+    val stealthLimitBrightness: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] ?: false }
 
     val autoOpenKeyboardInDrawer: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] ?: false }
     val showDuoStatusWidget: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] ?: true }
@@ -315,5 +323,21 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setHasCompletedWalkthrough(completed: Boolean) {
         dataStore.edit { it[PreferencesKeys.HAS_COMPLETED_WALKTHROUGH] = completed }
+    }
+
+    suspend fun setHideDrawerIcons(hide: Boolean) {
+        dataStore.edit { it[PreferencesKeys.HIDE_DRAWER_ICONS] = hide }
+    }
+
+    suspend fun setStealthTheme(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.STEALTH_THEME] = enabled }
+    }
+
+    suspend fun setStealthContrastLevel(level: String) {
+        dataStore.edit { it[PreferencesKeys.STEALTH_CONTRAST_LEVEL] = level }
+    }
+
+    suspend fun setStealthLimitBrightness(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] = enabled }
     }
 }

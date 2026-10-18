@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -829,6 +830,15 @@ fun SettingsScreen(
                         checked = uiState.lockLayout,
                         onCheckedChange = { viewModel.setLockLayout(it) }
                     )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Hide Drawer Icons",
+                        subtitle = "Hide the folder and category icon badges on drawer headers",
+                        checked = uiState.hideDrawerIcons,
+                        onCheckedChange = { viewModel.setHideDrawerIcons(it) }
+                    )
                 }
             }
 
@@ -996,6 +1006,62 @@ fun SettingsScreen(
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
+                    }
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    // Stealth theme
+                    // ponytail: flat toggle + AnimatedVisibility sub-panel; no nested nav; ceiling: single stealth level, no per-app masking.
+                    SettingsSwitchRow(
+                        title = "Stealth Theme",
+                        subtitle = "Makes notifications harder to read from the side. Not a security feature.",
+                        checked = uiState.stealthTheme,
+                        onCheckedChange = { viewModel.setStealthTheme(it) }
+                    )
+
+                    AnimatedVisibility(visible = uiState.stealthTheme) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                            Text(
+                                text = "Contrast Level",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                ThemeOptionChip(
+                                    label = "Low",
+                                    selected = uiState.stealthContrastLevel == "LOW",
+                                    onClick = { viewModel.setStealthContrastLevel("LOW") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ThemeOptionChip(
+                                    label = "Lower",
+                                    selected = uiState.stealthContrastLevel == "LOWER",
+                                    onClick = { viewModel.setStealthContrastLevel("LOWER") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ThemeOptionChip(
+                                    label = "Lowest",
+                                    selected = uiState.stealthContrastLevel == "LOWEST",
+                                    onClick = { viewModel.setStealthContrastLevel("LOWEST") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                            SettingsSwitchRow(
+                                title = "Limit Brightness",
+                                subtitle = "Dim the screen while the notification drawer is open",
+                                checked = uiState.stealthLimitBrightness,
+                                onCheckedChange = { viewModel.setStealthLimitBrightness(it) }
+                            )
+                        }
                     }
                 }
             }

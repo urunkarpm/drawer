@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -83,12 +84,17 @@ fun IpodCoverFlowWidgetStack(
                 .height(heightDp.dp)
                 .background(
                     color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(20.dp)
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                    shape = RoundedCornerShape(16.dp)
                 ),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "No widgets in this stack yet",
+                text = "No widgets in this workspace drawer",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -112,7 +118,7 @@ fun IpodCoverFlowWidgetStack(
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
     // Side padding lets previous and next cards peek into view on left and right
-    val horizontalPadding = if (screenWidth < 360) 40.dp else 56.dp
+    val horizontalPadding = if (screenWidth < 360) 36.dp else 48.dp
 
     var verticalDragAccumulator by remember { mutableFloatStateOf(0f) }
 
@@ -159,50 +165,43 @@ fun IpodCoverFlowWidgetStack(
                 state = pagerState,
                 key = { page -> widgets.getOrNull(page)?.id ?: page },
                 contentPadding = PaddingValues(horizontal = horizontalPadding),
-                pageSpacing = 0.dp,
+                pageSpacing = 10.dp,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val widget = widgets.getOrNull(page) ?: return@HorizontalPager
 
-                // Relative offset: 0 = active center, -1 = previous (left), +1 = next (right)
-                val pageOffset = (page - pagerState.currentPage) + pagerState.currentPageOffsetFraction
-                val absOffset = abs(pageOffset)
                 val isCenter = page == pagerState.currentPage
+                val pageDistance = abs(page - pagerState.currentPage)
 
+                // ponytail: CoverFlow stack transforms computed purely in graphicsLayer draw phase; ceiling: constant background scrim alpha; upgrade path: shader-based gradient alpha.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            // 3D Cover Flow Transform math:
-                            // Left card (pageOffset < 0): rotates inward facing right (positive rotationY)
-                            // Right card (pageOffset > 0): rotates inward facing left (negative rotationY)
-                            val rotationAngle = if (pageOffset < 0) {
-                                (absOffset * 40f).coerceIn(0f, 48f)
-                            } else if (pageOffset > 0) {
-                                -(absOffset * 40f).coerceIn(0f, 48f)
-                            } else {
-                                0f
-                            }
+                            // Relative offset: 0 = active center, -1 = previous (left), +1 = next (right)
+                            val pageOffset = (page - pagerState.currentPage) + pagerState.currentPageOffsetFraction
+                            val absOffset = abs(pageOffset)
 
-                            // Tuck background cards inwards towards center
+                            // Sleek executive card stack: zero 3D rotation distortion
+                            rotationY = 0f
+
+                            // Gentle horizontal tuck for adjacent cards
                             val translationAmount = if (pageOffset < 0) {
-                                (absOffset * 26.dp.toPx())
+                                (absOffset * 14.dp.toPx())
                             } else if (pageOffset > 0) {
-                                -(absOffset * 26.dp.toPx())
+                                -(absOffset * 14.dp.toPx())
                             } else {
                                 0f
                             }
 
-                            cameraDistance = 16f * density
-                            rotationY = rotationAngle
-                            val scale = (1f - (absOffset * 0.14f)).coerceIn(0.72f, 1f)
+                            val scale = (1f - (absOffset * 0.06f)).coerceIn(0.92f, 1f)
                             scaleX = scale
                             scaleY = scale
                             translationX = translationAmount
-                            alpha = (1f - (absOffset * 0.08f)).coerceIn(0.75f, 1f)
-                            shadowElevation = if (isCenter) 16.dp.toPx() else 4.dp.toPx()
+                            alpha = (1f - (absOffset * 0.20f)).coerceIn(0.70f, 1f)
+                            shadowElevation = if (page == pagerState.currentPage) 6.dp.toPx() else 1.dp.toPx()
                         }
-                        .zIndex(if (isCenter) 100f else (50f - absOffset * 10f)),
+                        .zIndex(if (isCenter) 100f else (50f - pageDistance * 10f)),
                     contentAlignment = Alignment.Center
                 ) {
                     key(widget.id, widget.appWidgetId) {
@@ -211,7 +210,6 @@ fun IpodCoverFlowWidgetStack(
                             page = page,
                             totalWidgets = widgets.size,
                             isCenter = isCenter,
-                            absOffset = absOffset,
                             widgetHostManager = widgetHostManager,
                             onBringToCenter = {
                                 coroutineScope.launch {
@@ -242,40 +240,44 @@ fun IpodCoverFlowWidgetStack(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // iPod-style Carousel Dots & Counter
-        Row(
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(vertical = 4.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f),
-                    shape = CircleShape
-                )
-                .padding(horizontal = 10.dp, vertical = 4.dp)
+        // Executive Segmented Pager Indicator
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.40f),
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+            ),
+            modifier = Modifier.padding(vertical = 4.dp)
         ) {
-            widgets.forEachIndexed { idx, _ ->
-                val isSelected = pagerState.currentPage == idx
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 3.dp)
-                        .size(if (isSelected) 8.dp else 5.dp)
-                        .background(
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
-                            shape = CircleShape
-                        )
-                        .clickable {
-                            coroutineScope.launch { pagerState.animateScrollToPage(idx) }
-                        }
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                widgets.forEachIndexed { idx, _ ->
+                    val isSelected = pagerState.currentPage == idx
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 3.dp)
+                            .size(width = if (isSelected) 14.dp else 4.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                            )
+                            .clickable {
+                                coroutineScope.launch { pagerState.animateScrollToPage(idx) }
+                            }
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = String.format("%02d / %02d", pagerState.currentPage + 1, widgets.size),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.5.sp),
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "${pagerState.currentPage + 1}/${widgets.size}",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -286,7 +288,6 @@ private fun CoverFlowWidgetItemCard(
     page: Int,
     totalWidgets: Int,
     isCenter: Boolean,
-    absOffset: Float,
     widgetHostManager: DrawerWidgetHostManager,
     onBringToCenter: () -> Unit,
     onDelete: () -> Unit,
@@ -303,12 +304,12 @@ private fun CoverFlowWidgetItemCard(
             .fillMaxSize()
             .border(
                 width = 1.dp,
-                color = if (isCenter) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(22.dp)
+                color = if (isCenter) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(16.dp)
             ),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.94f),
             contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
@@ -328,24 +329,29 @@ private fun CoverFlowWidgetItemCard(
                 },
                 update = { view ->
                     if (view is AppWidgetHostView) {
-                        view.layoutParams = android.view.ViewGroup.LayoutParams(
-                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                        )
                         val density = view.resources.displayMetrics.density
-                        val widthDp = (view.width / density).toInt().coerceAtLeast(150)
-                        val bundle = Bundle().apply {
-                            putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
-                            putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
-                            putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, widget.heightDp)
-                            putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, widget.heightDp)
+                        val widthDp = if (view.width > 0) (view.width / density).toInt() else 280
+                        val height = widget.heightDp
+                        val lastTag = view.tag as? Pair<Int, Int>
+                        if (lastTag?.first != widthDp || lastTag.second != height) {
+                            view.tag = Pair(widthDp, height)
+                            view.layoutParams = android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            val bundle = Bundle().apply {
+                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
+                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
+                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, height)
+                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, height)
+                            }
+                            view.updateAppWidgetSize(bundle, widthDp, height, widthDp, height)
                         }
-                        view.updateAppWidgetOptions(bundle)
                     }
                 },
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .padding(4.dp)
             )
 
@@ -354,12 +360,12 @@ private fun CoverFlowWidgetItemCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(22.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = (absOffset * 0.25f).coerceIn(0.12f, 0.40f)),
-                                    Color.Black.copy(alpha = (absOffset * 0.45f).coerceIn(0.20f, 0.55f))
+                                    Color.Black.copy(alpha = 0.22f),
+                                    Color.Black.copy(alpha = 0.40f)
                                 )
                             )
                         )
@@ -381,16 +387,17 @@ private fun CoverFlowWidgetItemCard(
                 ) {
                     Surface(
                         onClick = { showMenu = true },
-                        shape = CircleShape,
+                        shape = RoundedCornerShape(6.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        modifier = Modifier.size(28.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                        modifier = Modifier.size(26.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "⋮",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Widget Options",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }

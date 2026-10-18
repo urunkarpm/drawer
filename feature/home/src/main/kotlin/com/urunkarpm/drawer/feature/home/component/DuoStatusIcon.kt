@@ -447,25 +447,24 @@ fun DuoStatusIcon(
 
         // ── Layer 2: Expanded Breakdown 3-Step Card with Rich Staggered Motion ──
         if (expandProgress > 0.05f) {
-            val cardAlpha = ((expandProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
+            // ponytail: charging pulse and morph staggers run strictly in graphicsLayer; ceiling: simple alpha/translate lerp; upgrade path: vector path morphing.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
                     .graphicsLayer {
-                        alpha = cardAlpha
+                        alpha = ((expandProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
                     },
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 // Step 1: BATTERY — Live status with unrolling progress bar
-                val batteryAlpha = ((expandProgress - 0.20f) / 0.60f).coerceIn(0f, 1f)
-                val batteryTranslationY = (1f - ((expandProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)) * -10f
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer {
-                            alpha = batteryAlpha
-                            translationY = batteryTranslationY
+                            val ep = expandProgress
+                            alpha = ((ep - 0.20f) / 0.60f).coerceIn(0f, 1f)
+                            translationY = (1f - ((ep - 0.20f) / 0.80f).coerceIn(0f, 1f)) * -10f
                         },
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -504,26 +503,26 @@ fun DuoStatusIcon(
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(
+                                    if (isCharging) chargingGreen else activeBatteryColor
+                                )
+                                .graphicsLayer {
                                     if (isCharging) {
                                         val pulse = pulseAlpha?.value ?: 1f
-                                        chargingGreen.copy(alpha = (0.85f + 0.15f * pulse).coerceIn(0f, 1f))
-                                    } else {
-                                        activeBatteryColor
+                                        alpha = (0.85f + 0.15f * pulse).coerceIn(0f, 1f)
                                     }
-                                )
+                                }
                         )
                     }
                 }
 
                 // Step 2: WI-FI — Signal waves with live network wave pulse
-                val wifiAlpha = ((expandProgress - 0.32f) / 0.60f).coerceIn(0f, 1f)
-                val wifiTranslationX = (1f - ((expandProgress - 0.32f) / 0.68f).coerceIn(0f, 1f)) * 18f
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer {
-                            alpha = wifiAlpha
-                            translationX = wifiTranslationX
+                            val ep = expandProgress
+                            alpha = ((ep - 0.32f) / 0.60f).coerceIn(0f, 1f)
+                            translationX = (1f - ((ep - 0.32f) / 0.68f).coerceIn(0f, 1f)) * 18f
                         },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -554,14 +553,13 @@ fun DuoStatusIcon(
                 }
 
                 // Step 3: CARRIER SIGNAL — 4 dots unfurling sequentially across horizontal meter
-                val carrierAlpha = ((expandProgress - 0.44f) / 0.56f).coerceIn(0f, 1f)
-                val carrierTranslationX = (1f - ((expandProgress - 0.44f) / 0.56f).coerceIn(0f, 1f)) * 18f
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer {
-                            alpha = carrierAlpha
-                            translationX = carrierTranslationX
+                            val ep = expandProgress
+                            alpha = ((ep - 0.44f) / 0.56f).coerceIn(0f, 1f)
+                            translationX = (1f - ((ep - 0.44f) / 0.56f).coerceIn(0f, 1f)) * 18f
                         },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -585,7 +583,6 @@ fun DuoStatusIcon(
                         ) {
                             for (i in 1..4) {
                                 val dotThreshold = 0.42f + (i * 0.07f)
-                                val dotAnimScale = ((expandProgress - dotThreshold) / 0.28f).coerceIn(0f, 1f)
                                 val isFilled = status.isCellularConnected && status.cellularLevel >= i
                                 val dotColor = if (!status.isCellularConnected) {
                                     alertRed
@@ -598,6 +595,8 @@ fun DuoStatusIcon(
                                     modifier = Modifier
                                         .size(5.5.dp)
                                         .graphicsLayer {
+                                            val ep = expandProgress
+                                            val dotAnimScale = ((ep - dotThreshold) / 0.28f).coerceIn(0f, 1f)
                                             scaleX = 0.35f + 0.65f * dotAnimScale
                                             scaleY = 0.35f + 0.65f * dotAnimScale
                                             alpha = dotAnimScale

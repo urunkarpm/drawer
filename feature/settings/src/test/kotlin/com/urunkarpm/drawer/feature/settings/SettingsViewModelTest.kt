@@ -66,6 +66,10 @@ class SettingsViewModelTest {
     private val appLabelScaleFlow = MutableStateFlow("NORMAL")
     private val openDrawerFromDockOnlyFlow = MutableStateFlow(false)
     private val duoStatusPositionFlow = MutableStateFlow("TEMP")
+    private val hideDrawerIconsFlow = MutableStateFlow(false)
+    private val stealthThemeFlow = MutableStateFlow(false)
+    private val stealthContrastLevelFlow = MutableStateFlow("LOW")
+    private val stealthLimitBrightnessFlow = MutableStateFlow(false)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -110,6 +114,10 @@ class SettingsViewModelTest {
         every { preferencesDataSource.appLabelScale } returns appLabelScaleFlow
         every { preferencesDataSource.openDrawerFromDockOnly } returns openDrawerFromDockOnlyFlow
         every { preferencesDataSource.duoStatusPosition } returns duoStatusPositionFlow
+        every { preferencesDataSource.hideDrawerIcons } returns hideDrawerIconsFlow
+        every { preferencesDataSource.stealthTheme } returns stealthThemeFlow
+        every { preferencesDataSource.stealthContrastLevel } returns stealthContrastLevelFlow
+        every { preferencesDataSource.stealthLimitBrightness } returns stealthLimitBrightnessFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -150,6 +158,9 @@ class SettingsViewModelTest {
                 com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS,
                 state.notificationSwipeLeftAction
             )
+            assertFalse(state.stealthTheme)
+            assertEquals("LOW", state.stealthContrastLevel)
+            assertFalse(state.stealthLimitBrightness)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -292,5 +303,33 @@ class SettingsViewModelTest {
         viewModel.setDuoStatusPosition("TIME")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setDuoStatusPosition("TIME") }
+    }
+
+    @Test
+    fun setHideDrawerIcons_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setHideDrawerIcons(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setHideDrawerIcons(true) }
+    }
+
+    @Test
+    fun setStealthTheme_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setStealthTheme(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setStealthTheme(true) }
+    }
+
+    @Test
+    fun setStealthContrastLevel_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setStealthContrastLevel("LOWEST")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setStealthContrastLevel("LOWEST") }
+    }
+
+    @Test
+    fun setStealthLimitBrightness_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setStealthLimitBrightness(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setStealthLimitBrightness(true) }
     }
 }

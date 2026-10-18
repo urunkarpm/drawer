@@ -42,7 +42,11 @@ data class GlancePrefs(
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
     val duoStatusPosition: String = "TEMP",
-    val hasCompletedWalkthrough: Boolean = true
+    val hasCompletedWalkthrough: Boolean = true,
+    val hideDrawerIcons: Boolean = false,
+    val stealthTheme: Boolean = false,
+    val stealthContrastLevel: String = "LOW",
+    val stealthLimitBrightness: Boolean = false
 )
 
 data class HomeDialogsState(
@@ -90,7 +94,11 @@ data class HomeUiState(
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
     val duoStatusPosition: String = "TEMP",
-    val hasCompletedWalkthrough: Boolean = true
+    val hasCompletedWalkthrough: Boolean = true,
+    val hideDrawerIcons: Boolean = false,
+    val stealthTheme: Boolean = false,
+    val stealthContrastLevel: String = "LOW",
+    val stealthLimitBrightness: Boolean = false
 )
 
 data class SurfaceThemePrefs(
@@ -135,7 +143,11 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.appLabelScale,
         preferencesDataSource.openDrawerFromDockOnly,
         preferencesDataSource.duoStatusPosition,
-        preferencesDataSource.hasCompletedWalkthrough
+        preferencesDataSource.hasCompletedWalkthrough,
+        preferencesDataSource.hideDrawerIcons,
+        preferencesDataSource.stealthTheme,
+        preferencesDataSource.stealthContrastLevel,
+        preferencesDataSource.stealthLimitBrightness
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -157,6 +169,10 @@ class HomeViewModel @Inject constructor(
         val openDrawerFromDockOnly = values[16] as Boolean
         val duoStatusPosition = values[17] as String
         val hasCompletedWalkthrough = values[18] as Boolean
+        val hideDrawerIcons = values[19] as Boolean
+        val stealthTheme = values[20] as Boolean
+        val stealthContrastLevel = values[21] as String
+        val stealthLimitBrightness = values[22] as Boolean
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -176,7 +192,11 @@ class HomeViewModel @Inject constructor(
             appLabelScale,
             openDrawerFromDockOnly,
             duoStatusPosition,
-            hasCompletedWalkthrough
+            hasCompletedWalkthrough,
+            hideDrawerIcons,
+            stealthTheme,
+            stealthContrastLevel,
+            stealthLimitBrightness
         )
     }
 
@@ -273,7 +293,11 @@ class HomeViewModel @Inject constructor(
             appLabelScale = glancePrefs.appLabelScale,
             openDrawerFromDockOnly = glancePrefs.openDrawerFromDockOnly,
             duoStatusPosition = glancePrefs.duoStatusPosition,
-            hasCompletedWalkthrough = glancePrefs.hasCompletedWalkthrough
+            hasCompletedWalkthrough = glancePrefs.hasCompletedWalkthrough,
+            hideDrawerIcons = glancePrefs.hideDrawerIcons,
+            stealthTheme = glancePrefs.stealthTheme,
+            stealthContrastLevel = glancePrefs.stealthContrastLevel,
+            stealthLimitBrightness = glancePrefs.stealthLimitBrightness
         )
     }.stateIn(
         scope = viewModelScope,
@@ -422,6 +446,9 @@ class HomeViewModel @Inject constructor(
         heightDp: Int = 180
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            if (!uiState.value.enableWidgetsPage) {
+                preferencesDataSource.setEnableWidgetsPage(true)
+            }
             val nextOrder = if (drawerId != null) {
                 uiState.value.widgetDrawers.find { it.id == drawerId }?.widgets?.size ?: 0
             } else {
@@ -467,6 +494,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // ponytail: resizing a widget in a drawer synchronizes the drawer's spanY so the cover flow container visually adapts without requiring multi-dimensional per-item layout math; ceiling is uniform drawer height; upgrade path is per-widget dynamic card viewport scaling.
     fun updateWidgetSpan(id: String, spanX: Int, spanY: Int, heightDp: Int? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val widget = uiState.value.widgets.find { it.id == id } ?: return@launch
@@ -478,6 +506,13 @@ class HomeViewModel @Inject constructor(
                     heightDp = computedHeight.coerceIn(80, 600)
                 )
             )
+            val drawerId = widget.drawerId
+            if (drawerId != null) {
+                val drawer = uiState.value.widgetDrawers.find { it.id == drawerId }
+                if (drawer != null) {
+                    widgetRepository.updateDrawer(drawer.copy(spanY = spanY.coerceIn(1, 6)))
+                }
+            }
         }
     }
 

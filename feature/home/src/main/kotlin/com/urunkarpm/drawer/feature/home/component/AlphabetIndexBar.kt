@@ -81,10 +81,10 @@ fun AlphabetIndexBar(
             .width(28.dp),
         contentAlignment = Alignment.CenterEnd
     ) {
-        // Active letter bubble indicator appearing to the left of the drag position
+        // Active letter squircle badge indicator appearing to the left of the drag position
         val density = LocalDensity.current
-        val bubbleOffsetXPx = with(density) { 72.dp.roundToPx() }
-        val bubbleHalfHeightPx = with(density) { 28.dp.toPx() }
+        val bubbleOffsetXPx = with(density) { 52.dp.roundToPx() }
+        val bubbleHalfHeightPx = with(density) { 18.dp.toPx() }
 
         AnimatedVisibility(
             visible = draggingLetter != null,
@@ -99,9 +99,13 @@ fun AlphabetIndexBar(
                 contentAlignment = Alignment.TopEnd
             ) {
                 Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    shadowElevation = 8.dp,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    ),
+                    shadowElevation = 4.dp,
                     modifier = Modifier
                         .offset {
                             IntOffset(
@@ -109,14 +113,14 @@ fun AlphabetIndexBar(
                                 y = (dragYOffsetPx - bubbleHalfHeightPx).roundToInt().coerceAtLeast(0)
                             )
                         }
-                        .size(56.dp)
+                        .size(36.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = letter,
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }

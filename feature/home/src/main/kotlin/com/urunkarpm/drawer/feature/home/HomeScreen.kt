@@ -53,10 +53,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import android.app.Activity
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
+import android.content.ComponentName
 import android.content.Intent
+import android.os.Bundle
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.feature.home.component.WidgetsPage
 import androidx.compose.material3.AlertDialog
@@ -78,6 +82,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -300,6 +305,30 @@ fun HomeScreen(
     val widgetHostManager = remember { DrawerWidgetHostManager(context.applicationContext) }
     var pendingAppWidgetId by remember { mutableStateOf<Int?>(null) }
     var targetDrawerIdForAdd by remember { mutableStateOf<String?>(null) }
+    val pagerState = rememberPagerState(
+        initialPage = 1,
+        pageCount = { 2 }
+    )
+
+    // Start listening to widget updates whenever the home screen is started
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
+                widgetHostManager.startListening()
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                widgetHostManager.stopListening()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+            widgetHostManager.startListening()
+        }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            widgetHostManager.stopListening()
+        }
+    }
 
     fun completeWidgetAdd(appWidgetId: Int) {
         val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(appWidgetId)
@@ -307,13 +336,36 @@ fun HomeScreen(
             val pkg = info.provider.packageName
             val cls = info.provider.className
             val targetDrawerId = targetDrawerIdForAdd
+            val spanX = if (info.minWidth in 1..160) 2 else 4
+            val spanY = ((info.minHeight + 69) / 70).coerceIn(2, 4)
+            val heightDp = (spanY * 70).coerceAtLeast(140)
+
+            // ponytail: push initial options to AppWidgetManager on add so providers receive dimensional constraints immediately; ceiling is static init options; upgrade path is reactive orientation-aware options.
+            val density = context.resources.displayMetrics.density
+            val widthDp = if (spanX <= 2) 160 else 340
+            val options = android.os.Bundle().apply {
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, heightDp)
+            }
+            try {
+                widgetHostManager.appWidgetManager.updateAppWidgetOptions(appWidgetId, options)
+            } catch (_: Exception) {}
+
             viewModel.addWidget(
                 appWidgetId = appWidgetId,
                 packageName = pkg,
                 providerClassName = cls,
-                drawerId = targetDrawerId
+                drawerId = targetDrawerId,
+                spanX = spanX,
+                spanY = spanY,
+                heightDp = heightDp
             )
             coroutineScope.launch {
+                if (targetDrawerId == null && uiState.enableWidgetsPage && pagerState.currentPage != 0) {
+                    pagerState.animateScrollToPage(0)
+                }
                 val dest = if (targetDrawerId != null) "drawer" else "feed"
                 snackbarHostState.showSnackbar("Widget added to $dest")
             }
@@ -324,34 +376,77 @@ fun HomeScreen(
     val configureWidgetLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val id = pendingAppWidgetId
-        if (result.resultCode == Activity.RESULT_OK && id != null) {
+        val id = result.data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingAppWidgetId ?: -1)
+            ?: pendingAppWidgetId
+        if (result.resultCode == Activity.RESULT_OK && id != null && id != -1) {
             completeWidgetAdd(id)
-        } else if (id != null) {
-            widgetHostManager.deleteAppWidgetId(id)
+        } else if (pendingAppWidgetId != null) {
+            widgetHostManager.deleteAppWidgetId(pendingAppWidgetId!!)
             targetDrawerIdForAdd = null
         }
         pendingAppWidgetId = null
     }
 
-    val pickWidgetLauncher = rememberLauncherForActivityResult(
+    fun checkAndConfigureWidget(appWidgetId: Int) {
+        val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(appWidgetId)
+        if (info?.configure != null) {
+            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                component = info.configure
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            configureWidgetLauncher.launch(intent)
+        } else {
+            completeWidgetAdd(appWidgetId)
+            pendingAppWidgetId = null
+        }
+    }
+
+    val bindWidgetLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val id = pendingAppWidgetId
         if (result.resultCode == Activity.RESULT_OK && id != null) {
-            val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(id)
-            if (info?.configure != null) {
-                val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
-                    component = info.configure
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                }
-                configureWidgetLauncher.launch(intent)
-            } else {
-                completeWidgetAdd(id)
-                pendingAppWidgetId = null
-            }
+            checkAndConfigureWidget(id)
         } else if (id != null) {
             widgetHostManager.deleteAppWidgetId(id)
+            pendingAppWidgetId = null
+            targetDrawerIdForAdd = null
+        }
+    }
+
+    val pickWidgetLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val id = result.data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingAppWidgetId ?: -1)
+            ?: pendingAppWidgetId
+        if (result.resultCode == Activity.RESULT_OK && id != null && id != -1) {
+            pendingAppWidgetId = id
+            val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(id)
+            if (info != null) {
+                // ponytail: widget picked from platform picker is already bound to this id; proceed straight to configure; ceiling: assumes single user profile; upgrade path: multi-profile cross-user inspection.
+                checkAndConfigureWidget(id)
+            } else {
+                val provider = result.data?.component
+                    ?: result.data?.getParcelableExtra<ComponentName>(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER)
+                if (provider != null) {
+                    val isAllowed = widgetHostManager.appWidgetManager.bindAppWidgetIdIfAllowed(id, provider)
+                    if (isAllowed) {
+                        checkAndConfigureWidget(id)
+                    } else {
+                        val bindIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
+                        }
+                        bindWidgetLauncher.launch(bindIntent)
+                    }
+                } else {
+                    widgetHostManager.deleteAppWidgetId(id)
+                    pendingAppWidgetId = null
+                    targetDrawerIdForAdd = null
+                }
+            }
+        } else if (pendingAppWidgetId != null) {
+            widgetHostManager.deleteAppWidgetId(pendingAppWidgetId!!)
             pendingAppWidgetId = null
             targetDrawerIdForAdd = null
         }
@@ -363,6 +458,9 @@ fun HomeScreen(
         pendingAppWidgetId = allocatedId
         val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
+            // ponytail: empty custom info/extras avoids NPE on custom OEM picker activities (Samsung/Xiaomi); ceiling: no custom launcher shortcuts mixed in system picker; upgrade path: custom in-app widget gallery.
+            putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, arrayListOf<AppWidgetProviderInfo>())
+            putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, arrayListOf<Bundle>())
         }
         pickWidgetLauncher.launch(pickIntent)
     }
@@ -483,22 +581,10 @@ fun HomeScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                // Transparent so the wallpaper shows through
+                // Transparent so the wallpaper shows through cleanly with zero theme tint overlay
+                // ponytail: native window.setBackgroundBlurRadius blurs wallpaper on Android 12+ without flat surface scrims covering wallpaper; ceiling: Android < 12 shows clean transparent wallpaper; upgrade path: RenderEffect-based RenderNode blur.
                 .background(Color.Transparent)
         ) {
-            // Wallpaper blur effect overlay if enabled
-            if (uiState.wallpaperBlur && uiState.wallpaperBlurRadius > 0) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            MaterialTheme.colorScheme.surface.copy(
-                                alpha = (uiState.wallpaperBlurRadius / 250f).coerceIn(0.12f, 0.65f)
-                            )
-                        )
-                )
-            }
-
             val homeContent: @Composable () -> Unit = {
                 val homeScrollState = rememberScrollState()
 
@@ -670,9 +756,20 @@ fun HomeScreen(
                                 },
                             iconLoader = { packageName ->
                                 val app = uiState.installedAppsByPackage[packageName]
-                                if (app != null) viewModel.getAppIcon(app) else null
+                                if (app != null) {
+                                    viewModel.getAppIcon(app)
+                                } else {
+                                    try {
+                                        context.packageManager.getApplicationIcon(packageName)
+                                    } catch (_: Exception) {
+                                        null
+                                    }
+                                }
                             },
-                            isDragging = dragDropState.isDragging
+                            isDragging = dragDropState.isDragging,
+                            stealthTheme = uiState.stealthTheme,
+                            stealthContrastLevel = uiState.stealthContrastLevel,
+                            stealthLimitBrightness = uiState.stealthLimitBrightness
                         )
 
                         // 2. Rest of the Drawers (App Categories): Side by side (2 columns) if enabled, otherwise single column
@@ -684,6 +781,7 @@ fun HomeScreen(
                             ),
                             hoveredGroupId = hoveredGroupId,
                             notificationPackages = activeNotificationPackages,
+                            hideDrawerIcons = uiState.hideDrawerIcons,
                             onGroupPositioned = { groupId, rect ->
                                 dragDropState.groupBounds[groupId] = rect
                             },
@@ -771,22 +869,35 @@ fun HomeScreen(
     }
 
     // ── Left Widgets Page and Home Page (only active when enabled in Settings) ──
-    val pagerState = rememberPagerState(
-        initialPage = 1,
-        pageCount = { 2 }
-    )
-
     // Resistance connection for WidgetsPage pull from Home (page 1 -> page 0)
+    // ponytail: initial pull gate absorbs accidental micro-swipes (<72px) without dampening swipe velocity so an intentional gesture opens the widget drawer in a single swipe; ceiling is fixed ~24dp deadband; upgrade path is user-configurable resistance threshold in Settings.
     val widgetPageResistanceConnection = remember(pagerState) {
         object : NestedScrollConnection {
+            private var pullAccumulator = 0f
+            private val resistanceGatePx = 72f
+
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // When on Home (page 1) dragging right towards Widgets (page 0), consume 60% of delta
-                // This adds deliberate physical resistance so swiping to Widgets requires an intentional pull.
-                if (pagerState.currentPage == 1 && available.x > 0f) {
-                    val consumedX = available.x * 0.60f
-                    return Offset(consumedX, 0f)
+                if (source == NestedScrollSource.UserInput && pagerState.currentPage == 1 && available.x > 0f) {
+                    if (pullAccumulator < resistanceGatePx) {
+                        val needed = resistanceGatePx - pullAccumulator
+                        val consumed = available.x.coerceAtMost(needed)
+                        pullAccumulator += consumed
+                        return Offset(consumed, 0f)
+                    }
                 }
                 return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (available.x < 0f && pagerState.currentPage == 1) {
+                    pullAccumulator = 0f
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                pullAccumulator = 0f
+                return Velocity.Zero
             }
         }
     }
@@ -817,6 +928,10 @@ fun HomeScreen(
                 !isCameraOpen &&
                 !isNotificationExpanded &&
                 !groupsUiState.groups.any { it.group.isExpanded },
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                snapPositionalThreshold = 0.35f
+            ),
             modifier = Modifier
                 .fillMaxSize()
                 .nestedScroll(widgetPageResistanceConnection)
@@ -850,6 +965,7 @@ fun HomeScreen(
                     onMoveWidgetToDrawer = { widgetId, drawerId -> viewModel.moveWidgetToDrawer(widgetId, drawerId) },
                     onReorderWidgetInDrawer = { drawerId, fromIdx, toIdx -> viewModel.reorderWidgetsInDrawer(drawerId, fromIdx, toIdx) },
                     lockLayout = groupsUiState.lockLayout,
+                    hideDrawerIcons = uiState.hideDrawerIcons,
                     onBackToHome = {
                         coroutineScope.launch {
                             pagerState.animateScrollToPage(1)

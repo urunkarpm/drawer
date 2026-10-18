@@ -70,7 +70,7 @@ object AppIconCache {
     }
 }
 
-fun Drawable.toImageBitmapSafe(sizePx: Int = 144): ImageBitmap? {
+fun Drawable.toImageBitmapSafe(sizePx: Int = 192): ImageBitmap? {
     return try {
         if (this is BitmapDrawable && bitmap != null) {
             val bmp = bitmap
@@ -78,7 +78,7 @@ fun Drawable.toImageBitmapSafe(sizePx: Int = 144): ImageBitmap? {
                 return bmp.asImageBitmap()
             }
         }
-        val targetSize = sizePx.coerceIn(96, 160)
+        val targetSize = sizePx.coerceIn(144, 256)
         val bmp = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         setBounds(0, 0, canvas.width, canvas.height)
@@ -154,6 +154,7 @@ private fun AppIconContent(
             Image(
                 bitmap = bitmap,
                 contentDescription = label,
+                filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
                 modifier = Modifier
                     .size(size)
                     .clip(iconShape)

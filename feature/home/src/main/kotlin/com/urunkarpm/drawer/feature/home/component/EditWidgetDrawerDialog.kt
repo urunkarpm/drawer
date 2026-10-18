@@ -55,11 +55,11 @@ fun EditWidgetDrawerDialog(
 
     var title by remember { mutableStateOf(drawer?.title ?: "") }
     var selectedIcon by remember { mutableStateOf(drawer?.iconName ?: "folder") }
-    var selectedColor by remember { mutableStateOf(drawer?.colorHex ?: "#1E88E5") }
+    var selectedColor by remember { mutableStateOf(drawer?.colorHex ?: GroupIcons.availableColors.first()) }
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(16.dp),
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -94,7 +94,7 @@ fun EditWidgetDrawerDialog(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Drawer Name") },
-                    placeholder = { Text("e.g. Finance, Media, Social") },
+                    placeholder = { Text("e.g. Finance, Operations, Analytics") },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()

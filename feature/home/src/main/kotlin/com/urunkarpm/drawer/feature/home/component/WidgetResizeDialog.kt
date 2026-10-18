@@ -71,7 +71,7 @@ fun WidgetResizeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(16.dp),
         title = {
             Text(
                 text = "Resize Widget",

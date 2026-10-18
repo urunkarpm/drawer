@@ -96,6 +96,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.model.AppGroup
@@ -126,7 +127,8 @@ fun GroupsAccordion(
     onAppDragEnd: ((isDropped: Boolean) -> Unit)? = null,
     onMoveToCategory: ((AppInfo, String) -> Unit)? = null,
     onPinToDock: ((AppInfo) -> Unit)? = null,
-    isDragging: Boolean = false
+    isDragging: Boolean = false,
+    hideDrawerIcons: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -191,7 +193,8 @@ fun GroupsAccordion(
                                 onAppDrag = if (uiState.lockLayout) null else onAppDrag,
                                 onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
                                 lockLayout = uiState.lockLayout,
-                                isDragging = isDragging
+                                isDragging = isDragging,
+                                hideDrawerIcons = hideDrawerIcons
                             )
                         }
                     }
@@ -228,7 +231,8 @@ fun GroupsAccordion(
                                 onAppDrag = if (uiState.lockLayout) null else onAppDrag,
                                 onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
                                 lockLayout = uiState.lockLayout,
-                                isDragging = isDragging
+                                isDragging = isDragging,
+                                hideDrawerIcons = hideDrawerIcons
                             )
                         }
                     }
@@ -267,7 +271,8 @@ fun GroupsAccordion(
                         onAppDrag = if (uiState.lockLayout) null else onAppDrag,
                         onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
                         lockLayout = uiState.lockLayout,
-                        isDragging = isDragging
+                        isDragging = isDragging,
+                        hideDrawerIcons = hideDrawerIcons
                     )
                 }
             }
@@ -383,6 +388,7 @@ private fun GroupCard(
     onAppDragEnd: ((Boolean) -> Unit)? = null,
     lockLayout: Boolean = false,
     isDragging: Boolean = false,
+    hideDrawerIcons: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val group = resolvedGroup.group
@@ -423,9 +429,9 @@ private fun GroupCard(
     val animatedBorderColor by animateColorAsState(
         targetValue = when {
             isDropTarget -> MaterialTheme.colorScheme.primary
-            isExpanded -> groupColor.copy(alpha = 0.45f)
-            hasNotification -> groupColor.copy(alpha = 0.40f)
-            else -> groupColor.copy(alpha = 0.22f)
+            isExpanded -> groupColor.copy(alpha = 0.35f)
+            hasNotification -> groupColor.copy(alpha = 0.30f)
+            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
         },
         animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
         label = "groupBorderColor"
@@ -458,14 +464,14 @@ private fun GroupCard(
             .fillMaxWidth()
             .graphicsLayer { scaleX = animatedScale; scaleY = animatedScale }
             .onGloballyPositioned { coords -> onPositioned?.invoke(coords.boundsInRoot()) },
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isDropTarget)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
             else if (isExpanded)
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
+                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
             else
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
             contentColor = MaterialTheme.colorScheme.onSurface
         ),
         border = BorderStroke(animatedBorderWidth, animatedBorderColor)
@@ -476,7 +482,7 @@ private fun GroupCard(
                 .background(
                     Brush.verticalGradient(
                         colors = if (isExpanded) {
-                            listOf(groupColor.copy(alpha = 0.05f), Color.Transparent)
+                            listOf(groupColor.copy(alpha = 0.04f), Color.Transparent)
                         } else {
                             listOf(Color.Transparent, Color.Transparent)
                         }
@@ -499,44 +505,54 @@ private fun GroupCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
-                            horizontal = if (isCompact) 10.dp else 16.dp,
+                            horizontal = if (isCompact) 10.dp else 14.dp,
                             vertical = if (isCompact) 10.dp else 12.dp
                         ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Category Icon Badge with user's selected accent color and optional notification badge
-                    Box(
-                        modifier = Modifier
-                            .size(if (isCompact) 32.dp else 38.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(groupColor.copy(alpha = 0.16f))
-                            .border(
-                                width = if (hasNotification) 1.5.dp else 1.dp,
-                                color = if (hasNotification) groupColor.copy(alpha = 0.55f)
-                                        else groupColor.copy(alpha = 0.32f),
-                                shape = RoundedCornerShape(12.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = groupIcon,
-                            contentDescription = group.name,
-                            tint = groupColor,
-                            modifier = Modifier.size(if (isCompact) 18.dp else 22.dp)
-                        )
-                        if (hasNotification) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(if (isCompact) 2.5.dp else 3.dp)
-                                    .size(if (isCompact) 6.dp else 7.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
+                    if (!hideDrawerIcons) {
+                        // Category Icon Badge with subtle corporate tint and precision border
+                        Box(
+                            modifier = Modifier
+                                .size(if (isCompact) 30.dp else 34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(groupColor.copy(alpha = 0.12f))
+                                .border(
+                                    width = if (hasNotification) 1.5.dp else 1.dp,
+                                    color = if (hasNotification) groupColor.copy(alpha = 0.50f)
+                                            else groupColor.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = groupIcon,
+                                contentDescription = group.name,
+                                tint = groupColor,
+                                modifier = Modifier.size(if (isCompact) 16.dp else 18.dp)
                             )
+                            if (hasNotification) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(if (isCompact) 2.dp else 2.5.dp)
+                                        .size(if (isCompact) 6.dp else 7.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
+                            }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
+                        Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
+                    } else if (hasNotification) {
+                        Box(
+                            modifier = Modifier
+                                .size(if (isCompact) 7.dp else 8.dp)
+                                .clip(CircleShape)
+                                .background(groupColor)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
 
                     Text(
                         text = group.name,
@@ -549,10 +565,28 @@ private fun GroupCard(
                         overflow = TextOverflow.Ellipsis
                     )
 
+                    // Corporate count pill
+                    val appCount = resolvedGroup.apps.size
+                    if (appCount > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f),
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text(
+                                text = "$appCount",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
                     // Tactile circular touch backing for chevron
                     Box(
                         modifier = Modifier
-                            .size(if (isCompact) 26.dp else 30.dp)
+                            .size(if (isCompact) 26.dp else 28.dp)
                             .clip(CircleShape)
                             .background(chevronBgColor),
                         contentAlignment = Alignment.Center
@@ -561,8 +595,8 @@ private fun GroupCard(
                             imageVector = Icons.Default.KeyboardArrowDown,
                             contentDescription = if (group.isExpanded) "Collapse" else "Expand",
                             modifier = Modifier
-                                .size(if (isCompact) 18.dp else 22.dp)
-                                .rotate(chevronRotation),
+                                .size(if (isCompact) 18.dp else 20.dp)
+                                .graphicsLayer { rotationZ = chevronRotation },
                             tint = if (isExpanded) groupColor else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -675,9 +709,9 @@ private fun GroupCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (isCompact) "No apps in category\nLong-press app to add" else "No apps in this category.\nLong-press any app in the drawer to add it.",
+                            text = if (isCompact) "No applications in category\nLong-press app to assign" else "No applications assigned to this workspace category.\nLong-press any app in the drawer to assign it.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center
                         )
                     }

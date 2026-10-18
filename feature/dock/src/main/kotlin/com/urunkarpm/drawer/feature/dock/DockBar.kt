@@ -259,6 +259,7 @@ fun DockBar(
                             label = "dockSlotShift_$index"
                         )
 
+                        // ponytail: dock slot shift reads translation lambda inside graphicsLayer; ceiling: slot shifts in X only; upgrade path: 2D fluid grid physics.
                         DockAppSlot(
                             dockItem = dockItem,
                             app = app,
@@ -267,7 +268,7 @@ fun DockBar(
                             isEditMode = uiState.isEditMode,
                             autoArrangeEnabled = uiState.autoArrangeApps && itemCount > 1,
                             isBeingDragged = isBeingDragged,
-                            dragTranslationX = if (isBeingDragged) dragOffsetPx else animatedShiftPx,
+                            dragTranslationX = { if (isBeingDragged) dragOffsetPx else animatedShiftPx },
                             iconShape = iconShape,
                             modifier = Modifier
                                 .weight(1f)
@@ -368,7 +369,7 @@ private fun DockAppSlot(
     isEditMode: Boolean,
     autoArrangeEnabled: Boolean,
     isBeingDragged: Boolean,
-    dragTranslationX: Float,
+    dragTranslationX: () -> Float,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onDragStart: () -> Unit,
@@ -397,7 +398,7 @@ private fun DockAppSlot(
     Box(
         modifier = modifier
             .graphicsLayer {
-                translationX = dragTranslationX
+                translationX = dragTranslationX()
                 if (isBeingDragged) {
                     scaleX = 1.15f
                     scaleY = 1.15f
