@@ -62,7 +62,7 @@ class SettingsViewModelTest {
     private val autoOpenKeyboardInDrawerFlow = MutableStateFlow(false)
     private val categoryAlignmentFlow = MutableStateFlow("TOP")
     private val enableWidgetsPageFlow = MutableStateFlow(false)
-    private val headerFontFamilyFlow = MutableStateFlow("TEXAS_TROUPE")
+    private val headerFontFamilyFlow = MutableStateFlow("GOOGLE_SANS")
     private val appLabelScaleFlow = MutableStateFlow("NORMAL")
     private val openDrawerFromDockOnlyFlow = MutableStateFlow(false)
     private val duoStatusPositionFlow = MutableStateFlow("TEMP")
@@ -285,7 +285,7 @@ class SettingsViewModelTest {
     fun uiState_reflectsTypographyPreferences() = runTest(testDispatcher) {
         viewModel.uiState.test {
             val state = awaitItem()
-            assertEquals("TEXAS_TROUPE", state.headerFontFamily)
+            assertEquals("GOOGLE_SANS", state.headerFontFamily)
             assertEquals("NORMAL", state.appLabelScale)
             cancelAndIgnoreRemainingEvents()
         }

@@ -158,7 +158,7 @@ data class SettingsUiState(
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
     val hideDrawerIcons: Boolean = false,
-    val headerFontFamily: String = "TEXAS_TROUPE",
+    val headerFontFamily: String = "GOOGLE_SANS",
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
     val duoStatusPosition: String = "TEMP",

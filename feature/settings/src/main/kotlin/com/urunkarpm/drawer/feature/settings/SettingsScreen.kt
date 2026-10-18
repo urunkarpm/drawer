@@ -510,6 +510,7 @@ fun SettingsScreen(
 
             DRAWER_TYPOGRAPHY -> {
                 val fontName = when (uiState.headerFontFamily) {
+                    "GOOGLE_SANS", "GOOGLE SANS", "PRODUCT_SANS" -> "Google Sans"
                     "HELVETICA" -> "Helvetica"
                     "ROBOTO" -> "Roboto"
                     "TIMES_NEW_ROMAN", "TIMES" -> "Times New Roman"

@@ -4,11 +4,14 @@ import android.graphics.drawable.Drawable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
@@ -63,6 +66,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -75,6 +79,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -125,7 +130,8 @@ fun AllAppsDrawer(
     drawerThemeMode: String = "SYSTEM",
     surfaceCornerRadiusDp: Float = 24f,
     autoOpenKeyboard: Boolean = false,
-    onOpenSettings: (() -> Unit)? = null
+    onOpenSettings: (() -> Unit)? = null,
+    frequentApps: List<AppInfo> = emptyList()
 ) {
     val searchFocusRequester = remember { FocusRequester() }
     LaunchedEffect(visible) {
@@ -228,9 +234,60 @@ fun AllAppsDrawer(
 
             // NestedScrollConnection: when LazyGrid is scrolled to top, user can pull DOWN to dismiss.
             var overscrollDownAccumulator by remember { mutableFloatStateOf(0f) }
+            var isFrequentRowVisible by remember { mutableStateOf(true) }
+
+            val isAtTop by remember(gridState) {
+                derivedStateOf {
+                    gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
+                }
+            }
+            // ponytail: blur rest of app list when at top and suggestive apps are visible; ceiling: 14dp blur; upgrade path: custom shader render-effect.
+            val shouldBlur by remember(gridState, frequentApps, searchQuery, activeScrubLetter) {
+                derivedStateOf {
+                    isAtTop && frequentApps.isNotEmpty() && searchQuery.isBlank() && activeScrubLetter == null
+                }
+            }
+            val animatedListAlpha by animateFloatAsState(
+                targetValue = if (shouldBlur) 0.65f else 1f,
+                animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+                label = "appListBlurAlpha"
+            )
+
+            // Ensure frequent row resets to visible on drawer open
+            LaunchedEffect(visible) {
+                if (visible) {
+                    isFrequentRowVisible = true
+                }
+            }
+
+            // Hide frequent row when search is active or user is scrubbing letters
+            LaunchedEffect(searchQuery, activeScrubLetter) {
+                if (searchQuery.isNotBlank() || activeScrubLetter != null) {
+                    isFrequentRowVisible = false
+                } else if (isAtTop) {
+                    isFrequentRowVisible = true
+                }
+            }
+
+            // Always reveal frequent row when scrolled back to the very top
+            LaunchedEffect(isAtTop) {
+                if (isAtTop && searchQuery.isBlank() && activeScrubLetter == null) {
+                    isFrequentRowVisible = true
+                }
+            }
+
             val nestedScrollConnection = remember {
                 object : NestedScrollConnection {
                     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        if (source == NestedScrollSource.UserInput) {
+                            if (available.y < -12f) {
+                                // User scrolled down (content dragged upward) -> hide frequent row
+                                isFrequentRowVisible = false
+                            } else if (available.y > 12f) {
+                                // User scrolled up (content dragged downward) -> reveal frequent row
+                                isFrequentRowVisible = true
+                            }
+                        }
                         if (available.y < 0) {
                             overscrollDownAccumulator = 0f
                         }
@@ -377,7 +434,12 @@ fun AllAppsDrawer(
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .then(if (shouldBlur) Modifier.blur(14.dp) else Modifier)
+                                    .graphicsLayer {
+                                        alpha = animatedListAlpha
+                                    }
                             ) {
                                 items(
                                     items = displayedApps,
@@ -421,6 +483,32 @@ fun AllAppsDrawer(
                             }
                         }
                     }
+                }
+
+                // Frequent Unassigned Apps Row (collapsible on scroll down, reappears on scroll up)
+                AnimatedVisibility(
+                    visible = isFrequentRowVisible && frequentApps.isNotEmpty() && searchQuery.isBlank() && activeScrubLetter == null,
+                    enter = expandVertically(
+                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                    ) + fadeIn(
+                        animationSpec = tween(durationMillis = 150)
+                    ),
+                    exit = shrinkVertically(
+                        animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
+                    ) + fadeOut(
+                        animationSpec = tween(durationMillis = 120)
+                    )
+                ) {
+                    FrequentAppsRow(
+                        frequentApps = frequentApps,
+                        horizontalPadding = horizontalPadding,
+                        onAppClick = onAppClick,
+                        onAppLongClick = onAppLongClick,
+                        iconLoader = iconLoader,
+                        iconShape = iconShape,
+                        dragDropState = dragDropState,
+                        onDragDropResult = onDragDropResult
+                    )
                 }
 
                 // Ergonomic Bottom Search Bar: Avoids camera cutout and provides easy one-hand thumb access
@@ -532,6 +620,53 @@ private fun SearchBarHeader(
                     imageVector = Icons.Outlined.Settings,
                     contentDescription = "Launcher Settings",
                     tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FrequentAppsRow(
+    frequentApps: List<AppInfo>,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    onAppClick: (AppInfo) -> Unit,
+    onAppLongClick: (AppInfo) -> Unit,
+    iconLoader: suspend (AppInfo) -> Drawable?,
+    iconShape: Shape,
+    dragDropState: AppDragDropState?,
+    onDragDropResult: ((DragDropResult) -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    val itemsToShow = remember(frequentApps) { frequentApps.take(5) }
+    if (itemsToShow.isEmpty()) return
+
+    // ponytail: symmetric horizontal padding ensures suggestive apps row is perfectly centered end-to-end; ceiling: fixed horizontalPadding from screen width; upgrade path: adaptive padding provider.
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .widthIn(max = 760.dp)
+            .padding(
+                horizontal = horizontalPadding,
+                vertical = 4.dp
+            ),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        for (app in itemsToShow) {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                AppItemView(
+                    app = app,
+                    onAppClick = onAppClick,
+                    onAppLongClick = onAppLongClick,
+                    iconLoader = iconLoader,
+                    iconShape = iconShape,
+                    dragDropState = dragDropState,
+                    onDragDropResult = onDragDropResult
                 )
             }
         }

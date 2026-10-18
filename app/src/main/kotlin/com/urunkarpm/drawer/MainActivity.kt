@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
+import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.feature.home.HomeScreen
 import com.urunkarpm.drawer.service.DrawerAccessibilityService
 import dagger.hilt.android.AndroidEntryPoint
@@ -27,6 +28,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var preferencesDataSource: DrawerPreferencesDataSource
+
+    @Inject
+    lateinit var widgetHostManager: DrawerWidgetHostManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,6 +81,7 @@ class MainActivity : ComponentActivity() {
                 dynamicColor = dynamicColor
             ) {
                 HomeScreen(
+                    widgetHostManager = widgetHostManager,
                     onDoubleTapLock = {
                         val locked = DrawerAccessibilityService.lockScreen()
                         if (!locked) {
@@ -112,6 +117,24 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        widgetHostManager.startListening()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        widgetHostManager.stopListening()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == DrawerWidgetHostManager.REQUEST_CONFIGURE_APPWIDGET) {
+            widgetHostManager.onWidgetConfigured(resultCode, data)
         }
     }
 

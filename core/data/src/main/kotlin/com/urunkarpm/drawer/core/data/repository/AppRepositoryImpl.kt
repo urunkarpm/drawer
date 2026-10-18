@@ -151,6 +151,7 @@ class AppRepositoryImpl @Inject constructor(
     }
 
     override fun launchApp(app: AppInfo): Boolean {
+        var launched = false
         try {
             val profiles = userManager.userProfiles
             val targetUser = profiles.find { it.hashCode() == app.userHandleId }
@@ -159,26 +160,38 @@ class AppRepositoryImpl @Inject constructor(
             if (targetUser != null && app.activityName.isNotBlank()) {
                 val component = android.content.ComponentName(app.packageName, app.activityName)
                 launcherApps.startMainActivity(component, targetUser, null, null)
-                return true
+                launched = true
             }
         } catch (e: Throwable) {
             android.util.Log.w("AppRepository", "launcherApps.startMainActivity failed for ${app.packageName}, trying fallback", e)
         }
 
-        // Fallback: standard PackageManager launch intent
-        return try {
-            val launchIntent = packageManager.getLaunchIntentForPackage(app.packageName)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(launchIntent)
-                true
-            } else {
+        if (!launched) {
+            // Fallback: standard PackageManager launch intent
+            launched = try {
+                val launchIntent = packageManager.getLaunchIntentForPackage(app.packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launchIntent)
+                    true
+                } else {
+                    false
+                }
+            } catch (e: Throwable) {
+                android.util.Log.e("AppRepository", "Failed to launch app ${app.packageName}", e)
                 false
             }
-        } catch (e: Throwable) {
-            android.util.Log.e("AppRepository", "Failed to launch app ${app.packageName}", e)
-            false
         }
+
+        if (launched) {
+            preferencesDataSource?.let { prefs ->
+                scope.launch {
+                    prefs.recordAppLaunch(app.componentKey)
+                }
+            }
+        }
+
+        return launched
     }
 
     override fun openAppDetails(packageName: String) {

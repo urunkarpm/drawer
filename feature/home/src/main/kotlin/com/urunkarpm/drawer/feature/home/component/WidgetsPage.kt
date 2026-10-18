@@ -101,25 +101,6 @@ fun WidgetsPage(
     onBackToHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
-                widgetHostManager.startListening()
-            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-                widgetHostManager.stopListening()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
-            widgetHostManager.startListening()
-        }
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            widgetHostManager.stopListening()
-        }
-    }
-
     LaunchedEffect(Unit) {
         onCollapseAllDrawers()
     }
@@ -608,7 +589,14 @@ private fun StandaloneWidgetCardItem(
                     factory = { ctx ->
                         try {
                             val providerInfo = widgetHostManager.appWidgetManager.getAppWidgetInfo(widget.appWidgetId)
-                            widgetHostManager.createView(ctx, widget.appWidgetId, providerInfo)
+                            if (providerInfo == null) {
+                                android.widget.TextView(ctx).apply {
+                                    text = "Widget unavailable (${widget.packageName})"
+                                    setPadding(32, 32, 32, 32)
+                                }
+                            } else {
+                                widgetHostManager.getOrCreateView(ctx, widget.appWidgetId)
+                            }
                         } catch (e: Exception) {
                             android.widget.TextView(ctx).apply {
                                 text = "Widget unavailable (${widget.packageName})"

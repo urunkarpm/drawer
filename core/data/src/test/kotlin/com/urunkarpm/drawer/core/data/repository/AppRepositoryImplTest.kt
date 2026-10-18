@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.UserHandle
 import android.os.UserManager
 import com.urunkarpm.drawer.core.model.AppInfo
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -86,5 +87,24 @@ class AppRepositoryImplTest {
         verify {
             context.startActivity(or(isNull(), any()))
         }
+    }
+
+    @Test
+    fun launchApp_recordsAppLaunchWhenPreferencesAvailable() = runTest(testDispatcher) {
+        val prefs: com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource = mockk(relaxed = true)
+        val repository = AppRepositoryImpl(context, testDispatcher, preferencesDataSource = prefs)
+
+        val app = AppInfo(
+            packageName = "com.test.app",
+            activityName = "com.test.app.MainActivity",
+            label = "Test App",
+            userHandleId = myUser.hashCode()
+        )
+
+        val launched = repository.launchApp(app)
+        assertTrue(launched)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { prefs.recordAppLaunch(app.componentKey) }
     }
 }

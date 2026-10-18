@@ -29,8 +29,11 @@ val ArialFontFamily = FontFamily(
     Font(R.font.arial_fp, FontWeight.Normal)
 )
 
+// ponytail: Google Sans font family with Regular, Medium, and Bold weights applied globally across MaterialTheme Typography; ceiling: local TTF bundle; upgrade path: downloadable fonts via Play Services FontsContract.
 val GoogleSansFontFamily = FontFamily(
-    Font(R.font.google_sans_fp, FontWeight.Normal)
+    Font(R.font.google_sans_fp, FontWeight.Normal),
+    Font(R.font.google_sans_medium_fp, FontWeight.Medium),
+    Font(R.font.google_sans_bold_fp, FontWeight.Bold)
 )
 
 val SpookyyFontFamily = FontFamily(
@@ -49,26 +52,22 @@ val HypikFontFamily = FontFamily(
     Font(R.font.hypik_fp, FontWeight.Normal)
 )
 
+private val defaultTypography = Typography()
+
 val Typography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    ),
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
-    )
+    displayLarge = defaultTypography.displayLarge.copy(fontFamily = GoogleSansFontFamily),
+    displayMedium = defaultTypography.displayMedium.copy(fontFamily = GoogleSansFontFamily),
+    displaySmall = defaultTypography.displaySmall.copy(fontFamily = GoogleSansFontFamily),
+    headlineLarge = defaultTypography.headlineLarge.copy(fontFamily = GoogleSansFontFamily),
+    headlineMedium = defaultTypography.headlineMedium.copy(fontFamily = GoogleSansFontFamily),
+    headlineSmall = defaultTypography.headlineSmall.copy(fontFamily = GoogleSansFontFamily),
+    titleLarge = defaultTypography.titleLarge.copy(fontFamily = GoogleSansFontFamily),
+    titleMedium = defaultTypography.titleMedium.copy(fontFamily = GoogleSansFontFamily),
+    titleSmall = defaultTypography.titleSmall.copy(fontFamily = GoogleSansFontFamily),
+    bodyLarge = defaultTypography.bodyLarge.copy(fontFamily = GoogleSansFontFamily),
+    bodyMedium = defaultTypography.bodyMedium.copy(fontFamily = GoogleSansFontFamily),
+    bodySmall = defaultTypography.bodySmall.copy(fontFamily = GoogleSansFontFamily),
+    labelLarge = defaultTypography.labelLarge.copy(fontFamily = GoogleSansFontFamily),
+    labelMedium = defaultTypography.labelMedium.copy(fontFamily = GoogleSansFontFamily),
+    labelSmall = defaultTypography.labelSmall.copy(fontFamily = GoogleSansFontFamily)
 )

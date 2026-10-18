@@ -12,12 +12,16 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
@@ -42,9 +46,20 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.toRect
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -116,7 +131,9 @@ import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import com.urunkarpm.drawer.core.designsystem.theme.StealthColors
 import com.urunkarpm.drawer.feature.notifications.component.NotificationRulesBottomSheet
 import com.urunkarpm.drawer.feature.notifications.component.QuickMuteBottomSheet
-import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.cos
@@ -151,33 +168,7 @@ fun NotificationDrawer(
         label = "notif_chevron"
     )
 
-    val notifScrollState = rememberScrollState()
-    val notifScrollBlocker = remember(isExpanded) {
-        object : NestedScrollConnection {
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource
-            ): Offset {
-                // If scrolling up past top or bottom of notifications, collapse drawer
-                if (isExpanded && available.y < -40f) {
-                    onExpandedChange(false)
-                }
-                return Offset(0f, available.y)
-            }
-
-            override suspend fun onPostFling(
-                consumed: Velocity,
-                available: Velocity
-            ): Velocity = Velocity(0f, available.y)
-        }
-    }
-
-    LaunchedEffect(isExpanded) {
-        if (!isExpanded) {
-            notifScrollState.scrollTo(0)
-        }
-    }
+    val notifCount = uiState.activeNotifications.size
 
     val context = LocalContext.current
     val activity = context as? Activity
@@ -220,14 +211,7 @@ fun NotificationDrawer(
     }
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .autoCloseOnInactivity(
-                active = isExpanded,
-                resetKey = uiState.activeNotifications.size,
-                timeoutMs = 5000L,
-                onClose = { onExpandedChange(false) }
-            )
+        modifier = modifier.fillMaxWidth()
     ) {
         // ── Onboarding Banner ─────────────────────────────────────────────────
         if (!uiState.isPermissionGranted) {
@@ -277,6 +261,33 @@ fun NotificationDrawer(
         // ── Notifications Card ────────────────────────────────────────────────
         } else {
             val hasNotifications = uiState.activeNotifications.isNotEmpty()
+            val hasClearableNotifications = remember(uiState.activeNotifications) {
+                uiState.activeNotifications.any { it.isClearable }
+            }
+            var isTouching by remember { mutableStateOf(false) }
+
+            // ponytail: endless vertical notification scroll list with height cap; ceiling: 100k virtual items; upgrade path: custom circular snap list.
+            val endlessMultiplier = 10_000
+            val itemCount = if (notifCount > 1) notifCount * endlessMultiplier else notifCount
+            val initialItemIndex = if (notifCount > 1) (endlessMultiplier / 2) * notifCount else 0
+            val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialItemIndex)
+
+            // ponytail: auto-close notification drawer 3s after scrolling or touch stops via snapshotFlow without recomposing composable; ceiling: fixed 3000ms delay; upgrade path: configurable timeout in preferences.
+            LaunchedEffect(isExpanded, uiState.selectedItemForMute, uiState.showRulesSheet) {
+                if (!isExpanded) return@LaunchedEffect
+                combine(
+                    snapshotFlow { listState.isScrollInProgress },
+                    snapshotFlow { isTouching }
+                ) { scrolling, touching ->
+                    !scrolling && !touching
+                }.collectLatest { isIdle ->
+                    if (isIdle && uiState.selectedItemForMute == null && !uiState.showRulesSheet) {
+                        delay(3000L)
+                        onExpandedChange(false)
+                    }
+                }
+            }
+
             val chevronBgColor by animateColorAsState(
                 targetValue = if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
@@ -297,7 +308,20 @@ fun NotificationDrawer(
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 border = BorderStroke(1.dp, cardBorderColor),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(isExpanded) {
+                        if (!isExpanded) return@pointerInput
+                        awaitEachGesture {
+                            awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                            isTouching = true
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (event.changes.none { it.pressed }) break
+                            }
+                            isTouching = false
+                        }
+                    }
             ) {
                 Column(
                     modifier = Modifier
@@ -341,7 +365,7 @@ fun NotificationDrawer(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Stacked app-icon avatars or subtle bell indicator
+                        // Stacked app-icon avatars, actively viewed app-icon, or subtle bell indicator
                         if (hasNotifications) {
                             NotificationIconStack(
                                 groups = uiState.groupedNotifications,
@@ -372,33 +396,20 @@ fun NotificationDrawer(
                                 fontFamily = LocalHeaderFontFamily.current,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             val count = uiState.activeNotifications.size
                             Text(
                                 text = if (!hasNotifications) "All caught up"
-                                else if (isExpanded) "Tap to collapse"
+                                else if (isExpanded) {
+                                    "$count alert${if (count != 1) "s" else ""} • Tap to collapse"
+                                }
                                 else "$count alert${if (count != 1) "s" else ""}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
-
-                        // Clear all (shown when expanded and there are alerts)
-                        if (isExpanded && hasNotifications) {
-                            IconButton(
-                                onClick = {
-                                    viewModel.clearAllNotifications()
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteSweep,
-                                    contentDescription = "Clear all",
-                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
                         }
 
                         // Animated chevron
@@ -481,37 +492,36 @@ fun NotificationDrawer(
                                     )
                                 }
                             } else {
-                                val configuration = LocalConfiguration.current
-                                val maxNotifHeight = if (configuration.screenHeightDp >= 800) 400.dp else 280.dp
-                                Column(
+                                LazyColumn(
+                                    state = listState,
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(max = maxNotifHeight)
-                                        .nestedScroll(notifScrollBlocker)
-                                        .verticalScroll(notifScrollState, enabled = !isDragging)
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        .heightIn(max = 380.dp)
+                                        .padding(vertical = 4.dp)
                                 ) {
-                                    uiState.groupedNotifications.forEach { appGroup ->
-                                        key(appGroup.packageName) {
-                                            AppNotificationGroupCard(
-                                                group = appGroup,
+                                    items(
+                                        count = itemCount,
+                                        key = { index ->
+                                            val actualIndex = if (notifCount > 0) ((index % notifCount) + notifCount) % notifCount else 0
+                                            val key = uiState.activeNotifications.getOrNull(actualIndex)?.key ?: index
+                                            "$key-$index"
+                                        }
+                                    ) { index ->
+                                        val actualIndex = if (notifCount > 0) ((index % notifCount) + notifCount) % notifCount else 0
+                                        val item = uiState.activeNotifications.getOrNull(actualIndex)
+                                        if (item != null) {
+                                            EndlessNotificationCard(
+                                                item = item,
                                                 privacyMode = uiState.privacyMode,
+                                                iconLoader = iconLoader,
                                                 swipeRightAction = uiState.swipeRightAction,
                                                 swipeLeftAction = uiState.swipeLeftAction,
-                                                iconLoader = iconLoader,
-                                                onOpen = { item ->
-                                                    viewModel.openNotification(item.key)
-                                                },
-                                                onDismiss = { item ->
-                                                    viewModel.dismissNotification(item.key)
-                                                },
-                                                onMarkAsRead = { item ->
-                                                    viewModel.markNotificationAsRead(item.key)
-                                                },
-                                                onQuickMute = { item ->
-                                                    viewModel.selectItemForMute(item)
-                                                },
+                                                onOpen = { viewModel.openNotification(item.key) },
+                                                onDismiss = { viewModel.dismissNotification(item.key) },
+                                                onMarkAsRead = { viewModel.markNotificationAsRead(item.key) },
+                                                onQuickMute = { viewModel.selectItemForMute(item) },
                                                 stealthTheme = stealthTheme,
                                                 stealthContrastLevel = stealthContrastLevel
                                             )
@@ -520,7 +530,7 @@ fun NotificationDrawer(
                                 }
                             }
 
-                            // Footer actions row: Privacy mode & Mute rules
+                            // Footer actions row: Privacy mode, Clear all, & Mute rules
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -545,6 +555,32 @@ fun NotificationDrawer(
                                         text = if (uiState.privacyMode) "Privacy On" else "Privacy Off",
                                         style = MaterialTheme.typography.labelSmall
                                     )
+                                }
+
+                                AnimatedVisibility(
+                                    visible = hasClearableNotifications,
+                                    enter = fadeIn(animationSpec = tween(150)) + expandHorizontally(),
+                                    exit = fadeOut(animationSpec = tween(150)) + shrinkHorizontally()
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.clearAllNotifications()
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DeleteSweep,
+                                            contentDescription = "Clear all",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Clear",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                                        )
+                                    }
                                 }
 
                                 TextButton(
@@ -718,6 +754,9 @@ private fun NotificationIconOrbit(
     // Symmetrical offset for 2 icons so both overlap gracefully while resting; centered for 3+
     val baseAngle = if (count == 2) (Math.PI / 4.0).toFloat() else 0f
 
+    val colorMatrix = remember { ColorMatrix() }
+    val colorPaint = remember { Paint() }
+
     Box(
         modifier = modifier.size(containerSize),
         contentAlignment = Alignment.Center
@@ -729,8 +768,9 @@ private fun NotificationIconOrbit(
                 val sinVal = sin(currentAngle.toDouble()).toFloat()
                 // Continuous depth: 1.0 (dead front) to 0.0 (far rear)
                 val depth = ((cosVal + 1f) / 2f).coerceIn(0f, 1f)
+                val saturation = ((depth - 0.25f) / 0.55f).coerceIn(0f, 1f)
 
-                // ponytail: Borderless high-fidelity orbiting app icon with depth-scaled natural shadow replaces harsh grey border outline; ceiling: recomposition per frame during step animation; upgrade path: custom LayoutModifier with layout-phase zIndex.
+                // ponytail: Continuous depth desaturation: background icons go black & white, forward icons colorise; ceiling: software canvas layer allocation during partial desaturation; upgrade path: RenderEffect on Android 12+.
                 AppIconImage(
                     key = group.packageName,
                     size = baseIconSize,
@@ -759,9 +799,276 @@ private fun NotificationIconOrbit(
                             shape = CircleShape
                             clip = true
                         }
+                        .drawWithContent {
+                            if (saturation < 0.99f) {
+                                colorMatrix.setToSaturation(saturation)
+                                colorPaint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
+                                drawIntoCanvas { canvas ->
+                                    canvas.saveLayer(size.toRect(), colorPaint)
+                                    drawContent()
+                                    canvas.restore()
+                                }
+                            } else {
+                                drawContent()
+                            }
+                        }
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EndlessNotificationCard(
+    item: NotificationItem,
+    privacyMode: Boolean,
+    iconLoader: (suspend (String) -> Drawable?)?,
+    swipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
+    swipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+    onMarkAsRead: () -> Unit,
+    onQuickMute: () -> Unit,
+    modifier: Modifier = Modifier,
+    stealthTheme: Boolean = false,
+    stealthContrastLevel: String = "LOW"
+) {
+    var pendingAction by remember { mutableStateOf<NotificationSwipeAction?>(null) }
+    val haptic = LocalHapticFeedback.current
+
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { it * 0.38f },
+        confirmValueChange = { value ->
+            val action = when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> swipeRightAction
+                SwipeToDismissBoxValue.EndToStart -> swipeLeftAction
+                else -> null
+            }
+            if (item.isClearable && action != null && action != NotificationSwipeAction.NONE) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                pendingAction = action
+                true
+            } else false
+        }
+    )
+
+    LaunchedEffect(pendingAction) {
+        val action = pendingAction ?: return@LaunchedEffect
+        delay(180)
+        when (action) {
+            NotificationSwipeAction.MARK_AS_READ -> onMarkAsRead()
+            NotificationSwipeAction.DISMISS -> onDismiss()
+            NotificationSwipeAction.OPEN -> onOpen()
+            NotificationSwipeAction.NONE -> {}
+        }
+    }
+
+    AnimatedVisibility(
+        visible = pendingAction == null,
+        enter = fadeIn(),
+        exit = shrinkVertically(
+            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+        ) + fadeOut(
+            animationSpec = tween(durationMillis = 130)
+        )
+    ) {
+        SwipeToDismissBox(
+            state = dismissState,
+            enableDismissFromStartToEnd = item.isClearable && swipeRightAction != NotificationSwipeAction.NONE,
+            enableDismissFromEndToStart = item.isClearable && swipeLeftAction != NotificationSwipeAction.NONE,
+            backgroundContent = {
+                val direction = dismissState.dismissDirection
+                val action = when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> swipeRightAction
+                    SwipeToDismissBoxValue.EndToStart -> swipeLeftAction
+                    else -> null
+                }
+                val alignment = when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                    else -> Alignment.CenterStart
+                }
+                val bgColor = when (action) {
+                    NotificationSwipeAction.MARK_AS_READ -> MaterialTheme.colorScheme.primaryContainer
+                    NotificationSwipeAction.DISMISS -> MaterialTheme.colorScheme.errorContainer
+                    NotificationSwipeAction.OPEN -> MaterialTheme.colorScheme.secondaryContainer
+                    NotificationSwipeAction.NONE, null -> Color.Transparent
+                }
+                val contentColor = when (action) {
+                    NotificationSwipeAction.MARK_AS_READ -> MaterialTheme.colorScheme.onPrimaryContainer
+                    NotificationSwipeAction.DISMISS -> MaterialTheme.colorScheme.onErrorContainer
+                    NotificationSwipeAction.OPEN -> MaterialTheme.colorScheme.onSecondaryContainer
+                    NotificationSwipeAction.NONE, null -> Color.Transparent
+                }
+                val icon = when (action) {
+                    NotificationSwipeAction.MARK_AS_READ -> Icons.Default.Check
+                    NotificationSwipeAction.DISMISS -> Icons.Default.Delete
+                    NotificationSwipeAction.OPEN -> Icons.AutoMirrored.Filled.OpenInNew
+                    NotificationSwipeAction.NONE, null -> null
+                }
+                val label = when (action) {
+                    NotificationSwipeAction.MARK_AS_READ -> "Mark as read"
+                    NotificationSwipeAction.DISMISS -> "Delete"
+                    NotificationSwipeAction.OPEN -> "Open"
+                    NotificationSwipeAction.NONE, null -> ""
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(bgColor.copy(alpha = 0.85f))
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = alignment
+                ) {
+                    if (icon != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (direction == SwipeToDismissBoxValue.EndToStart) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = contentColor
+                                )
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = contentColor
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = contentColor
+                                )
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = contentColor
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            content = {
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (stealthTheme) StealthColors.cardBackground
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        contentColor = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel)
+                        else MaterialTheme.colorScheme.onSurface
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        if (stealthTheme) Color.Transparent
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    ),
+                    modifier = modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable { onOpen() }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp)
+                    ) {
+                        // Header: app icon, app name, time, quick mute, dismiss
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AppIconImage(
+                                key = item.packageName,
+                                size = 22.dp,
+                                label = item.appName,
+                                iconShape = CircleShape,
+                                iconLoader = if (iconLoader != null) {
+                                    { iconLoader(item.packageName) }
+                                } else null,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = item.appName,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel)
+                                else MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = formatTimeAgo(item.postTimeMillis),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = onQuickMute,
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsOff,
+                                    contentDescription = "Quick mute ${item.appName}",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                            if (item.isClearable) {
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Dismiss",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Title
+                        Text(
+                            text = if (privacyMode) item.appName else item.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel)
+                            else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        // Text
+                        if (!privacyMode && item.text.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = item.text,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 18.sp
+                            )
+                        }
+                    }
+                }
+            }
+        )
     }
 }
 

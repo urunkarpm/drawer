@@ -10,6 +10,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -76,6 +78,26 @@ class DrawerPreferencesDataSource @Inject constructor(
         val WALLPAPER_GRADIENT_PALETTE = stringPreferencesKey("wallpaper_gradient_palette")
         val WALLPAPER_GRADIENT_ANGLE = stringPreferencesKey("wallpaper_gradient_angle")
         val DOCK_MESMERIZING_GLOW = booleanPreferencesKey("dock_mesmerizing_glow")
+        val APP_LAUNCH_COUNTS = stringPreferencesKey("app_launch_counts")
+        val APP_LAST_LAUNCHED_TIMES = stringPreferencesKey("app_last_launched_times")
+    }
+
+    val appLaunchCounts: Flow<Map<String, Int>> = dataStore.data.map { prefs ->
+        val json = prefs[PreferencesKeys.APP_LAUNCH_COUNTS] ?: return@map emptyMap()
+        try {
+            Json.decodeFromString<Map<String, Int>>(json)
+        } catch (_: Throwable) {
+            emptyMap()
+        }
+    }
+
+    val appLastLaunchedTimes: Flow<Map<String, Long>> = dataStore.data.map { prefs ->
+        val json = prefs[PreferencesKeys.APP_LAST_LAUNCHED_TIMES] ?: return@map emptyMap()
+        try {
+            Json.decodeFromString<Map<String, Long>>(json)
+        } catch (_: Throwable) {
+            emptyMap()
+        }
     }
 
     val dynamicWallpaperEnabled: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_WALLPAPER_ENABLED] ?: false }
@@ -108,7 +130,7 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     val themeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.THEME_MODE] ?: "SYSTEM" }
     val drawerThemeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM" }
-    val headerFontFamily: Flow<String> = dataStore.data.map { it[PreferencesKeys.HEADER_FONT_FAMILY] ?: "SYSTEM" }
+    val headerFontFamily: Flow<String> = dataStore.data.map { it[PreferencesKeys.HEADER_FONT_FAMILY] ?: "GOOGLE_SANS" }
     val appLabelScale: Flow<String> = dataStore.data.map { it[PreferencesKeys.APP_LABEL_SCALE] ?: "NORMAL" }
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_COLOR] ?: true }
     val hideStatusBar: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_STATUS_BAR] ?: true }
@@ -382,5 +404,45 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setDockMesmerizingGlow(enabled: Boolean) {
         dataStore.edit { it[PreferencesKeys.DOCK_MESMERIZING_GLOW] = enabled }
+    }
+
+    suspend fun recordAppLaunch(componentKey: String) {
+        dataStore.edit { prefs ->
+            val now = System.currentTimeMillis()
+            val currentJson = prefs[PreferencesKeys.APP_LAUNCH_COUNTS]
+            val currentMap = currentJson?.let {
+                try {
+                    Json.decodeFromString<Map<String, Int>>(it)
+                } catch (_: Throwable) {
+                    emptyMap()
+                }
+            } ?: emptyMap()
+            val updated = currentMap.toMutableMap()
+            updated[componentKey] = (updated[componentKey] ?: 0) + 1
+            // ponytail: prune to top 100 most launched apps when map exceeds 150 entries to keep preference payload negligible; ceiling is dropping launch counts for rarely used apps; upgrade path is room database with timestamped sessions.
+            val pruned = if (updated.size > 150) {
+                updated.entries.sortedByDescending { it.value }.take(100).associate { it.key to it.value }
+            } else {
+                updated
+            }
+            prefs[PreferencesKeys.APP_LAUNCH_COUNTS] = Json.encodeToString(pruned)
+
+            val currentTimesJson = prefs[PreferencesKeys.APP_LAST_LAUNCHED_TIMES]
+            val currentTimesMap = currentTimesJson?.let {
+                try {
+                    Json.decodeFromString<Map<String, Long>>(it)
+                } catch (_: Throwable) {
+                    emptyMap()
+                }
+            } ?: emptyMap()
+            val updatedTimes = currentTimesMap.toMutableMap()
+            updatedTimes[componentKey] = now
+            val prunedTimes = if (updatedTimes.size > 150) {
+                updatedTimes.entries.sortedByDescending { it.value }.take(100).associate { it.key to it.value }
+            } else {
+                updatedTimes
+            }
+            prefs[PreferencesKeys.APP_LAST_LAUNCHED_TIMES] = Json.encodeToString(prunedTimes)
+        }
     }
 }

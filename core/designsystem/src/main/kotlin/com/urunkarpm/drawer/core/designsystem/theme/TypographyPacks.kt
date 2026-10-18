@@ -6,7 +6,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontFamily
 
 val LocalHeaderFontFamily: ProvidableCompositionLocal<FontFamily> =
-    staticCompositionLocalOf { FontFamily.Default }
+    staticCompositionLocalOf { GoogleSansFontFamily }
 
 val LocalAppLabelScale: ProvidableCompositionLocal<Float> =
     compositionLocalOf { 1.0f }

@@ -85,6 +85,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.rotate
@@ -585,45 +586,66 @@ private fun GroupCard(
                             modifier = Modifier.size(if (isCompact) 30.dp else 34.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (isGlowing) {
-                                // Soft pulsating aura around the drawer icon
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .graphicsLayer {
-                                            scaleX = pulseScale
-                                            scaleY = pulseScale
-                                            alpha = pulseAlpha
-                                        }
-                                        .background(
-                                            color = groupColor.copy(alpha = 0.35f),
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                )
-                            }
-
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (isGlowing) groupColor.copy(alpha = 0.18f + 0.08f * pulseAlpha)
-                                        else groupColor.copy(alpha = 0.12f)
-                                    )
+                                    .background(groupColor.copy(alpha = 0.12f))
                                     .border(
-                                        width = if (isGlowing) 1.5.dp else if (hasNotification) 1.5.dp else 1.dp,
-                                        color = if (isGlowing) groupColor.copy(alpha = pulseAlpha)
-                                                else if (hasNotification) groupColor.copy(alpha = 0.50f)
+                                        width = if (hasNotification) 1.5.dp else 1.dp,
+                                        color = if (hasNotification) groupColor.copy(alpha = 0.50f)
                                                 else groupColor.copy(alpha = 0.25f),
                                         shape = RoundedCornerShape(10.dp)
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
+                                // ponytail: inner drawer icon glowing pulse with category color; ceiling: ambient/spot shadow and radial halo; upgrade path: RenderEffect blur.
+                                if (isGlowing) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(if (isCompact) 28.dp else 32.dp)
+                                            .drawBehind {
+                                                drawCircle(
+                                                    brush = Brush.radialGradient(
+                                                        colors = listOf(
+                                                            groupColor.copy(alpha = pulseAlpha * 0.70f),
+                                                            groupColor.copy(alpha = pulseAlpha * 0.25f),
+                                                            Color.Transparent
+                                                        ),
+                                                        center = center,
+                                                        radius = size.minDimension / 1.1f
+                                                    )
+                                                )
+                                            }
+                                    )
+                                    Icon(
+                                        imageVector = groupIcon,
+                                        contentDescription = null,
+                                        tint = groupColor,
+                                        modifier = Modifier
+                                            .size(if (isCompact) 16.dp else 18.dp)
+                                            .graphicsLayer {
+                                                scaleX = pulseScale
+                                                scaleY = pulseScale
+                                                alpha = pulseAlpha * 0.85f
+                                                ambientShadowColor = groupColor
+                                                spotShadowColor = groupColor
+                                                shadowElevation = 8.dp.toPx()
+                                            }
+                                    )
+                                }
                                 Icon(
                                     imageVector = groupIcon,
                                     contentDescription = group.name,
                                     tint = groupColor,
-                                    modifier = Modifier.size(if (isCompact) 16.dp else 18.dp)
+                                    modifier = Modifier
+                                        .size(if (isCompact) 16.dp else 18.dp)
+                                        .graphicsLayer {
+                                            if (isGlowing) {
+                                                scaleX = 1f + 0.08f * (pulseScale - 1f) / 0.15f
+                                                scaleY = 1f + 0.08f * (pulseScale - 1f) / 0.15f
+                                            }
+                                        }
                                 )
                                 // ponytail: Notification indicator dot displays only when drawer glowing is disabled to avoid visual clutter and duplicate indicator states; ceiling: static dot; upgrade path: numeric count badge.
                                 if (hasNotification && !drawerNotificationGlow) {

@@ -12,8 +12,11 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -138,11 +141,74 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     groupsViewModel: GroupsViewModel = hiltViewModel(),
     notificationsViewModel: com.urunkarpm.drawer.feature.notifications.NotificationsViewModel = hiltViewModel(),
+    widgetHostManager: DrawerWidgetHostManager? = null,
     onDoubleTapLock: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val groupsUiState by groupsViewModel.uiState.collectAsStateWithLifecycle()
     val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
+    val launchCounts by viewModel.appLaunchCounts.collectAsStateWithLifecycle()
+    val launchTimes by viewModel.appLastLaunchedTimes.collectAsStateWithLifecycle()
+
+    // ponytail: Smart Frecency suggestion algorithm combining exponential recency decay, launch frequency, and time-of-day affinity with smart cold-start fallback; ceiling is local heuristic ranking without deep neural network; upgrade path is on-device AppSearch / ML suggestion engine.
+    val suggestedApps = remember(uiState.installedApps, launchCounts, launchTimes) {
+        if (uiState.installedApps.isEmpty()) return@remember emptyList()
+
+        val now = System.currentTimeMillis()
+        val currentCalendar = java.util.Calendar.getInstance()
+        val currentHour = currentCalendar.get(java.util.Calendar.HOUR_OF_DAY)
+        val appCalendar = java.util.Calendar.getInstance()
+
+        fun scoreApp(app: AppInfo): Float {
+            // Count matching: exact componentKey, or sum of all components starting with packageName/
+            val count = launchCounts[app.componentKey]
+                ?: launchCounts.entries.filter { it.key.startsWith("${app.packageName}/") }.sumOf { it.value }
+                    .takeIf { it > 0 }
+                ?: launchCounts[app.packageName]
+                ?: 0
+
+            // Last launch time matching: exact componentKey, or max timestamp of package
+            val lastLaunch = launchTimes[app.componentKey]
+                ?: launchTimes.entries.filter { it.key.startsWith("${app.packageName}/") }.maxOfOrNull { it.value }
+                ?: launchTimes[app.packageName]
+                ?: 0L
+
+            if (count > 0 || lastLaunch > 0L) {
+                val frequencyScore = count * 15f
+
+                val diffMs = (now - lastLaunch).coerceAtLeast(0L)
+                val recencyBonus = when {
+                    diffMs < 30 * 60 * 1000L -> 120f       // Opened within last 30 mins -> immediate top priority
+                    diffMs < 2 * 60 * 60 * 1000L -> 80f     // Last 2 hours
+                    diffMs < 12 * 60 * 60 * 1000L -> 50f    // Last 12 hours
+                    diffMs < 24 * 60 * 60 * 1000L -> 30f    // Today
+                    diffMs < 3 * 24 * 60 * 60 * 1000L -> 18f// Last 3 days
+                    diffMs < 7 * 24 * 60 * 60 * 1000L -> 8f // Last 7 days
+                    else -> 2f
+                }
+
+                val timeBonus = if (lastLaunch > 0L) {
+                    appCalendar.timeInMillis = lastLaunch
+                    val lastHour = appCalendar.get(java.util.Calendar.HOUR_OF_DAY)
+                    val hourDiff = kotlin.math.abs(currentHour - lastHour)
+                    val circularDiff = kotlin.math.min(hourDiff, 24 - hourDiff)
+                    if (circularDiff <= 2) 20f else if (circularDiff <= 4) 10f else 0f
+                } else 0f
+
+                return frequencyScore + recencyBonus + timeBonus
+            }
+
+            // Cold-start fallback: prioritize recently installed or updated apps
+            val recencyTime = app.lastUpdateTimeMillis.coerceAtLeast(app.installTimeMillis)
+            val baseline = (recencyTime / 1_000_000_000_000.0).toFloat().coerceIn(0f, 3f)
+            return baseline
+        }
+
+        uiState.installedApps
+            .distinctBy { it.packageName }
+            .sortedByDescending { scoreApp(it) }
+            .take(5)
+    }
 
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
@@ -302,33 +368,13 @@ fun HomeScreen(
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    val widgetHostManager = remember { DrawerWidgetHostManager(context.applicationContext) }
+    val widgetHostManager = widgetHostManager ?: remember { DrawerWidgetHostManager(context.applicationContext) }
     var pendingAppWidgetId by remember { mutableStateOf<Int?>(null) }
     var targetDrawerIdForAdd by remember { mutableStateOf<String?>(null) }
     val pagerState = rememberPagerState(
         initialPage = 1,
         pageCount = { 2 }
     )
-
-    // Start listening to widget updates whenever the home screen is started
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_START) {
-                widgetHostManager.startListening()
-            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-                widgetHostManager.stopListening()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
-            widgetHostManager.startListening()
-        }
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            widgetHostManager.stopListening()
-        }
-    }
 
     fun completeWidgetAdd(appWidgetId: Int) {
         val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(appWidgetId)
@@ -373,28 +419,31 @@ fun HomeScreen(
         targetDrawerIdForAdd = null
     }
 
-    val configureWidgetLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val id = result.data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingAppWidgetId ?: -1)
-            ?: pendingAppWidgetId
-        if (result.resultCode == Activity.RESULT_OK && id != null && id != -1) {
-            completeWidgetAdd(id)
-        } else if (pendingAppWidgetId != null) {
-            widgetHostManager.deleteAppWidgetId(pendingAppWidgetId!!)
-            targetDrawerIdForAdd = null
-        }
-        pendingAppWidgetId = null
-    }
-
     fun checkAndConfigureWidget(appWidgetId: Int) {
         val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(appWidgetId)
         if (info?.configure != null) {
-            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
-                component = info.configure
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            val activity = context as? Activity
+            if (activity != null) {
+                widgetHostManager.onWidgetConfiguredListener = { resultCode, data ->
+                    val id = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId) ?: appWidgetId
+                    if (resultCode == Activity.RESULT_OK && id != -1) {
+                        completeWidgetAdd(id)
+                    } else {
+                        widgetHostManager.deleteAppWidgetId(appWidgetId)
+                        targetDrawerIdForAdd = null
+                    }
+                    pendingAppWidgetId = null
+                }
+                // ponytail: startAppWidgetConfigureActivityForResult delegates to system AppWidgetService so private, unexported configure activities (e.g. Pinterest) start without SecurityException; ceiling: requires Activity context; upgrade path: custom config fallback.
+                val started = widgetHostManager.startConfigure(activity, appWidgetId)
+                if (!started) {
+                    completeWidgetAdd(appWidgetId)
+                    pendingAppWidgetId = null
+                }
+            } else {
+                completeWidgetAdd(appWidgetId)
+                pendingAppWidgetId = null
             }
-            configureWidgetLauncher.launch(intent)
         } else {
             completeWidgetAdd(appWidgetId)
             pendingAppWidgetId = null
@@ -427,7 +476,12 @@ fun HomeScreen(
                 checkAndConfigureWidget(id)
             } else {
                 val provider = result.data?.component
-                    ?: result.data?.getParcelableExtra<ComponentName>(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER)
+                    ?: if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        result.data?.getParcelableExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, ComponentName::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        result.data?.getParcelableExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER)
+                    }
                 if (provider != null) {
                     val isAllowed = widgetHostManager.appWidgetManager.bindAppWidgetIdIfAllowed(id, provider)
                     if (isAllowed) {
@@ -437,7 +491,13 @@ fun HomeScreen(
                             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
                             putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
                         }
-                        bindWidgetLauncher.launch(bindIntent)
+                        try {
+                            bindWidgetLauncher.launch(bindIntent)
+                        } catch (e: Exception) {
+                            widgetHostManager.deleteAppWidgetId(id)
+                            pendingAppWidgetId = null
+                            targetDrawerIdForAdd = null
+                        }
                     }
                 } else {
                     widgetHostManager.deleteAppWidgetId(id)
@@ -462,7 +522,16 @@ fun HomeScreen(
             putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, arrayListOf<AppWidgetProviderInfo>())
             putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, arrayListOf<Bundle>())
         }
-        pickWidgetLauncher.launch(pickIntent)
+        try {
+            pickWidgetLauncher.launch(pickIntent)
+        } catch (e: Exception) {
+            widgetHostManager.deleteAppWidgetId(allocatedId)
+            pendingAppWidgetId = null
+            targetDrawerIdForAdd = null
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Widget picker not available on this device")
+            }
+        }
     }
 
     LaunchedEffect(uiState.hideStatusBar) {
@@ -527,18 +596,11 @@ fun HomeScreen(
                         actionTriggeredInScroll = true
                         return Offset(0f, available.y)
                     }
-                } else if (!areOtherDrawersOpen && available.y < 0f) {
+                } else if (!areOtherDrawersOpen && !isNotificationExpanded && available.y < 0f) {
                     scrollDownAccumulator = 0f
                     // Apply resistance to upward drag so normal scrolling does not unintentionally trigger app drawer
                     scrollUpAccumulator += available.y * 0.55f
-                    if (isNotificationExpanded) {
-                        if (scrollUpAccumulator < -30f) {
-                            isNotificationExpanded = false
-                            scrollUpAccumulator = 0f
-                            actionTriggeredInScroll = true
-                            return Offset(0f, available.y)
-                        }
-                    } else if (!uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
+                    if (!uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
                         // Sane resistance threshold: requires deliberate upward pull (~180f accumulated)
                         if (scrollUpAccumulator < -180f) {
                             viewModel.openAllApps()
@@ -607,22 +669,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
-                        .navigationBarsPadding()
-                        .pointerInput(isNotificationExpanded) {
-                            if (isNotificationExpanded) {
-                                var dragUp = 0f
-                                detectVerticalDragGestures(
-                                    onDragStart = { dragUp = 0f },
-                                    onVerticalDrag = { change, dragAmount ->
-                                        dragUp += dragAmount
-                                        if (dragUp < -30f) {
-                                            isNotificationExpanded = false
-                                            change.consume()
-                                        }
-                                    }
-                                )
-                            }
-                        },
+                        .navigationBarsPadding(),
                     contentAlignment = Alignment.TopCenter
                 ) {
                     Column(
@@ -688,6 +735,32 @@ fun HomeScreen(
                                         }
                                     )
                                 }
+                            }
+                            // ponytail: outside swipe listener collapses notification drawer on upward drag outside or swipe on other category drawers; ceiling: fixed 24f drag threshold; upgrade path: velocity tracker fling dismiss.
+                            .pointerInput(isNotificationExpanded) {
+                                if (!isNotificationExpanded) return@pointerInput
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                                    val colBounds = rootColumnBounds ?: Rect.Zero
+                                    val rootPos = Offset(colBounds.left + down.position.x, colBounds.top + down.position.y)
+                                    val isInsideNotification = notificationBounds?.contains(rootPos) == true
+                                    if (isInsideNotification) {
+                                        return@awaitEachGesture
+                                    }
+                                    val isOverOtherDrawers = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                    var totalDrag = Offset.Zero
+                                    while (true) {
+                                        val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                        val change = event.changes.firstOrNull() ?: break
+                                        if (!change.pressed) break
+                                        val delta = change.position - change.previousPosition
+                                        totalDrag += delta
+                                        if (totalDrag.y < -24f || (isOverOtherDrawers && (kotlin.math.abs(totalDrag.y) > 24f || kotlin.math.abs(totalDrag.x) > 24f))) {
+                                            isNotificationExpanded = false
+                                            break
+                                        }
+                                    }
+                                }
                             },
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -727,22 +800,7 @@ fun HomeScreen(
                             .weight(1f)
                             .fillMaxWidth()
                             .nestedScroll(homeNestedScrollConnection)
-                            .verticalScroll(homeScrollState, enabled = !dragDropState.isDragging && !isNotificationExpanded)
-                            .pointerInput(isNotificationExpanded) {
-                                if (isNotificationExpanded) {
-                                    var dragUp = 0f
-                                    detectVerticalDragGestures(
-                                        onDragStart = { dragUp = 0f },
-                                        onVerticalDrag = { change, dragAmount ->
-                                            dragUp += dragAmount
-                                            if (dragUp < -30f) {
-                                                isNotificationExpanded = false
-                                                change.consume()
-                                            }
-                                        }
-                                    )
-                                }
-                            },
+                            .verticalScroll(homeScrollState, enabled = !dragDropState.isDragging && !isNotificationExpanded),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Spacer(modifier = Modifier.height(2.dp))
@@ -997,6 +1055,7 @@ fun HomeScreen(
         AllAppsDrawer(
             visible = uiState.isAllAppsOpen,
             apps = uiState.filteredApps,
+            frequentApps = suggestedApps,
             searchQuery = uiState.searchQuery,
             isLoading = uiState.isLoading,
             iconShape = com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString(

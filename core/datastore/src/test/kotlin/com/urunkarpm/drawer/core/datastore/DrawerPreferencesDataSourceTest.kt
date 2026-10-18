@@ -27,9 +27,9 @@ class DrawerPreferencesDataSourceTest {
     }
 
     @Test
-    fun defaultHeaderFontFamilyIsSystem() = runTest {
+    fun defaultHeaderFontFamilyIsGoogleSans() = runTest {
         val dataSource = createDataSource(backgroundScope)
-        assertEquals("SYSTEM", dataSource.headerFontFamily.first())
+        assertEquals("GOOGLE_SANS", dataSource.headerFontFamily.first())
     }
 
     @Test
@@ -174,5 +174,20 @@ class DrawerPreferencesDataSourceTest {
         val dataSource = createDataSource(backgroundScope)
         dataSource.setDockMesmerizingGlow(false)
         assertEquals(false, dataSource.dockMesmerizingGlow.first())
+    }
+
+    @Test
+    fun defaultAppLaunchCountsIsEmpty() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(emptyMap<String, Int>(), dataSource.appLaunchCounts.first())
+    }
+
+    @Test
+    fun recordAppLaunchPersistsCount() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        val key = "com.example.app/MainActivity#0"
+        dataSource.recordAppLaunch(key)
+        assertEquals(1, dataSource.appLaunchCounts.first()[key])
+        org.junit.Assert.assertTrue((dataSource.appLastLaunchedTimes.first()[key] ?: 0L) > 0L)
     }
 }

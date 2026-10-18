@@ -75,6 +75,8 @@ class HomeViewModelTest {
     private val wallpaperGradientPaletteFlow = MutableStateFlow("FULL_SPECTRUM")
     private val wallpaperGradientAngleFlow = MutableStateFlow("DIAGONAL")
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
+    private val appLaunchCountsFlow = MutableStateFlow<Map<String, Int>>(emptyMap())
+    private val appLastLaunchedTimesFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
 
     private val sampleApps = listOf(
         AppInfo(
@@ -143,6 +145,8 @@ class HomeViewModelTest {
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
         every { preferencesDataSource.surfaceStrokeOpacity } returns surfaceStrokeOpacityFlow
         every { preferencesDataSource.surfaceCornerRadius } returns surfaceCornerRadiusFlow
+        every { preferencesDataSource.appLaunchCounts } returns appLaunchCountsFlow
+        every { preferencesDataSource.appLastLaunchedTimes } returns appLastLaunchedTimesFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow
         every { widgetRepository.getAllDrawers() } returns drawersFlow
 
@@ -464,6 +468,17 @@ class HomeViewModelTest {
         coVerify { preferencesDataSource.setDockMesmerizingGlow(false) }
         coVerify { preferencesDataSource.setHeaderFontFamily("MONOSPACE") }
         coVerify { preferencesDataSource.setStealthTheme(true) }
+    }
+
+    @Test
+    fun appLaunchCounts_emitsFromPreferences() = runTest {
+        val counts = mapOf("com.example.app/MainActivity#0" to 5)
+        viewModel.appLaunchCounts.test {
+            assertEquals(emptyMap<String, Int>(), awaitItem())
+            appLaunchCountsFlow.value = counts
+            assertEquals(counts, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }
 

@@ -319,7 +319,14 @@ private fun CoverFlowWidgetItemCard(
                 factory = { ctx ->
                     try {
                         val providerInfo = widgetHostManager.appWidgetManager.getAppWidgetInfo(widget.appWidgetId)
-                        widgetHostManager.createView(ctx, widget.appWidgetId, providerInfo)
+                        if (providerInfo == null) {
+                            android.widget.TextView(ctx).apply {
+                                text = "Widget unavailable (${widget.packageName})"
+                                setPadding(32, 32, 32, 32)
+                            }
+                        } else {
+                            widgetHostManager.getOrCreateView(ctx, widget.appWidgetId)
+                        }
                     } catch (e: Exception) {
                         android.widget.TextView(ctx).apply {
                             text = "Widget unavailable (${widget.packageName})"

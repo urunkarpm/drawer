@@ -253,6 +253,20 @@ class HomeViewModel @Inject constructor(
     private var cachedAppsRef: List<AppInfo>? = null
     private var cachedAppsByPkg: Map<String, AppInfo> = emptyMap()
 
+    val appLaunchCounts: StateFlow<Map<String, Int>> = preferencesDataSource.appLaunchCounts
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap()
+        )
+
+    val appLastLaunchedTimes: StateFlow<Map<String, Long>> = preferencesDataSource.appLastLaunchedTimes
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap()
+        )
+
     val uiState: StateFlow<HomeUiState> = combine(
         appRepository.installedApps,
         weatherRepository.weatherInfo,
