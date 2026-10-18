@@ -1,16 +1,20 @@
 <p align="center">
-  <h1 align="center">✨ Drawer</h1>
-  <p align="center"><strong>The intentional Android home screen built for peak focus, fluid speed, and zero clutter.</strong></p>
-  <p align="center">
-    <em>Stop doom-scrolling through icon grids. Turn your phone back into a high-leverage productivity tool.</em>
-  </p>
-  <p align="center">
-    <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v1.2.4-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
-    <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
-    <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
-    <img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%20Zero%20Telemetry-success.svg?style=for-the-badge" alt="100% Offline" />
-  </p>
+  <img src="icon.png" width="96" height="96" alt="Drawer App Icon" />
+</p>
+
+<h1 align="center">Drawer</h1>
+
+<p align="center"><strong>The intentional Android home screen built for peak focus, fluid speed, and zero clutter.</strong></p>
+<p align="center">
+  <em>Stop doom-scrolling through icon grids. Turn your phone back into a high-leverage productivity tool.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v1.2.4-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
+  <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
+  <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
+  <img src="https://img.shields.io/badge/Privacy-100%25%20Offline%20%7C%20Zero%20Telemetry-success.svg?style=for-the-badge" alt="100% Offline" />
 </p>
 
 ---

@@ -18,6 +18,7 @@ captures/
 .agentsroom/
 .mcp.json
 /*.png
+!/icon.png
 /DragGestureDetector_decoded.kt
 .kotlin/
 .superpowers/
