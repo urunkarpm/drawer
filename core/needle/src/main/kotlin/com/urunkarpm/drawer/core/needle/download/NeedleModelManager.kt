@@ -13,14 +13,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class NeedleModelManager @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) {
     private val _status = MutableStateFlow<ModelStatus>(ModelStatus.NotDownloaded)
     val status: StateFlow<ModelStatus> = _status.asStateFlow()
@@ -52,6 +54,9 @@ class NeedleModelManager @Inject constructor(
             if (tempFile.exists()) tempFile.delete()
 
             client.prepareGet(MODEL_URL).execute { response ->
+                if (response.status.value !in 200..299) {
+                    throw IOException("HTTP error: ${response.status}")
+                }
                 val channel: ByteReadChannel = response.bodyAsChannel()
                 val totalBytes = response.headers["Content-Length"]?.toLongOrNull() ?: EXPECTED_BYTE_SIZE
                 var bytesRead = 0L
