@@ -33,6 +33,21 @@ class NeedleModelManagerTest {
         val mockContext = mockk<Context>()
         val filesDir = tempFolder.newFolder("files")
         val modelsDir = File(filesDir, "models").apply { mkdirs() }
+        val modelFile = File(modelsDir, NeedleModelManager.MODEL_FILENAME).apply {
+            writeBytes(ByteArray(1024 * 1024 * 5)) // 5 MB
+        }
+        every { mockContext.filesDir } returns filesDir
+
+        val manager = NeedleModelManager(mockContext)
+        val status = manager.status.first()
+        assertTrue(status is ModelStatus.Ready)
+    }
+
+    @Test
+    fun testInitialStatusReadyWhenLegacyFileExists() = runTest {
+        val mockContext = mockk<Context>()
+        val filesDir = tempFolder.newFolder("files")
+        val modelsDir = File(filesDir, "models").apply { mkdirs() }
         val modelFile = File(modelsDir, "needle_3_cq2.bin").apply {
             writeBytes(ByteArray(1024 * 1024 * 5)) // 5 MB
         }
@@ -48,7 +63,7 @@ class NeedleModelManagerTest {
         val mockContext = mockk<Context>()
         val filesDir = tempFolder.newFolder("files")
         val modelsDir = File(filesDir, "models").apply { mkdirs() }
-        val modelFile = File(modelsDir, "needle_3_cq2.bin").apply {
+        val modelFile = File(modelsDir, NeedleModelManager.MODEL_FILENAME).apply {
             writeBytes(ByteArray(1024))
         }
         every { mockContext.filesDir } returns filesDir

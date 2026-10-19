@@ -71,7 +71,7 @@ fun NeedleSettingsCard(
                     ) {
                         Icon(imageVector = Icons.Default.Download, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Download Model (~10.3 MB)")
+                        Text("Download Model (~33.7 MB)")
                     }
                 }
                 is ModelStatus.Downloading -> {

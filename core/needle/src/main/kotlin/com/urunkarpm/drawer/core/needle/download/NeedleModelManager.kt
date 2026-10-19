@@ -31,7 +31,13 @@ class NeedleModelManager @Inject constructor(
         get() = File(context.filesDir, "models").apply { if (!exists()) mkdirs() }
 
     val modelFile: File
-        get() = File(modelDirectory, MODEL_FILENAME)
+        get() {
+            val cactFile = File(modelDirectory, MODEL_FILENAME)
+            if (cactFile.exists()) return cactFile
+            val legacyFile = File(modelDirectory, "needle_3_cq2.bin")
+            if (legacyFile.exists()) return legacyFile
+            return cactFile
+        }
 
     init {
         checkCurrentStatus()
@@ -47,13 +53,16 @@ class NeedleModelManager @Inject constructor(
         }
     }
 
-    suspend fun downloadModel(client: HttpClient = HttpClient()): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun downloadModel(client: HttpClient? = null): Result<Unit> = withContext(Dispatchers.IO) {
+        val httpClient = client ?: HttpClient {
+            followRedirects = true
+        }
         try {
             _status.value = ModelStatus.Downloading(0.0f)
             val tempFile = File(modelDirectory, "$MODEL_FILENAME.tmp")
             if (tempFile.exists()) tempFile.delete()
 
-            client.prepareGet(MODEL_URL).execute { response ->
+            httpClient.prepareGet(MODEL_URL).execute { response ->
                 if (response.status.value !in 200..299) {
                     throw IOException("HTTP error: ${response.status}")
                 }
@@ -90,18 +99,34 @@ class NeedleModelManager @Inject constructor(
         } catch (e: Exception) {
             _status.value = ModelStatus.Error(e.message ?: "Download failed")
             Result.failure(e)
+        } finally {
+            if (client == null) {
+                httpClient.close()
+            }
         }
     }
 
     fun deleteModel(): Boolean {
-        val deleted = modelFile.delete()
+        var deleted = false
+        val mainFile = File(modelDirectory, MODEL_FILENAME)
+        if (mainFile.exists()) {
+            deleted = mainFile.delete() || deleted
+        }
+        val legacyFile = File(modelDirectory, "needle_3_cq2.bin")
+        if (legacyFile.exists()) {
+            deleted = legacyFile.delete() || deleted
+        }
+        val tempFile = File(modelDirectory, "$MODEL_FILENAME.tmp")
+        if (tempFile.exists()) {
+            tempFile.delete()
+        }
         _status.value = ModelStatus.NotDownloaded
-        return deleted
+        return deleted || !mainFile.exists()
     }
 
     companion object {
-        const val MODEL_FILENAME = "needle_3_cq2.bin"
-        const val MODEL_URL = "https://huggingface.co/Cactus-Compute/needle-3-quant/resolve/main/needle-3-cq2.bin"
-        const val EXPECTED_BYTE_SIZE = 10_800_000L // ~10.3 MB
+        const val MODEL_FILENAME = "needle3.cact"
+        const val MODEL_URL = "https://huggingface.co/Cactus-Compute/needle3/resolve/main/needle3.cact"
+        const val EXPECTED_BYTE_SIZE = 35_335_380L // ~33.7 MB
     }
 }
