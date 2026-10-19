@@ -587,12 +587,18 @@ private fun launchCalendar(context: Context) {
 
 private fun launchSpeechRecognizer(context: Context) {
     try {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        val intent = Intent(RecognizerIntent.ACTION_WEB_SEARCH).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
     } catch (_: Exception) {
-        // Fallback: don't crash if no speech recognizer found
+        try {
+            val intent = Intent(Intent.ACTION_VOICE_COMMAND).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            // Fallback: don't crash if no voice service found
+        }
     }
 }

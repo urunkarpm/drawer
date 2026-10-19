@@ -63,6 +63,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Intent
+import android.speech.RecognizerIntent
 import android.os.Bundle
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.feature.home.component.WidgetsPage
@@ -335,6 +336,20 @@ fun HomeScreen(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
         viewModel.refreshWeather()
+    }
+
+    val speechRecognizerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+            if (!spokenText.isNullOrBlank()) {
+                viewModel.openAllApps()
+                viewModel.onSearchQueryChanged(spokenText)
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -814,6 +829,17 @@ fun HomeScreen(
                         duoStatusPosition = uiState.duoStatusPosition,
                         isDuoStatusExpanded = isDuoStatusExpanded,
                         onToggleDuoStatusExpand = { isDuoStatusExpanded = !isDuoStatusExpanded },
+                        onOpenVoiceSearch = {
+                            try {
+                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak an action or app name...")
+                                }
+                                speechRecognizerLauncher.launch(intent)
+                            } catch (_: Exception) {
+                                viewModel.openAllApps()
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .zIndex(100f)
