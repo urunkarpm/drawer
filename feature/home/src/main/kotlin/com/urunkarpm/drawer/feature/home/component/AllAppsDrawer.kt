@@ -101,6 +101,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import com.urunkarpm.drawer.core.needle.action.LauncherAction
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.feature.home.dragdrop.AppDragDropState
@@ -131,8 +134,11 @@ fun AllAppsDrawer(
     surfaceCornerRadiusDp: Float = 24f,
     autoOpenKeyboard: Boolean = false,
     onOpenSettings: (() -> Unit)? = null,
-    frequentApps: List<AppInfo> = emptyList()
+    frequentApps: List<AppInfo> = emptyList(),
+    suggestedAction: LauncherAction? = null,
+    onExecuteAction: (LauncherAction) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val searchFocusRequester = remember { FocusRequester() }
     LaunchedEffect(visible) {
         if (visible && autoOpenKeyboard) {
@@ -510,6 +516,21 @@ fun AllAppsDrawer(
                         onDragDropResult = onDragDropResult
                     )
                 }
+
+                ActionSuggestionChip(
+                    action = suggestedAction,
+                    onExecuteAction = { action ->
+                        onExecuteAction(action)
+                        try {
+                            context.startActivity(action.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } catch (_: Exception) {}
+                        onClose()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                        .widthIn(max = 760.dp)
+                )
 
                 // Ergonomic Bottom Search Bar: Avoids camera cutout and provides easy one-hand thumb access
                 SearchBarHeader(

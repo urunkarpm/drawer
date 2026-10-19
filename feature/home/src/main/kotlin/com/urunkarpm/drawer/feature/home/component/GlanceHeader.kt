@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.AlarmClock
 import android.provider.CalendarContract
+import android.speech.RecognizerIntent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -201,6 +203,7 @@ fun GlanceHeader(
     duoStatusPosition: String = "TEMP",
     isDuoStatusExpanded: Boolean = false,
     onToggleDuoStatusExpand: () -> Unit = {},
+    onOpenVoiceSearch: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -480,6 +483,24 @@ fun GlanceHeader(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     IconButton(
+                        onClick = {
+                            if (onOpenVoiceSearch != null) {
+                                onOpenVoiceSearch()
+                            } else {
+                                launchSpeechRecognizer(context)
+                            }
+                        },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Voice Search / AI Actions",
+                            tint = subtextColor.copy(alpha = 0.85f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
                         onClick = onOpenSettings,
                         modifier = Modifier.size(22.dp)
                     ) {
@@ -497,6 +518,24 @@ fun GlanceHeader(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End
                 ) {
+                    IconButton(
+                        onClick = {
+                            if (onOpenVoiceSearch != null) {
+                                onOpenVoiceSearch()
+                            } else {
+                                launchSpeechRecognizer(context)
+                            }
+                        },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Voice Search / AI Actions",
+                            tint = subtextColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
                     IconButton(
                         onClick = onOpenSettings,
                         modifier = Modifier.size(22.dp)
@@ -543,5 +582,17 @@ private fun launchCalendar(context: Context) {
         context.startActivity(intent)
     } catch (_: Exception) {
         // Fallback: don't crash if no calendar app found
+    }
+}
+
+private fun launchSpeechRecognizer(context: Context) {
+    try {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    } catch (_: Exception) {
+        // Fallback: don't crash if no speech recognizer found
     }
 }

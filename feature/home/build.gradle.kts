@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":feature:notifications"))
     implementation(project(":feature:iconpacks"))
     implementation(project(":feature:settings"))
+    implementation(project(":core:needle"))
 
     implementation(libs.coil.compose)
     implementation(libs.compose.material.icons.extended)
@@ -22,4 +23,5 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
+    testImplementation(libs.kotlinx.serialization.json)
 }

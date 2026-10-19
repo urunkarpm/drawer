@@ -150,6 +150,7 @@ fun HomeScreen(
     val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
     val launchCounts by viewModel.appLaunchCounts.collectAsStateWithLifecycle()
     val launchTimes by viewModel.appLastLaunchedTimes.collectAsStateWithLifecycle()
+    val suggestedAction by viewModel.suggestedAction.collectAsStateWithLifecycle()
 
     // ponytail: Smart Frecency suggestion algorithm combining exponential recency decay, launch frequency, and time-of-day affinity with smart cold-start fallback; ceiling is local heuristic ranking without deep neural network; upgrade path is on-device AppSearch / ML suggestion engine.
     val suggestedApps = remember(uiState.installedApps, launchCounts, launchTimes) {
@@ -1101,7 +1102,9 @@ fun HomeScreen(
             drawerThemeMode = uiState.drawerThemeMode,
             surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
             autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer,
-            onOpenSettings = { isSettingsOpen = true }
+            onOpenSettings = { isSettingsOpen = true },
+            suggestedAction = suggestedAction,
+            onExecuteAction = { _ -> viewModel.closeAllApps() }
         )
 
         // ── App Long-Press Action Sheet ────────────────────────────────────────

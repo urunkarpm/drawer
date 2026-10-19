@@ -13,10 +13,17 @@ import com.urunkarpm.drawer.core.model.WeatherInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.urunkarpm.drawer.core.designsystem.component.AppIconCache
 import com.urunkarpm.drawer.core.designsystem.component.toImageBitmapSafe
+import com.urunkarpm.drawer.core.needle.NeedleEngine
+import com.urunkarpm.drawer.core.needle.action.LauncherAction
+import com.urunkarpm.drawer.core.needle.action.NeedleActionDispatcher
+import com.urunkarpm.drawer.core.needle.action.StandardTools
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -127,7 +134,9 @@ class HomeViewModel @Inject constructor(
     private val dockRepository: DockRepository,
     private val weatherRepository: WeatherRepository,
     private val preferencesDataSource: DrawerPreferencesDataSource,
-    private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository
+    private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository,
+    private val needleEngine: NeedleEngine,
+    private val needleActionDispatcher: NeedleActionDispatcher
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -135,6 +144,10 @@ class HomeViewModel @Inject constructor(
     private val _selectedAppForMenu = MutableStateFlow<AppInfo?>(null)
     private val _shortcuts = MutableStateFlow<List<AppShortcutInfo>>(emptyList())
     private val _userMessage = MutableStateFlow<String?>(null)
+    private val _suggestedAction = MutableStateFlow<LauncherAction?>(null)
+    val suggestedAction: StateFlow<LauncherAction?> = _suggestedAction.asStateFlow()
+
+    private var searchJob: Job? = null
 
     private val glancePrefsFlow = combine<Any, GlancePrefs>(
         preferencesDataSource.is24Hour,
@@ -420,7 +433,24 @@ class HomeViewModel @Inject constructor(
 
     fun onSearchQueryChanged(newQuery: String) {
         _searchQuery.value = newQuery
+        searchJob?.cancel()
+        if (newQuery.isBlank()) {
+            _suggestedAction.value = null
+        } else {
+            searchJob = viewModelScope.launch {
+                delay(150)
+                val calls = needleEngine.predictToolCall(newQuery, StandardTools.allTools)
+                val firstCall = calls.firstOrNull()
+                _suggestedAction.value = if (firstCall != null) {
+                    needleActionDispatcher.dispatch(firstCall)
+                } else {
+                    null
+                }
+            }
+        }
     }
+
+    fun onSearchQueryChange(query: String) = onSearchQueryChanged(query)
 
     fun openAllApps() {
         _isAllAppsOpen.value = true
@@ -429,6 +459,8 @@ class HomeViewModel @Inject constructor(
     fun closeAllApps() {
         _isAllAppsOpen.value = false
         _searchQuery.value = ""
+        _suggestedAction.value = null
+        searchJob?.cancel()
     }
 
     fun toggleAllApps() {
