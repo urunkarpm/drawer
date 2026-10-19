@@ -93,8 +93,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
 import com.urunkarpm.drawer.core.designsystem.theme.labelScaleFromName
+import com.urunkarpm.drawer.core.needle.model.ModelStatus
 import com.urunkarpm.drawer.feature.iconpacks.IconPackViewModel
 import com.urunkarpm.drawer.feature.iconpacks.component.IconPackPickerSheet
+import com.urunkarpm.drawer.feature.settings.component.NeedleSettingsCard
 import com.urunkarpm.drawer.feature.settings.component.SettingsDrawerCard
 import com.urunkarpm.drawer.feature.settings.component.SettingsGlanceHeader
 import kotlinx.coroutines.launch
@@ -132,6 +134,7 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val iconPackUiState by iconPackViewModel.uiState.collectAsStateWithLifecycle()
+    val needleModelStatus by viewModel.needleModelStatus.collectAsStateWithLifecycle(initialValue = ModelStatus.NotDownloaded)
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -1613,6 +1616,15 @@ fun SettingsScreen(
                         cornerRadius = cornerRadius
                     )
                     Spacer(modifier = Modifier.height(2.dp))
+                }
+
+                // On-Device AI Controls
+                item(key = "NEEDLE_AI_SETTINGS") {
+                    NeedleSettingsCard(
+                        status = needleModelStatus,
+                        onDownload = { viewModel.downloadNeedleModel() },
+                        onDelete = { viewModel.deleteNeedleModel() }
+                    )
                 }
 
                 // Settings Drawers: Always single column in Settings screen

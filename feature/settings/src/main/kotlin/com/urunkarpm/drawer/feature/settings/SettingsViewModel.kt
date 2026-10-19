@@ -10,6 +10,8 @@ import com.urunkarpm.drawer.core.data.repository.UpdateRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppUpdateInfo
 import com.urunkarpm.drawer.core.model.NotificationSwipeAction
+import com.urunkarpm.drawer.core.needle.NeedleEngine
+import com.urunkarpm.drawer.core.needle.model.ModelStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -185,7 +187,8 @@ class SettingsViewModel @Inject constructor(
     private val backupRepository: BackupRepository,
     private val updateRepository: UpdateRepository,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
-    private val iconPackRepository: IconPackRepository? = null
+    private val iconPackRepository: IconPackRepository? = null,
+    private val needleEngine: NeedleEngine? = null
 ) : ViewModel() {
 
     private val actionState = MutableStateFlow(SettingsActionState())
@@ -414,6 +417,21 @@ class SettingsViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = SettingsUiState()
     )
+
+    val needleModelStatus: StateFlow<ModelStatus> =
+        needleEngine?.modelStatus ?: MutableStateFlow(ModelStatus.NotDownloaded)
+
+    fun downloadNeedleModel() {
+        viewModelScope.launch {
+            needleEngine?.downloadModel()
+        }
+    }
+
+    fun deleteNeedleModel() {
+        viewModelScope.launch {
+            needleEngine?.deleteModel()
+        }
+    }
 
     fun setDynamicWallpaperEnabled(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
