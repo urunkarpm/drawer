@@ -253,6 +253,9 @@ class HomeViewModel @Inject constructor(
     private var cachedAppsRef: List<AppInfo>? = null
     private var cachedAppsByPkg: Map<String, AppInfo> = emptyMap()
 
+    var pendingAddTargetDrawerId: String? = null
+    var pendingAddAppWidgetId: Int? = null
+
     val appLaunchCounts: StateFlow<Map<String, Int>> = preferencesDataSource.appLaunchCounts
         .stateIn(
             scope = viewModelScope,
@@ -516,6 +519,15 @@ class HomeViewModel @Inject constructor(
                 heightDp = heightDp
             )
             widgetRepository.addWidget(widget)
+
+            // Ensure target drawer is expanded and adequately sized so user sees their new widget immediately
+            if (drawerId != null) {
+                val targetDrawer = uiState.value.widgetDrawers.find { it.id == drawerId }
+                if (targetDrawer != null) {
+                    val updatedSpanY = maxOf(targetDrawer.spanY, spanY)
+                    widgetRepository.updateDrawer(targetDrawer.copy(isExpanded = true, spanY = updatedSpanY))
+                }
+            }
         }
     }
 
@@ -626,8 +638,11 @@ class HomeViewModel @Inject constructor(
 
     fun moveWidgetToDrawer(widgetId: String, drawerId: String?) {
         viewModelScope.launch(Dispatchers.IO) {
+            val targetDrawer = if (drawerId != null) {
+                uiState.value.widgetDrawers.find { it.id == drawerId }
+            } else null
             val targetOrder = if (drawerId != null) {
-                uiState.value.widgetDrawers.find { it.id == drawerId }?.widgets?.size ?: 0
+                targetDrawer?.widgets?.size ?: 0
             } else {
                 uiState.value.standaloneWidgets.size
             }
@@ -636,6 +651,11 @@ class HomeViewModel @Inject constructor(
                 widgetRepository.updateWidget(widget.copy(drawerId = drawerId, orderIndex = targetOrder))
             } else {
                 widgetRepository.assignWidgetToDrawer(widgetId, drawerId)
+            }
+            if (targetDrawer != null) {
+                val widgetSpanY = widget?.spanY ?: 2
+                val updatedSpanY = maxOf(targetDrawer.spanY, widgetSpanY)
+                widgetRepository.updateDrawer(targetDrawer.copy(isExpanded = true, spanY = updatedSpanY))
             }
         }
     }

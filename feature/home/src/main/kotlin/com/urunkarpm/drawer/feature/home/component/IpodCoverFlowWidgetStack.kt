@@ -108,11 +108,16 @@ fun IpodCoverFlowWidgetStack(
         pageCount = { widgets.size }
     )
 
-    // Clamp pager index if the active widget was removed
+    var previousWidgetCount by remember { mutableStateOf(widgets.size) }
+
+    // Animate to new widget if added, or clamp pager index if the active widget was removed
     LaunchedEffect(widgets.size) {
-        if (widgets.isNotEmpty() && pagerState.currentPage >= widgets.size) {
+        if (widgets.size > previousWidgetCount) {
+            pagerState.animateScrollToPage(widgets.size - 1)
+        } else if (widgets.isNotEmpty() && pagerState.currentPage >= widgets.size) {
             pagerState.scrollToPage(widgets.size - 1)
         }
+        previousWidgetCount = widgets.size
     }
 
     val configuration = LocalConfiguration.current
@@ -130,36 +135,39 @@ fun IpodCoverFlowWidgetStack(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(heightDp.dp)
-                // Support vertical swipe cycling (drag up -> next widget, drag down -> previous widget)
-                .pointerInput(pagerState.currentPage, widgets.size) {
-                    detectVerticalDragGestures(
-                        onDragStart = { verticalDragAccumulator = 0f },
-                        onDragEnd = { verticalDragAccumulator = 0f },
-                        onDragCancel = { verticalDragAccumulator = 0f },
-                        onVerticalDrag = { change, dragAmount ->
-                            verticalDragAccumulator += dragAmount
-                            if (verticalDragAccumulator < -45f) {
-                                // Swiped up -> cycle to next widget
-                                if (pagerState.currentPage < widgets.size - 1) {
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                .then(
+                    if (widgets.size > 1) {
+                        Modifier.pointerInput(pagerState.currentPage, widgets.size) {
+                            detectVerticalDragGestures(
+                                onDragStart = { verticalDragAccumulator = 0f },
+                                onDragEnd = { verticalDragAccumulator = 0f },
+                                onDragCancel = { verticalDragAccumulator = 0f },
+                                onVerticalDrag = { change, dragAmount ->
+                                    verticalDragAccumulator += dragAmount
+                                    if (verticalDragAccumulator < -45f) {
+                                        // Swiped up -> cycle to next widget
+                                        if (pagerState.currentPage < widgets.size - 1) {
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                            }
+                                        }
+                                        verticalDragAccumulator = 0f
+                                        change.consume()
+                                    } else if (verticalDragAccumulator > 45f) {
+                                        // Swiped down -> cycle to previous widget
+                                        if (pagerState.currentPage > 0) {
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                            }
+                                        }
+                                        verticalDragAccumulator = 0f
+                                        change.consume()
                                     }
                                 }
-                                verticalDragAccumulator = 0f
-                                change.consume()
-                            } else if (verticalDragAccumulator > 45f) {
-                                // Swiped down -> cycle to previous widget
-                                if (pagerState.currentPage > 0) {
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
-                                    }
-                                }
-                                verticalDragAccumulator = 0f
-                                change.consume()
-                            }
+                            )
                         }
-                    )
-                }
+                    } else Modifier
+                )
         ) {
             HorizontalPager(
                 state = pagerState,

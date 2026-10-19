@@ -91,6 +91,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -369,8 +370,8 @@ fun HomeScreen(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val widgetHostManager = widgetHostManager ?: remember { DrawerWidgetHostManager(context.applicationContext) }
-    var pendingAppWidgetId by remember { mutableStateOf<Int?>(null) }
-    var targetDrawerIdForAdd by remember { mutableStateOf<String?>(null) }
+    var pendingAppWidgetId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var targetDrawerIdForAdd by rememberSaveable { mutableStateOf<String?>(null) }
     val pagerState = rememberPagerState(
         initialPage = 1,
         pageCount = { 2 }
@@ -381,7 +382,7 @@ fun HomeScreen(
         if (info != null) {
             val pkg = info.provider.packageName
             val cls = info.provider.className
-            val targetDrawerId = targetDrawerIdForAdd
+            val targetDrawerId = targetDrawerIdForAdd ?: viewModel.pendingAddTargetDrawerId
             val spanX = if (info.minWidth in 1..160) 2 else 4
             val spanY = ((info.minHeight + 69) / 70).coerceIn(2, 4)
             val heightDp = (spanY * 70).coerceAtLeast(140)
@@ -409,7 +410,7 @@ fun HomeScreen(
                 heightDp = heightDp
             )
             coroutineScope.launch {
-                if (targetDrawerId == null && uiState.enableWidgetsPage && pagerState.currentPage != 0) {
+                if (uiState.enableWidgetsPage && pagerState.currentPage != 0) {
                     pagerState.animateScrollToPage(0)
                 }
                 val dest = if (targetDrawerId != null) "drawer" else "feed"
@@ -417,6 +418,9 @@ fun HomeScreen(
             }
         }
         targetDrawerIdForAdd = null
+        viewModel.pendingAddTargetDrawerId = null
+        pendingAppWidgetId = null
+        viewModel.pendingAddAppWidgetId = null
     }
 
     fun checkAndConfigureWidget(appWidgetId: Int) {
@@ -431,45 +435,48 @@ fun HomeScreen(
                     } else {
                         widgetHostManager.deleteAppWidgetId(appWidgetId)
                         targetDrawerIdForAdd = null
+                        viewModel.pendingAddTargetDrawerId = null
+                        pendingAppWidgetId = null
+                        viewModel.pendingAddAppWidgetId = null
                     }
-                    pendingAppWidgetId = null
                 }
                 // ponytail: startAppWidgetConfigureActivityForResult delegates to system AppWidgetService so private, unexported configure activities (e.g. Pinterest) start without SecurityException; ceiling: requires Activity context; upgrade path: custom config fallback.
                 val started = widgetHostManager.startConfigure(activity, appWidgetId)
                 if (!started) {
                     completeWidgetAdd(appWidgetId)
-                    pendingAppWidgetId = null
                 }
             } else {
                 completeWidgetAdd(appWidgetId)
-                pendingAppWidgetId = null
             }
         } else {
             completeWidgetAdd(appWidgetId)
-            pendingAppWidgetId = null
         }
     }
 
     val bindWidgetLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val id = pendingAppWidgetId
+        val id = pendingAppWidgetId ?: viewModel.pendingAddAppWidgetId
         if (result.resultCode == Activity.RESULT_OK && id != null) {
             checkAndConfigureWidget(id)
         } else if (id != null) {
             widgetHostManager.deleteAppWidgetId(id)
             pendingAppWidgetId = null
+            viewModel.pendingAddAppWidgetId = null
             targetDrawerIdForAdd = null
+            viewModel.pendingAddTargetDrawerId = null
         }
     }
 
     val pickWidgetLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val id = result.data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingAppWidgetId ?: -1)
-            ?: pendingAppWidgetId
+        val fallbackId = pendingAppWidgetId ?: viewModel.pendingAddAppWidgetId
+        val id = result.data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, fallbackId ?: -1)
+            ?: fallbackId
         if (result.resultCode == Activity.RESULT_OK && id != null && id != -1) {
             pendingAppWidgetId = id
+            viewModel.pendingAddAppWidgetId = id
             val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(id)
             if (info != null) {
                 // ponytail: widget picked from platform picker is already bound to this id; proceed straight to configure; ceiling: assumes single user profile; upgrade path: multi-profile cross-user inspection.
@@ -496,26 +503,34 @@ fun HomeScreen(
                         } catch (e: Exception) {
                             widgetHostManager.deleteAppWidgetId(id)
                             pendingAppWidgetId = null
+                            viewModel.pendingAddAppWidgetId = null
                             targetDrawerIdForAdd = null
+                            viewModel.pendingAddTargetDrawerId = null
                         }
                     }
                 } else {
                     widgetHostManager.deleteAppWidgetId(id)
                     pendingAppWidgetId = null
+                    viewModel.pendingAddAppWidgetId = null
                     targetDrawerIdForAdd = null
+                    viewModel.pendingAddTargetDrawerId = null
                 }
             }
-        } else if (pendingAppWidgetId != null) {
-            widgetHostManager.deleteAppWidgetId(pendingAppWidgetId!!)
+        } else if (fallbackId != null) {
+            widgetHostManager.deleteAppWidgetId(fallbackId)
             pendingAppWidgetId = null
+            viewModel.pendingAddAppWidgetId = null
             targetDrawerIdForAdd = null
+            viewModel.pendingAddTargetDrawerId = null
         }
     }
 
     fun launchAddWidgetFlow(targetDrawerId: String? = null) {
         targetDrawerIdForAdd = targetDrawerId
+        viewModel.pendingAddTargetDrawerId = targetDrawerId
         val allocatedId = widgetHostManager.allocateAppWidgetId()
         pendingAppWidgetId = allocatedId
+        viewModel.pendingAddAppWidgetId = allocatedId
         val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
             // ponytail: empty custom info/extras avoids NPE on custom OEM picker activities (Samsung/Xiaomi); ceiling: no custom launcher shortcuts mixed in system picker; upgrade path: custom in-app widget gallery.
@@ -527,7 +542,9 @@ fun HomeScreen(
         } catch (e: Exception) {
             widgetHostManager.deleteAppWidgetId(allocatedId)
             pendingAppWidgetId = null
+            viewModel.pendingAddAppWidgetId = null
             targetDrawerIdForAdd = null
+            viewModel.pendingAddTargetDrawerId = null
             coroutineScope.launch {
                 snackbarHostState.showSnackbar("Widget picker not available on this device")
             }
@@ -982,7 +999,7 @@ fun HomeScreen(
     }
 
     LaunchedEffect(pagerState.currentPage, pagerState.targetPage) {
-        if (pagerState.currentPage == 0 || pagerState.targetPage == 0) {
+        if (pagerState.currentPage == 1 && pagerState.targetPage == 1) {
             viewModel.collapseAllWidgetDrawers()
             if (isNotificationExpanded) isNotificationExpanded = false
             if (groupsUiState.groups.any { it.group.isExpanded }) {
@@ -1006,7 +1023,8 @@ fun HomeScreen(
                 !isSettingsOpen &&
                 !isCameraOpen &&
                 !isNotificationExpanded &&
-                !groupsUiState.groups.any { it.group.isExpanded },
+                !groupsUiState.groups.any { it.group.isExpanded } &&
+                !uiState.widgetDrawers.any { it.isExpanded },
             flingBehavior = PagerDefaults.flingBehavior(
                 state = pagerState,
                 snapPositionalThreshold = 0.35f

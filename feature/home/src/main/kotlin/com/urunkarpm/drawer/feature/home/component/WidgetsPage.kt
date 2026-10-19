@@ -71,7 +71,6 @@ import com.urunkarpm.drawer.core.model.WidgetItem
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.filled.MoreVert
-import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 
 sealed class StandaloneRowItem {
@@ -101,10 +100,6 @@ fun WidgetsPage(
     onBackToHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    LaunchedEffect(Unit) {
-        onCollapseAllDrawers()
-    }
-
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp
     val horizontalPadding = if (screenWidth < 360) 12.dp else if (screenWidth >= 840) 24.dp else 16.dp
@@ -133,17 +128,9 @@ fun WidgetsPage(
     }
 
     val isEmpty = drawers.isEmpty() && standaloneWidgets.isEmpty()
-    val hasExpandedDrawer = drawers.any { it.isExpanded }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .autoCloseOnInactivity(
-                active = hasExpandedDrawer,
-                resetKey = drawers.find { it.isExpanded }?.id,
-                timeoutMs = 5000L,
-                onClose = { onCollapseAllDrawers() }
-            ),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.TopCenter
     ) {
         Box(

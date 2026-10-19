@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v1.2.6-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v1.2.7-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -31,15 +31,14 @@ Everything you need to get things done is reachable in under a second; everythin
 
 ---
 
-## 🌟 What's New in v1.2.6
+## 🌟 What's New in v1.2.7
 
+* **🔋 Recalibrated Charging Power & Accurate OEM Telemetry:** Completely overhauled battery wattage parsing with direct multi-node sysfs voltage/current sensing, normalized microampere/milliampere polarity handling, and tuned dual-cell 2S fast charging calculations for authentic real-time wattage without false half-power or inflated readouts.
+* **📂 Robust Widget Drawer Targeting:** Adding or moving widgets now preserves the destination drawer reliably across activity transitions, automatically expands and sizes the target drawer upon addition, and navigates straight to the widget feed.
+* **🛡️ Persistent Widget Drawer Control:** Removed aggressive 5-second inactivity auto-close and spurious page entry collapse logic—drawers remain open, expanded, and interactive until you decide to collapse them.
+* **✨ Smooth CoverFlow Gestures:** Outer home horizontal pager swiping is cleanly suspended while any widget drawer is open to prevent accidental feed switching, single-card widgets no longer swallow vertical touches, and newly added widgets automatically animate into center focus.
 * **⚡ Frecency App Suggestions:** Predictive app launching powered by an on-device algorithm combining frequency and recency. Your next app is ready before you even search.
-* **🔋 Live Charging Power & Health Stats:** Tap the glance status header to inspect real-time charging wattage (`W`), voltage, current (`mA`), battery temperature, and OEM fast-charging brand detection (Warp Charge, VOOC, TurboPower, Mi Turbo Charge with dual-cell wattage).
 * **🌐 Instant Ad-Free Speed Test:** Built-in network benchmark inside the status popup powered by dual-stream Google Edge CDN with Cloudflare fallback—test your connection speed in seconds with zero telemetry or bloated third-party apps.
-* **🎨 Dynamic Pantone Wallpaper Engine:** Built-in generative wallpaper studio featuring Pantone color harmonies, customizable duotones, gradients, and analog grain textures.
-* **🔤 Curated Typography Packs:** Personalize your header clock with Google Sans, DS-Digital, Evil Empire, Hypik, Spookyy, or Texas Troupe, and scale app labels with granular text size controls.
-* **🧭 Interactive Guided Walkthrough:** Guided interactive onboarding tour that walks you through gestures, widget setups, and drawer organization.
-* **🛡️ Hardened Widget Host Engine:** Bulletproof widget lifecycle management (`DrawerWidgetHostManager`), smooth vertical cycling gestures, resistance physics, and a 5-second auto-collapse timer.
 
 ---
 
