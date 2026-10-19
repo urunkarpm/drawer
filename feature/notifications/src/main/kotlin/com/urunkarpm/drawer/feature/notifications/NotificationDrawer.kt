@@ -1,8 +1,13 @@
 package com.urunkarpm.drawer.feature.notifications
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.drawable.Drawable
 import android.view.WindowManager
+import android.widget.Toast
+import com.urunkarpm.drawer.feature.notifications.extraction.NotificationExtractor
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -1074,6 +1079,20 @@ private fun EndlessNotificationCard(
                                 lineHeight = 18.sp
                             )
                         }
+
+                        if (!privacyMode) {
+                            val otp = remember(item.title, item.text) {
+                                NotificationExtractor().extractOtp("${item.title} ${item.text}")
+                            }
+                            if (otp != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OtpCopyChip(
+                                    code = otp,
+                                    stealthTheme = stealthTheme,
+                                    stealthContrastLevel = stealthContrastLevel
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1401,10 +1420,69 @@ private fun DismissibleNotificationRow(
                                 lineHeight = 18.sp
                             )
                         }
+
+                        if (!privacyMode) {
+                            val otp = remember(item.title, item.text) {
+                                NotificationExtractor().extractOtp("${item.title} ${item.text}")
+                            }
+                            if (otp != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OtpCopyChip(
+                                    code = otp,
+                                    stealthTheme = stealthTheme,
+                                    stealthContrastLevel = stealthContrastLevel
+                                )
+                            }
+                        }
                     }
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun OtpCopyChip(
+    code: String,
+    modifier: Modifier = Modifier,
+    stealthTheme: Boolean = false,
+    stealthContrastLevel: String = "LOW"
+) {
+    val context = LocalContext.current
+    Surface(
+        onClick = {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            val clip = ClipData.newPlainText("OTP", code)
+            clipboard?.setPrimaryClip(clip)
+            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+        },
+        shape = RoundedCornerShape(8.dp),
+        color = if (stealthTheme) StealthColors.cardBackground else MaterialTheme.colorScheme.primaryContainer,
+        contentColor = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel) else MaterialTheme.colorScheme.onPrimaryContainer,
+        border = BorderStroke(
+            1.dp,
+            if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel).copy(alpha = 0.35f)
+            else MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+        ),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                modifier = Modifier.size(13.dp),
+                tint = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel) else MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Copy OTP: $code",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 

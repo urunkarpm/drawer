@@ -9,6 +9,7 @@ android {
 dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:datastore"))
+    implementation(project(":core:needle"))
     implementation(libs.coil.compose)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
