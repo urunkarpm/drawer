@@ -30,7 +30,7 @@
 - Consumes: `NeedleEngine` from `:core:needle`, `AppInfo`, `AppGroup` from `:core:model`.
 - Produces: `AppCategorizer` with `suspend fun categorizeApps(apps: List<AppInfo>, existingGroups: List<AppGroup>, unassignedOnly: Boolean): List<CategorizationSuggestion>`
 
-- [ ] **Step 1: Write the failing unit test for `AppCategorizer`**
+- [x] **Step 1: Write the failing unit test for `AppCategorizer`**
 
 ```kotlin
 package com.urunkarpm.drawer.core.data.ai
@@ -76,12 +76,12 @@ class AppCategorizerTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.\gradlew.bat :core:data:testDebugUnitTest --tests com.urunkarpm.drawer.core.data.ai.AppCategorizerTest`
 Expected: FAIL (class not found / unresolved reference).
 
-- [ ] **Step 3: Implement `AppCategorizer` interface and `AppCategorizerImpl`**
+- [x] **Step 3: Implement `AppCategorizer` interface and `AppCategorizerImpl`**
 
 Create `core/data/src/main/kotlin/com/urunkarpm/drawer/core/data/ai/AppCategorizer.kt`:
 ```kotlin
@@ -107,12 +107,12 @@ interface AppCategorizer {
 Create `core/data/src/main/kotlin/com/urunkarpm/drawer/core/data/ai/AppCategorizerImpl.kt`:
 Implements classification matching apps to target categories (Finance, Social, Productivity, Media, Utilities, Games, Health, Shopping) using NeedleEngine when Ready and semantic metadata fallback.
 
-- [ ] **Step 4: Run unit test to verify it passes**
+- [x] **Step 4: Run unit test to verify it passes**
 
 Run: `.\gradlew.bat :core:data:testDebugUnitTest --tests com.urunkarpm.drawer.core.data.ai.AppCategorizerTest`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add core/data/src/main/kotlin/com/urunkarpm/drawer/core/data/ai/
@@ -139,7 +139,7 @@ git commit -m "feat(ai): implement AppCategorizer with on-device intelligence an
   - `fun applyAiSuggestions(approvedMap: Map<String, List<AppInfo>>)`
   - `fun dismissAiSuggestions()`
 
-- [ ] **Step 1: Write unit test in `GroupsViewModelTest` for AI categorization flow**
+- [x] **Step 1: Write unit test in `GroupsViewModelTest` for AI categorization flow**
 
 ```kotlin
 @Test
@@ -148,25 +148,25 @@ fun startAiCategorization_emitsSuggestions() = runTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.\gradlew.bat :feature:groups:testDebugUnitTest --tests com.urunkarpm.drawer.feature.groups.GroupsViewModelTest`
 Expected: FAIL.
 
-- [ ] **Step 3: Update `AppGroupRepository` & `AppGroupRepositoryImpl`**
+- [x] **Step 3: Update `AppGroupRepository` & `AppGroupRepositoryImpl`**
 
 Add `suggestCategorization` and `applyCategorization` methods in `AppGroupRepository` that delegate to `AppCategorizer` and insert items into `AppGroupDao` in a single transaction.
 
-- [ ] **Step 4: Update `GroupsViewModel`**
+- [x] **Step 4: Update `GroupsViewModel`**
 
 Inject `AppCategorizer` or call `AppGroupRepository.suggestCategorization()` and manage `aiSuggestions` state.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `.\gradlew.bat :feature:groups:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add core/data/src/main/kotlin/com/urunkarpm/drawer/core/data/repository/
@@ -187,24 +187,24 @@ git commit -m "feat(groups): wire AI categorization through AppGroupRepository a
 - Consumes: `GroupsUiState.aiSuggestions`, `viewModel.startAiCategorization()`, `viewModel.applyAiSuggestions()`, `viewModel.dismissAiSuggestions()`.
 - Produces: Interactive preview sheet with checkboxes, group tags, and "Apply" button.
 
-- [ ] **Step 1: Create `AiCategorizationPreviewBottomSheet.kt`**
+- [x] **Step 1: Create `AiCategorizationPreviewBottomSheet.kt`**
 
 Build Material 3 `ModalBottomSheet` displaying:
 - Header: Sparkle icon, "Organize with AI", subtitle explaining on-device classification.
 - Content: LazyColumn of suggested groups. Each group card shows the group title, app count, and expandable app rows with a `Checkbox`.
 - Bottom bar: "Cancel" and "Apply (N apps)" buttons with primary container styling.
 
-- [ ] **Step 2: Add AI Sparkle Button to `GroupsAccordion.kt`**
+- [x] **Step 2: Add AI Sparkle Button to `GroupsAccordion.kt`**
 
 In the top bar actions of `GroupsAccordion` (next to Add Group `+`), add an `IconButton` with `Icons.Default.AutoAwesome` (tinted with primary accent) that triggers `viewModel.startAiCategorization()`.
 Render `AiCategorizationPreviewBottomSheet` when `uiState.aiSuggestions != null`.
 
-- [ ] **Step 3: Verify build and compile**
+- [x] **Step 3: Verify build and compile**
 
 Run: `.\gradlew.bat :feature:groups:assembleDebug`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add feature/groups/src/main/kotlin/com/urunkarpm/drawer/feature/groups/
@@ -222,22 +222,22 @@ git commit -m "feat(groups): add AI organize action button and review bottom she
 **Interfaces:**
 - Produces: `autoCategorizeNewApps: Flow<Boolean>` and `fun setAutoCategorizeNewApps(enabled: Boolean)`.
 
-- [ ] **Step 1: Add preference in `DrawerPreferencesDataSource`**
+- [x] **Step 1: Add preference in `DrawerPreferencesDataSource`**
 
 Add `AUTO_CATEGORIZE_NEW_APPS` boolean preference key (default `true`).
 
-- [ ] **Step 2: Add Switch preference row in Settings under Drawers**
+- [x] **Step 2: Add Switch preference row in Settings under Drawers**
 
 In `SettingsScreen.kt`, add a preference toggle:
 - Title: "Auto-suggest categories for new apps"
 - Subtitle: "Suggest drawer categories when installing new apps using on-device intelligence"
 
-- [ ] **Step 3: Run full assemble and tests**
+- [x] **Step 3: Run full assemble and tests**
 
 Run: `.\gradlew.bat assembleDebug testDebugUnitTest`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add core/datastore/ feature/settings/
