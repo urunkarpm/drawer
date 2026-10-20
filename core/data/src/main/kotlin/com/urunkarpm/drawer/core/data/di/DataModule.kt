@@ -1,5 +1,7 @@
 package com.urunkarpm.drawer.core.data.di
 
+import com.urunkarpm.drawer.core.data.ai.AppCategorizer
+import com.urunkarpm.drawer.core.data.ai.AppCategorizerImpl
 import com.urunkarpm.drawer.core.data.repository.AppGroupRepository
 import com.urunkarpm.drawer.core.data.repository.AppGroupRepositoryImpl
 import com.urunkarpm.drawer.core.data.repository.AppRepository
@@ -69,4 +71,10 @@ abstract class DataModule {
     abstract fun bindWidgetRepository(
         impl: com.urunkarpm.drawer.core.data.repository.WidgetRepositoryImpl
     ): com.urunkarpm.drawer.core.data.repository.WidgetRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAppCategorizer(
+        impl: AppCategorizerImpl
+    ): AppCategorizer
 }
