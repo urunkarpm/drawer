@@ -81,6 +81,9 @@ class DrawerPreferencesDataSource @Inject constructor(
         val APP_LAUNCH_COUNTS = stringPreferencesKey("app_launch_counts")
         val APP_LAST_LAUNCHED_TIMES = stringPreferencesKey("app_last_launched_times")
         val AUTO_CATEGORIZE_NEW_APPS = booleanPreferencesKey("auto_categorize_new_apps")
+        val AI_CATEGORIZATION_STRICTNESS = stringPreferencesKey("ai_categorization_strictness")
+        val AI_CATEGORIZE_ALL_APPS = booleanPreferencesKey("ai_categorize_all_apps")
+        val AI_FORCE_WORK_PROFILE = booleanPreferencesKey("ai_force_work_profile")
     }
 
     val appLaunchCounts: Flow<Map<String, Int>> = dataStore.data.map { prefs ->
@@ -194,9 +197,24 @@ class DrawerPreferencesDataSource @Inject constructor(
     val lockLayout: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.LOCK_LAYOUT] ?: false }
     val autoArrangeApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_ARRANGE_APPS] ?: true }
     val autoCategorizeNewApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_CATEGORIZE_NEW_APPS] ?: true }
+    val aiCategorizationStrictness: Flow<String> = dataStore.data.map { it[PreferencesKeys.AI_CATEGORIZATION_STRICTNESS] ?: "BALANCED" }
+    val aiCategorizeAllApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AI_CATEGORIZE_ALL_APPS] ?: false }
+    val aiForceWorkProfile: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AI_FORCE_WORK_PROFILE] ?: true }
 
     suspend fun setAutoArrangeApps(enabled: Boolean) {
         dataStore.edit { it[PreferencesKeys.AUTO_ARRANGE_APPS] = enabled }
+    }
+
+    suspend fun setAiCategorizationStrictness(strictness: String) {
+        dataStore.edit { it[PreferencesKeys.AI_CATEGORIZATION_STRICTNESS] = strictness }
+    }
+
+    suspend fun setAiCategorizeAllApps(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.AI_CATEGORIZE_ALL_APPS] = enabled }
+    }
+
+    suspend fun setAiForceWorkProfile(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.AI_FORCE_WORK_PROFILE] = enabled }
     }
 
     suspend fun setAutoCategorizeNewApps(enabled: Boolean) {

@@ -1631,6 +1631,14 @@ fun SettingsScreen(
                 item(key = "NEEDLE_AI_SETTINGS") {
                     NeedleSettingsCard(
                         status = needleModelStatus,
+                        strictness = uiState.aiCategorizationStrictness,
+                        onStrictnessChange = { viewModel.setAiCategorizationStrictness(it) },
+                        categorizeAllApps = uiState.aiCategorizeAllApps,
+                        onCategorizeAllAppsChange = { viewModel.setAiCategorizeAllApps(it) },
+                        forceWorkProfile = uiState.aiForceWorkProfile,
+                        onForceWorkProfileChange = { viewModel.setAiForceWorkProfile(it) },
+                        autoCategorizeNewApps = uiState.autoCategorizeNewApps,
+                        onAutoCategorizeNewAppsChange = { viewModel.setAutoCategorizeNewApps(it) },
                         onDownload = { viewModel.downloadNeedleModel() },
                         onDelete = { viewModel.deleteNeedleModel() }
                     )

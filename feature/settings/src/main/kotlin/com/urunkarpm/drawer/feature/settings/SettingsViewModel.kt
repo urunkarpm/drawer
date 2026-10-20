@@ -85,7 +85,10 @@ data class MiscSettings(
     val stealthContrastLevel: String = "LOW",
     val stealthLimitBrightness: Boolean = false,
     val drawerNotificationGlow: Boolean = true,
-    val autoCategorizeNewApps: Boolean = true
+    val autoCategorizeNewApps: Boolean = true,
+    val aiCategorizationStrictness: String = "BALANCED",
+    val aiCategorizeAllApps: Boolean = false,
+    val aiForceWorkProfile: Boolean = true
 )
 
 data class SettingsActionState(
@@ -118,6 +121,12 @@ private data class MiscPart3(
     val stealthLimitBrightness: Boolean,
     val drawerNotificationGlow: Boolean,
     val autoCategorizeNewApps: Boolean
+)
+
+private data class MiscPart4(
+    val aiCategorizationStrictness: String,
+    val aiCategorizeAllApps: Boolean,
+    val aiForceWorkProfile: Boolean
 )
 
 private data class GradientVisuals(
@@ -176,6 +185,9 @@ data class SettingsUiState(
     val stealthLimitBrightness: Boolean = false,
     val drawerNotificationGlow: Boolean = true,
     val autoCategorizeNewApps: Boolean = true,
+    val aiCategorizationStrictness: String = "BALANCED",
+    val aiCategorizeAllApps: Boolean = false,
+    val aiForceWorkProfile: Boolean = true,
     val dynamicWallpaperEnabled: Boolean = false,
     val wallpaperGradientSpeedSeconds: Int = 3,
     val wallpaperGradientBlurPercent: Int = 40,
@@ -296,7 +308,15 @@ class SettingsViewModel @Inject constructor(
         MiscPart3(stealthTheme, stealthContrastLevel, stealthLimitBrightness, drawerNotificationGlow, autoCategorizeNewApps)
     }
 
-    private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3) { p1, p2, p3 ->
+    private val miscFlowPart4 = combine(
+        preferencesDataSource.aiCategorizationStrictness,
+        preferencesDataSource.aiCategorizeAllApps,
+        preferencesDataSource.aiForceWorkProfile
+    ) { strictness, categorizeAll, forceWorkProfile ->
+        MiscPart4(strictness, categorizeAll, forceWorkProfile)
+    }
+
+    private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3, miscFlowPart4) { p1, p2, p3, p4 ->
         MiscSettings(
             multiGroupApps = p1.multiGroupApps,
             notificationsPrivacyMode = p1.notificationsPrivacyMode,
@@ -312,7 +332,10 @@ class SettingsViewModel @Inject constructor(
             stealthContrastLevel = p3.stealthContrastLevel,
             stealthLimitBrightness = p3.stealthLimitBrightness,
             drawerNotificationGlow = p3.drawerNotificationGlow,
-            autoCategorizeNewApps = p3.autoCategorizeNewApps
+            autoCategorizeNewApps = p3.autoCategorizeNewApps,
+            aiCategorizationStrictness = p4.aiCategorizationStrictness,
+            aiCategorizeAllApps = p4.aiCategorizeAllApps,
+            aiForceWorkProfile = p4.aiForceWorkProfile
         )
     }
 
@@ -411,6 +434,9 @@ class SettingsViewModel @Inject constructor(
             stealthLimitBrightness = misc.stealthLimitBrightness,
             drawerNotificationGlow = misc.drawerNotificationGlow,
             autoCategorizeNewApps = misc.autoCategorizeNewApps,
+            aiCategorizationStrictness = misc.aiCategorizationStrictness,
+            aiCategorizeAllApps = misc.aiCategorizeAllApps,
+            aiForceWorkProfile = misc.aiForceWorkProfile,
             dynamicWallpaperEnabled = wallpaper.dynamicWallpaperEnabled,
             wallpaperGradientSpeedSeconds = wallpaper.wallpaperGradientSpeedSeconds,
             wallpaperGradientBlurPercent = wallpaper.wallpaperGradientBlurPercent,
@@ -436,6 +462,24 @@ class SettingsViewModel @Inject constructor(
     fun deleteNeedleModel() {
         viewModelScope.launch {
             needleEngine?.deleteModel()
+        }
+    }
+
+    fun setAiCategorizationStrictness(strictness: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAiCategorizationStrictness(strictness)
+        }
+    }
+
+    fun setAiCategorizeAllApps(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAiCategorizeAllApps(enabled)
+        }
+    }
+
+    fun setAiForceWorkProfile(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAiForceWorkProfile(enabled)
         }
     }
 

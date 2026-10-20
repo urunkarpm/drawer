@@ -749,24 +749,6 @@ private fun GroupCard(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Corporate count pill
-                    val appCount = resolvedGroup.apps.size
-                    if (appCount > 0) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f),
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
-                            Text(
-                                text = "$appCount",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
                     // Tactile circular touch backing for chevron
                     Box(
                         modifier = Modifier

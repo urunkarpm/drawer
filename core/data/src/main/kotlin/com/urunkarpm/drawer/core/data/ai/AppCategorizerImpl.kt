@@ -130,7 +130,9 @@ class AppCategorizerImpl @Inject constructor(
     override suspend fun categorizeApps(
         apps: List<AppInfo>,
         existingGroups: List<AppGroup>,
-        unassignedOnly: Boolean
+        unassignedOnly: Boolean,
+        strictness: String,
+        forceWorkProfile: Boolean
     ): List<CategorizationSuggestion> = withContext(Dispatchers.Default) {
         if (apps.isEmpty()) {
             return@withContext emptyList()
@@ -162,8 +164,8 @@ class AppCategorizerImpl @Inject constructor(
 
         for (app in distinctApps) {
             coroutineContext.ensureActive()
-            val category = classifyApp(app) ?: continue
-            val matchedGroup = findMatchingGroup(category, effectiveGroups) ?: continue
+            val category = classifyApp(app, strictness, forceWorkProfile) ?: continue
+            val matchedGroup = findMatchingGroup(category, effectiveGroups, strictness) ?: continue
             appsByGroup.getOrPut(matchedGroup) { mutableListOf() }.add(app)
         }
 
@@ -177,8 +179,12 @@ class AppCategorizerImpl @Inject constructor(
         }
     }
 
-    private suspend fun classifyApp(app: AppInfo): TargetCategory? {
-        if (app.isWorkProfile) {
+    private suspend fun classifyApp(
+        app: AppInfo,
+        strictness: String,
+        forceWorkProfile: Boolean
+    ): TargetCategory? {
+        if (forceWorkProfile && app.isWorkProfile) {
             return TargetCategory.PRODUCTIVITY
         }
 
@@ -189,7 +195,7 @@ class AppCategorizerImpl @Inject constructor(
             }
         }
 
-        return classifyByMetadata(app)
+        return classifyByMetadata(app, strictness)
     }
 
     private suspend fun queryNeedle(app: AppInfo): TargetCategory? {
@@ -226,7 +232,10 @@ class AppCategorizerImpl @Inject constructor(
         }
     }
 
-    private fun classifyByMetadata(app: AppInfo): TargetCategory? {
+    private fun classifyByMetadata(app: AppInfo, strictness: String = "BALANCED"): TargetCategory? {
+        val isStrict = strictness.equals("STRICT", ignoreCase = true)
+        val isAggressive = strictness.equals("AGGRESSIVE", ignoreCase = true)
+        val allowLooseTokens = !isStrict
         val pkg = app.packageName.lowercase()
         val label = app.label.lowercase()
         val labelTokens = label.split(" ", "_", "-", ".", "/").filter { it.isNotBlank() }
@@ -251,7 +260,7 @@ class AppCategorizerImpl @Inject constructor(
             label.contains("splitwise") || label.contains("groww") || label.contains("bank") ||
             label.contains("finance") || label.contains("wallet") || label.contains("crypto") ||
             label.contains("invest") || label.contains("trading") || label.contains("stocks") ||
-            labelTokens.any { it in setOf("pay", "cash", "money", "tax", "taxes", "budget") }
+            (allowLooseTokens && labelTokens.any { it in setOf("pay", "cash", "money", "tax", "taxes", "budget") })
         ) {
             return TargetCategory.FINANCE
         }
@@ -271,7 +280,7 @@ class AppCategorizerImpl @Inject constructor(
             pkg.contains("dialer") ||
             label.contains("chat") || label.contains("social") || label.contains("telegram") ||
             label.contains("reddit") || label.contains("instagram") || label.contains("messenger") ||
-            labelTokens.any { it in setOf("message", "messages", "dialer", "phone", "sms", "contacts") }
+            (allowLooseTokens && labelTokens.any { it in setOf("message", "messages", "dialer", "phone", "sms", "contacts") })
         ) {
             return TargetCategory.SOCIAL
         }
@@ -298,7 +307,7 @@ class AppCategorizerImpl @Inject constructor(
             label.contains("notes") || label.contains("office") || label.contains("todo") ||
             label.contains("docs") || label.contains("teams") || label.contains("chatgpt") ||
             label.contains("claude") || label.contains("workspace") ||
-            labelTokens.any { it in setOf("mail", "task", "tasks", "work", "doc", "pdf", "meet", "keep") }
+            (allowLooseTokens && labelTokens.any { it in setOf("mail", "task", "tasks", "work", "doc", "pdf", "meet", "keep") })
         ) {
             return TargetCategory.PRODUCTIVITY
         }
@@ -320,7 +329,7 @@ class AppCategorizerImpl @Inject constructor(
             label.contains("photo") || label.contains("video") || label.contains("player") ||
             label.contains("radio") || label.contains("cinema") || label.contains("streaming") ||
             label.contains("spotify") || label.contains("vlc") || label.contains("shazam") ||
-            labelTokens.any { it in setOf("audio", "sound", "camera", "movie", "movies", "tv") }
+            (allowLooseTokens && labelTokens.any { it in setOf("audio", "sound", "camera", "movie", "movies", "tv") })
         ) {
             return TargetCategory.MEDIA
         }
@@ -343,7 +352,7 @@ class AppCategorizerImpl @Inject constructor(
             label.contains("files") || label.contains("browser") || label.contains("terminal") ||
             label.contains("utility") || label.contains("utilities") || label.contains("cleaner") ||
             label.contains("vpn") ||
-            labelTokens.any { it in setOf("tools", "tool", "timer", "alarm", "stopwatch", "weather", "backup") }
+            (allowLooseTokens && labelTokens.any { it in setOf("tools", "tool", "timer", "alarm", "stopwatch", "weather", "backup") })
         ) {
             return TargetCategory.UTILITIES
         }
@@ -371,7 +380,7 @@ class AppCategorizerImpl @Inject constructor(
             label.contains("health") || label.contains("fitness") || label.contains("workout") ||
             label.contains("wellness") || label.contains("wellbeing") || label.contains("meditation") ||
             label.contains("yoga") || label.contains("step counter") || label.contains("calorie") ||
-            labelTokens.any { it in setOf("gym", "run", "running", "sleep", "diet") }
+            (allowLooseTokens && labelTokens.any { it in setOf("gym", "run", "running", "sleep", "diet") })
         ) {
             return TargetCategory.HEALTH
         }
@@ -387,9 +396,21 @@ class AppCategorizerImpl @Inject constructor(
             pkg.contains("deliveroo") || pkg.contains("postmates") || pkg.contains("grubhub") ||
             label.contains("shopping") || label.contains("grocery") || label.contains("groceries") ||
             label.contains("food delivery") || label.contains("store") || label.contains("market") ||
-            labelTokens.any { it in setOf("shop", "cart", "order", "deals") }
+            (allowLooseTokens && labelTokens.any { it in setOf("shop", "cart", "order", "deals") })
         ) {
             return TargetCategory.SHOPPING
+        }
+
+        if (isAggressive) {
+            return when {
+                pkg.contains("android") || pkg.contains("system") || pkg.contains("google") || pkg.contains("service") -> TargetCategory.UTILITIES
+                label.contains("play") || label.contains("game") -> TargetCategory.GAMES
+                label.contains("media") || label.contains("view") || label.contains("audio") || label.contains("stream") -> TargetCategory.MEDIA
+                label.contains("work") || label.contains("doc") || label.contains("pro") || label.contains("office") -> TargetCategory.PRODUCTIVITY
+                label.contains("shop") || label.contains("store") || label.contains("pay") || label.contains("cart") -> TargetCategory.SHOPPING
+                label.contains("chat") || label.contains("social") || label.contains("share") -> TargetCategory.SOCIAL
+                else -> TargetCategory.UTILITIES
+            }
         }
 
         // Fallback: None
@@ -398,17 +419,25 @@ class AppCategorizerImpl @Inject constructor(
 
     private fun findMatchingGroup(
         category: TargetCategory,
-        existingGroups: List<AppGroup>
+        existingGroups: List<AppGroup>,
+        strictness: String = "BALANCED"
     ): AppGroup? {
         var bestGroup: AppGroup? = null
         var bestScore = 0
+        val minScoreThreshold = if (strictness.equals("STRICT", ignoreCase = true)) 75 else 50
 
         for (group in existingGroups) {
             val score = calculateGroupScore(category, group)
-            if (score > bestScore) {
+            if (score > bestScore && score >= minScoreThreshold) {
                 bestScore = score
                 bestGroup = group
             }
+        }
+
+        if (bestGroup == null && strictness.equals("AGGRESSIVE", ignoreCase = true)) {
+            bestGroup = existingGroups.maxByOrNull { calculateGroupScore(category, it) }
+                ?.takeIf { calculateGroupScore(category, it) > 0 }
+                ?: existingGroups.firstOrNull()
         }
 
         return bestGroup

@@ -102,4 +102,52 @@ class SettingsViewModelNeedleTest {
 
         coVerify(exactly = 1) { mockEngine.deleteModel() }
     }
+
+    @Test
+    fun testSetAiCategorizationStrictnessDelegatesToPreferences() = runTest {
+        val viewModel = SettingsViewModel(
+            preferencesDataSource = preferencesDataSource,
+            backupRepository = backupRepository,
+            updateRepository = updateRepository,
+            ioDispatcher = testDispatcher,
+            needleEngine = mockEngine
+        )
+
+        viewModel.setAiCategorizationStrictness("AGGRESSIVE")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { preferencesDataSource.setAiCategorizationStrictness("AGGRESSIVE") }
+    }
+
+    @Test
+    fun testSetAiCategorizeAllAppsDelegatesToPreferences() = runTest {
+        val viewModel = SettingsViewModel(
+            preferencesDataSource = preferencesDataSource,
+            backupRepository = backupRepository,
+            updateRepository = updateRepository,
+            ioDispatcher = testDispatcher,
+            needleEngine = mockEngine
+        )
+
+        viewModel.setAiCategorizeAllApps(true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { preferencesDataSource.setAiCategorizeAllApps(true) }
+    }
+
+    @Test
+    fun testSetAiForceWorkProfileDelegatesToPreferences() = runTest {
+        val viewModel = SettingsViewModel(
+            preferencesDataSource = preferencesDataSource,
+            backupRepository = backupRepository,
+            updateRepository = updateRepository,
+            ioDispatcher = testDispatcher,
+            needleEngine = mockEngine
+        )
+
+        viewModel.setAiForceWorkProfile(false)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { preferencesDataSource.setAiForceWorkProfile(false) }
+    }
 }

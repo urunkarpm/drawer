@@ -6,11 +6,14 @@ import com.urunkarpm.drawer.core.database.dao.AppGroupDao
 import com.urunkarpm.drawer.core.database.dao.DockDao
 import com.urunkarpm.drawer.core.database.dao.IconPackOverrideDao
 import com.urunkarpm.drawer.core.database.dao.MutedAppDao
+import com.urunkarpm.drawer.core.database.dao.WidgetDao
 import com.urunkarpm.drawer.core.database.entity.AppGroupEntity
 import com.urunkarpm.drawer.core.database.entity.AppGroupItemEntity
 import com.urunkarpm.drawer.core.database.entity.DockItemEntity
 import com.urunkarpm.drawer.core.database.entity.IconPackOverrideEntity
 import com.urunkarpm.drawer.core.database.entity.MutedAppRuleEntity
+import com.urunkarpm.drawer.core.database.entity.WidgetDrawerEntity
+import com.urunkarpm.drawer.core.database.entity.WidgetItemEntity
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.LauncherBackup
@@ -28,6 +31,7 @@ class BackupRepositoryImpl @Inject constructor(
     private val dockDao: DockDao,
     private val mutedAppDao: MutedAppDao,
     private val iconPackOverrideDao: IconPackOverrideDao,
+    private val widgetDao: WidgetDao,
     private val preferencesDataSource: DrawerPreferencesDataSource,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
 ) : BackupRepository {
@@ -52,6 +56,8 @@ class BackupRepositoryImpl @Inject constructor(
         val dockItems = dockDao.getDockItems().first().map { it.toDomain() }
         val mutedRules = mutedAppDao.getAllRules().first().map { it.toDomain() }
         val iconOverrides = iconPackOverrideDao.getAllOverrides().first().map { it.toDomain() }
+        val widgetDrawers = widgetDao.getAllDrawers().first().map { it.toDomain() }
+        val widgets = widgetDao.getAllWidgets().first().map { it.toDomain() }
 
         val preferencesBackup = LauncherPreferencesBackup(
             themeMode = preferencesDataSource.themeMode.first(),
@@ -70,17 +76,25 @@ class BackupRepositoryImpl @Inject constructor(
             multiGroupApps = preferencesDataSource.multiGroupApps.first(),
             notificationsPrivacyMode = preferencesDataSource.notificationsPrivacyMode.first(),
             activeIconPack = preferencesDataSource.activeIconPack.first(),
-            adaptiveIconShape = preferencesDataSource.adaptiveIconShape.first()
+            adaptiveIconShape = preferencesDataSource.adaptiveIconShape.first(),
+            twoDrawersSideBySide = preferencesDataSource.twoDrawersSideBySide.first(),
+            enableWidgetsPage = preferencesDataSource.enableWidgetsPage.first(),
+            lockLayout = preferencesDataSource.lockLayout.first(),
+            autoArrangeApps = preferencesDataSource.autoArrangeApps.first(),
+            autoCategorizeNewApps = preferencesDataSource.autoCategorizeNewApps.first(),
+            drawerNotificationGlow = preferencesDataSource.drawerNotificationGlow.first()
         )
 
         val backup = LauncherBackup(
-            version = 1,
+            version = 2,
             exportTimestampMillis = System.currentTimeMillis(),
             groups = groups,
             dockItems = dockItems,
             mutedRules = mutedRules,
             iconOverrides = iconOverrides,
-            preferences = preferencesBackup
+            preferences = preferencesBackup,
+            widgetDrawers = widgetDrawers,
+            widgets = widgets
         )
 
         json.encodeToString(LauncherBackup.serializer(), backup)
@@ -115,7 +129,21 @@ class BackupRepositoryImpl @Inject constructor(
                 iconPackOverrideDao.insertOverrides(overrideEntities)
             }
 
-            // 5. Restore Preferences
+            // 5. Restore Widgets and Widget Drawers
+            widgetDao.clearAll()
+            widgetDao.clearAllDrawers()
+            if (backup.widgetDrawers.isNotEmpty()) {
+                backup.widgetDrawers.forEach { drawer ->
+                    widgetDao.insertDrawer(WidgetDrawerEntity.fromDomain(drawer))
+                }
+            }
+            if (backup.widgets.isNotEmpty()) {
+                backup.widgets.forEach { widget ->
+                    widgetDao.insertWidget(WidgetItemEntity.fromDomain(widget))
+                }
+            }
+
+            // 6. Restore Preferences
             val prefs = backup.preferences
             preferencesDataSource.setThemeMode(prefs.themeMode)
             preferencesDataSource.setDynamicColor(prefs.dynamicColor)
@@ -132,6 +160,12 @@ class BackupRepositoryImpl @Inject constructor(
             preferencesDataSource.setNotificationsPrivacyMode(prefs.notificationsPrivacyMode)
             preferencesDataSource.setActiveIconPack(prefs.activeIconPack)
             preferencesDataSource.setAdaptiveIconShape(prefs.adaptiveIconShape)
+            preferencesDataSource.setTwoDrawersSideBySide(prefs.twoDrawersSideBySide)
+            preferencesDataSource.setEnableWidgetsPage(prefs.enableWidgetsPage)
+            preferencesDataSource.setLockLayout(prefs.lockLayout)
+            preferencesDataSource.setAutoArrangeApps(prefs.autoArrangeApps)
+            preferencesDataSource.setAutoCategorizeNewApps(prefs.autoCategorizeNewApps)
+            preferencesDataSource.setDrawerNotificationGlow(prefs.drawerNotificationGlow)
         }
     }
 }

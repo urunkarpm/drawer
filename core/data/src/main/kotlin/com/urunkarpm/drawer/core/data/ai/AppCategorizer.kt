@@ -15,6 +15,8 @@ interface AppCategorizer {
     suspend fun categorizeApps(
         apps: List<AppInfo>,
         existingGroups: List<AppGroup>,
-        unassignedOnly: Boolean = true
+        unassignedOnly: Boolean = true,
+        strictness: String = "BALANCED",
+        forceWorkProfile: Boolean = true
     ): List<CategorizationSuggestion>
 }

@@ -78,6 +78,9 @@ class SettingsViewModelTest {
     private val wallpaperGradientAngleFlow = MutableStateFlow("DIAGONAL")
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
     private val autoCategorizeNewAppsFlow = MutableStateFlow(true)
+    private val aiCategorizationStrictnessFlow = MutableStateFlow("BALANCED")
+    private val aiCategorizeAllAppsFlow = MutableStateFlow(false)
+    private val aiForceWorkProfileFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -134,6 +137,9 @@ class SettingsViewModelTest {
         every { preferencesDataSource.wallpaperGradientAngle } returns wallpaperGradientAngleFlow
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
         every { preferencesDataSource.autoCategorizeNewApps } returns autoCategorizeNewAppsFlow
+        every { preferencesDataSource.aiCategorizationStrictness } returns aiCategorizationStrictnessFlow
+        every { preferencesDataSource.aiCategorizeAllApps } returns aiCategorizeAllAppsFlow
+        every { preferencesDataSource.aiForceWorkProfile } returns aiForceWorkProfileFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,

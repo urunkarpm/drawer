@@ -336,4 +336,67 @@ class AppCategorizerTest {
         modelStatusFlow.value = ModelStatus.Ready(modelPath = "/path", sizeMb = 100f)
         assertTrue(categorizer.isModelReady)
     }
+
+    @Test
+    fun categorizeApps_withStrictnessStrict_ignoresLooseTokenMatches() = runTest {
+        val categorizer = AppCategorizerImpl(needleEngine)
+        val groups = listOf(AppGroup(id = "group_finance", name = "Finance", orderIndex = 0))
+
+        // App with token 'pay' in non-standard context or loose token
+        val app = AppInfo(packageName = "com.sample.unknown", activityName = ".Main", label = "Random Pay")
+        
+        // Strict mode rejects loose labelTokens match
+        val strictSuggestions = categorizer.categorizeApps(listOf(app), groups, strictness = "STRICT")
+        assertTrue(strictSuggestions.isEmpty() || strictSuggestions.first().suggestedApps.none { it.packageName == "com.sample.unknown" })
+
+        // Balanced mode accepts it via labelTokens matching 'pay'
+        val balancedSuggestions = categorizer.categorizeApps(listOf(app), groups, strictness = "BALANCED")
+        assertFalse(balancedSuggestions.isEmpty())
+        assertTrue(balancedSuggestions.first().suggestedApps.any { it.packageName == "com.sample.unknown" })
+    }
+
+    @Test
+    fun categorizeApps_withStrictnessAggressive_categorizesUnmatchedSystemApps() = runTest {
+        val categorizer = AppCategorizerImpl(needleEngine)
+        val groups = listOf(AppGroup(id = "group_utilities", name = "Utilities", orderIndex = 0))
+
+        val app = AppInfo(packageName = "com.android.custom.daemon", activityName = ".Main", label = "OEM Daemon")
+
+        // Balanced mode doesn't match unknown package
+        val balancedSuggestions = categorizer.categorizeApps(listOf(app), groups, strictness = "BALANCED")
+        assertTrue(balancedSuggestions.isEmpty())
+
+        // Aggressive mode catches com.android.* and places it into Utilities
+        val aggressiveSuggestions = categorizer.categorizeApps(listOf(app), groups, strictness = "AGGRESSIVE")
+        assertFalse(aggressiveSuggestions.isEmpty())
+        assertEquals("group_utilities", aggressiveSuggestions.first().group.id)
+    }
+
+    @Test
+    fun categorizeApps_withForceWorkProfileFalse_categorizesBasedOnContent() = runTest {
+        val categorizer = AppCategorizerImpl(needleEngine)
+        val groups = listOf(
+            AppGroup(id = "group_work", name = "Productivity", orderIndex = 0),
+            AppGroup(id = "group_media", name = "Media", orderIndex = 1)
+        )
+
+        val workMediaApp = AppInfo(
+            packageName = "org.videolan.vlc",
+            activityName = ".Main",
+            label = "VLC",
+            isWorkProfile = true
+        )
+
+        // When forceWorkProfile is true (default), forced to Productivity
+        val forcedSuggestions = categorizer.categorizeApps(listOf(workMediaApp), groups, forceWorkProfile = true)
+        val forcedWork = forcedSuggestions.firstOrNull { it.group.id == "group_work" }
+        assertNotNull(forcedWork)
+        assertTrue(forcedWork!!.suggestedApps.any { it.label == "VLC" })
+
+        // When forceWorkProfile is false, categorizes based on media content (Media)
+        val unforcedSuggestions = categorizer.categorizeApps(listOf(workMediaApp), groups, forceWorkProfile = false)
+        val unforcedMedia = unforcedSuggestions.firstOrNull { it.group.id == "group_media" }
+        assertNotNull(unforcedMedia)
+        assertTrue(unforcedMedia!!.suggestedApps.any { it.label == "VLC" })
+    }
 }

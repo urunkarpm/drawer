@@ -8,6 +8,7 @@ import com.urunkarpm.drawer.core.database.entity.AppGroupItemEntity
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupSortOrder
+import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.GroupViewType
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -307,5 +308,37 @@ class AppGroupRepositoryImplTest {
 
         every { appCategorizer.isModelReady } returns false
         assertFalse(repository.isAiModelReady)
+    }
+
+    @Test
+    fun suggestCategorization_passesPreferencesDownToCategorizer() = runTest(testDispatcher) {
+        val mockPrefs: DrawerPreferencesDataSource = mockk(relaxed = true)
+        every { mockPrefs.aiCategorizeAllApps } returns MutableStateFlow(true)
+        every { mockPrefs.aiCategorizationStrictness } returns MutableStateFlow("AGGRESSIVE")
+        every { mockPrefs.aiForceWorkProfile } returns MutableStateFlow(false)
+
+        val repoWithPrefs = AppGroupRepositoryImpl(
+            appGroupDao = appGroupDao,
+            appRepositoryProvider = { appRepository },
+            appCategorizerProvider = { appCategorizer },
+            ioDispatcher = testDispatcher,
+            preferencesDataSourceProvider = { mockPrefs }
+        )
+
+        every { appRepository.installedApps } returns MutableStateFlow(listOf(sampleApp))
+        groupsFlow.value = listOf(AppGroupEntity(id = "group_1", name = "Test", orderIndex = 0))
+        coEvery { appCategorizer.categorizeApps(any(), any(), any(), any(), any()) } returns emptyList()
+
+        repoWithPrefs.suggestCategorization(unassignedOnly = true)
+
+        coVerify {
+            appCategorizer.categorizeApps(
+                apps = match { it.size == 1 && it[0].packageName == sampleApp.packageName },
+                existingGroups = any(),
+                unassignedOnly = false, // Overridden to false because aiCategorizeAllApps is true
+                strictness = "AGGRESSIVE",
+                forceWorkProfile = false
+            )
+        }
     }
 }

@@ -20,16 +20,24 @@ data class LauncherPreferencesBackup(
     val multiGroupApps: Boolean = false,
     val notificationsPrivacyMode: Boolean = false,
     val activeIconPack: String? = null,
-    val adaptiveIconShape: String = "SYSTEM"
+    val adaptiveIconShape: String = "SYSTEM",
+    val twoDrawersSideBySide: Boolean = false,
+    val enableWidgetsPage: Boolean = true,
+    val lockLayout: Boolean = false,
+    val autoArrangeApps: Boolean = true,
+    val autoCategorizeNewApps: Boolean = true,
+    val drawerNotificationGlow: Boolean = true
 )
 
 @Serializable
 data class LauncherBackup(
-    val version: Int = 1,
+    val version: Int = 2,
     val exportTimestampMillis: Long,
     val groups: List<AppGroup>,
     val dockItems: List<DockItem>,
     val mutedRules: List<MutedAppRule> = emptyList(),
     val iconOverrides: List<IconOverride> = emptyList(),
-    val preferences: LauncherPreferencesBackup = LauncherPreferencesBackup()
+    val preferences: LauncherPreferencesBackup = LauncherPreferencesBackup(),
+    val widgetDrawers: List<WidgetDrawer> = emptyList(),
+    val widgets: List<WidgetItem> = emptyList()
 )

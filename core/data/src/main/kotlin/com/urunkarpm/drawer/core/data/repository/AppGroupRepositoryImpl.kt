@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
+import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import javax.inject.Provider
 import javax.inject.Singleton
 
@@ -30,7 +31,8 @@ class AppGroupRepositoryImpl @Inject constructor(
     private val appGroupDao: AppGroupDao,
     private val appRepositoryProvider: Provider<AppRepository>,
     private val appCategorizerProvider: Provider<AppCategorizer>,
-    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
+    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
+    private val preferencesDataSourceProvider: Provider<DrawerPreferencesDataSource>? = null
 ) : AppGroupRepository {
 
     private val defaultGroups = listOf(
@@ -431,7 +433,20 @@ class AppGroupRepositoryImpl @Inject constructor(
         }
         val currentGroups = groups.first()
         val categorizer = appCategorizerProvider.get()
-        categorizer.categorizeApps(apps, currentGroups, unassignedOnly)
+        val prefs = preferencesDataSourceProvider?.get()
+
+        val categorizeAll = prefs?.aiCategorizeAllApps?.first() ?: false
+        val effectiveUnassignedOnly = if (categorizeAll) false else unassignedOnly
+        val strictness = prefs?.aiCategorizationStrictness?.first() ?: "BALANCED"
+        val forceWorkProfile = prefs?.aiForceWorkProfile?.first() ?: true
+
+        categorizer.categorizeApps(
+            apps = apps,
+            existingGroups = currentGroups,
+            unassignedOnly = effectiveUnassignedOnly,
+            strictness = strictness,
+            forceWorkProfile = forceWorkProfile
+        )
     }
 
     override suspend fun applyCategorization(suggestions: List<CategorizationSuggestion>) = withContext(ioDispatcher) {
