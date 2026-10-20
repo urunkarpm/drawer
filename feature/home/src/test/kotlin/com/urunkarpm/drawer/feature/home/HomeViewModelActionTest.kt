@@ -74,6 +74,7 @@ class HomeViewModelActionTest {
         every { preferencesDataSource.wallpaperGradientPalette } returns MutableStateFlow("FULL_SPECTRUM")
         every { preferencesDataSource.wallpaperGradientAngle } returns MutableStateFlow("DIAGONAL")
         every { preferencesDataSource.dockMesmerizingGlow } returns MutableStateFlow(true)
+        every { preferencesDataSource.enableOnDeviceAi } returns MutableStateFlow(true)
         every { preferencesDataSource.surfaceThemeStyle } returns MutableStateFlow("LIQUID_GLASS")
         every { preferencesDataSource.surfaceOpacity } returns MutableStateFlow(0.65f)
         every { preferencesDataSource.surfaceBlurRadius } returns MutableStateFlow(25f)

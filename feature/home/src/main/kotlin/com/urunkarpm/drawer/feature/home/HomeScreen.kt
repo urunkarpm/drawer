@@ -59,6 +59,11 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.util.Log
+import com.urunkarpm.drawer.core.needle.action.LauncherAction
+import com.urunkarpm.drawer.core.needle.model.ToolCallResult
+import com.urunkarpm.drawer.core.needle.util.SpokenTextNormalizer
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
@@ -71,6 +76,9 @@ import java.util.Locale
 import android.provider.Settings
 import android.provider.AlarmClock
 import android.provider.MediaStore
+import android.net.Uri
+import android.media.AudioManager
+import kotlin.math.roundToInt
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraCharacteristics
 import android.os.Bundle
@@ -91,8 +99,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import com.urunkarpm.drawer.feature.home.component.FrontCameraPreview
+import com.urunkarpm.drawer.feature.home.component.ModelProcessingDrawer
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -162,6 +173,7 @@ fun HomeScreen(
     val launchCounts by viewModel.appLaunchCounts.collectAsStateWithLifecycle()
     val launchTimes by viewModel.appLastLaunchedTimes.collectAsStateWithLifecycle()
     val suggestedAction by viewModel.suggestedAction.collectAsStateWithLifecycle()
+    val modelProcessingState by viewModel.modelProcessingState.collectAsStateWithLifecycle()
 
     // ponytail: Smart Frecency suggestion algorithm combining exponential recency decay, launch frequency, and time-of-day affinity with smart cold-start fallback; ceiling is local heuristic ranking without deep neural network; upgrade path is on-device AppSearch / ML suggestion engine.
     val suggestedApps = remember(uiState.installedApps, launchCounts, launchTimes) {
@@ -257,18 +269,17 @@ fun HomeScreen(
     var isDuoStatusExpanded by remember { mutableStateOf(false) }
     var showHomeMenu by remember { mutableStateOf(false) }
     var isNotificationExpanded by remember { mutableStateOf(false) }
+    var isAssistantExpanded by remember { mutableStateOf(false) }
     var isCameraOpen by remember { mutableStateOf(false) }
     var glanceBounds by remember { mutableStateOf<Rect?>(null) }
     var notificationBounds by remember { mutableStateOf<Rect?>(null) }
+    var assistantBounds by remember { mutableStateOf<Rect?>(null) }
     var rootColumnBounds by remember { mutableStateOf<Rect?>(null) }
 
     val handleDragDropResult: (DragDropResult) -> Unit = { result ->
         when (result) {
             is DragDropResult.DroppedOnDock -> {
                 viewModel.pinToDock(result.app)
-                coroutineScope.launch {
-                    snackbarHostState.showSnackbar("Pinned \"${result.app.label}\" to Dock")
-                }
             }
             is DragDropResult.DroppedOnGroup -> {
                 if (result.sourceGroupId != null && result.sourceGroupId != result.targetGroupId) {
@@ -278,10 +289,6 @@ fun HomeScreen(
                         app = result.app,
                         targetIndex = result.targetIndex
                     )
-                    val groupTitle = groupsUiState.groups.find { it.group.id == result.targetGroupId }?.group?.name ?: "Category"
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Moved \"${result.app.label}\" to $groupTitle")
-                    }
                 } else if (result.sourceGroupId != null && result.sourceGroupId == result.targetGroupId) {
                     // Reorder within the same category grid freely without hesitation
                     groupsViewModel.moveAppBetweenGroups(
@@ -292,10 +299,6 @@ fun HomeScreen(
                     )
                 } else {
                     groupsViewModel.assignAppToGroup(result.targetGroupId, result.app, result.targetIndex)
-                    val groupTitle = groupsUiState.groups.find { it.group.id == result.targetGroupId }?.group?.name ?: "Category"
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Added \"${result.app.label}\" to $groupTitle")
-                    }
                 }
             }
             is DragDropResult.DroppedOnHome -> {
@@ -337,10 +340,18 @@ fun HomeScreen(
         }
     }
 
-    // When AllApps drawer opens, collapse notification drawer
+    // When AllApps drawer opens, collapse notification and assistant drawers
     LaunchedEffect(uiState.isAllAppsOpen) {
         if (uiState.isAllAppsOpen) {
             isNotificationExpanded = false
+            isAssistantExpanded = false
+        }
+    }
+
+    // ponytail: Mutual exclusion: if any category drawer opens, close assistant drawer. Only notification and assistant drawer can be open simultaneously.
+    LaunchedEffect(groupsUiState.groups) {
+        if (groupsUiState.groups.any { it.group.isExpanded }) {
+            isAssistantExpanded = false
         }
     }
 
@@ -350,32 +361,468 @@ fun HomeScreen(
         viewModel.refreshWeather()
     }
 
-    val handleVoiceCommand = { spokenText: String ->
-        val trimmed = spokenText.trim()
-        val lower = trimmed.lowercase()
+    val handleVoiceCommand = { spokenCandidates: List<String> ->
+        coroutineScope.launch {
+            if (spokenCandidates.isEmpty()) return@launch
+            val primary = spokenCandidates.first().trim()
+            if (primary.isBlank()) return@launch
 
-        val timerPattern = java.util.regex.Pattern.compile("(?i)(?:set\\s+)?timer\\s+(?:for\\s+)?(\\d+)\\s*(m|min|minute|minutes|s|sec|second|seconds)?")
-        val timerMatcher = timerPattern.matcher(trimmed)
-        val isTimer = timerMatcher.find()
+            // 1. Check candidates to see if any matches high-confidence tool actions
+            var selectedText = primary
+            var resolvedToolCalls: List<ToolCallResult> = emptyList()
 
-        val alarmPattern = java.util.regex.Pattern.compile("(?i)(?:set\\s+)?alarm\\s+(?:for\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?")
-        val alarmMatcher = alarmPattern.matcher(trimmed)
-        val isAlarm = alarmMatcher.find()
+            for (cand in spokenCandidates) {
+                val norm = SpokenTextNormalizer.normalize(cand.trim())
+                val calls = viewModel.predictVoiceTools(norm)
+                if (calls.isNotEmpty()) {
+                    selectedText = norm
+                    resolvedToolCalls = calls
+                    break
+                }
+            }
 
-        when {
+            if (resolvedToolCalls.isEmpty()) {
+                selectedText = SpokenTextNormalizer.normalize(primary)
+                resolvedToolCalls = viewModel.predictVoiceTools(selectedText)
+            }
+
+            val trimmed = selectedText.trim()
+            val lower = trimmed.lowercase()
+
+            val toolCalls = resolvedToolCalls
+            val drawerOrDockTools = setOf(
+                "add_app_to_drawer",
+                "remove_app_from_drawer",
+                "move_app_between_drawers",
+                "add_app_to_dock",
+                "remove_app_from_dock",
+                "create_drawer",
+                "delete_drawer",
+                "rename_drawer",
+                "calculate"
+            )
+
+            if (toolCalls.any { it.toolName in drawerOrDockTools }) {
+                fun resolveApp(name: String): AppInfo? {
+                    val rawClean = name.trim()
+                        .trim('"', '\'', '`', '“', '”')
+                        .trimEnd('.', '?', '!', ',', ';')
+                        .replaceFirst(Regex("(?i)^(?:the\\s+app\\s+|app\\s+|the\\s+)"), "")
+                        .trim()
+                    val clean = rawClean.lowercase()
+                    val cleanNoSpaces = clean.replace(Regex("[^a-zA-Z0-9]"), "")
+
+                    val candidateApps = (uiState.installedApps + groupsUiState.groups.flatMap { it.apps }).distinctBy { it.componentKey }
+
+                    // 1. Exact match (case insensitive)
+                    candidateApps.firstOrNull { it.label.equals(clean, ignoreCase = true) }?.let { return it }
+
+                    // 2. Alphanumeric match (ignoring spaces, hyphens, e.g. "chat gpt" == "ChatGPT", "whats app" == "WhatsApp")
+                    if (cleanNoSpaces.isNotEmpty()) {
+                        candidateApps.firstOrNull {
+                            it.label.lowercase().replace(Regex("[^a-zA-Z0-9]"), "") == cleanNoSpaces
+                        }?.let { return it }
+                    }
+
+                    // 3. Substring match
+                    candidateApps.firstOrNull { it.label.lowercase().contains(clean) }?.let { return it }
+
+                    // 4. Package name match
+                    if (cleanNoSpaces.length >= 3) {
+                        candidateApps.firstOrNull {
+                            it.packageName.lowercase().replace(Regex("[^a-zA-Z0-9]"), "").contains(cleanNoSpaces)
+                        }?.let { return it }
+                    }
+
+                    // 5. Prefix match
+                    if (clean.length >= 3) {
+                        candidateApps.firstOrNull { it.label.startsWith(clean, ignoreCase = true) }?.let { return it }
+                    }
+
+                    return null
+                }
+
+                val successSummaries = mutableListOf<String>()
+                val undoActions = mutableListOf<suspend () -> Unit>()
+
+                for (call in toolCalls) {
+                    when (call.toolName) {
+                        "add_app_to_drawer" -> {
+                            val appName = call.getString("app") ?: ""
+                            val drawerName = call.getString("drawer") ?: ""
+                            val app = resolveApp(appName)
+                            if (app != null && drawerName.isNotBlank()) {
+                                val targetGroup = groupsViewModel.getOrCreateGroupByName(drawerName)
+                                val prevGroups = groupsUiState.groups.filter { g -> g.apps.any { a -> a.componentKey == app.componentKey } }
+                                groupsViewModel.assignAppToGroupDirectly(targetGroup.id, app)
+                                successSummaries.add("Added ${app.label} to ${targetGroup.name}")
+                                undoActions.add {
+                                    groupsViewModel.removeAppFromGroupDirectly(targetGroup.id, app.packageName, app.activityName)
+                                    for (pg in prevGroups) {
+                                        groupsViewModel.assignAppToGroupDirectly(pg.group.id, app)
+                                    }
+                                }
+                            } else if (app == null) {
+                                successSummaries.add("Could not find app \"$appName\"")
+                            }
+                        }
+                        "remove_app_from_drawer" -> {
+                            val appName = call.getString("app") ?: ""
+                            val drawerName = call.getString("drawer")
+                            val app = resolveApp(appName)
+                            if (app != null) {
+                                val targetGroup = if (!drawerName.isNullOrBlank()) {
+                                    groupsViewModel.findGroupByName(drawerName)
+                                } else null
+
+                                if (targetGroup != null) {
+                                    val isAppInGroup = groupsUiState.groups
+                                        .find { it.group.id == targetGroup.id }
+                                        ?.apps
+                                        ?.any { it.componentKey == app.componentKey || it.packageName == app.packageName } == true
+
+                                    if (isAppInGroup) {
+                                        groupsViewModel.removeAppFromGroupDirectly(targetGroup.id, app.packageName, app.activityName)
+                                        successSummaries.add("Removed ${app.label} from ${targetGroup.name}")
+                                        undoActions.add {
+                                            groupsViewModel.assignAppToGroupDirectly(targetGroup.id, app)
+                                        }
+                                    } else {
+                                        successSummaries.add("${app.label} is not in ${targetGroup.name} folder")
+                                    }
+                                } else {
+                                    val groupsToRemoveFrom = groupsUiState.groups
+                                        .filter { it.apps.any { a -> a.componentKey == app.componentKey || a.packageName == app.packageName } }
+                                        .map { it.group }
+
+                                    if (groupsToRemoveFrom.isNotEmpty()) {
+                                        for (g in groupsToRemoveFrom) {
+                                            groupsViewModel.removeAppFromGroupDirectly(g.id, app.packageName, app.activityName)
+                                            successSummaries.add("Removed ${app.label} from ${g.name}")
+                                            undoActions.add {
+                                                groupsViewModel.assignAppToGroupDirectly(g.id, app)
+                                            }
+                                        }
+                                    } else {
+                                        successSummaries.add("${app.label} is not in any folder")
+                                    }
+                                }
+                            } else {
+                                val fromText = if (!drawerName.isNullOrBlank()) " from $drawerName" else ""
+                                successSummaries.add("Could not find app \"$appName\"$fromText")
+                            }
+                        }
+                        "move_app_between_drawers" -> {
+                            val appName = call.getString("app") ?: ""
+                            val fromDrawer = call.getString("from_drawer") ?: ""
+                            val toDrawer = call.getString("to_drawer") ?: ""
+                            val app = resolveApp(appName)
+                            if (app != null && toDrawer.isNotBlank()) {
+                                val sourceGroup = if (fromDrawer.isNotBlank()) groupsViewModel.findGroupByName(fromDrawer) else null
+                                val targetGroup = groupsViewModel.getOrCreateGroupByName(toDrawer)
+                                val sourceGroupId = sourceGroup?.id
+                                    ?: groupsUiState.groups.firstOrNull { it.apps.any { a -> a.componentKey == app.componentKey || a.packageName == app.packageName } }?.group?.id
+
+                                if (sourceGroupId != null && sourceGroupId != targetGroup.id) {
+                                    groupsViewModel.moveAppBetweenGroupsDirectly(sourceGroupId, targetGroup.id, app)
+                                    successSummaries.add("Moved ${app.label} from ${sourceGroup?.name ?: "folder"} to ${targetGroup.name}")
+                                    undoActions.add {
+                                        groupsViewModel.moveAppBetweenGroupsDirectly(targetGroup.id, sourceGroupId, app)
+                                    }
+                                } else {
+                                    groupsViewModel.assignAppToGroupDirectly(targetGroup.id, app)
+                                    successSummaries.add("Added ${app.label} to ${targetGroup.name}")
+                                    undoActions.add {
+                                        groupsViewModel.removeAppFromGroupDirectly(targetGroup.id, app.packageName, app.activityName)
+                                    }
+                                }
+                            } else if (app == null) {
+                                successSummaries.add("Could not find app \"$appName\"")
+                            }
+                        }
+                        "add_app_to_dock" -> {
+                            val appName = call.getString("app") ?: ""
+                            val app = resolveApp(appName)
+                            if (app != null) {
+                                val added = viewModel.addAppToDock(app)
+                                if (added) {
+                                    successSummaries.add("Added ${app.label} to dock")
+                                    undoActions.add {
+                                        viewModel.removeAppFromDock(app)
+                                    }
+                                }
+                            }
+                        }
+                        "remove_app_from_dock" -> {
+                            val appName = call.getString("app") ?: ""
+                            val app = resolveApp(appName)
+                            if (app != null) {
+                                val removed = viewModel.removeAppFromDock(app)
+                                if (removed) {
+                                    successSummaries.add("Removed ${app.label} from dock")
+                                    undoActions.add {
+                                        viewModel.addAppToDock(app)
+                                    }
+                                }
+                            }
+                        }
+                        "create_drawer" -> {
+                            val drawerName = call.getString("drawer") ?: ""
+                            if (drawerName.isNotBlank()) {
+                                val targetGroup = groupsViewModel.getOrCreateGroupByName(drawerName)
+                                successSummaries.add("Created folder ${targetGroup.name}")
+                                undoActions.add {
+                                    groupsViewModel.deleteGroupDirectly(targetGroup.id)
+                                }
+                            }
+                        }
+                        "delete_drawer" -> {
+                            val drawerName = call.getString("drawer") ?: ""
+                            if (drawerName.isNotBlank()) {
+                                val targetGroup = groupsViewModel.findGroupByName(drawerName)
+                                if (targetGroup != null) {
+                                    val groupApps = groupsUiState.groups.find { it.group.id == targetGroup.id }?.apps ?: emptyList()
+                                    groupsViewModel.deleteGroupDirectly(targetGroup.id)
+                                    successSummaries.add("Deleted folder ${targetGroup.name}")
+                                    undoActions.add {
+                                        groupsViewModel.restoreGroupWithApps(targetGroup, groupApps)
+                                    }
+                                }
+                            }
+                        }
+                        "rename_drawer" -> {
+                            val fromName = call.getString("from_name") ?: ""
+                            val toName = call.getString("to_name") ?: ""
+                            if (fromName.isNotBlank() && toName.isNotBlank()) {
+                                val targetGroup = groupsViewModel.findGroupByName(fromName)
+                                if (targetGroup != null) {
+                                    val oldName = targetGroup.name
+                                    groupsViewModel.renameGroupDirectly(targetGroup.id, toName)
+                                    successSummaries.add("Renamed folder $oldName to $toName")
+                                    undoActions.add {
+                                        groupsViewModel.renameGroupDirectly(targetGroup.id, oldName)
+                                    }
+                                }
+                            }
+                        }
+                        "calculate" -> {
+                            val expression = call.getString("expression") ?: ""
+                            val result = call.getString("result") ?: ""
+                            val summary = if (expression.isNotBlank() && result.isNotBlank()) "$expression = $result" else result
+                            if (summary.isNotBlank()) {
+                                successSummaries.add(summary)
+                            }
+                        }
+                    }
+                }
+
+                if (successSummaries.isNotEmpty()) {
+                    val summaryText = successSummaries.joinToString(", ")
+                    viewModel.notifyCommandProcessed(summaryText)
+                    return@launch
+                }
+            }
+
+            // Direct launcher settings controls
+            for (call in toolCalls.filter { it.toolName == "change_app_setting" }) {
+                val setting = call.getString("setting") ?: ""
+                val value = call.getString("value")
+                val summary = viewModel.changeAppSetting(setting, value)
+                viewModel.notifyCommandProcessed(summary)
+                return@launch
+            }
+
+            // Direct brightness controls
+            for (call in toolCalls.filter { it.toolName == "set_brightness" }) {
+                val pct = call.getInt("percent")
+                val action = call.getString("action") ?: "set"
+                val canWrite = Settings.System.canWrite(context)
+                if (!canWrite) {
+                    val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (_: Exception) {}
+                    viewModel.notifyCommandProcessed("Please allow 'Modify system settings' permission to let the assistant adjust brightness directly")
+                    return@launch
+                }
+
+                val currentVal = try {
+                    Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+                } catch (_: Exception) { 128 }
+
+                val targetVal = when {
+                    pct != null -> (pct / 100f * 255).roundToInt().coerceIn(1, 255)
+                    action == "max" -> 255
+                    action == "min" -> 10
+                    action == "increase" -> (currentVal + 51).coerceIn(1, 255)
+                    action == "decrease" -> (currentVal - 51).coerceIn(1, 255)
+                    else -> currentVal
+                }
+
+                try {
+                    Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+                    Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, targetVal)
+                    (context as? Activity)?.window?.let { w ->
+                        val lp = w.attributes
+                        lp.screenBrightness = targetVal / 255f
+                        w.attributes = lp
+                    }
+                    val resultPct = (targetVal / 255f * 100).roundToInt()
+                    viewModel.notifyCommandProcessed("Brightness set to $resultPct%")
+                } catch (e: Exception) {
+                    viewModel.notifyCommandFailed("Could not change brightness: ${e.message}")
+                }
+                return@launch
+            }
+
+            // Direct volume controls
+            for (call in toolCalls.filter { it.toolName == "set_volume" }) {
+                val streamStr = call.getString("stream") ?: "MEDIA"
+                val pct = call.getInt("percent")
+                val action = call.getString("action") ?: "set"
+                val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as? AudioManager
+                if (audioManager == null) {
+                    viewModel.notifyCommandFailed("Audio service unavailable")
+                    return@launch
+                }
+
+                val stream = when (streamStr.uppercase()) {
+                    "RING" -> AudioManager.STREAM_RING
+                    "ALARM" -> AudioManager.STREAM_ALARM
+                    "NOTIFICATION" -> AudioManager.STREAM_NOTIFICATION
+                    else -> AudioManager.STREAM_MUSIC
+                }
+
+                val maxVolume = audioManager.getStreamMaxVolume(stream)
+                val currentVolume = audioManager.getStreamVolume(stream)
+
+                when (action) {
+                    "mute" -> {
+                        audioManager.setStreamVolume(stream, 0, AudioManager.FLAG_SHOW_UI)
+                        viewModel.notifyCommandProcessed("Volume muted")
+                    }
+                    "unmute" -> {
+                        val target = (maxVolume * 0.5f).roundToInt().coerceAtLeast(1)
+                        audioManager.setStreamVolume(stream, target, AudioManager.FLAG_SHOW_UI)
+                        viewModel.notifyCommandProcessed("Volume unmuted")
+                    }
+                    "increase" -> {
+                        val target = (currentVolume + (maxVolume * 0.15f).roundToInt().coerceAtLeast(1)).coerceAtMost(maxVolume)
+                        audioManager.setStreamVolume(stream, target, AudioManager.FLAG_SHOW_UI)
+                        val targetPct = (target.toFloat() / maxVolume * 100).roundToInt()
+                        viewModel.notifyCommandProcessed("Volume raised to $targetPct%")
+                    }
+                    "decrease" -> {
+                        val target = (currentVolume - (maxVolume * 0.15f).roundToInt().coerceAtLeast(1)).coerceAtLeast(0)
+                        audioManager.setStreamVolume(stream, target, AudioManager.FLAG_SHOW_UI)
+                        val targetPct = (target.toFloat() / maxVolume * 100).roundToInt()
+                        viewModel.notifyCommandProcessed("Volume lowered to $targetPct%")
+                    }
+                    else -> {
+                        if (pct != null) {
+                            val target = (pct / 100f * maxVolume).roundToInt().coerceIn(0, maxVolume)
+                            audioManager.setStreamVolume(stream, target, AudioManager.FLAG_SHOW_UI)
+                            viewModel.notifyCommandProcessed("Volume set to $pct%")
+                        } else {
+                            viewModel.notifyCommandProcessed("Current volume is ${(currentVolume.toFloat() / maxVolume * 100).roundToInt()}%")
+                        }
+                    }
+                }
+                return@launch
+            }
+
+            // Direct custom/private DNS controls
+            for (call in toolCalls.filter { it.toolName == "set_dns" }) {
+                val host = call.getString("host")
+                val mode = call.getString("mode") ?: if (host != null) "hostname" else "off"
+
+                var secureWriteSuccess = false
+                try {
+                    if (mode == "off") {
+                        Settings.Global.putString(context.contentResolver, "private_dns_mode", "off")
+                        Settings.Global.putString(context.contentResolver, "private_dns_specifier", "")
+                        secureWriteSuccess = true
+                        viewModel.notifyCommandProcessed("Private DNS turned off")
+                    } else if (!host.isNullOrBlank()) {
+                        Settings.Global.putString(context.contentResolver, "private_dns_mode", "hostname")
+                        Settings.Global.putString(context.contentResolver, "private_dns_specifier", host)
+                        secureWriteSuccess = true
+                        viewModel.notifyCommandProcessed("Private DNS set to $host")
+                    }
+                } catch (_: SecurityException) {
+                    secureWriteSuccess = false
+                } catch (_: Throwable) {
+                    secureWriteSuccess = false
+                }
+
+                if (!secureWriteSuccess) {
+                    if (!host.isNullOrBlank()) {
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Private DNS", host))
+                    }
+                    val intent = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    try {
+                        context.startActivity(intent)
+                    } catch (_: Exception) {}
+
+                    val msg = if (!host.isNullOrBlank()) {
+                        "Copied $host to clipboard and opened Network Settings. Grant ADB permission ('adb shell pm grant com.urunkarpm.drawer android.permission.WRITE_SECURE_SETTINGS') for zero-tap DNS changes."
+                    } else {
+                        "Opened Network Settings. Grant ADB permission ('adb shell pm grant com.urunkarpm.drawer android.permission.WRITE_SECURE_SETTINGS') to manage Private DNS directly."
+                    }
+                    viewModel.notifyCommandProcessed(msg)
+                }
+                return@launch
+            }
+
+            // 2. Intent-based tool calls (Timer, Alarm, Settings, Camera, etc.) predicted by Needle
+            for (call in toolCalls) {
+                val action = viewModel.dispatchToolCall(call)
+                if (action != null) {
+                    val executed = executeLauncherAction(
+                        context = context,
+                        action = action,
+                        toolCall = call,
+                        onSuccess = { summary ->
+                            viewModel.notifyCommandProcessed(summary)
+                        },
+                        onError = { error ->
+                            viewModel.notifyCommandFailed("Failed: ${action.title}")
+                        }
+                    )
+                    if (executed) {
+                        return@launch
+                    }
+                }
+            }
+
+            val timerPattern = java.util.regex.Pattern.compile("(?i)(?:(?:set|start|create)\\s+(?:a\\s+)?)?timer\\s+(?:for\\s+)?(\\d+)\\s*(m|min|minute|minutes|s|sec|second|seconds)?")
+            val timerMatcher = timerPattern.matcher(trimmed)
+            val isTimer = timerMatcher.find()
+
+            val alarmPattern = java.util.regex.Pattern.compile("(?i)(?:(?:set|create)\\s+(?:an?\\s+)?)?alarm\\s+(?:for\\s+)?(\\d{1,2})(?::|\\s+)?(\\d{2})?\\s*(am|pm)?")
+            val alarmMatcher = alarmPattern.matcher(trimmed)
+            val isAlarm = alarmMatcher.find()
+
+            when {
             // 1. Flashlight / Torch
             lower.contains("flashlight") || lower.contains("torch") -> {
                 val enable = if (lower.contains("off") || lower.contains("disable") || lower.contains("stop")) false else true
                 val success = toggleTorch(context, enable)
                 if (success) {
-                    viewModel.showUserMessage(if (enable) "Flashlight turned on" else "Flashlight turned off")
+                    viewModel.notifyCommandProcessed(if (enable) "Flashlight turned on" else "Flashlight turned off")
                 } else {
                     try {
                         val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         }
                         context.startActivity(intent)
-                        viewModel.showUserMessage("Opening Camera")
+                        viewModel.notifyCommandProcessed("Opening Camera")
                     } catch (_: Exception) {}
                 }
             }
@@ -387,14 +834,14 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Bluetooth Settings")
+                    viewModel.notifyCommandProcessed("Opening Bluetooth Settings")
                 } catch (_: Exception) {
                     try {
                         val fallback = Intent(Settings.ACTION_SETTINGS).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         }
                         context.startActivity(fallback)
-                        viewModel.showUserMessage("Opening Settings")
+                        viewModel.notifyCommandProcessed("Opening Settings")
                     } catch (_: Exception) {}
                 }
             }
@@ -402,18 +849,24 @@ fun HomeScreen(
             // 3. Wi-Fi / Internet
             lower.contains("wifi") || lower.contains("wi-fi") || lower.contains("internet") -> {
                 try {
-                    val intent = Intent(Settings.ACTION_WIFI_SETTINGS).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        Intent("android.settings.panel.action.INTERNET").apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                    } else {
+                        Intent(Settings.ACTION_WIFI_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Wi-Fi Settings")
+                    viewModel.notifyCommandProcessed("Opening Wi-Fi Panel")
                 } catch (_: Exception) {
                     try {
-                        val fallback = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
+                        val fallback = Intent(Settings.ACTION_WIFI_SETTINGS).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         }
                         context.startActivity(fallback)
-                        viewModel.showUserMessage("Opening Wireless Settings")
+                        viewModel.notifyCommandProcessed("Opening Wi-Fi Settings")
                     } catch (_: Exception) {}
                 }
             }
@@ -426,14 +879,14 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Hotspot Settings")
+                    viewModel.notifyCommandProcessed("Opening Hotspot Settings")
                 } catch (_: Exception) {
                     try {
                         val intent = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         }
                         context.startActivity(intent)
-                        viewModel.showUserMessage("Opening Wireless Settings")
+                        viewModel.notifyCommandProcessed("Opening Wireless Settings")
                     } catch (_: Exception) {}
                 }
             }
@@ -445,7 +898,7 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Do Not Disturb Settings")
+                    viewModel.notifyCommandProcessed("Opening Do Not Disturb Settings")
                 } catch (_: Exception) {}
             }
 
@@ -456,7 +909,7 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Sound Settings")
+                    viewModel.notifyCommandProcessed("Opening Sound Settings")
                 } catch (_: Exception) {}
             }
 
@@ -467,7 +920,7 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Display Settings")
+                    viewModel.notifyCommandProcessed("Opening Display Settings")
                 } catch (_: Exception) {}
             }
 
@@ -478,7 +931,7 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Battery Settings")
+                    viewModel.notifyCommandProcessed("Opening Battery Settings")
                 } catch (_: Exception) {}
             }
 
@@ -489,7 +942,7 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Airplane Mode Settings")
+                    viewModel.notifyCommandProcessed("Opening Airplane Mode Settings")
                 } catch (_: Exception) {}
             }
 
@@ -500,7 +953,7 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Settings")
+                    viewModel.notifyCommandProcessed("Opening Settings")
                 } catch (_: Exception) {}
             }
 
@@ -511,7 +964,7 @@ fun HomeScreen(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    viewModel.showUserMessage("Opening Camera")
+                    viewModel.notifyCommandProcessed("Opening Camera")
                 } catch (_: Exception) {}
             }
 
@@ -520,16 +973,13 @@ fun HomeScreen(
                 val count = timerMatcher.group(1)?.toIntOrNull() ?: 1
                 val unit = timerMatcher.group(2)?.lowercase() ?: "m"
                 val seconds = if (unit.startsWith("s")) count else count * 60
-                try {
-                    val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
-                        putExtra(AlarmClock.EXTRA_LENGTH, seconds)
-                        putExtra(AlarmClock.EXTRA_SKIP_UI, false)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(intent)
-                    val durationText = if (seconds >= 60) "${seconds / 60}m" else "${seconds}s"
-                    viewModel.showUserMessage("Setting timer for $durationText")
-                } catch (_: Exception) {}
+                val durationText = if (seconds >= 60) "${seconds / 60}m" else "${seconds}s"
+                val success = launchTimerWithFallbacks(context, seconds, null)
+                if (success) {
+                    viewModel.notifyCommandProcessed("Set timer for $durationText")
+                } else {
+                    viewModel.notifyCommandFailed("Failed: Set timer")
+                }
             }
 
             // 13. Alarm
@@ -539,37 +989,47 @@ fun HomeScreen(
                 val amPm = alarmMatcher.group(3)?.lowercase()
                 if (amPm == "pm" && hour < 12) hour += 12
                 if (amPm == "am" && hour == 12) hour = 0
-                try {
-                    val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
-                        putExtra(AlarmClock.EXTRA_HOUR, hour)
-                        putExtra(AlarmClock.EXTRA_MINUTES, minute)
-                        putExtra(AlarmClock.EXTRA_SKIP_UI, false)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(intent)
-                    viewModel.showUserMessage(String.format(Locale.US, "Setting alarm for %02d:%02d", hour, minute))
-                } catch (_: Exception) {}
+                val timeStr = String.format(Locale.US, "%02d:%02d", hour, minute)
+                val success = launchAlarmWithFallbacks(context, hour, minute, null)
+                if (success) {
+                    viewModel.notifyCommandProcessed("Set alarm for $timeStr")
+                } else {
+                    viewModel.notifyCommandFailed("Failed: Set alarm")
+                }
             }
 
             // 14. Direct App Launch (e.g. "open YouTube", "WhatsApp", "Spotify")
             else -> {
-                val cleanAppName = trimmed.replaceFirst(Regex("^(?:open|launch|start|go to|run)\\s+", RegexOption.IGNORE_CASE), "").trim()
                 val installedApps = uiState.installedApps
-
-                val matchedApp = installedApps.firstOrNull { it.label.equals(cleanAppName, ignoreCase = true) }
-                    ?: installedApps.firstOrNull { it.label.equals(trimmed, ignoreCase = true) }
-                    ?: if (cleanAppName.length >= 3) installedApps.firstOrNull { it.label.startsWith(cleanAppName, ignoreCase = true) } else null
-                    ?: if (cleanAppName.length >= 4) installedApps.firstOrNull { it.label.contains(cleanAppName, ignoreCase = true) } else null
+                val matchedApp = spokenCandidates.asSequence().mapNotNull { cand ->
+                    val clean = SpokenTextNormalizer.normalize(cand.trim())
+                        .replaceFirst(Regex("^(?:open|launch|start|go to|run)\\s+", RegexOption.IGNORE_CASE), "").trim()
+                    installedApps.firstOrNull { it.label.equals(clean, ignoreCase = true) }
+                        ?: installedApps.firstOrNull { it.label.equals(cand.trim(), ignoreCase = true) }
+                        ?: (if (clean.length >= 3) installedApps.firstOrNull { it.label.startsWith(clean, ignoreCase = true) } else null)
+                        ?: (if (clean.length >= 4) installedApps.firstOrNull { it.label.contains(clean, ignoreCase = true) } else null)
+                }.firstOrNull()
 
                 if (matchedApp != null) {
                     viewModel.onAppClicked(matchedApp)
-                    viewModel.showUserMessage("Opening ${matchedApp.label}")
+                    viewModel.notifyCommandProcessed("Opened ${matchedApp.label}")
                 } else {
-                    // Fallback to searching in All Apps drawer
-                    viewModel.openAllApps()
-                    viewModel.onSearchQueryChanged(trimmed)
+                    val cleanForSearch = trimmed.replaceFirst(Regex("^(?:open|launch|start|go to|run)\\s+", RegexOption.IGNORE_CASE), "").trim()
+                    val isExplicitSearch = cleanForSearch.startsWith("search ", ignoreCase = true) ||
+                                           cleanForSearch.startsWith("find ", ignoreCase = true) ||
+                                           trimmed.startsWith("search ", ignoreCase = true) ||
+                                           trimmed.startsWith("find ", ignoreCase = true)
+                    if (isExplicitSearch) {
+                        val query = trimmed.replaceFirst(Regex("^(?:search|find)\\s+", RegexOption.IGNORE_CASE), "").trim()
+                        viewModel.openAllApps()
+                        viewModel.onSearchQueryChanged(query)
+                        viewModel.notifyCommandProcessed("Searching for \"$query\"")
+                    } else {
+                        viewModel.notifyCommandFailed("No app or action found for \"$trimmed\"")
+                    }
                 }
             }
+        }
         }
     }
 
@@ -577,11 +1037,12 @@ fun HomeScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val spokenText = result.data
+            val spokenCandidates = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull { it.isNotBlank() }
-            if (!spokenText.isNullOrBlank()) {
-                handleVoiceCommand(spokenText)
+                ?.filter { it.isNotBlank() }
+                ?: emptyList()
+            if (spokenCandidates.isNotEmpty()) {
+                handleVoiceCommand(spokenCandidates)
             }
         }
     }
@@ -596,9 +1057,6 @@ fun HomeScreen(
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
             }
             speechRecognizerLauncher.launch(intent)
         } catch (_: Exception) {
@@ -616,12 +1074,6 @@ fun HomeScreen(
     ) { isGranted ->
         if (isGranted) {
             launchSpeechIntent()
-        } else {
-            Toast.makeText(
-                context,
-                "Microphone permission is required for voice actions",
-                Toast.LENGTH_SHORT
-            ).show()
         }
     }
 
@@ -650,13 +1102,12 @@ fun HomeScreen(
     LaunchedEffect(uiState.userMessage) {
         val message = uiState.userMessage
         if (message != null) {
-            snackbarHostState.showSnackbar(message)
             viewModel.clearUserMessage()
         }
     }
 
-    // Back: close camera preview, settings, duo status breakdown, popup menu, category picker, action sheet, all-apps, notification drawer, or group accordion
-    BackHandler(enabled = isDuoStatusExpanded || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
+    // Back: close camera preview, settings, duo status breakdown, popup menu, category picker, action sheet, all-apps, notification drawer, assistant drawer, or group accordion
+    BackHandler(enabled = isDuoStatusExpanded || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || isAssistantExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
         when {
             isDuoStatusExpanded -> isDuoStatusExpanded = false
             isCameraOpen -> isCameraOpen = false
@@ -666,6 +1117,7 @@ fun HomeScreen(
             uiState.selectedAppForMenu != null -> viewModel.dismissAppMenu()
             uiState.isAllAppsOpen -> viewModel.closeAllApps()
             isNotificationExpanded -> isNotificationExpanded = false
+            isAssistantExpanded -> isAssistantExpanded = false
             groupsUiState.groups.any { it.group.isExpanded } -> groupsViewModel.collapseAllGroups()
         }
     }
@@ -710,8 +1162,6 @@ fun HomeScreen(
                 if (uiState.enableWidgetsPage && pagerState.currentPage != 0) {
                     pagerState.animateScrollToPage(0)
                 }
-                val dest = if (targetDrawerId != null) "drawer" else "feed"
-                snackbarHostState.showSnackbar("Widget added to $dest")
             }
         }
         targetDrawerIdForAdd = null
@@ -1056,7 +1506,7 @@ fun HomeScreen(
                                 rootColumnBounds = coords.boundsInRoot()
                             }
                             // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
-                            .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups, isDuoStatusExpanded) {
+                            .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, isAssistantExpanded, groupsUiState.groups, isDuoStatusExpanded) {
                                 if (!uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
                                     detectTapGestures(
                                         onTap = { offset ->
@@ -1066,11 +1516,15 @@ fun HomeScreen(
                                             val isOverGlance = glanceBounds?.contains(rootPos) == true
                                             val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
                                             val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                            val isOverAssistant = assistantBounds?.contains(rootPos) == true
                                             if (isDuoStatusExpanded) {
                                                 isDuoStatusExpanded = false
-                                            } else if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                            } else if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification && !isOverAssistant) {
                                                 if (isNotificationExpanded) {
                                                     isNotificationExpanded = false
+                                                }
+                                                if (isAssistantExpanded) {
+                                                    isAssistantExpanded = false
                                                 }
                                                 if (groupsUiState.groups.any { it.group.isExpanded }) {
                                                     groupsViewModel.collapseAllGroups()
@@ -1088,7 +1542,8 @@ fun HomeScreen(
                                             val isOverGlance = glanceBounds?.contains(rootPos) == true
                                             val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
                                             val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                            val isOverAssistant = assistantBounds?.contains(rootPos) == true
+                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification && !isOverAssistant) {
                                                 onDoubleTapLock()
                                             }
                                         },
@@ -1103,7 +1558,8 @@ fun HomeScreen(
                                             val isOverGlance = glanceBounds?.contains(rootPos) == true
                                             val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
                                             val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                            val isOverAssistant = assistantBounds?.contains(rootPos) == true
+                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification && !isOverAssistant) {
                                                 showHomeMenu = true
                                             }
                                         }
@@ -1118,7 +1574,8 @@ fun HomeScreen(
                                     val colBounds = rootColumnBounds ?: Rect.Zero
                                     val rootPos = Offset(colBounds.left + down.position.x, colBounds.top + down.position.y)
                                     val isInsideNotification = notificationBounds?.contains(rootPos) == true
-                                    if (isInsideNotification) {
+                                    val isInsideAssistant = assistantBounds?.contains(rootPos) == true
+                                    if (isInsideNotification || isInsideAssistant) {
                                         return@awaitEachGesture
                                     }
                                     val isOverOtherDrawers = dragDropState.groupBounds.values.any { it.contains(rootPos) }
@@ -1158,7 +1615,7 @@ fun HomeScreen(
                         duoStatusPosition = uiState.duoStatusPosition,
                         isDuoStatusExpanded = isDuoStatusExpanded,
                         onToggleDuoStatusExpand = { isDuoStatusExpanded = !isDuoStatusExpanded },
-                        onOpenVoiceSearch = handleVoiceSearch,
+                        onOpenVoiceSearch = null,
                         modifier = Modifier
                             .fillMaxWidth()
                             .zIndex(100f)
@@ -1214,6 +1671,32 @@ fun HomeScreen(
                             stealthLimitBrightness = uiState.stealthLimitBrightness
                         )
 
+                        // 1b. AI Assistant Drawer: Same size/styling, placed directly below Notification Drawer
+                        if (uiState.enableOnDeviceAi) {
+                            com.urunkarpm.drawer.feature.home.component.AiAssistantDrawer(
+                                state = modelProcessingState,
+                                isExpanded = isAssistantExpanded,
+                                onExpandedChange = { expanded ->
+                                    isAssistantExpanded = expanded
+                                    if (expanded) {
+                                        // Only notification and assistant drawer can be open at the same time:
+                                        // Close any open category drawers
+                                        groupsViewModel.collapseAllGroups()
+                                    }
+                                },
+                                onDismiss = {
+                                    viewModel.resetCommandProcessingState()
+                                    isAssistantExpanded = false
+                                },
+                                onOpenVoiceSearch = handleVoiceSearch,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onGloballyPositioned { coords ->
+                                        assistantBounds = coords.boundsInRoot()
+                                    }
+                            )
+                        }
+
                         // 2. Rest of the Drawers (App Categories): Side by side (2 columns) if enabled, otherwise single column
                         GroupsAccordion(
                             viewModel = groupsViewModel,
@@ -1224,6 +1707,17 @@ fun HomeScreen(
                             hoveredGroupId = hoveredGroupId,
                             notificationPackages = activeNotificationPackages,
                             hideDrawerIcons = uiState.hideDrawerIcons,
+                            onToggleExpand = { groupId ->
+                                val group = groupsUiState.groups.find { it.group.id == groupId }
+                                if (group != null && !group.group.isExpanded) {
+                                    // Opening any category drawer closes assistant drawer
+                                    isAssistantExpanded = false
+                                    if (!effectiveTwoDrawersSideBySide) {
+                                        isNotificationExpanded = false
+                                    }
+                                }
+                                groupsViewModel.toggleGroupExpanded(groupId)
+                            },
                             onGroupPositioned = { groupId, rect ->
                                 dragDropState.groupBounds[groupId] = rect
                             },
@@ -1254,8 +1748,6 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
 
                 // Bottom: Dock (swiping up from dock opens app drawer instantaneously)
                 Box(
@@ -1492,20 +1984,35 @@ fun HomeScreen(
                 onSelectGroup = { group ->
                     if (sourceGroupId != null && sourceGroupId != group.id) {
                         groupsViewModel.moveAppBetweenGroups(sourceGroupId, group.id, targetApp)
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Moved \"${targetApp.label}\" to ${group.name}")
-                        }
                     } else {
                         groupsViewModel.assignAppToGroup(group.id, targetApp)
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Added \"${targetApp.label}\" to ${group.name}")
-                        }
                     }
                     appForCategorySelection = null
                 },
                 onCreateNewGroup = {
                     appForCategorySelection = null
                     groupsViewModel.setShowCreateDialog(true)
+                }
+            )
+        }
+
+        // ── New App Install Suggestion Dialog ─────────────────────────────────
+        val installSuggestion = groupsUiState.installSuggestion
+        if (installSuggestion != null) {
+            val (app, group) = installSuggestion
+            AlertDialog(
+                onDismissRequest = { groupsViewModel.dismissInstallSuggestion() },
+                title = { Text("Add to ${group.name}?") },
+                text = { Text("Would you like to add ${app.label} to the ${group.name} drawer?") },
+                confirmButton = {
+                    TextButton(onClick = { groupsViewModel.acceptInstallSuggestion(app, group) }) {
+                        Text("Add")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { groupsViewModel.dismissInstallSuggestion() }) {
+                        Text("Not now")
+                    }
                 }
             )
         }
@@ -1764,4 +2271,153 @@ private fun toggleTorch(context: android.content.Context, enable: Boolean? = nul
     } catch (_: Exception) {
         false
     }
+}
+
+private fun executeLauncherAction(
+    context: android.content.Context,
+    action: LauncherAction,
+    toolCall: ToolCallResult?,
+    onSuccess: (String) -> Unit,
+    onError: (String) -> Unit
+): Boolean {
+    // 1. Timer specialized execution with OEM fallbacks
+    if (toolCall?.toolName == "set_timer") {
+        val seconds = toolCall.getInt("seconds") ?: 60
+        val label = toolCall.getString("label")
+        val success = launchTimerWithFallbacks(context, seconds, label)
+        return if (success) {
+            onSuccess(action.title)
+            true
+        } else {
+            onError("No clock or timer app available")
+            false
+        }
+    }
+
+    // 2. Alarm specialized execution with OEM fallbacks
+    if (toolCall?.toolName == "set_alarm") {
+        val hour = toolCall.getInt("hour") ?: 7
+        val minute = toolCall.getInt("minute") ?: 0
+        val message = toolCall.getString("message")
+        val success = launchAlarmWithFallbacks(context, hour, minute, message)
+        return if (success) {
+            onSuccess(action.title)
+            true
+        } else {
+            onError("No clock app available")
+            false
+        }
+    }
+
+    // 3. General action execution
+    return try {
+        action.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(action.intent)
+        onSuccess(action.title)
+        true
+    } catch (e: ActivityNotFoundException) {
+        Log.e("HomeScreen", "ActivityNotFoundException executing action: ${action.title}", e)
+        onError("No app available for ${action.title}")
+        false
+    } catch (e: SecurityException) {
+        Log.e("HomeScreen", "SecurityException executing action: ${action.title}", e)
+        onError("Permission required for ${action.title}")
+        false
+    } catch (e: Exception) {
+        Log.e("HomeScreen", "Exception executing action: ${action.title}", e)
+        onError("Failed to execute: ${action.title}")
+        false
+    }
+}
+
+private fun launchTimerWithFallbacks(context: android.content.Context, seconds: Int, label: String?): Boolean {
+    // 1. Direct AlarmClock.ACTION_SET_TIMER
+    try {
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+            putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+            if (!label.isNullOrBlank()) {
+                putExtra(AlarmClock.EXTRA_MESSAGE, label)
+            }
+            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+        return true
+    } catch (e: Exception) {
+        Log.w("HomeScreen", "AlarmClock.ACTION_SET_TIMER failed (${e.javaClass.simpleName}): ${e.message}")
+    }
+
+    // 2. AlarmClock.ACTION_SHOW_TIMERS
+    try {
+        val intent = Intent(AlarmClock.ACTION_SHOW_TIMERS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+        return true
+    } catch (e: Exception) {
+        Log.w("HomeScreen", "AlarmClock.ACTION_SHOW_TIMERS failed: ${e.message}")
+    }
+
+    // 3. Fallback to OEM Clock package
+    return launchClockPackageFallback(context)
+}
+
+private fun launchAlarmWithFallbacks(context: android.content.Context, hour: Int, minute: Int, message: String?): Boolean {
+    // 1. Direct AlarmClock.ACTION_SET_ALARM
+    try {
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            putExtra(AlarmClock.EXTRA_HOUR, hour)
+            putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            if (!message.isNullOrBlank()) {
+                putExtra(AlarmClock.EXTRA_MESSAGE, message)
+            }
+            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+        return true
+    } catch (e: Exception) {
+        Log.w("HomeScreen", "AlarmClock.ACTION_SET_ALARM failed (${e.javaClass.simpleName}): ${e.message}")
+    }
+
+    // 2. AlarmClock.ACTION_SHOW_ALARMS
+    try {
+        val intent = Intent(AlarmClock.ACTION_SHOW_ALARMS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+        return true
+    } catch (e: Exception) {
+        Log.w("HomeScreen", "AlarmClock.ACTION_SHOW_ALARMS failed: ${e.message}")
+    }
+
+    // 3. Fallback to OEM Clock package
+    return launchClockPackageFallback(context)
+}
+
+private fun launchClockPackageFallback(context: android.content.Context): Boolean {
+    val pm = context.packageManager
+    val clockPackages = listOf(
+        "com.google.android.deskclock",      // Pixel, Motorola, AOSP
+        "com.sec.android.app.clockpackage",  // Samsung One UI
+        "com.coloros.alarmclock",            // OPPO, OnePlus, Realme (ColorOS / OxygenOS)
+        "com.vivo.timer",                    // Vivo, iQOO
+        "com.android.deskclock",             // Xiaomi HyperOS / MIUI / Generic AOSP
+        "com.oneplus.deskclock",             // OnePlus legacy
+        "com.miui.deskclock",                // Xiaomi MIUI legacy
+        "com.huawei.deskclock",              // Huawei / Honor
+        "com.asus.deskclock",                // ASUS
+        "com.motorola.blur.alarmclock"       // Motorola legacy
+    )
+    for (pkg in clockPackages) {
+        try {
+            val launchIntent = pm.getLaunchIntentForPackage(pkg)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launchIntent)
+                return true
+            }
+        } catch (_: Exception) {}
+    }
+    return false
 }

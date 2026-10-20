@@ -84,6 +84,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val AI_CATEGORIZATION_STRICTNESS = stringPreferencesKey("ai_categorization_strictness")
         val AI_CATEGORIZE_ALL_APPS = booleanPreferencesKey("ai_categorize_all_apps")
         val AI_FORCE_WORK_PROFILE = booleanPreferencesKey("ai_force_work_profile")
+        val ENABLE_ON_DEVICE_AI = booleanPreferencesKey("enable_on_device_ai")
     }
 
     val appLaunchCounts: Flow<Map<String, Int>> = dataStore.data.map { prefs ->
@@ -200,6 +201,11 @@ class DrawerPreferencesDataSource @Inject constructor(
     val aiCategorizationStrictness: Flow<String> = dataStore.data.map { it[PreferencesKeys.AI_CATEGORIZATION_STRICTNESS] ?: "BALANCED" }
     val aiCategorizeAllApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AI_CATEGORIZE_ALL_APPS] ?: false }
     val aiForceWorkProfile: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AI_FORCE_WORK_PROFILE] ?: true }
+    val enableOnDeviceAi: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.ENABLE_ON_DEVICE_AI] ?: false }
+
+    suspend fun setEnableOnDeviceAi(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.ENABLE_ON_DEVICE_AI] = enabled }
+    }
 
     suspend fun setAutoArrangeApps(enabled: Boolean) {
         dataStore.edit { it[PreferencesKeys.AUTO_ARRANGE_APPS] = enabled }

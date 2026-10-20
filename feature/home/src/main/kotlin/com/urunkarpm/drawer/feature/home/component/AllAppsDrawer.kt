@@ -195,13 +195,8 @@ fun AllAppsDrawer(
                 }
             }
 
-            val displayedApps = remember(apps, searchQuery) {
-                if (searchQuery.isNotBlank()) {
-                    apps.filter { it.label.contains(searchQuery, ignoreCase = true) }
-                } else {
-                    apps
-                }
-            }
+            // Apps are already filtered in HomeViewModel; use directly to prevent double-allocation jank
+            val displayedApps = apps
 
             val configuration = LocalConfiguration.current
             val screenWidth = configuration.screenWidthDp
@@ -240,60 +235,11 @@ fun AllAppsDrawer(
 
             // NestedScrollConnection: when LazyGrid is scrolled to top, user can pull DOWN to dismiss.
             var overscrollDownAccumulator by remember { mutableFloatStateOf(0f) }
-            var isFrequentRowVisible by remember { mutableStateOf(true) }
 
-            val isAtTop by remember(gridState) {
-                derivedStateOf {
-                    gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
-                }
-            }
-            // ponytail: blur rest of app list when at top and suggestive apps are visible; ceiling: 14dp blur; upgrade path: custom shader render-effect.
-            val shouldBlur by remember(gridState, frequentApps, searchQuery, activeScrubLetter) {
-                derivedStateOf {
-                    isAtTop && frequentApps.isNotEmpty() && searchQuery.isBlank() && activeScrubLetter == null
-                }
-            }
-            val animatedListAlpha by animateFloatAsState(
-                targetValue = if (shouldBlur) 0.65f else 1f,
-                animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
-                label = "appListBlurAlpha"
-            )
-
-            // Ensure frequent row resets to visible on drawer open
-            LaunchedEffect(visible) {
-                if (visible) {
-                    isFrequentRowVisible = true
-                }
-            }
-
-            // Hide frequent row when search is active or user is scrubbing letters
-            LaunchedEffect(searchQuery, activeScrubLetter) {
-                if (searchQuery.isNotBlank() || activeScrubLetter != null) {
-                    isFrequentRowVisible = false
-                } else if (isAtTop) {
-                    isFrequentRowVisible = true
-                }
-            }
-
-            // Always reveal frequent row when scrolled back to the very top
-            LaunchedEffect(isAtTop) {
-                if (isAtTop && searchQuery.isBlank() && activeScrubLetter == null) {
-                    isFrequentRowVisible = true
-                }
-            }
 
             val nestedScrollConnection = remember {
                 object : NestedScrollConnection {
                     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                        if (source == NestedScrollSource.UserInput) {
-                            if (available.y < -12f) {
-                                // User scrolled down (content dragged upward) -> hide frequent row
-                                isFrequentRowVisible = false
-                            } else if (available.y > 12f) {
-                                // User scrolled up (content dragged downward) -> reveal frequent row
-                                isFrequentRowVisible = true
-                            }
-                        }
                         if (available.y < 0) {
                             overscrollDownAccumulator = 0f
                         }
@@ -440,12 +386,7 @@ fun AllAppsDrawer(
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .then(if (shouldBlur) Modifier.blur(14.dp) else Modifier)
-                                    .graphicsLayer {
-                                        alpha = animatedListAlpha
-                                    }
+                                modifier = Modifier.fillMaxSize()
                             ) {
                                 items(
                                     items = displayedApps,
@@ -491,20 +432,8 @@ fun AllAppsDrawer(
                     }
                 }
 
-                // Frequent Unassigned Apps Row (collapsible on scroll down, reappears on scroll up)
-                AnimatedVisibility(
-                    visible = isFrequentRowVisible && frequentApps.isNotEmpty() && searchQuery.isBlank() && activeScrubLetter == null,
-                    enter = expandVertically(
-                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-                    ) + fadeIn(
-                        animationSpec = tween(durationMillis = 150)
-                    ),
-                    exit = shrinkVertically(
-                        animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing)
-                    ) + fadeOut(
-                        animationSpec = tween(durationMillis = 120)
-                    )
-                ) {
+                // Frequent Unassigned Apps Row: Shown stably above search bar without animated grid relayout jank
+                if (frequentApps.isNotEmpty() && searchQuery.isBlank() && activeScrubLetter == null) {
                     FrequentAppsRow(
                         frequentApps = frequentApps,
                         horizontalPadding = horizontalPadding,

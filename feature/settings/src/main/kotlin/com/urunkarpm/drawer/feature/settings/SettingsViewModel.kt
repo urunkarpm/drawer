@@ -88,7 +88,8 @@ data class MiscSettings(
     val autoCategorizeNewApps: Boolean = true,
     val aiCategorizationStrictness: String = "BALANCED",
     val aiCategorizeAllApps: Boolean = false,
-    val aiForceWorkProfile: Boolean = true
+    val aiForceWorkProfile: Boolean = true,
+    val enableOnDeviceAi: Boolean = false
 )
 
 data class SettingsActionState(
@@ -126,7 +127,8 @@ private data class MiscPart3(
 private data class MiscPart4(
     val aiCategorizationStrictness: String,
     val aiCategorizeAllApps: Boolean,
-    val aiForceWorkProfile: Boolean
+    val aiForceWorkProfile: Boolean,
+    val enableOnDeviceAi: Boolean
 )
 
 private data class GradientVisuals(
@@ -188,6 +190,7 @@ data class SettingsUiState(
     val aiCategorizationStrictness: String = "BALANCED",
     val aiCategorizeAllApps: Boolean = false,
     val aiForceWorkProfile: Boolean = true,
+    val enableOnDeviceAi: Boolean = false,
     val dynamicWallpaperEnabled: Boolean = false,
     val wallpaperGradientSpeedSeconds: Int = 3,
     val wallpaperGradientBlurPercent: Int = 40,
@@ -311,9 +314,10 @@ class SettingsViewModel @Inject constructor(
     private val miscFlowPart4 = combine(
         preferencesDataSource.aiCategorizationStrictness,
         preferencesDataSource.aiCategorizeAllApps,
-        preferencesDataSource.aiForceWorkProfile
-    ) { strictness, categorizeAll, forceWorkProfile ->
-        MiscPart4(strictness, categorizeAll, forceWorkProfile)
+        preferencesDataSource.aiForceWorkProfile,
+        preferencesDataSource.enableOnDeviceAi
+    ) { strictness, categorizeAll, forceWorkProfile, enableAi ->
+        MiscPart4(strictness, categorizeAll, forceWorkProfile, enableAi)
     }
 
     private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3, miscFlowPart4) { p1, p2, p3, p4 ->
@@ -335,7 +339,8 @@ class SettingsViewModel @Inject constructor(
             autoCategorizeNewApps = p3.autoCategorizeNewApps,
             aiCategorizationStrictness = p4.aiCategorizationStrictness,
             aiCategorizeAllApps = p4.aiCategorizeAllApps,
-            aiForceWorkProfile = p4.aiForceWorkProfile
+            aiForceWorkProfile = p4.aiForceWorkProfile,
+            enableOnDeviceAi = p4.enableOnDeviceAi
         )
     }
 
@@ -437,6 +442,7 @@ class SettingsViewModel @Inject constructor(
             aiCategorizationStrictness = misc.aiCategorizationStrictness,
             aiCategorizeAllApps = misc.aiCategorizeAllApps,
             aiForceWorkProfile = misc.aiForceWorkProfile,
+            enableOnDeviceAi = misc.enableOnDeviceAi,
             dynamicWallpaperEnabled = wallpaper.dynamicWallpaperEnabled,
             wallpaperGradientSpeedSeconds = wallpaper.wallpaperGradientSpeedSeconds,
             wallpaperGradientBlurPercent = wallpaper.wallpaperGradientBlurPercent,
@@ -480,6 +486,12 @@ class SettingsViewModel @Inject constructor(
     fun setAiForceWorkProfile(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setAiForceWorkProfile(enabled)
+        }
+    }
+
+    fun setEnableOnDeviceAi(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setEnableOnDeviceAi(enabled)
         }
     }
 

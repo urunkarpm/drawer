@@ -79,6 +79,8 @@ class HomeViewModelTest {
     private val wallpaperGradientPaletteFlow = MutableStateFlow("FULL_SPECTRUM")
     private val wallpaperGradientAngleFlow = MutableStateFlow("DIAGONAL")
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
+    private val enableOnDeviceAiFlow = MutableStateFlow(false)
+    private val lockLayoutFlow = MutableStateFlow(false)
     private val appLaunchCountsFlow = MutableStateFlow<Map<String, Int>>(emptyMap())
     private val appLastLaunchedTimesFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
 
@@ -144,6 +146,8 @@ class HomeViewModelTest {
         every { preferencesDataSource.wallpaperGradientPalette } returns wallpaperGradientPaletteFlow
         every { preferencesDataSource.wallpaperGradientAngle } returns wallpaperGradientAngleFlow
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
+        every { preferencesDataSource.enableOnDeviceAi } returns enableOnDeviceAiFlow
+        every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
         every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
@@ -347,6 +351,27 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun addAndRemoveAppFromDock_delegatesToDockRepository() = runTest {
+        val app = sampleApps.first()
+        coEvery { dockRepository.addToDock(app) } returns true
+        val added = viewModel.addAppToDock(app)
+        assertTrue(added)
+        coVerify { dockRepository.addToDock(app) }
+
+        val dockItem = com.urunkarpm.drawer.core.model.DockItem(
+            position = 0,
+            packageName = app.packageName,
+            activityName = app.activityName
+        )
+        every { dockRepository.dockItems } returns MutableStateFlow(listOf(dockItem))
+        coEvery { dockRepository.removeFromDock(0) } returns Unit
+
+        val removed = viewModel.removeAppFromDock(app)
+        assertTrue(removed)
+        coVerify { dockRepository.removeFromDock(0) }
+    }
+
+    @Test
     fun createWidgetDrawer_delegatesToRepository() = runTest {
         coEvery { widgetRepository.createDrawer("Finance", 4, 3) } returns "drawer-123"
 
@@ -491,6 +516,21 @@ class HomeViewModelTest {
             assertEquals(counts, awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun changeAppSetting_updatesPreferencesCorrectly() = runTest {
+        val summary1 = viewModel.changeAppSetting("STEALTH_THEME", "true")
+        assertEquals("Stealth theme enabled", summary1)
+        coVerify { preferencesDataSource.setStealthTheme(true) }
+
+        val summary2 = viewModel.changeAppSetting("LOCK_LAYOUT", "true")
+        assertEquals("Layout locked", summary2)
+        coVerify { preferencesDataSource.setLockLayout(true) }
+
+        val summary3 = viewModel.changeAppSetting("THEME_MODE", "DARK")
+        assertEquals("Theme set to Dark", summary3)
+        coVerify { preferencesDataSource.setThemeMode("DARK") }
     }
 }
 

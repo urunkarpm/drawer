@@ -17,6 +17,8 @@ import com.urunkarpm.drawer.core.needle.NeedleEngine
 import com.urunkarpm.drawer.core.needle.action.LauncherAction
 import com.urunkarpm.drawer.core.needle.action.NeedleActionDispatcher
 import com.urunkarpm.drawer.core.needle.action.StandardTools
+import com.urunkarpm.drawer.core.needle.model.ModelProcessingState
+import com.urunkarpm.drawer.core.needle.model.ToolCallResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -59,7 +61,8 @@ data class GlancePrefs(
     val wallpaperGradientBlurPercent: Int = 40,
     val wallpaperGradientPalette: String = "FULL_SPECTRUM",
     val wallpaperGradientAngle: String = "DIAGONAL",
-    val dockMesmerizingGlow: Boolean = true
+    val dockMesmerizingGlow: Boolean = true,
+    val enableOnDeviceAi: Boolean = false
 )
 
 data class HomeDialogsState(
@@ -117,7 +120,8 @@ data class HomeUiState(
     val wallpaperGradientBlurPercent: Int = 40,
     val wallpaperGradientPalette: String = "FULL_SPECTRUM",
     val wallpaperGradientAngle: String = "DIAGONAL",
-    val dockMesmerizingGlow: Boolean = true
+    val dockMesmerizingGlow: Boolean = true,
+    val enableOnDeviceAi: Boolean = false
 )
 
 data class SurfaceThemePrefs(
@@ -178,7 +182,8 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.wallpaperGradientBlurPercent,
         preferencesDataSource.wallpaperGradientPalette,
         preferencesDataSource.wallpaperGradientAngle,
-        preferencesDataSource.dockMesmerizingGlow
+        preferencesDataSource.dockMesmerizingGlow,
+        preferencesDataSource.enableOnDeviceAi
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -210,6 +215,7 @@ class HomeViewModel @Inject constructor(
         val wallpaperGradientPalette = values[26] as String
         val wallpaperGradientAngle = values[27] as String
         val dockMesmerizingGlow = values[28] as Boolean
+        val enableOnDeviceAi = values[29] as Boolean
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -239,7 +245,8 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientBlurPercent,
             wallpaperGradientPalette,
             wallpaperGradientAngle,
-            dockMesmerizingGlow
+            dockMesmerizingGlow,
+            enableOnDeviceAi
         )
     }
 
@@ -363,7 +370,8 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientBlurPercent = glancePrefs.wallpaperGradientBlurPercent,
             wallpaperGradientPalette = glancePrefs.wallpaperGradientPalette,
             wallpaperGradientAngle = glancePrefs.wallpaperGradientAngle,
-            dockMesmerizingGlow = glancePrefs.dockMesmerizingGlow
+            dockMesmerizingGlow = glancePrefs.dockMesmerizingGlow,
+            enableOnDeviceAi = glancePrefs.enableOnDeviceAi
         )
     }.stateIn(
         scope = viewModelScope,
@@ -420,6 +428,143 @@ class HomeViewModel @Inject constructor(
                 "Cannot pin to dock: full (max 5) or already in dock"
             }
             dismissAppMenu()
+        }
+    }
+
+    fun unpinFromDock(app: AppInfo) {
+        viewModelScope.launch {
+            removeAppFromDock(app)
+            dismissAppMenu()
+        }
+    }
+
+    suspend fun addAppToDock(app: AppInfo): Boolean {
+        return dockRepository.addToDock(app)
+    }
+
+    suspend fun removeAppFromDock(app: AppInfo): Boolean {
+        val items = dockRepository.dockItems.first()
+        val item = items.find { it.packageName == app.packageName && (app.activityName.isBlank() || it.activityName == app.activityName) }
+            ?: items.find { it.packageName == app.packageName }
+        return if (item != null) {
+            dockRepository.removeFromDock(item.position)
+            true
+        } else {
+            false
+        }
+    }
+
+    val modelProcessingState: StateFlow<ModelProcessingState> = needleEngine.processingState
+
+    suspend fun predictVoiceTools(text: String): List<ToolCallResult> {
+        return needleEngine.predictToolCall(text, StandardTools.allTools)
+    }
+
+    fun dispatchToolCall(toolCall: ToolCallResult): LauncherAction? {
+        return needleActionDispatcher.dispatch(toolCall)
+    }
+
+    fun notifyCommandProcessed(summary: String) {
+        needleEngine.updateProcessingSuccess(summary)
+    }
+
+    fun notifyCommandFailed(summary: String) {
+        needleEngine.updateProcessingError(summary)
+    }
+
+    fun resetCommandProcessingState() {
+        needleEngine.resetProcessingState()
+    }
+
+    suspend fun changeAppSetting(setting: String, value: String?): String {
+        val currentUiState = uiState.value
+        val upperSetting = setting.uppercase().trim()
+        val lowerVal = value?.lowercase()?.trim() ?: "toggle"
+
+        fun resolveBoolean(current: Boolean): Boolean {
+            return when (lowerVal) {
+                "true", "on", "enable", "enabled", "show", "lock" -> true
+                "false", "off", "disable", "disabled", "hide", "unlock" -> false
+                else -> !current
+            }
+        }
+
+        return when (upperSetting) {
+            "STEALTH_THEME", "STEALTH" -> {
+                val next = resolveBoolean(currentUiState.stealthTheme)
+                preferencesDataSource.setStealthTheme(next)
+                if (next) "Stealth theme enabled" else "Stealth theme disabled"
+            }
+            "LOCK_LAYOUT", "LOCK" -> {
+                val next = when (lowerVal) {
+                    "true", "on", "enable", "enabled", "lock" -> true
+                    "false", "off", "disable", "disabled", "unlock" -> false
+                    else -> !kotlin.runCatching { preferencesDataSource.lockLayout.first() }.getOrDefault(false)
+                }
+                preferencesDataSource.setLockLayout(next)
+                if (next) "Layout locked" else "Layout unlocked"
+            }
+            "DYNAMIC_WALLPAPER" -> {
+                val next = resolveBoolean(currentUiState.dynamicWallpaperEnabled)
+                preferencesDataSource.setDynamicWallpaperEnabled(next)
+                if (next) "Dynamic wallpaper enabled" else "Dynamic wallpaper disabled"
+            }
+            "HIDE_STATUS_BAR", "STATUS_BAR" -> {
+                val next = resolveBoolean(currentUiState.hideStatusBar)
+                preferencesDataSource.setHideStatusBar(next)
+                if (next) "Status bar hidden" else "Status bar visible"
+            }
+            "TWO_DRAWERS" -> {
+                val next = resolveBoolean(currentUiState.twoDrawersSideBySide)
+                preferencesDataSource.setTwoDrawersSideBySide(next)
+                if (next) "Two-drawer side-by-side mode enabled" else "Single column drawer mode enabled"
+            }
+            "HIDE_DRAWER_ICONS" -> {
+                val next = resolveBoolean(currentUiState.hideDrawerIcons)
+                preferencesDataSource.setHideDrawerIcons(next)
+                if (next) "Drawer icons hidden" else "Drawer icons visible"
+            }
+            "CAMERA_MIRROR" -> {
+                val next = resolveBoolean(currentUiState.enableCameraMirror)
+                preferencesDataSource.setEnableCameraMirror(next)
+                if (next) "Camera mirror enabled" else "Camera mirror disabled"
+            }
+            "DUO_STATUS" -> {
+                val next = resolveBoolean(currentUiState.showDuoStatusWidget)
+                preferencesDataSource.setShowDuoStatusWidget(next)
+                if (next) "Status widget shown" else "Status widget hidden"
+            }
+            "ON_DEVICE_AI" -> {
+                val next = resolveBoolean(currentUiState.enableOnDeviceAi)
+                preferencesDataSource.setEnableOnDeviceAi(next)
+                if (next) "On-device AI enabled" else "On-device AI disabled"
+            }
+            "THEME_MODE" -> {
+                val mode = when (value?.uppercase()?.trim()) {
+                    "DARK" -> "DARK"
+                    "LIGHT" -> "LIGHT"
+                    else -> "SYSTEM"
+                }
+                preferencesDataSource.setThemeMode(mode)
+                preferencesDataSource.setDrawerThemeMode(mode)
+                "Theme set to ${mode.lowercase().replaceFirstChar { it.uppercase() }}"
+            }
+            "ICON_SHAPE" -> {
+                val shape = value?.uppercase()?.trim() ?: "SQUIRCLE"
+                preferencesDataSource.setAdaptiveIconShape(shape)
+                "Icon shape set to ${shape.lowercase().replace("_", " ")}"
+            }
+            "WEATHER" -> {
+                val next = resolveBoolean(currentUiState.showWeather)
+                preferencesDataSource.setShowWeather(next)
+                if (next) "Weather shown" else "Weather hidden"
+            }
+            "24_HOUR" -> {
+                val next = resolveBoolean(currentUiState.is24Hour)
+                preferencesDataSource.setIs24Hour(next)
+                if (next) "24-hour time enabled" else "12-hour time enabled"
+            }
+            else -> "Setting updated"
         }
     }
 

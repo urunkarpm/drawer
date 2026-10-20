@@ -32,7 +32,8 @@ data class ResolvedAppGroup(
 data class GroupsDialogsState(
     val selectedAppForAction: Pair<AppInfo, AppGroup>? = null,
     val groupBeingEdited: AppGroup? = null,
-    val showCreateDialog: Boolean = false
+    val showCreateDialog: Boolean = false,
+    val installSuggestion: Pair<AppInfo, AppGroup>? = null
 )
 
 data class GroupsUiState(
@@ -46,7 +47,8 @@ data class GroupsUiState(
     val allApps: List<AppInfo> = emptyList(), // ponytail: exposed for bulk add
     val isAiCategorizing: Boolean = false,
     val aiSuggestions: List<CategorizationSuggestion>? = null,
-    val isAiModelReady: Boolean = false
+    val isAiModelReady: Boolean = false,
+    val installSuggestion: Pair<AppInfo, AppGroup>? = null
 )
 
 @HiltViewModel
@@ -62,19 +64,22 @@ class GroupsViewModel @Inject constructor(
     private val _isAiCategorizing = MutableStateFlow(false)
     private val _aiSuggestions = MutableStateFlow<List<CategorizationSuggestion>?>(null)
     private val _isAiModelReady = MutableStateFlow(false)
+    private val _installSuggestion = MutableStateFlow<Pair<AppInfo, AppGroup>?>(null)
 
     val isAiCategorizing: StateFlow<Boolean> = _isAiCategorizing.asStateFlow()
     val aiSuggestions: StateFlow<List<CategorizationSuggestion>?> = _aiSuggestions.asStateFlow()
     val isAiModelReady: StateFlow<Boolean> = _isAiModelReady.asStateFlow()
+    val installSuggestion: StateFlow<Pair<AppInfo, AppGroup>?> = _installSuggestion.asStateFlow()
 
     private var aiCategorizationJob: Job? = null
 
     private val dialogsState = combine(
         _selectedAppForAction,
         _groupBeingEdited,
-        _showCreateDialog
-    ) { selectedApp, groupBeingEdited, showCreate ->
-        GroupsDialogsState(selectedApp, groupBeingEdited, showCreate)
+        _showCreateDialog,
+        _installSuggestion
+    ) { selectedApp, groupBeingEdited, showCreate, installSuggestion ->
+        GroupsDialogsState(selectedApp, groupBeingEdited, showCreate, installSuggestion)
     }
 
     private val aiState = combine(
@@ -127,7 +132,8 @@ class GroupsViewModel @Inject constructor(
             allApps = installedApps.sortedBy { it.label.lowercase() },
             isAiCategorizing = isCategorizing,
             aiSuggestions = suggestions,
-            isAiModelReady = modelReady
+            isAiModelReady = modelReady,
+            installSuggestion = dialogs.installSuggestion
         )
     }.stateIn(
         scope = viewModelScope,
@@ -144,6 +150,33 @@ class GroupsViewModel @Inject constructor(
                 }
             } catch (_: Exception) {}
         }
+
+        // Background scan when a new app is installed from Play Store
+        viewModelScope.launch {
+            appRepository.newlyInstalledApp.collect { newApp ->
+                try {
+                    val isAiEnabled = preferencesDataSource.enableOnDeviceAi.first()
+                    val isAutoSuggest = preferencesDataSource.autoCategorizeNewApps.first()
+                    if (isAiEnabled && isAutoSuggest) {
+                        val targetDrawer = appGroupRepository.suggestDrawerForApp(newApp)
+                        if (targetDrawer != null) {
+                            _installSuggestion.value = newApp to targetDrawer
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    fun acceptInstallSuggestion(app: AppInfo, group: AppGroup) {
+        viewModelScope.launch {
+            assignAppToGroupDirectly(group.id, app)
+            _installSuggestion.value = null
+        }
+    }
+
+    fun dismissInstallSuggestion() {
+        _installSuggestion.value = null
     }
 
     fun createGroup(
@@ -264,6 +297,75 @@ class GroupsViewModel @Inject constructor(
             appGroupRepository.removeAppFromGroup(groupId, packageName, activityName)
             _selectedAppForAction.value = null
         }
+    }
+
+    private fun cleanGroupName(name: String): String {
+        return name.trim()
+            .trim('"', '\'', '`', '“', '”')
+            .trimEnd('.', '?', '!', ',', ';')
+            .replaceFirst(Regex("(?i)^(?:the\\s+)?(?:folder|drawer|group|category)\\s+"), "")
+            .replace(Regex("(?i)\\s+(?:folder|drawer|group|category)$"), "")
+            .trim()
+            .trimEnd('.', '?', '!', ',', ';')
+    }
+
+    suspend fun getOrCreateGroupByName(name: String): AppGroup {
+        val existing = findGroupByName(name)
+        if (existing != null) return existing
+        val cleaned = cleanGroupName(name)
+        return appGroupRepository.createGroup(name = cleaned.ifBlank { name.trim() })
+    }
+
+    suspend fun findGroupByName(name: String): AppGroup? {
+        val cleaned = cleanGroupName(name)
+        val all = appGroupRepository.groups.first()
+        return all.find {
+            it.name.equals(name.trim(), ignoreCase = true) ||
+            it.name.equals(cleaned, ignoreCase = true)
+        } ?: all.find {
+            it.name.contains(cleaned, ignoreCase = true) ||
+            cleaned.contains(it.name, ignoreCase = true)
+        }
+    }
+
+    suspend fun deleteGroupDirectly(groupId: String) {
+        appGroupRepository.deleteGroup(groupId)
+    }
+
+    suspend fun renameGroupDirectly(groupId: String, newName: String) {
+        val cleaned = cleanGroupName(newName)
+        val existing = appGroupRepository.groups.first().find { it.id == groupId }
+        if (existing != null) {
+            appGroupRepository.updateGroup(existing.copy(name = cleaned.ifBlank { newName.trim() }))
+        }
+    }
+
+    suspend fun restoreGroupWithApps(group: AppGroup, apps: List<AppInfo>) {
+        val created = appGroupRepository.createGroup(
+            name = group.name,
+            iconName = group.iconName,
+            colorHex = group.colorHex,
+            viewType = group.viewType,
+            columnCount = group.columnCount,
+            sortOrder = group.sortOrder
+        )
+        if (apps.isNotEmpty()) {
+            val allowMulti = preferencesDataSource.multiGroupApps.first()
+            appGroupRepository.setGroupApps(created.id, apps, allowMulti)
+        }
+    }
+
+    suspend fun assignAppToGroupDirectly(groupId: String, app: AppInfo) {
+        val allowMulti = preferencesDataSource.multiGroupApps.first()
+        appGroupRepository.assignAppToGroup(groupId, app, allowMulti)
+    }
+
+    suspend fun removeAppFromGroupDirectly(groupId: String, packageName: String, activityName: String) {
+        appGroupRepository.removeAppFromGroup(groupId, packageName, activityName)
+    }
+
+    suspend fun moveAppBetweenGroupsDirectly(sourceGroupId: String, targetGroupId: String, app: AppInfo) {
+        appGroupRepository.moveAppBetweenGroups(sourceGroupId, targetGroupId, app)
     }
 
     fun selectAppForAction(app: AppInfo, group: AppGroup) {

@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface AppRepository {
     val installedApps: Flow<List<AppInfo>>
+    val newlyInstalledApp: Flow<AppInfo>
     suspend fun refreshApps()
     fun launchApp(app: AppInfo): Boolean
     fun openAppDetails(packageName: String)

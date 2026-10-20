@@ -20,8 +20,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -42,6 +45,9 @@ class AppRepositoryImpl @Inject constructor(
 
     private val _installedApps = MutableStateFlow<List<AppInfo>>(emptyList())
     override val installedApps: StateFlow<List<AppInfo>> = _installedApps.asStateFlow()
+
+    private val _newlyInstalledApp = MutableSharedFlow<AppInfo>(replay = 0, extraBufferCapacity = 8)
+    override val newlyInstalledApp: SharedFlow<AppInfo> = _newlyInstalledApp.asSharedFlow()
 
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
 
@@ -64,7 +70,13 @@ class AppRepositoryImpl @Inject constructor(
             val looper = Looper.getMainLooper() ?: return
             val callback = object : LauncherApps.Callback() {
                 override fun onPackageAdded(packageName: String, user: UserHandle) {
-                    scope.launch { refreshApps() }
+                    scope.launch {
+                        refreshApps()
+                        val newApp = _installedApps.value.find { it.packageName == packageName }
+                        if (newApp != null) {
+                            _newlyInstalledApp.emit(newApp)
+                        }
+                    }
                 }
 
                 override fun onPackageRemoved(packageName: String, user: UserHandle) {

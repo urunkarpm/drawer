@@ -3,6 +3,7 @@ package com.urunkarpm.drawer.feature.settings.component
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,7 +22,9 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -34,7 +37,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +54,8 @@ import com.urunkarpm.drawer.core.needle.model.ModelStatus
 @Composable
 fun NeedleSettingsCard(
     status: ModelStatus,
+    enableOnDeviceAi: Boolean = false,
+    onEnableOnDeviceAiChange: (Boolean) -> Unit = {},
     strictness: String = "BALANCED",
     onStrictnessChange: (String) -> Unit = {},
     categorizeAllApps: Boolean = false,
@@ -58,36 +68,123 @@ fun NeedleSettingsCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showDevNoteDialog by remember { mutableStateOf(false) }
+
+    if (showDevNoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDevNoteDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Feature still under development",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "On-device AI is currently under active development.\n\n" +
+                        "For the moment, here is what you can do with the assistant:\n\n" +
+                        "• Open apps & app shortcuts\n" +
+                        "• Set timers & alarms (e.g. \"Timer for 5 minutes\", \"Alarm at 7:00 AM\")\n" +
+                        "• Control device settings (Flashlight, Wi-Fi, Bluetooth, Volume, Camera)\n" +
+                        "• Organize apps into drawers (e.g. \"Move WhatsApp to Social\")\n" +
+                        "• Quick calculations & conversions (e.g. \"Calculate 25 * 40\")"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showDevNoteDialog = false }) {
+                    Text("Got it")
+                }
+            }
+        )
+    }
+
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(16.dp),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header
+            // Header with Master Switch
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = if (enableOnDeviceAi) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "On-Device AI (Needle 3)",
+                        text = "On-Device AI",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "100% offline intelligence & semantic categorization",
+                        text = if (enableOnDeviceAi) "Offline actions, voice, & app categorization" else "Disabled",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Switch(
+                    checked = enableOnDeviceAi,
+                    onCheckedChange = { isChecked ->
+                        if (isChecked) {
+                            showDevNoteDialog = true
+                        }
+                        onEnableOnDeviceAiChange(isChecked)
+                    }
+                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            if (enableOnDeviceAi) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Development Note Banner
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.40f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Feature still under development",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "For the moment, here is what you can do with the assistant:\n" +
+                                "• Open apps & app shortcuts\n" +
+                                "• Set timers & alarms (e.g. \"Timer for 5 mins\", \"Alarm at 7 AM\")\n" +
+                                "• Control device settings (Flashlight, Wi-Fi, Bluetooth, Volume, Camera)\n" +
+                                "• Organize apps into drawers (\"Move WhatsApp to Social\")\n" +
+                                "• Quick calculations (\"Calculate 25 * 40\")",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
             // Model Status & Download/Delete
             when (status) {
@@ -246,6 +343,7 @@ fun NeedleSettingsCard(
                 checked = autoCategorizeNewApps,
                 onCheckedChange = onAutoCategorizeNewAppsChange
             )
+            }
         }
     }
 }

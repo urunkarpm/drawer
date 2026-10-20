@@ -1631,6 +1631,8 @@ fun SettingsScreen(
                 item(key = "NEEDLE_AI_SETTINGS") {
                     NeedleSettingsCard(
                         status = needleModelStatus,
+                        enableOnDeviceAi = uiState.enableOnDeviceAi,
+                        onEnableOnDeviceAiChange = { viewModel.setEnableOnDeviceAi(it) },
                         strictness = uiState.aiCategorizationStrictness,
                         onStrictnessChange = { viewModel.setAiCategorizationStrictness(it) },
                         categorizeAllApps = uiState.aiCategorizeAllApps,

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v1.2.7-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.0.0-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -31,14 +31,13 @@ Everything you need to get things done is reachable in under a second; everythin
 
 ---
 
-## 🌟 What's New in v1.2.7
+## 🌟 What's New in v2.0.0
 
-* **🔋 Recalibrated Charging Power & Accurate OEM Telemetry:** Completely overhauled battery wattage parsing with direct multi-node sysfs voltage/current sensing, normalized microampere/milliampere polarity handling, and tuned dual-cell 2S fast charging calculations for authentic real-time wattage without false half-power or inflated readouts.
-* **📂 Robust Widget Drawer Targeting:** Adding or moving widgets now preserves the destination drawer reliably across activity transitions, automatically expands and sizes the target drawer upon addition, and navigates straight to the widget feed.
-* **🛡️ Persistent Widget Drawer Control:** Removed aggressive 5-second inactivity auto-close and spurious page entry collapse logic—drawers remain open, expanded, and interactive until you decide to collapse them.
-* **✨ Smooth CoverFlow Gestures:** Outer home horizontal pager swiping is cleanly suspended while any widget drawer is open to prevent accidental feed switching, single-card widgets no longer swallow vertical touches, and newly added widgets automatically animate into center focus.
-* **⚡ Frecency App Suggestions:** Predictive app launching powered by an on-device algorithm combining frequency and recency. Your next app is ready before you even search.
-* **🌐 Instant Ad-Free Speed Test:** Built-in network benchmark inside the status popup powered by dual-stream Google Edge CDN with Cloudflare fallback—test your connection speed in seconds with zero telemetry or bloated third-party apps.
+* **🪡 Needle — 100% On-Device AI & Voice Assistant:** Experience private, local intelligence directly on your home screen. Execute voice or text commands to trigger system toggles (Flashlight, Wi-Fi, Bluetooth, Volume, Camera), launch apps, set timers & alarms, organize categories, and compute quick calculations—with zero cloud latency, zero telemetry, and zero data leaving your phone.
+* **🧠 Semantic App Categorization:** Let Needle organize your entire app collection into context-driven drawers with on-device semantic understanding.
+* **⚡ 120Hz Zero-Jank App Drawer:** Completely rebuilt the all-apps drawer list pipeline. Removed redundant allocations, eliminated expensive real-time background GPU blurs, and stabilized the search header for ultra-smooth 120fps flings.
+* **🛡️ Smart Viewport & Mutual Exclusion:** Opening any category drawer automatically collapses the assistant drawer, and expanding the assistant drawer closes category drawers—eliminating viewport obstructions so all drawers and touch targets remain accessible.
+* **🔕 Distraction-Free Toggle & Dev Notes:** On-device AI is disabled by default to maintain minimalist purity; enabling it presents a detailed capability guide.
 
 ---
 
@@ -57,40 +56,47 @@ Everything you need to get things done is reachable in under a second; everythin
                                            └──────────────────────┘
 ```
 
-### 1. 🗂️ Accordion Drawers — Context-Driven Organization
+### 1. 🪡 Needle — 100% Offline On-Device AI Assistant
+Experience natural language speed without compromising your privacy:
+* **Voice & Text Quick Actions:** Tap the microphone on the glance header to control your phone at the speed of thought.
+* **Deterministic Fast Paths:** Instant execution for timers, alarms, system toggles (Flashlight, Wi-Fi, Bluetooth, Audio), and math calculations without model inference wait times.
+* **Intelligent Drawer Management:** Ask Needle to move apps into drawers (*"Move WhatsApp to Social"*, *"Group my finance apps"*) or run semantic categorization across all installed apps.
+* **100% Offline & Zero Telemetry:** Built with native on-device inference (`core/needle`). No cloud servers, no account logins, and no data harvesting.
+
+### 2. 🗂️ Accordion Drawers — Context-Driven Organization
 Instead of spreading 80+ apps across 5 sprawling home screen pages, group your tools by your mental workflow:
 * **Workflow Buckets:** Group apps into expandable categories like **`Deep Work`**, **`Communication`**, **`Finance`**, **`Learning`**, and **`Essentials`**.
 * **One Tap Expands, One Tap Closes:** Expand only the drawer you need right now. Everything else stays collapsed, shielding your brain from visual overwhelm.
 * **Multi-Drawer Versatility:** Need an app like Slack in both *Work* and *Chat*? Add it to both without duplicating shortcuts or wrestling with folder restrictions.
 * **Smart Auto-Collapse:** Keeps your screen pristine automatically so you're never greeted by yesterday's mess.
 
-### 2. 🪟 3D iPod Cover Flow & Expandable Widget Drawers
+### 3. 🪟 3D iPod Cover Flow & Expandable Widget Drawers
 Widgets are powerful for productivity, but standard launchers force you to dedicate entire screen pages to them.
 * **Cover Flow 3D Stacking:** Flip smoothly through interactive productivity widgets (Calendar, Tasks, Notes, Music) with tactile, physics-based depth.
 * **Widget Accordion Drawers:** Tuck widgets into collapsible drawers. Pull up your day's schedule or task list with a tap, take action, and let it auto-collapse in 5 seconds.
 * **Interactive Resizing:** Customize widget heights and grid spans to fit your exact information density requirements.
 * **Bulletproof Engine:** Engineered with robust lifecycle hooks to prevent widget freezing and host memory leaks.
 
-### 3. ⚡ Zero-Lag Launching & Smart Frecency Suggestions
+### 4. ⚡ Zero-Lag Launching & Smart Frecency Suggestions
 When you know what you want to do, every millisecond of friction matters.
 * **Frecency Predictive Row:** Surfaces your most relevant apps dynamically based on a smart frequency + recency calculation.
 * **Instant Type-to-Filter:** Press a key and launch target apps in sub-milliseconds.
 * **Thumb-Glide Alphabet Rail:** Slide your thumb down the screen edge to jump instantly to any letter index—effortless single-handed navigation on large devices.
 * **Hidden Apps Vault:** Conceal apps you rarely need (or apps that trigger unhealthy habits) so you aren’t tempted by idle dopamine loops.
 
-### 4. 🔕 Distraction Firewall — Notification Hub with Quick Mute
+### 5. 🔕 Distraction Firewall — Notification Hub with Quick Mute
 Notifications are the single biggest killer of deep work and flow state. Drawer puts you firmly in control:
 * **Swipe-Up Notification Hub:** See incoming alerts neatly grouped by application—no chaotic notification shade pulling down over your workspace.
 * **Home-Screen Quick Mute:** A chat group or noisy app breaking your concentration? Mute it for **1 hour**, **24 hours**, or **permanently** right from the launcher—without digging through system settings menus.
 * **Privacy Mask Mode:** Instantly masks message previews on your home screen to keep sensitive work emails, two-factor codes, and private messages hidden from passersby.
 
-### 5. 🔋 Live Power Stats, Quick Speed Test & Frosted Glass Dock
+### 6. 🔋 Live Power Stats, Quick Speed Test & Frosted Glass Dock
 * **Live Battery & Fast-Charging Telemetry:** Tap the status icon to see real-time charging wattage (`W`), voltage (`V`), current (`mA`), battery temperature, and OEM fast-charging brand detection.
 * **Dual-Stream Speed Test:** Run an instantaneous download speed test powered by Google Edge CDN and Cloudflare directly from the status popup.
 * **Floating Glass Dock:** Pin 1 to 5 vital daily drivers (Phone, Browser, Notes, Terminal) in an elegant, blurred frosted glass bar.
 * **Mirror Glance Widget:** Heading into an important video call? Tap the discreet front-camera glance right on your home screen to check your appearance without opening a heavy camera application.
 
-### 6. 🛡️ 100% Offline, Ad-Free, & Zero Battery Drain
+### 7. 🛡️ 100% Offline, Ad-Free, & Zero Battery Drain
 * **Zero Analytics & Trackers:** No cloud telemetry, no background pings, no accounts, and no data harvesting. 100% of your data stays on your device.
 * **Pure 120Hz Smoothness:** Crafted in modern Jetpack Compose with optimized redraw cycles, true AMOLED black themes, and zero background battery drain.
 
@@ -108,6 +114,7 @@ Notifications are the single biggest killer of deep work and flow state. Drawer 
 | **Distraction Defense** | Badges & push alerts | Basic badge toggles | **Home Screen Quick Mute & Privacy Mask** |
 | **Widget Handling** | Screen hogging | Static placement | **Collapsible Widget Drawers & Cover Flow** |
 | **Wallpapers & Fonts** | Fixed system defaults | Limited fonts | **Pantone Studio & Typography Packs** |
+| **On-Device AI Assistant** | Cloud Gemini/Siri/Copilot (data harvesting) | ❌ None | **🪡 Needle (100% Offline & Private)** |
 | **Privacy & Telemetry** | Cloud sync & ad analytics | Often tracks crash analytics | **100% Offline & Zero Telemetry** |
 | **Setup Time** | Cluttered by default | 30+ minutes configuring | **Productive in under 60 seconds** |
 
@@ -177,6 +184,7 @@ For engineers and contributors, Drawer is engineered according to Google's offic
 │   ├── designsystem/     # Glassmorphic components, Pantone wallpaper, typography
 │   ├── database/         # Room database, DAOs, and persistence entities
 │   ├── datastore/        # Jetpack Preferences DataStore for user preferences
+│   ├── needle/           # On-device AI engine, native Cactus bridge, tool dispatcher
 │   └── data/             # Repositories reconciling DB, installed apps & frecency state
 └── feature/
     ├── home/             # Main screen orchestrator, DuoStatusIcon, speed test & walkthrough

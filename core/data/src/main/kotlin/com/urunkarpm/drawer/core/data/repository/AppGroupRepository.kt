@@ -50,5 +50,6 @@ interface AppGroupRepository {
         get() = false
 
     suspend fun suggestCategorization(unassignedOnly: Boolean = true): List<CategorizationSuggestion>
+    suspend fun suggestDrawerForApp(app: AppInfo): com.urunkarpm.drawer.core.model.AppGroup?
     suspend fun applyCategorization(suggestions: List<CategorizationSuggestion>)
 }

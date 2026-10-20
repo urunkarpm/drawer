@@ -81,6 +81,7 @@ class SettingsViewModelTest {
     private val aiCategorizationStrictnessFlow = MutableStateFlow("BALANCED")
     private val aiCategorizeAllAppsFlow = MutableStateFlow(false)
     private val aiForceWorkProfileFlow = MutableStateFlow(true)
+    private val enableOnDeviceAiFlow = MutableStateFlow(false)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -140,6 +141,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.aiCategorizationStrictness } returns aiCategorizationStrictnessFlow
         every { preferencesDataSource.aiCategorizeAllApps } returns aiCategorizeAllAppsFlow
         every { preferencesDataSource.aiForceWorkProfile } returns aiForceWorkProfileFlow
+        every { preferencesDataSource.enableOnDeviceAi } returns enableOnDeviceAiFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,

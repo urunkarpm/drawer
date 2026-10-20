@@ -449,6 +449,24 @@ class AppGroupRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun suggestDrawerForApp(app: AppInfo): AppGroup? = withContext(ioDispatcher) {
+        val currentGroups = groups.first()
+        if (currentGroups.isEmpty()) return@withContext null
+        val categorizer = appCategorizerProvider.get()
+        val prefs = preferencesDataSourceProvider?.get()
+        val strictness = prefs?.aiCategorizationStrictness?.first() ?: "BALANCED"
+        val forceWorkProfile = prefs?.aiForceWorkProfile?.first() ?: true
+
+        val suggestions = categorizer.categorizeApps(
+            apps = listOf(app),
+            existingGroups = currentGroups,
+            unassignedOnly = false,
+            strictness = strictness,
+            forceWorkProfile = forceWorkProfile
+        )
+        suggestions.firstOrNull { it.suggestedApps.any { a -> a.packageName == app.packageName } }?.group
+    }
+
     override suspend fun applyCategorization(suggestions: List<CategorizationSuggestion>) = withContext(ioDispatcher) {
         if (suggestions.isEmpty()) return@withContext
 

@@ -99,6 +99,55 @@ class NeedleActionDispatcher @Inject constructor() {
                         intent = Intent(Intent.ACTION_POWER_USAGE_SUMMARY),
                         isDirectExecutionSafe = true
                     )
+                    "AIRPLANE_MODE" -> LauncherAction(
+                        id = "airplane_${System.currentTimeMillis()}",
+                        title = "Open Airplane Mode Settings",
+                        subtitle = "System Settings",
+                        intent = Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS),
+                        isDirectExecutionSafe = true
+                    )
+                    "STORAGE" -> LauncherAction(
+                        id = "storage_${System.currentTimeMillis()}",
+                        title = "Open Storage Settings",
+                        subtitle = "System Settings",
+                        intent = Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS),
+                        isDirectExecutionSafe = true
+                    )
+                    "ACCESSIBILITY" -> LauncherAction(
+                        id = "accessibility_${System.currentTimeMillis()}",
+                        title = "Open Accessibility Settings",
+                        subtitle = "System Settings",
+                        intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
+                        isDirectExecutionSafe = true
+                    )
+                    "DEVELOPER" -> LauncherAction(
+                        id = "developer_${System.currentTimeMillis()}",
+                        title = "Open Developer Options",
+                        subtitle = "System Settings",
+                        intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
+                        isDirectExecutionSafe = true
+                    )
+                    "NFC" -> LauncherAction(
+                        id = "nfc_${System.currentTimeMillis()}",
+                        title = "Open NFC Settings",
+                        subtitle = "System Settings",
+                        intent = Intent(Settings.ACTION_NFC_SETTINGS),
+                        isDirectExecutionSafe = true
+                    )
+                    "VPN", "DNS" -> LauncherAction(
+                        id = "vpn_${System.currentTimeMillis()}",
+                        title = "Open Network & VPN Settings",
+                        subtitle = "System Settings",
+                        intent = Intent(Settings.ACTION_WIRELESS_SETTINGS),
+                        isDirectExecutionSafe = true
+                    )
+                    "FINGERPRINT", "BIOMETRIC" -> LauncherAction(
+                        id = "security_${System.currentTimeMillis()}",
+                        title = "Open Security Settings",
+                        subtitle = "System Settings",
+                        intent = Intent(Settings.ACTION_SECURITY_SETTINGS),
+                        isDirectExecutionSafe = true
+                    )
                     else -> null
                 }
             }

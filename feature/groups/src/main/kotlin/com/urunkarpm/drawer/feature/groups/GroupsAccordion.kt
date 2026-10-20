@@ -134,7 +134,8 @@ fun GroupsAccordion(
     onMoveToCategory: ((AppInfo, String) -> Unit)? = null,
     onPinToDock: ((AppInfo) -> Unit)? = null,
     isDragging: Boolean = false,
-    hideDrawerIcons: Boolean = false
+    hideDrawerIcons: Boolean = false,
+    onToggleExpand: ((String) -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -232,7 +233,7 @@ fun GroupsAccordion(
                                 notificationPackages = notificationPackages,
                                 onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
                                 onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
-                                onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
+                                onToggleExpand = { onToggleExpand?.invoke(group.group.id) ?: viewModel.toggleGroupExpanded(group.group.id) },
                                 onEditGroup = { viewModel.startEditingGroup(group.group) },
                                 onMoveUp = { viewModel.moveGroupUp(index) },
                                 onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
@@ -272,7 +273,7 @@ fun GroupsAccordion(
                                 notificationPackages = notificationPackages,
                                 onPositioned = { rect -> onGroupPositioned?.invoke(group.group.id, rect) },
                                 onAppPositioned = { app, rect -> onAppPositioned?.invoke(group.group.id, app, rect) },
-                                onToggleExpand = { viewModel.toggleGroupExpanded(group.group.id) },
+                                onToggleExpand = { onToggleExpand?.invoke(group.group.id) ?: viewModel.toggleGroupExpanded(group.group.id) },
                                 onEditGroup = { viewModel.startEditingGroup(group.group) },
                                 onMoveUp = { viewModel.moveGroupUp(index) },
                                 onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
@@ -309,7 +310,7 @@ fun GroupsAccordion(
                         onPositioned = { rect -> onGroupPositioned?.invoke(resolvedGroup.group.id, rect) },
                         onAppPositioned = { app, rect -> onAppPositioned?.invoke(resolvedGroup.group.id, app, rect) },
                         onToggleExpand = {
-                            viewModel.toggleGroupExpanded(resolvedGroup.group.id)
+                            onToggleExpand?.invoke(resolvedGroup.group.id) ?: viewModel.toggleGroupExpanded(resolvedGroup.group.id)
                         },
                         onEditGroup = { viewModel.startEditingGroup(resolvedGroup.group) },
                         onMoveUp = { viewModel.moveGroupUp(index) },
