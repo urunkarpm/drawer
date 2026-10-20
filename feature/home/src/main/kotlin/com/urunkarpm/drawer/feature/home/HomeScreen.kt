@@ -76,6 +76,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.os.Bundle
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.feature.home.component.WidgetsPage
+import com.urunkarpm.drawer.feature.home.component.WidgetPickerBottomSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.font.FontWeight
@@ -672,6 +673,7 @@ fun HomeScreen(
     val widgetHostManager = widgetHostManager ?: remember { DrawerWidgetHostManager(context.applicationContext) }
     var pendingAppWidgetId by rememberSaveable { mutableStateOf<Int?>(null) }
     var targetDrawerIdForAdd by rememberSaveable { mutableStateOf<String?>(null) }
+    var showWidgetPickerSheet by rememberSaveable { mutableStateOf(false) }
     val pagerState = rememberPagerState(
         initialPage = 1,
         pageCount = { 2 }
@@ -686,19 +688,14 @@ fun HomeScreen(
             val spanX = if (info.minWidth in 1..160) 2 else 4
             val spanY = ((info.minHeight + 69) / 70).coerceIn(2, 4)
             val heightDp = (spanY * 70).coerceAtLeast(140)
-
-            // ponytail: push initial options to AppWidgetManager on add so providers receive dimensional constraints immediately; ceiling is static init options; upgrade path is reactive orientation-aware options.
-            val density = context.resources.displayMetrics.density
             val widthDp = if (spanX <= 2) 160 else 340
-            val options = android.os.Bundle().apply {
-                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
-                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
-                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp)
-                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, heightDp)
-            }
+            val options = widgetHostManager.createWidgetOptionsBundle(widthDp, heightDp)
+
             try {
                 widgetHostManager.appWidgetManager.updateAppWidgetOptions(appWidgetId, options)
             } catch (_: Exception) {}
+
+            widgetHostManager.triggerWidgetUpdate(appWidgetId)
 
             viewModel.addWidget(
                 appWidgetId = appWidgetId,
@@ -740,7 +737,6 @@ fun HomeScreen(
                         viewModel.pendingAddAppWidgetId = null
                     }
                 }
-                // ponytail: startAppWidgetConfigureActivityForResult delegates to system AppWidgetService so private, unexported configure activities (e.g. Pinterest) start without SecurityException; ceiling: requires Activity context; upgrade path: custom config fallback.
                 val started = widgetHostManager.startConfigure(activity, appWidgetId)
                 if (!started) {
                     completeWidgetAdd(appWidgetId)
@@ -779,7 +775,6 @@ fun HomeScreen(
             viewModel.pendingAddAppWidgetId = id
             val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(id)
             if (info != null) {
-                // ponytail: widget picked from platform picker is already bound to this id; proceed straight to configure; ceiling: assumes single user profile; upgrade path: multi-profile cross-user inspection.
                 checkAndConfigureWidget(id)
             } else {
                 val provider = result.data?.component
@@ -790,13 +785,19 @@ fun HomeScreen(
                         result.data?.getParcelableExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER)
                     }
                 if (provider != null) {
-                    val isAllowed = widgetHostManager.appWidgetManager.bindAppWidgetIdIfAllowed(id, provider)
+                    val spanX = 4
+                    val spanY = 2
+                    val heightDp = 140
+                    val widthDp = 340
+                    val options = widgetHostManager.createWidgetOptionsBundle(widthDp, heightDp)
+                    val isAllowed = widgetHostManager.appWidgetManager.bindAppWidgetIdIfAllowed(id, provider, options)
                     if (isAllowed) {
                         checkAndConfigureWidget(id)
                     } else {
                         val bindIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
                             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
                             putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_OPTIONS, options)
                         }
                         try {
                             bindWidgetLauncher.launch(bindIntent)
@@ -825,15 +826,53 @@ fun HomeScreen(
         }
     }
 
-    fun launchAddWidgetFlow(targetDrawerId: String? = null) {
-        targetDrawerIdForAdd = targetDrawerId
-        viewModel.pendingAddTargetDrawerId = targetDrawerId
+    fun handleSelectedWidget(info: AppWidgetProviderInfo) {
+        val allocatedId = widgetHostManager.allocateAppWidgetId()
+        pendingAppWidgetId = allocatedId
+        viewModel.pendingAddAppWidgetId = allocatedId
+
+        val spanX = if (info.minWidth in 1..160) 2 else 4
+        val spanY = ((info.minHeight + 69) / 70).coerceIn(2, 4)
+        val heightDp = (spanY * 70).coerceAtLeast(140)
+        val widthDp = if (spanX <= 2) 160 else 340
+        val options = widgetHostManager.createWidgetOptionsBundle(widthDp, heightDp)
+
+        val isAllowed = try {
+            widgetHostManager.appWidgetManager.bindAppWidgetIdIfAllowed(
+                allocatedId,
+                info.provider,
+                options
+            )
+        } catch (_: Exception) {
+            false
+        }
+
+        if (isAllowed) {
+            checkAndConfigureWidget(allocatedId)
+        } else {
+            val bindIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_OPTIONS, options)
+            }
+            try {
+                bindWidgetLauncher.launch(bindIntent)
+            } catch (_: Exception) {
+                widgetHostManager.deleteAppWidgetId(allocatedId)
+                pendingAppWidgetId = null
+                viewModel.pendingAddAppWidgetId = null
+                targetDrawerIdForAdd = null
+                viewModel.pendingAddTargetDrawerId = null
+            }
+        }
+    }
+
+    fun launchSystemWidgetPicker() {
         val allocatedId = widgetHostManager.allocateAppWidgetId()
         pendingAppWidgetId = allocatedId
         viewModel.pendingAddAppWidgetId = allocatedId
         val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
-            // ponytail: empty custom info/extras avoids NPE on custom OEM picker activities (Samsung/Xiaomi); ceiling: no custom launcher shortcuts mixed in system picker; upgrade path: custom in-app widget gallery.
             putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, arrayListOf<AppWidgetProviderInfo>())
             putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, arrayListOf<Bundle>())
         }
@@ -846,9 +885,15 @@ fun HomeScreen(
             targetDrawerIdForAdd = null
             viewModel.pendingAddTargetDrawerId = null
             coroutineScope.launch {
-                snackbarHostState.showSnackbar("Widget picker not available on this device")
+                snackbarHostState.showSnackbar("System widget picker not available on this device")
             }
         }
+    }
+
+    fun launchAddWidgetFlow(targetDrawerId: String? = null) {
+        targetDrawerIdForAdd = targetDrawerId
+        viewModel.pendingAddTargetDrawerId = targetDrawerId
+        showWidgetPickerSheet = true
     }
 
     LaunchedEffect(uiState.hideStatusBar) {
@@ -1585,6 +1630,27 @@ fun HomeScreen(
                 onAddWidget = {
                     showHomeMenu = false
                     launchAddWidgetFlow()
+                }
+            )
+        }
+
+        if (showWidgetPickerSheet) {
+            val targetTitle = uiState.widgetDrawers.find { it.id == targetDrawerIdForAdd }?.title
+            WidgetPickerBottomSheet(
+                widgetHostManager = widgetHostManager,
+                targetDrawerTitle = targetTitle,
+                onWidgetSelected = { info ->
+                    showWidgetPickerSheet = false
+                    handleSelectedWidget(info)
+                },
+                onLaunchSystemPicker = {
+                    showWidgetPickerSheet = false
+                    launchSystemWidgetPicker()
+                },
+                onDismissRequest = {
+                    showWidgetPickerSheet = false
+                    targetDrawerIdForAdd = null
+                    viewModel.pendingAddTargetDrawerId = null
                 }
             )
         }

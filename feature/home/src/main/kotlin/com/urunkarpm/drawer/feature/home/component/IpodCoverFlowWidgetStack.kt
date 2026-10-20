@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -307,6 +309,7 @@ private fun CoverFlowWidgetItemCard(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxSize()
@@ -322,6 +325,40 @@ private fun CoverFlowWidgetItemCard(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            // Subtle branded loading placeholder beneath the widget view so user NEVER sees a blank void
+            val appLabel = remember(widget.packageName) {
+                try {
+                    val pm = context.packageManager
+                    val app = pm.getApplicationInfo(widget.packageName, 0)
+                    pm.getApplicationLabel(app).toString()
+                } catch (_: Exception) {
+                    widget.packageName
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Widgets,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = appLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
             // Widget Host View (strictly isolated to widget.appWidgetId)
             AndroidView(
                 factory = { ctx ->
@@ -333,7 +370,12 @@ private fun CoverFlowWidgetItemCard(
                                 setPadding(32, 32, 32, 32)
                             }
                         } else {
-                            widgetHostManager.getOrCreateView(ctx, widget.appWidgetId)
+                            val hostView = widgetHostManager.getOrCreateView(ctx, widget.appWidgetId)
+                            hostView.layoutParams = android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            hostView
                         }
                     } catch (e: Exception) {
                         android.widget.TextView(ctx).apply {
@@ -344,23 +386,22 @@ private fun CoverFlowWidgetItemCard(
                 },
                 update = { view ->
                     if (view is AppWidgetHostView) {
+                        view.layoutParams = android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        )
                         val density = view.resources.displayMetrics.density
                         val widthDp = if (view.width > 0) (view.width / density).toInt() else 280
                         val height = widget.heightDp
-                        val lastTag = view.tag as? Pair<Int, Int>
-                        if (lastTag?.first != widthDp || lastTag.second != height) {
-                            view.tag = Pair(widthDp, height)
-                            view.layoutParams = android.view.ViewGroup.LayoutParams(
-                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                            )
-                            val bundle = Bundle().apply {
-                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
-                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
-                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, height)
-                                putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, height)
-                            }
+                        val bundle = widgetHostManager.createWidgetOptionsBundle(widthDp, height)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                            view.updateAppWidgetSize(bundle, listOf(android.util.SizeF(widthDp.toFloat(), height.toFloat())))
+                        } else {
+                            @Suppress("DEPRECATION")
                             view.updateAppWidgetSize(bundle, widthDp, height, widthDp, height)
+                        }
+                        if (view.childCount == 0) {
+                            widgetHostManager.triggerWidgetUpdate(widget.appWidgetId)
                         }
                     }
                 },

@@ -7,12 +7,35 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.drawable.Drawable
+import android.os.Build
+import android.os.Bundle
+import android.os.UserManager
+import android.util.SizeF
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+
+data class InstalledWidgetInfo(
+    val providerInfo: AppWidgetProviderInfo,
+    val label: String,
+    val description: String?,
+    val spanX: Int,
+    val spanY: Int,
+    val minWidthDp: Int,
+    val minHeightDp: Int
+)
+
+data class AppWidgetGroup(
+    val packageName: String,
+    val appName: String,
+    val appIcon: Drawable?,
+    val widgets: List<InstalledWidgetInfo>
+)
 
 open class DrawerAppWidgetHost(
     context: Context,
@@ -76,14 +99,54 @@ class DrawerWidgetHostManager @Inject constructor(
         } catch (_: Exception) {}
     }
 
-    // ponytail: caches views in memory so LazyColumn reuse doesn't discard inflated RemoteViews; ceiling: in-memory cache; upgrade path: LRU cache if active widget count exceeds 50.
-    fun getOrCreateView(context: Context, appWidgetId: Int): AppWidgetHostView {
-        return viewCache.getOrPut(appWidgetId) {
-            val info = appWidgetManager.getAppWidgetInfo(appWidgetId)
-            appWidgetHost.createView(context, appWidgetId, info)
-        }.also { hostView ->
-            (hostView.parent as? ViewGroup)?.removeView(hostView)
+    // ponytail: builds a production-grade sizing bundle with responsive SizeF constraints for Android 12+ and min/max bounds for older APIs.
+    fun createWidgetOptionsBundle(widthDp: Int, heightDp: Int): Bundle {
+        return Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, heightDp)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                putParcelableArrayList(
+                    AppWidgetManager.OPTION_APPWIDGET_SIZES,
+                    arrayListOf(SizeF(widthDp.toFloat(), heightDp.toFloat()))
+                )
+            }
         }
+    }
+
+    // ponytail: triggers an explicit update broadcast to the widget provider component to guarantee immediate layout generation even under background execution limits.
+    fun triggerWidgetUpdate(appWidgetId: Int) {
+        try {
+            val info = appWidgetManager.getAppWidgetInfo(appWidgetId) ?: return
+            val updateIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                component = info.provider
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
+            }
+            context.sendBroadcast(updateIntent)
+        } catch (_: Exception) {}
+    }
+
+    // ponytail: caches views in memory with strict MATCH_PARENT layout parameters and re-bound provider metadata so child RemoteViews never measure to 0x0.
+    fun getOrCreateView(context: Context, appWidgetId: Int): AppWidgetHostView {
+        val info = appWidgetManager.getAppWidgetInfo(appWidgetId)
+        val hostView = viewCache.getOrPut(appWidgetId) {
+            appWidgetHost.createView(context, appWidgetId, info)
+        }
+        (hostView.parent as? ViewGroup)?.removeView(hostView)
+        hostView.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        if (info != null) {
+            try {
+                hostView.setAppWidget(appWidgetId, info)
+            } catch (_: Exception) {}
+        }
+        if (hostView.childCount == 0) {
+            triggerWidgetUpdate(appWidgetId)
+        }
+        return hostView
     }
 
     fun createView(context: Context, appWidgetId: Int, appWidgetInfo: AppWidgetProviderInfo? = null): AppWidgetHostView {
@@ -103,6 +166,81 @@ class DrawerWidgetHostManager @Inject constructor(
         } catch (_: Exception) {
             false
         }
+    }
+
+    // ponytail: queries all installed widget providers across personal and work profiles directly from AppWidgetManager, bypassing deprecated OEM pickers.
+    fun getInstalledWidgetProviders(packageManager: PackageManager): List<AppWidgetGroup> {
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+        val rawProviders: List<AppWidgetProviderInfo> = if (userManager != null) {
+            try {
+                val profiles = userManager.userProfiles
+                profiles.flatMap { profile ->
+                    try {
+                        appWidgetManager.getInstalledProvidersForProfile(profile) ?: emptyList()
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }.distinctBy { it.provider }
+            } catch (_: Exception) {
+                appWidgetManager.installedProviders
+            }
+        } else {
+            appWidgetManager.installedProviders
+        }
+
+        val grouped = rawProviders.groupBy { it.provider.packageName }
+        val result = mutableListOf<AppWidgetGroup>()
+
+        for ((pkg, providers) in grouped) {
+            val appInfo = try {
+                packageManager.getApplicationInfo(pkg, 0)
+            } catch (_: Exception) {
+                null
+            }
+            val appName = appInfo?.let { packageManager.getApplicationLabel(it).toString() } ?: pkg
+            val appIcon = appInfo?.let { packageManager.getApplicationIcon(it) }
+
+            val widgets = providers.map { info ->
+                val label = try {
+                    val rawLabel = info.loadLabel(packageManager)
+                    if (rawLabel.isNullOrBlank()) appName else rawLabel
+                } catch (_: Exception) {
+                    appName
+                }
+
+                val description = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        info.loadDescription(context)?.toString()
+                    } catch (_: Exception) {
+                        null
+                    }
+                } else null
+
+                val spanX = if (info.minWidth in 1..160) 2 else 4
+                val spanY = ((info.minHeight + 69) / 70).coerceIn(2, 4)
+
+                InstalledWidgetInfo(
+                    providerInfo = info,
+                    label = label,
+                    description = description,
+                    spanX = spanX,
+                    spanY = spanY,
+                    minWidthDp = info.minWidth,
+                    minHeightDp = info.minHeight
+                )
+            }.sortedBy { it.label }
+
+            result.add(
+                AppWidgetGroup(
+                    packageName = pkg,
+                    appName = appName,
+                    appIcon = appIcon,
+                    widgets = widgets
+                )
+            )
+        }
+
+        return result.sortedBy { it.appName.lowercase() }
     }
 
     companion object {

@@ -61,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -565,6 +566,7 @@ private fun StandaloneWidgetCardItem(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            val context = LocalContext.current
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -572,6 +574,40 @@ private fun StandaloneWidgetCardItem(
                     .clip(RoundedCornerShape(16.dp))
                     .padding(4.dp)
             ) {
+                // Subtle branded loading placeholder beneath the widget view so user NEVER sees a blank void
+                val appLabel = remember(widget.packageName) {
+                    try {
+                        val pm = context.packageManager
+                        val app = pm.getApplicationInfo(widget.packageName, 0)
+                        pm.getApplicationLabel(app).toString()
+                    } catch (_: Exception) {
+                        widget.packageName
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Widgets,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                        Text(
+                            text = appLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+
                 AndroidView(
                     factory = { ctx ->
                         try {
@@ -582,7 +618,12 @@ private fun StandaloneWidgetCardItem(
                                     setPadding(32, 32, 32, 32)
                                 }
                             } else {
-                                widgetHostManager.getOrCreateView(ctx, widget.appWidgetId)
+                                val hostView = widgetHostManager.getOrCreateView(ctx, widget.appWidgetId)
+                                hostView.layoutParams = android.view.ViewGroup.LayoutParams(
+                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                hostView
                             }
                         } catch (e: Exception) {
                             android.widget.TextView(ctx).apply {
@@ -593,23 +634,22 @@ private fun StandaloneWidgetCardItem(
                     },
                     update = { view ->
                         if (view is AppWidgetHostView) {
+                            view.layoutParams = android.view.ViewGroup.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                            )
                             val density = view.resources.displayMetrics.density
                             val widthDp = if (view.width > 0) (view.width / density).toInt() else (if (widget.spanX <= 2) 160 else 340)
                             val heightDp = widget.heightDp
-                            val lastTag = view.tag as? Pair<Int, Int>
-                            if (lastTag?.first != widthDp || lastTag.second != heightDp) {
-                                view.tag = Pair(widthDp, heightDp)
-                                view.layoutParams = android.view.ViewGroup.LayoutParams(
-                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                                )
-                                val bundle = Bundle().apply {
-                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
-                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
-                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp)
-                                    putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, heightDp)
-                                }
+                            val bundle = widgetHostManager.createWidgetOptionsBundle(widthDp, heightDp)
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                view.updateAppWidgetSize(bundle, listOf(android.util.SizeF(widthDp.toFloat(), heightDp.toFloat())))
+                            } else {
+                                @Suppress("DEPRECATION")
                                 view.updateAppWidgetSize(bundle, widthDp, heightDp, widthDp, heightDp)
+                            }
+                            if (view.childCount == 0) {
+                                widgetHostManager.triggerWidgetUpdate(widget.appWidgetId)
                             }
                         }
                     },
