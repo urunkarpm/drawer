@@ -300,6 +300,7 @@ class GroupsViewModel @Inject constructor(
 
     fun dismissAiSuggestions() {
         _aiSuggestions.value = null
+        _isAiCategorizing.value = false
     }
 
     fun launchApp(app: AppInfo): Boolean = appRepository.launchApp(app)

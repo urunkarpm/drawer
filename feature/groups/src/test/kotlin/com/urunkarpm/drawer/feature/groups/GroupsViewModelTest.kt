@@ -235,6 +235,7 @@ class GroupsViewModelTest {
 
         viewModel.dismissAiSuggestions()
         assertNull(viewModel.aiSuggestions.value)
+        assertFalse(viewModel.isAiCategorizing.value)
     }
 
     @Test

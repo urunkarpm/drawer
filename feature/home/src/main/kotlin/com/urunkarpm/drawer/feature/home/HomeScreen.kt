@@ -1298,6 +1298,10 @@ fun HomeScreen(
                     showHomeMenu = false
                     groupsViewModel.setShowCreateDialog(true)
                 },
+                onOrganizeWithAi = {
+                    showHomeMenu = false
+                    groupsViewModel.startAiCategorization()
+                },
                 onAddWidget = {
                     showHomeMenu = false
                     launchAddWidgetFlow()

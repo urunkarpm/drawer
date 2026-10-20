@@ -109,6 +109,7 @@ import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupViewType
 import com.urunkarpm.drawer.feature.groups.component.EditGroupDialog
 import com.urunkarpm.drawer.feature.groups.component.GroupItemActionBottomSheet
+import com.urunkarpm.drawer.feature.groups.component.AiCategorizationPreviewBottomSheet
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
 import androidx.compose.ui.graphics.Shape
@@ -154,6 +155,51 @@ fun GroupsAccordion(
             ),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        if (uiState.groups.isEmpty()) {
+            Surface(
+                onClick = { viewModel.startAiCategorization() },
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Organize Drawers with AI",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Organize Drawers with AI",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Automatically group your apps into smart drawers",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
         if (twoDrawersSideBySide) {
             val leftColumnGroups = remember(uiState.groups) {
                 uiState.groups.mapIndexed { index, group -> index to group }.filterIndexed { idx, _ -> idx % 2 == 0 }
@@ -200,7 +246,8 @@ fun GroupsAccordion(
                                 onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
                                 lockLayout = uiState.lockLayout,
                                 isDragging = isDragging,
-                                hideDrawerIcons = hideDrawerIcons
+                                hideDrawerIcons = hideDrawerIcons,
+                                onOrganizeWithAi = { viewModel.startAiCategorization() }
                             )
                         }
                     }
@@ -239,7 +286,8 @@ fun GroupsAccordion(
                                 onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
                                 lockLayout = uiState.lockLayout,
                                 isDragging = isDragging,
-                                hideDrawerIcons = hideDrawerIcons
+                                hideDrawerIcons = hideDrawerIcons,
+                                onOrganizeWithAi = { viewModel.startAiCategorization() }
                             )
                         }
                     }
@@ -280,7 +328,8 @@ fun GroupsAccordion(
                         onAppDragEnd = if (uiState.lockLayout) null else onAppDragEnd,
                         lockLayout = uiState.lockLayout,
                         isDragging = isDragging,
-                        hideDrawerIcons = hideDrawerIcons
+                        hideDrawerIcons = hideDrawerIcons,
+                        onOrganizeWithAi = { viewModel.startAiCategorization() }
                     )
                 }
             }
@@ -368,6 +417,21 @@ fun GroupsAccordion(
             iconLoader = { viewModel.getAppIcon(app) }
         )
     }
+
+    // AI Categorization Preview Bottom Sheet
+    if (uiState.isAiCategorizing || uiState.aiSuggestions != null) {
+        val aiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        AiCategorizationPreviewBottomSheet(
+            suggestions = uiState.aiSuggestions.orEmpty(),
+            isLoading = uiState.isAiCategorizing,
+            sheetState = aiSheetState,
+            onDismissRequest = { viewModel.dismissAiSuggestions() },
+            onApplySuggestions = { approved ->
+                viewModel.applyAiSuggestions(approved)
+            },
+            iconLoader = { app -> viewModel.getAppIcon(app) }
+        )
+    }
 }
 
 @Composable
@@ -398,6 +462,7 @@ private fun GroupCard(
     lockLayout: Boolean = false,
     isDragging: Boolean = false,
     hideDrawerIcons: Boolean = false,
+    onOrganizeWithAi: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val group = resolvedGroup.group
@@ -733,6 +798,20 @@ private fun GroupCard(
                                 onEditGroup()
                             },
                             leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Organize with AI") },
+                            onClick = {
+                                showMenu = false
+                                onOrganizeWithAi()
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         )
                         if (groupIndex > 0) {
                             DropdownMenuItem(

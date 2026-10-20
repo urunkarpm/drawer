@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Smartphone
@@ -45,6 +46,7 @@ fun HomeContextMenuSheet(
     sheetState: SheetState,
     onOpenSettings: () -> Unit,
     onAddCategory: () -> Unit,
+    onOrganizeWithAi: (() -> Unit)? = null,
     onAddWidget: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -107,6 +109,18 @@ fun HomeContextMenuSheet(
                     onAddCategory()
                 }
             )
+
+            if (onOrganizeWithAi != null) {
+                HomeContextOption(
+                    icon = Icons.Default.AutoAwesome,
+                    label = "Organize Drawers with AI",
+                    description = "Categorize apps into drawers automatically",
+                    onClick = {
+                        onDismissRequest()
+                        onOrganizeWithAi()
+                    }
+                )
+            }
 
             HomeContextOption(
                 icon = Icons.Outlined.Settings,
