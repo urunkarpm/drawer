@@ -61,6 +61,7 @@ import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 fun AiCategorizationPreviewBottomSheet(
     suggestions: List<CategorizationSuggestion>,
     isLoading: Boolean,
+    isModelReady: Boolean = false,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     onDismissRequest: () -> Unit,
     onApplySuggestions: (List<CategorizationSuggestion>) -> Unit,
@@ -153,8 +154,26 @@ fun AiCategorizationPreviewBottomSheet(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isModelReady) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Text(
+                            text = if (isModelReady) "⚡ On-Device AI (Needle 3)" else "📋 Smart Metadata",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isModelReady) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Suggested categorization based on on-device intelligence. Select the apps you'd like to assign.",
+                        text = if (isModelReady) {
+                            "Suggested categorization powered by on-device Needle AI. Select the apps you'd like to assign."
+                        } else {
+                            "Suggested categorization based on smart app metadata. Select the apps you'd like to assign."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

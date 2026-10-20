@@ -419,6 +419,9 @@ class AppGroupRepositoryImpl @Inject constructor(
         appGroupDao.deleteGroupItemById(itemId)
     }
 
+    override val isAiModelReady: Boolean
+        get() = appCategorizerProvider.get().isModelReady
+
     override suspend fun suggestCategorization(unassignedOnly: Boolean): List<CategorizationSuggestion> = withContext(ioDispatcher) {
         val appRepo = appRepositoryProvider.get()
         var apps = appRepo.installedApps.first()
@@ -433,6 +436,28 @@ class AppGroupRepositoryImpl @Inject constructor(
 
     override suspend fun applyCategorization(suggestions: List<CategorizationSuggestion>) = withContext(ioDispatcher) {
         if (suggestions.isEmpty()) return@withContext
+
+        val existingGroups = appGroupDao.getAllGroups().first()
+        val knownGroupIds = existingGroups.map { it.id }.toMutableSet()
+        var maxOrderIndex = existingGroups.maxOfOrNull { it.orderIndex } ?: -1
+
+        for (suggestion in suggestions) {
+            if (suggestion.group.id !in knownGroupIds) {
+                val groupToInsert = suggestion.group.copy(
+                    orderIndex = if (suggestion.group.orderIndex > maxOrderIndex) {
+                        suggestion.group.orderIndex
+                    } else {
+                        ++maxOrderIndex
+                    }
+                )
+                appGroupDao.insertGroup(AppGroupEntity.fromDomain(groupToInsert))
+                knownGroupIds.add(suggestion.group.id)
+                if (groupToInsert.orderIndex > maxOrderIndex) {
+                    maxOrderIndex = groupToInsert.orderIndex
+                }
+            }
+        }
+
         val existingItems = appGroupDao.getAllGroupItems().first()
         val itemsByGroup = existingItems.groupBy { it.groupId }.mapValues { it.value.toMutableList() }
         val itemsToInsert = mutableListOf<AppGroupItemEntity>()

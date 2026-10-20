@@ -262,4 +262,50 @@ class AppGroupRepositoryImplTest {
         assertEquals("com.app2", insertedItems.captured[1].packageName)
         assertEquals(2, insertedItems.captured[1].orderIndex)
     }
+
+    @Test
+    fun applyCategorization_whenGroupDoesNotExist_insertsGroupFirst() = runTest(testDispatcher) {
+        val existingGroup = AppGroupEntity(id = "existing_group", name = "Existing", orderIndex = 0)
+        groupsFlow.value = listOf(existingGroup)
+        itemsFlow.value = emptyList()
+
+        val newGroup = AppGroup(
+            id = "group_finance",
+            name = "Finance",
+            iconName = "credit_card",
+            colorHex = "#10B981",
+            orderIndex = 0
+        )
+        val app = AppInfo(packageName = "com.splitwise.app", activityName = ".Main", label = "Splitwise")
+
+        val insertedGroup = slot<AppGroupEntity>()
+        coEvery { appGroupDao.insertGroup(capture(insertedGroup)) } returns Unit
+        val insertedItems = slot<List<AppGroupItemEntity>>()
+        coEvery { appGroupDao.insertGroupItems(capture(insertedItems)) } returns Unit
+
+        val suggestions = listOf(
+            CategorizationSuggestion(group = newGroup, suggestedApps = listOf(app))
+        )
+
+        repository.applyCategorization(suggestions)
+
+        coVerify { appGroupDao.insertGroup(any()) }
+        assertEquals("group_finance", insertedGroup.captured.id)
+        assertEquals("Finance", insertedGroup.captured.name)
+        assertEquals(1, insertedGroup.captured.orderIndex)
+
+        coVerify { appGroupDao.insertGroupItems(any()) }
+        assertEquals(1, insertedItems.captured.size)
+        assertEquals("group_finance", insertedItems.captured[0].groupId)
+        assertEquals("com.splitwise.app", insertedItems.captured[0].packageName)
+    }
+
+    @Test
+    fun isAiModelReady_delegatesToCategorizer() {
+        every { appCategorizer.isModelReady } returns true
+        assertTrue(repository.isAiModelReady)
+
+        every { appCategorizer.isModelReady } returns false
+        assertFalse(repository.isAiModelReady)
+    }
 }

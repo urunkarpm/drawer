@@ -9,13 +9,16 @@ import com.urunkarpm.drawer.core.needle.model.ToolCallResult
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 
@@ -233,5 +236,104 @@ class AppCategorizerTest {
         val ordersSuggestion = suggestions.firstOrNull { it.group.id == "group_orders" }
         assertNotNull(ordersSuggestion)
         assertTrue(ordersSuggestion!!.suggestedApps.any { it.label == "Amazon" })
+    }
+
+    @Test
+    fun categorizeApps_whenExistingGroupsIsEmpty_usesDefaultSuggestedGroups() = runTest {
+        val categorizer = AppCategorizerImpl(needleEngine)
+
+        val apps = listOf(
+            AppInfo(packageName = "com.splitwise.app", activityName = ".Main", label = "Splitwise"),
+            AppInfo(packageName = "org.telegram.messenger", activityName = ".Main", label = "Telegram"),
+            AppInfo(packageName = "com.google.android.apps.docs", activityName = ".Main", label = "Google Docs"),
+            AppInfo(packageName = "com.spotify.music", activityName = ".Main", label = "Spotify"),
+            AppInfo(packageName = "com.google.android.calculator", activityName = ".Main", label = "Calculator"),
+            AppInfo(packageName = "com.mojang.minecraftpe", activityName = ".Main", label = "Minecraft"),
+            AppInfo(packageName = "com.strava", activityName = ".Main", label = "Strava"),
+            AppInfo(packageName = "in.amazon.mShop.android.shopping", activityName = ".Main", label = "Amazon")
+        )
+
+        val suggestions = categorizer.categorizeApps(apps, existingGroups = emptyList())
+
+        assertEquals(8, suggestions.size)
+
+        val finance = suggestions.first { it.group.id == "group_finance" }
+        assertEquals("Finance", finance.group.name)
+        assertEquals("credit_card", finance.group.iconName)
+        assertEquals("#10B981", finance.group.colorHex)
+        assertTrue(finance.suggestedApps.any { it.label == "Splitwise" })
+
+        val social = suggestions.first { it.group.id == "group_social" }
+        assertEquals("Social", social.group.name)
+        assertEquals("chat", social.group.iconName)
+        assertEquals("#3B82F6", social.group.colorHex)
+        assertTrue(social.suggestedApps.any { it.label == "Telegram" })
+
+        val deepWork = suggestions.first { it.group.id == "group_work" }
+        assertEquals("Deep Work", deepWork.group.name)
+        assertEquals("work", deepWork.group.iconName)
+        assertEquals("#8B5CF6", deepWork.group.colorHex)
+        assertTrue(deepWork.suggestedApps.any { it.label == "Google Docs" })
+
+        val media = suggestions.first { it.group.id == "group_media" }
+        assertEquals("Media", media.group.name)
+        assertEquals("play_circle", media.group.iconName)
+        assertEquals("#EC4899", media.group.colorHex)
+        assertTrue(media.suggestedApps.any { it.label == "Spotify" })
+
+        val utilities = suggestions.first { it.group.id == "group_utilities" }
+        assertEquals("Utilities", utilities.group.name)
+        assertEquals("build", utilities.group.iconName)
+        assertEquals("#F59E0B", utilities.group.colorHex)
+        assertTrue(utilities.suggestedApps.any { it.label == "Calculator" })
+
+        val games = suggestions.first { it.group.id == "group_games" }
+        assertEquals("Games", games.group.name)
+        assertEquals("sports_esports", games.group.iconName)
+        assertEquals("#EF4444", games.group.colorHex)
+        assertTrue(games.suggestedApps.any { it.label == "Minecraft" })
+
+        val health = suggestions.first { it.group.id == "group_health" }
+        assertEquals("Health & Fitness", health.group.name)
+        assertEquals("fitness_center", health.group.iconName)
+        assertEquals("#14B8A6", health.group.colorHex)
+        assertTrue(health.suggestedApps.any { it.label == "Strava" })
+
+        val shopping = suggestions.first { it.group.id == "group_shopping" }
+        assertEquals("Shopping", shopping.group.name)
+        assertEquals("shopping_bag", shopping.group.iconName)
+        assertEquals("#F97316", shopping.group.colorHex)
+        assertTrue(shopping.suggestedApps.any { it.label == "Amazon" })
+    }
+
+    @Test
+    fun queryNeedle_whenCancellationExceptionThrown_rethrows() = runTest {
+        every { needleEngine.modelStatus } returns MutableStateFlow(
+            ModelStatus.Ready(modelPath = "/path", sizeMb = 100f)
+        )
+        coEvery { needleEngine.predictToolCall(any(), any()) } throws CancellationException("Coroutines job cancelled")
+
+        val categorizer = AppCategorizerImpl(needleEngine)
+        val groups = listOf(AppGroup(id = "group_finance", name = "Finance"))
+        val apps = listOf(AppInfo(packageName = "com.test", activityName = ".Act", label = "TestApp"))
+
+        try {
+            categorizer.categorizeApps(apps, groups)
+            fail("Expected CancellationException was not thrown")
+        } catch (e: CancellationException) {
+            assertEquals("Coroutines job cancelled", e.message)
+        }
+    }
+
+    @Test
+    fun isModelReady_reflectsNeedleModelStatus() {
+        val modelStatusFlow = MutableStateFlow<ModelStatus>(ModelStatus.NotDownloaded)
+        every { needleEngine.modelStatus } returns modelStatusFlow
+
+        val categorizer = AppCategorizerImpl(needleEngine)
+        assertFalse(categorizer.isModelReady)
+
+        modelStatusFlow.value = ModelStatus.Ready(modelPath = "/path", sizeMb = 100f)
+        assertTrue(categorizer.isModelReady)
     }
 }

@@ -9,6 +9,9 @@ data class CategorizationSuggestion(
 )
 
 interface AppCategorizer {
+    val isModelReady: Boolean
+        get() = false
+
     suspend fun categorizeApps(
         apps: List<AppInfo>,
         existingGroups: List<AppGroup>,

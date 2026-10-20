@@ -5,7 +5,9 @@ import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.needle.NeedleEngine
 import com.urunkarpm.drawer.core.needle.model.ModelStatus
 import com.urunkarpm.drawer.core.needle.model.ToolDefinition
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
@@ -73,7 +75,7 @@ enum class TargetCategory(
         id = "health",
         displayName = "Health",
         groupAliases = listOf(
-            "health", "fitness", "workout", "wellness", "wellbeing", "diet"
+            "health", "fitness", "health & fitness", "health and fitness", "workout", "wellness", "wellbeing", "diet"
         )
     ),
     SHOPPING(
@@ -90,6 +92,22 @@ enum class TargetCategory(
 class AppCategorizerImpl @Inject constructor(
     private val needleEngine: NeedleEngine
 ) : AppCategorizer {
+
+    override val isModelReady: Boolean
+        get() = needleEngine.modelStatus.value is ModelStatus.Ready
+
+    companion object {
+        val DEFAULT_SUGGESTED_GROUPS: List<AppGroup> = listOf(
+            AppGroup(id = "group_finance", name = "Finance", iconName = "credit_card", colorHex = "#10B981", orderIndex = 0),
+            AppGroup(id = "group_social", name = "Social", iconName = "chat", colorHex = "#3B82F6", orderIndex = 1),
+            AppGroup(id = "group_work", name = "Deep Work", iconName = "work", colorHex = "#8B5CF6", orderIndex = 2),
+            AppGroup(id = "group_media", name = "Media", iconName = "play_circle", colorHex = "#EC4899", orderIndex = 3),
+            AppGroup(id = "group_utilities", name = "Utilities", iconName = "build", colorHex = "#F59E0B", orderIndex = 4),
+            AppGroup(id = "group_games", name = "Games", iconName = "sports_esports", colorHex = "#EF4444", orderIndex = 5),
+            AppGroup(id = "group_health", name = "Health & Fitness", iconName = "fitness_center", colorHex = "#14B8A6", orderIndex = 6),
+            AppGroup(id = "group_shopping", name = "Shopping", iconName = "shopping_bag", colorHex = "#F97316", orderIndex = 7)
+        )
+    }
 
     private val categorizeTool = ToolDefinition(
         name = "categorize_app",
@@ -114,15 +132,21 @@ class AppCategorizerImpl @Inject constructor(
         existingGroups: List<AppGroup>,
         unassignedOnly: Boolean
     ): List<CategorizationSuggestion> = withContext(Dispatchers.Default) {
-        if (existingGroups.isEmpty() || apps.isEmpty()) {
+        if (apps.isEmpty()) {
             return@withContext emptyList()
         }
 
+        val effectiveGroups = if (existingGroups.isEmpty()) {
+            DEFAULT_SUGGESTED_GROUPS
+        } else {
+            existingGroups
+        }
+
         val candidateApps = if (unassignedOnly) {
-            val assignedKeys = existingGroups.flatMap { group ->
+            val assignedKeys = effectiveGroups.flatMap { group ->
                 group.items.map { "${it.packageName}/${it.activityName}#${it.userHandleId}" }
             }.toSet()
-            val assignedPackages = existingGroups.flatMap { group ->
+            val assignedPackages = effectiveGroups.flatMap { group ->
                 group.items.map { it.packageName }
             }.toSet()
 
@@ -137,12 +161,13 @@ class AppCategorizerImpl @Inject constructor(
         val appsByGroup = mutableMapOf<AppGroup, MutableList<AppInfo>>()
 
         for (app in distinctApps) {
+            coroutineContext.ensureActive()
             val category = classifyApp(app) ?: continue
-            val matchedGroup = findMatchingGroup(category, existingGroups) ?: continue
+            val matchedGroup = findMatchingGroup(category, effectiveGroups) ?: continue
             appsByGroup.getOrPut(matchedGroup) { mutableListOf() }.add(app)
         }
 
-        existingGroups.mapNotNull { group ->
+        effectiveGroups.mapNotNull { group ->
             val suggestedApps = appsByGroup[group]
             if (!suggestedApps.isNullOrEmpty()) {
                 CategorizationSuggestion(group = group, suggestedApps = suggestedApps)
@@ -179,6 +204,8 @@ class AppCategorizerImpl @Inject constructor(
                 ?.jsonPrimitive
                 ?.contentOrNull
             categoryArg?.let { parseTargetCategory(it) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             null
         }

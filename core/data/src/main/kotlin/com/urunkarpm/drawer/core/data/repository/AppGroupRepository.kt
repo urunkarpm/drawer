@@ -46,6 +46,9 @@ interface AppGroupRepository {
     suspend fun collapseAllGroups()
     suspend fun autoPopulateGroups()
 
+    val isAiModelReady: Boolean
+        get() = false
+
     suspend fun suggestCategorization(unassignedOnly: Boolean = true): List<CategorizationSuggestion>
     suspend fun applyCategorization(suggestions: List<CategorizationSuggestion>)
 }

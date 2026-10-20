@@ -12,6 +12,8 @@ import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupSortOrder
 import com.urunkarpm.drawer.core.model.GroupViewType
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -43,7 +45,8 @@ data class GroupsUiState(
     val drawerNotificationGlow: Boolean = true,
     val allApps: List<AppInfo> = emptyList(), // ponytail: exposed for bulk add
     val isAiCategorizing: Boolean = false,
-    val aiSuggestions: List<CategorizationSuggestion>? = null
+    val aiSuggestions: List<CategorizationSuggestion>? = null,
+    val isAiModelReady: Boolean = false
 )
 
 @HiltViewModel
@@ -58,9 +61,13 @@ class GroupsViewModel @Inject constructor(
     private val _showCreateDialog = MutableStateFlow(false)
     private val _isAiCategorizing = MutableStateFlow(false)
     private val _aiSuggestions = MutableStateFlow<List<CategorizationSuggestion>?>(null)
+    private val _isAiModelReady = MutableStateFlow(false)
 
     val isAiCategorizing: StateFlow<Boolean> = _isAiCategorizing.asStateFlow()
     val aiSuggestions: StateFlow<List<CategorizationSuggestion>?> = _aiSuggestions.asStateFlow()
+    val isAiModelReady: StateFlow<Boolean> = _isAiModelReady.asStateFlow()
+
+    private var aiCategorizationJob: Job? = null
 
     private val dialogsState = combine(
         _selectedAppForAction,
@@ -72,9 +79,10 @@ class GroupsViewModel @Inject constructor(
 
     private val aiState = combine(
         _isAiCategorizing,
-        _aiSuggestions
-    ) { isCategorizing, suggestions ->
-        isCategorizing to suggestions
+        _aiSuggestions,
+        _isAiModelReady
+    ) { isCategorizing, suggestions, modelReady ->
+        Triple(isCategorizing, suggestions, modelReady)
     }
 
     private val groupPrefsFlow = combine(
@@ -91,7 +99,7 @@ class GroupsViewModel @Inject constructor(
         groupPrefsFlow,
         dialogsState,
         aiState
-    ) { groups, installedApps, (multiGroup, lockLayout, drawerGlow), dialogs, (isCategorizing, suggestions) ->
+    ) { groups, installedApps, (multiGroup, lockLayout, drawerGlow), dialogs, (isCategorizing, suggestions, modelReady) ->
         // Primary lookup: packageName/activityName
         val appMap = installedApps.associateBy { "${it.packageName}/${it.activityName}" }
         // Fallback lookup: packageName only (first match) - handles cases where activityName differs
@@ -118,7 +126,8 @@ class GroupsViewModel @Inject constructor(
             drawerNotificationGlow = drawerGlow,
             allApps = installedApps.sortedBy { it.label.lowercase() },
             isAiCategorizing = isCategorizing,
-            aiSuggestions = suggestions
+            aiSuggestions = suggestions,
+            isAiModelReady = modelReady
         )
     }.stateIn(
         scope = viewModelScope,
@@ -278,11 +287,15 @@ class GroupsViewModel @Inject constructor(
     }
 
     fun startAiCategorization(unassignedOnly: Boolean = true) {
-        viewModelScope.launch {
+        aiCategorizationJob?.cancel()
+        aiCategorizationJob = viewModelScope.launch {
             _isAiCategorizing.value = true
+            _isAiModelReady.value = appGroupRepository.isAiModelReady
             try {
                 val suggestions = appGroupRepository.suggestCategorization(unassignedOnly)
                 _aiSuggestions.value = suggestions
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _aiSuggestions.value = emptyList()
             } finally {
@@ -299,8 +312,16 @@ class GroupsViewModel @Inject constructor(
     }
 
     fun dismissAiSuggestions() {
+        aiCategorizationJob?.cancel()
+        aiCategorizationJob = null
         _aiSuggestions.value = null
         _isAiCategorizing.value = false
+        _isAiModelReady.value = false
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        aiCategorizationJob?.cancel()
     }
 
     fun launchApp(app: AppInfo): Boolean = appRepository.launchApp(app)

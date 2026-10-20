@@ -424,6 +424,7 @@ fun GroupsAccordion(
         AiCategorizationPreviewBottomSheet(
             suggestions = uiState.aiSuggestions.orEmpty(),
             isLoading = uiState.isAiCategorizing,
+            isModelReady = uiState.isAiModelReady,
             sheetState = aiSheetState,
             onDismissRequest = { viewModel.dismissAiSuggestions() },
             onApplySuggestions = { approved ->
