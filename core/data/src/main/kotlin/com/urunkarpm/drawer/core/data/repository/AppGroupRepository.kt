@@ -1,5 +1,6 @@
 package com.urunkarpm.drawer.core.data.repository
 
+import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupSortOrder
@@ -44,4 +45,7 @@ interface AppGroupRepository {
     suspend fun removeGroupItemById(itemId: String)
     suspend fun collapseAllGroups()
     suspend fun autoPopulateGroups()
+
+    suspend fun suggestCategorization(unassignedOnly: Boolean = true): List<CategorizationSuggestion>
+    suspend fun applyCategorization(suggestions: List<CategorizationSuggestion>)
 }

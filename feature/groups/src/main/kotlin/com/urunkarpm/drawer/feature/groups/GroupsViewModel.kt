@@ -3,6 +3,7 @@ package com.urunkarpm.drawer.feature.groups
 import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.data.repository.AppGroupRepository
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
@@ -14,6 +15,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -39,7 +41,9 @@ data class GroupsUiState(
     val showCreateDialog: Boolean = false,
     val lockLayout: Boolean = false,
     val drawerNotificationGlow: Boolean = true,
-    val allApps: List<AppInfo> = emptyList() // ponytail: exposed for bulk add
+    val allApps: List<AppInfo> = emptyList(), // ponytail: exposed for bulk add
+    val isAiCategorizing: Boolean = false,
+    val aiSuggestions: List<CategorizationSuggestion>? = null
 )
 
 @HiltViewModel
@@ -52,6 +56,11 @@ class GroupsViewModel @Inject constructor(
     private val _selectedAppForAction = MutableStateFlow<Pair<AppInfo, AppGroup>?>(null)
     private val _groupBeingEdited = MutableStateFlow<AppGroup?>(null)
     private val _showCreateDialog = MutableStateFlow(false)
+    private val _isAiCategorizing = MutableStateFlow(false)
+    private val _aiSuggestions = MutableStateFlow<List<CategorizationSuggestion>?>(null)
+
+    val isAiCategorizing: StateFlow<Boolean> = _isAiCategorizing.asStateFlow()
+    val aiSuggestions: StateFlow<List<CategorizationSuggestion>?> = _aiSuggestions.asStateFlow()
 
     private val dialogsState = combine(
         _selectedAppForAction,
@@ -59,6 +68,13 @@ class GroupsViewModel @Inject constructor(
         _showCreateDialog
     ) { selectedApp, groupBeingEdited, showCreate ->
         GroupsDialogsState(selectedApp, groupBeingEdited, showCreate)
+    }
+
+    private val aiState = combine(
+        _isAiCategorizing,
+        _aiSuggestions
+    ) { isCategorizing, suggestions ->
+        isCategorizing to suggestions
     }
 
     private val groupPrefsFlow = combine(
@@ -73,8 +89,9 @@ class GroupsViewModel @Inject constructor(
         appGroupRepository.groups,
         appRepository.installedApps,
         groupPrefsFlow,
-        dialogsState
-    ) { groups, installedApps, (multiGroup, lockLayout, drawerGlow), dialogs ->
+        dialogsState,
+        aiState
+    ) { groups, installedApps, (multiGroup, lockLayout, drawerGlow), dialogs, (isCategorizing, suggestions) ->
         // Primary lookup: packageName/activityName
         val appMap = installedApps.associateBy { "${it.packageName}/${it.activityName}" }
         // Fallback lookup: packageName only (first match) - handles cases where activityName differs
@@ -99,7 +116,9 @@ class GroupsViewModel @Inject constructor(
             showCreateDialog = dialogs.showCreateDialog,
             lockLayout = lockLayout,
             drawerNotificationGlow = drawerGlow,
-            allApps = installedApps.sortedBy { it.label.lowercase() }
+            allApps = installedApps.sortedBy { it.label.lowercase() },
+            isAiCategorizing = isCategorizing,
+            aiSuggestions = suggestions
         )
     }.stateIn(
         scope = viewModelScope,
@@ -256,6 +275,31 @@ class GroupsViewModel @Inject constructor(
 
     fun setShowCreateDialog(show: Boolean) {
         _showCreateDialog.value = show
+    }
+
+    fun startAiCategorization(unassignedOnly: Boolean = true) {
+        viewModelScope.launch {
+            _isAiCategorizing.value = true
+            try {
+                val suggestions = appGroupRepository.suggestCategorization(unassignedOnly)
+                _aiSuggestions.value = suggestions
+            } catch (e: Exception) {
+                _aiSuggestions.value = emptyList()
+            } finally {
+                _isAiCategorizing.value = false
+            }
+        }
+    }
+
+    fun applyAiSuggestions(approvedSuggestions: List<CategorizationSuggestion> = _aiSuggestions.value.orEmpty()) {
+        viewModelScope.launch {
+            appGroupRepository.applyCategorization(approvedSuggestions)
+            _aiSuggestions.value = null
+        }
+    }
+
+    fun dismissAiSuggestions() {
+        _aiSuggestions.value = null
     }
 
     fun launchApp(app: AppInfo): Boolean = appRepository.launchApp(app)

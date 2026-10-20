@@ -1,8 +1,11 @@
 package com.urunkarpm.drawer.core.data.repository
 
+import com.urunkarpm.drawer.core.data.ai.AppCategorizer
+import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.database.dao.AppGroupDao
 import com.urunkarpm.drawer.core.database.entity.AppGroupEntity
 import com.urunkarpm.drawer.core.database.entity.AppGroupItemEntity
+import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupSortOrder
 import com.urunkarpm.drawer.core.model.GroupViewType
@@ -28,6 +31,7 @@ class AppGroupRepositoryImplTest {
     private val testDispatcher = StandardTestDispatcher()
     private val appGroupDao: AppGroupDao = mockk(relaxed = true)
     private val appRepository: AppRepository = mockk(relaxed = true)
+    private val appCategorizer: AppCategorizer = mockk(relaxed = true)
     private val groupsFlow = MutableStateFlow<List<AppGroupEntity>>(emptyList())
     private val itemsFlow = MutableStateFlow<List<AppGroupItemEntity>>(emptyList())
 
@@ -45,7 +49,7 @@ class AppGroupRepositoryImplTest {
         every { appGroupDao.getAllGroups() } returns groupsFlow
         every { appGroupDao.getAllGroupItems() } returns itemsFlow
         every { appGroupDao.getItemsForGroup(any()) } returns itemsFlow
-        repository = AppGroupRepositoryImpl(appGroupDao, { appRepository }, testDispatcher)
+        repository = AppGroupRepositoryImpl(appGroupDao, { appRepository }, { appCategorizer }, testDispatcher)
     }
 
     @Test
@@ -207,5 +211,55 @@ class AppGroupRepositoryImplTest {
         assertEquals(sampleApp.packageName, targetReindexed[1].packageName)
         assertEquals("group_tools", targetReindexed[1].groupId)
         assertEquals(1, targetReindexed[1].orderIndex)
+    }
+
+    @Test
+    fun suggestCategorization_delegatesToAppCategorizerWithCurrentState() = runTest(testDispatcher) {
+        val app = AppInfo(packageName = "com.sample.app", activityName = "Act", label = "Sample")
+        every { appRepository.installedApps } returns MutableStateFlow(listOf(app))
+        val groupEntity = AppGroupEntity(id = "group_work", name = "Work", orderIndex = 0)
+        groupsFlow.value = listOf(groupEntity)
+
+        val expectedSuggestions = listOf(
+            CategorizationSuggestion(group = groupEntity.toDomain(), suggestedApps = listOf(app))
+        )
+        coEvery { appCategorizer.categorizeApps(any(), any(), any()) } returns expectedSuggestions
+
+        val result = repository.suggestCategorization(unassignedOnly = true)
+
+        assertEquals(expectedSuggestions, result)
+        coVerify { appCategorizer.categorizeApps(listOf(app), any(), true) }
+    }
+
+    @Test
+    fun applyCategorization_insertsItemsPreservingOrderIndices() = runTest(testDispatcher) {
+        val group = AppGroup(id = "group_work", name = "Work")
+        val app1 = AppInfo(packageName = "com.app1", activityName = "Act1", label = "App1")
+        val app2 = AppInfo(packageName = "com.app2", activityName = "Act2", label = "App2")
+        val existingItem = AppGroupItemEntity(
+            id = "item_1",
+            groupId = "group_work",
+            packageName = "com.existing",
+            activityName = "ExistingAct",
+            orderIndex = 0
+        )
+        itemsFlow.value = listOf(existingItem)
+
+        val insertedItems = slot<List<AppGroupItemEntity>>()
+        coEvery { appGroupDao.insertGroupItems(capture(insertedItems)) } returns Unit
+
+        val suggestions = listOf(
+            CategorizationSuggestion(group = group, suggestedApps = listOf(app1, app2))
+        )
+
+        repository.applyCategorization(suggestions)
+
+        coVerify { appGroupDao.insertGroupItems(any()) }
+        assertEquals(2, insertedItems.captured.size)
+        assertEquals("group_work", insertedItems.captured[0].groupId)
+        assertEquals("com.app1", insertedItems.captured[0].packageName)
+        assertEquals(1, insertedItems.captured[0].orderIndex)
+        assertEquals("com.app2", insertedItems.captured[1].packageName)
+        assertEquals(2, insertedItems.captured[1].orderIndex)
     }
 }

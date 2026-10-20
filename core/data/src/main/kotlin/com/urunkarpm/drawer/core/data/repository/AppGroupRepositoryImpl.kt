@@ -2,6 +2,8 @@ package com.urunkarpm.drawer.core.data.repository
 
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
+import com.urunkarpm.drawer.core.data.ai.AppCategorizer
+import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.database.dao.AppGroupDao
 import com.urunkarpm.drawer.core.database.entity.AppGroupEntity
 import com.urunkarpm.drawer.core.database.entity.AppGroupItemEntity
@@ -27,6 +29,7 @@ import javax.inject.Singleton
 class AppGroupRepositoryImpl @Inject constructor(
     private val appGroupDao: AppGroupDao,
     private val appRepositoryProvider: Provider<AppRepository>,
+    private val appCategorizerProvider: Provider<AppCategorizer>,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
 ) : AppGroupRepository {
 
@@ -414,5 +417,52 @@ class AppGroupRepositoryImpl @Inject constructor(
 
     override suspend fun removeGroupItemById(itemId: String) = withContext(ioDispatcher) {
         appGroupDao.deleteGroupItemById(itemId)
+    }
+
+    override suspend fun suggestCategorization(unassignedOnly: Boolean): List<CategorizationSuggestion> = withContext(ioDispatcher) {
+        val appRepo = appRepositoryProvider.get()
+        var apps = appRepo.installedApps.first()
+        if (apps.isEmpty()) {
+            appRepo.refreshApps()
+            apps = appRepo.installedApps.first()
+        }
+        val currentGroups = groups.first()
+        val categorizer = appCategorizerProvider.get()
+        categorizer.categorizeApps(apps, currentGroups, unassignedOnly)
+    }
+
+    override suspend fun applyCategorization(suggestions: List<CategorizationSuggestion>) = withContext(ioDispatcher) {
+        if (suggestions.isEmpty()) return@withContext
+        val existingItems = appGroupDao.getAllGroupItems().first()
+        val itemsByGroup = existingItems.groupBy { it.groupId }.mapValues { it.value.toMutableList() }
+        val itemsToInsert = mutableListOf<AppGroupItemEntity>()
+
+        for (suggestion in suggestions) {
+            val groupId = suggestion.group.id
+            val currentGroupItems = itemsByGroup[groupId] ?: mutableListOf()
+            var nextOrder = (currentGroupItems.maxOfOrNull { it.orderIndex } ?: -1) + 1
+            val currentGroupKeys = currentGroupItems.map { "${it.packageName}/${it.activityName}#${it.userHandleId}" }.toSet()
+
+            for (app in suggestion.suggestedApps) {
+                val key = "${app.packageName}/${app.activityName}#${app.userHandleId}"
+                if (key in currentGroupKeys) continue
+
+                val newItem = AppGroupItemEntity(
+                    id = UUID.randomUUID().toString(),
+                    groupId = groupId,
+                    packageName = app.packageName,
+                    activityName = app.activityName,
+                    userHandleId = app.userHandleId,
+                    orderIndex = nextOrder++,
+                    customLabel = app.label
+                )
+                currentGroupItems.add(newItem)
+                itemsToInsert.add(newItem)
+            }
+        }
+
+        if (itemsToInsert.isNotEmpty()) {
+            appGroupDao.insertGroupItems(itemsToInsert)
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.urunkarpm.drawer.feature.groups
 
 import app.cash.turbine.test
+import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.data.repository.AppGroupRepository
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
@@ -9,6 +10,7 @@ import com.urunkarpm.drawer.core.model.AppGroupItem
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupSortOrder
 import com.urunkarpm.drawer.core.model.GroupViewType
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -23,6 +25,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -183,6 +186,79 @@ class GroupsViewModelTest {
             drawerNotificationGlowFlow.value = false
             val updated = awaitItem()
             assertFalse(updated.drawerNotificationGlow)
+        }
+    }
+
+    @Test
+    fun startAiCategorization_emitsSuggestionsAndSetsLoading() = runTest {
+        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
+        coEvery { appGroupRepository.suggestCategorization(any()) } coAnswers {
+            assertTrue(viewModel.isAiCategorizing.value)
+            listOf(suggestion)
+        }
+
+        assertFalse(viewModel.isAiCategorizing.value)
+        assertNull(viewModel.aiSuggestions.value)
+
+        viewModel.startAiCategorization(unassignedOnly = true)
+        testScheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.isAiCategorizing.value)
+        assertEquals(listOf(suggestion), viewModel.aiSuggestions.value)
+        coVerify { appGroupRepository.suggestCategorization(true) }
+    }
+
+    @Test
+    fun applyAiSuggestions_callsRepositoryAndClearsState() = runTest {
+        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
+        coEvery { appGroupRepository.suggestCategorization(any()) } returns listOf(suggestion)
+
+        viewModel.startAiCategorization(unassignedOnly = true)
+        testScheduler.advanceUntilIdle()
+        assertEquals(listOf(suggestion), viewModel.aiSuggestions.value)
+
+        viewModel.applyAiSuggestions(listOf(suggestion))
+        testScheduler.advanceUntilIdle()
+
+        coVerify { appGroupRepository.applyCategorization(listOf(suggestion)) }
+        assertNull(viewModel.aiSuggestions.value)
+    }
+
+    @Test
+    fun dismissAiSuggestions_clearsSuggestionsState() = runTest {
+        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
+        coEvery { appGroupRepository.suggestCategorization(any()) } returns listOf(suggestion)
+
+        viewModel.startAiCategorization(unassignedOnly = true)
+        testScheduler.advanceUntilIdle()
+        assertEquals(listOf(suggestion), viewModel.aiSuggestions.value)
+
+        viewModel.dismissAiSuggestions()
+        assertNull(viewModel.aiSuggestions.value)
+    }
+
+    @Test
+    fun uiState_reflectsAiCategorizationState() = runTest {
+        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
+        coEvery { appGroupRepository.suggestCategorization(any()) } returns listOf(suggestion)
+
+        viewModel.uiState.test {
+            val initial = awaitItem()
+            assertFalse(initial.isAiCategorizing)
+            assertNull(initial.aiSuggestions)
+
+            viewModel.startAiCategorization()
+            testScheduler.advanceUntilIdle()
+
+            val updated = expectMostRecentItem()
+            assertFalse(updated.isAiCategorizing)
+            assertEquals(listOf(suggestion), updated.aiSuggestions)
+
+            viewModel.dismissAiSuggestions()
+            testScheduler.advanceUntilIdle()
+
+            val dismissed = expectMostRecentItem()
+            assertNull(dismissed.aiSuggestions)
         }
     }
 }
