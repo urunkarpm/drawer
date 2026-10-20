@@ -587,7 +587,12 @@ private fun launchCalendar(context: Context) {
 
 private fun launchSpeechRecognizer(context: Context) {
     try {
-        val intent = Intent(RecognizerIntent.ACTION_WEB_SEARCH).apply {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault().toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, java.util.Locale.getDefault().toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak an action or app name...")
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
@@ -598,7 +603,14 @@ private fun launchSpeechRecognizer(context: Context) {
             }
             context.startActivity(intent)
         } catch (_: Exception) {
-            // Fallback: don't crash if no voice service found
+            try {
+                val intent = Intent(RecognizerIntent.ACTION_WEB_SEARCH).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            } catch (_: Exception) {
+                // Fallback: don't crash if no voice service found
+            }
         }
     }
 }

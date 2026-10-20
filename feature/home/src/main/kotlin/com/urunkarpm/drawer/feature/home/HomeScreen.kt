@@ -64,6 +64,10 @@ import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
 import android.content.Intent
 import android.speech.RecognizerIntent
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import java.util.Locale
 import android.os.Bundle
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.feature.home.component.WidgetsPage
@@ -310,6 +314,8 @@ fun HomeScreen(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -344,11 +350,63 @@ fun HomeScreen(
         if (result.resultCode == Activity.RESULT_OK) {
             val spokenText = result.data
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
+                ?.firstOrNull { it.isNotBlank() }
             if (!spokenText.isNullOrBlank()) {
                 viewModel.openAllApps()
                 viewModel.onSearchQueryChanged(spokenText)
             }
+        }
+    }
+
+    val launchSpeechIntent = {
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, Locale.getDefault().toLanguageTag())
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak an action or app name...")
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+            }
+            speechRecognizerLauncher.launch(intent)
+        } catch (_: Exception) {
+            try {
+                val fallbackIntent = Intent(Intent.ACTION_VOICE_COMMAND)
+                context.startActivity(fallbackIntent)
+            } catch (_: Exception) {
+                viewModel.openAllApps()
+            }
+        }
+    }
+
+    val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchSpeechIntent()
+        } else {
+            Toast.makeText(
+                context,
+                "Microphone permission is required for voice actions",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    val handleVoiceSearch = {
+        val hasAudioPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasAudioPermission) {
+            launchSpeechIntent()
+        } else {
+            recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -384,7 +442,6 @@ fun HomeScreen(
         }
     }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
     val widgetHostManager = widgetHostManager ?: remember { DrawerWidgetHostManager(context.applicationContext) }
     var pendingAppWidgetId by rememberSaveable { mutableStateOf<Int?>(null) }
     var targetDrawerIdForAdd by rememberSaveable { mutableStateOf<String?>(null) }
@@ -829,17 +886,7 @@ fun HomeScreen(
                         duoStatusPosition = uiState.duoStatusPosition,
                         isDuoStatusExpanded = isDuoStatusExpanded,
                         onToggleDuoStatusExpand = { isDuoStatusExpanded = !isDuoStatusExpanded },
-                        onOpenVoiceSearch = {
-                            try {
-                                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak an action or app name...")
-                                }
-                                speechRecognizerLauncher.launch(intent)
-                            } catch (_: Exception) {
-                                viewModel.openAllApps()
-                            }
-                        },
+                        onOpenVoiceSearch = handleVoiceSearch,
                         modifier = Modifier
                             .fillMaxWidth()
                             .zIndex(100f)
