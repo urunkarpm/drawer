@@ -1073,6 +1073,15 @@ fun SettingsScreen(
                         checked = uiState.hideDrawerIcons,
                         onCheckedChange = { viewModel.setHideDrawerIcons(it) }
                     )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Auto-Suggest Categories for New Apps",
+                        subtitle = "Suggest drawer categories when installing new apps using on-device intelligence",
+                        checked = uiState.autoCategorizeNewApps,
+                        onCheckedChange = { viewModel.setAutoCategorizeNewApps(it) }
+                    )
                 }
             }
 

@@ -77,6 +77,7 @@ class SettingsViewModelTest {
     private val wallpaperGradientPaletteFlow = MutableStateFlow("FULL_SPECTRUM")
     private val wallpaperGradientAngleFlow = MutableStateFlow("DIAGONAL")
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
+    private val autoCategorizeNewAppsFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -132,6 +133,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.wallpaperGradientPalette } returns wallpaperGradientPaletteFlow
         every { preferencesDataSource.wallpaperGradientAngle } returns wallpaperGradientAngleFlow
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
+        every { preferencesDataSource.autoCategorizeNewApps } returns autoCategorizeNewAppsFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -175,6 +177,7 @@ class SettingsViewModelTest {
             assertFalse(state.stealthTheme)
             assertEquals("LOW", state.stealthContrastLevel)
             assertFalse(state.stealthLimitBrightness)
+            assertTrue(state.autoCategorizeNewApps)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -198,6 +201,13 @@ class SettingsViewModelTest {
         viewModel.setAutoArrangeApps(false)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setAutoArrangeApps(false) }
+    }
+
+    @Test
+    fun setAutoCategorizeNewApps_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setAutoCategorizeNewApps(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setAutoCategorizeNewApps(false) }
     }
 
     @Test

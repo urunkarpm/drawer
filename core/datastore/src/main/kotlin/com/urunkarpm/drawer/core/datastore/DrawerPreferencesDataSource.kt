@@ -80,6 +80,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val DOCK_MESMERIZING_GLOW = booleanPreferencesKey("dock_mesmerizing_glow")
         val APP_LAUNCH_COUNTS = stringPreferencesKey("app_launch_counts")
         val APP_LAST_LAUNCHED_TIMES = stringPreferencesKey("app_last_launched_times")
+        val AUTO_CATEGORIZE_NEW_APPS = booleanPreferencesKey("auto_categorize_new_apps")
     }
 
     val appLaunchCounts: Flow<Map<String, Int>> = dataStore.data.map { prefs ->
@@ -192,9 +193,14 @@ class DrawerPreferencesDataSource @Inject constructor(
     val wallpaperBlurRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR_RADIUS] ?: 25f }
     val lockLayout: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.LOCK_LAYOUT] ?: false }
     val autoArrangeApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_ARRANGE_APPS] ?: true }
+    val autoCategorizeNewApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_CATEGORIZE_NEW_APPS] ?: true }
 
     suspend fun setAutoArrangeApps(enabled: Boolean) {
         dataStore.edit { it[PreferencesKeys.AUTO_ARRANGE_APPS] = enabled }
+    }
+
+    suspend fun setAutoCategorizeNewApps(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.AUTO_CATEGORIZE_NEW_APPS] = enabled }
     }
 
     suspend fun setThemeMode(mode: String) {

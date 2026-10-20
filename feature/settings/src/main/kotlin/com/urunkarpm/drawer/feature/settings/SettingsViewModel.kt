@@ -84,7 +84,8 @@ data class MiscSettings(
     val stealthTheme: Boolean = false,
     val stealthContrastLevel: String = "LOW",
     val stealthLimitBrightness: Boolean = false,
-    val drawerNotificationGlow: Boolean = true
+    val drawerNotificationGlow: Boolean = true,
+    val autoCategorizeNewApps: Boolean = true
 )
 
 data class SettingsActionState(
@@ -115,7 +116,8 @@ private data class MiscPart3(
     val stealthTheme: Boolean,
     val stealthContrastLevel: String,
     val stealthLimitBrightness: Boolean,
-    val drawerNotificationGlow: Boolean
+    val drawerNotificationGlow: Boolean,
+    val autoCategorizeNewApps: Boolean
 )
 
 private data class GradientVisuals(
@@ -173,6 +175,7 @@ data class SettingsUiState(
     val stealthContrastLevel: String = "LOW",
     val stealthLimitBrightness: Boolean = false,
     val drawerNotificationGlow: Boolean = true,
+    val autoCategorizeNewApps: Boolean = true,
     val dynamicWallpaperEnabled: Boolean = false,
     val wallpaperGradientSpeedSeconds: Int = 3,
     val wallpaperGradientBlurPercent: Int = 40,
@@ -287,9 +290,10 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.stealthTheme,
         preferencesDataSource.stealthContrastLevel,
         preferencesDataSource.stealthLimitBrightness,
-        preferencesDataSource.drawerNotificationGlow
-    ) { stealthTheme, stealthContrastLevel, stealthLimitBrightness, drawerNotificationGlow ->
-        MiscPart3(stealthTheme, stealthContrastLevel, stealthLimitBrightness, drawerNotificationGlow)
+        preferencesDataSource.drawerNotificationGlow,
+        preferencesDataSource.autoCategorizeNewApps
+    ) { stealthTheme, stealthContrastLevel, stealthLimitBrightness, drawerNotificationGlow, autoCategorizeNewApps ->
+        MiscPart3(stealthTheme, stealthContrastLevel, stealthLimitBrightness, drawerNotificationGlow, autoCategorizeNewApps)
     }
 
     private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3) { p1, p2, p3 ->
@@ -307,7 +311,8 @@ class SettingsViewModel @Inject constructor(
             stealthTheme = p3.stealthTheme,
             stealthContrastLevel = p3.stealthContrastLevel,
             stealthLimitBrightness = p3.stealthLimitBrightness,
-            drawerNotificationGlow = p3.drawerNotificationGlow
+            drawerNotificationGlow = p3.drawerNotificationGlow,
+            autoCategorizeNewApps = p3.autoCategorizeNewApps
         )
     }
 
@@ -405,6 +410,7 @@ class SettingsViewModel @Inject constructor(
             stealthContrastLevel = misc.stealthContrastLevel,
             stealthLimitBrightness = misc.stealthLimitBrightness,
             drawerNotificationGlow = misc.drawerNotificationGlow,
+            autoCategorizeNewApps = misc.autoCategorizeNewApps,
             dynamicWallpaperEnabled = wallpaper.dynamicWallpaperEnabled,
             wallpaperGradientSpeedSeconds = wallpaper.wallpaperGradientSpeedSeconds,
             wallpaperGradientBlurPercent = wallpaper.wallpaperGradientBlurPercent,
@@ -604,6 +610,12 @@ class SettingsViewModel @Inject constructor(
     fun setAutoArrangeApps(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setAutoArrangeApps(enabled)
+        }
+    }
+
+    fun setAutoCategorizeNewApps(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAutoCategorizeNewApps(enabled)
         }
     }
 

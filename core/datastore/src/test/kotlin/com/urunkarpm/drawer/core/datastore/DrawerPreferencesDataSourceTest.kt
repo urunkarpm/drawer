@@ -190,4 +190,17 @@ class DrawerPreferencesDataSourceTest {
         assertEquals(1, dataSource.appLaunchCounts.first()[key])
         org.junit.Assert.assertTrue((dataSource.appLastLaunchedTimes.first()[key] ?: 0L) > 0L)
     }
+
+    @Test
+    fun defaultAutoCategorizeNewAppsIsTrue() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(true, dataSource.autoCategorizeNewApps.first())
+    }
+
+    @Test
+    fun updateAutoCategorizeNewAppsPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setAutoCategorizeNewApps(false)
+        assertEquals(false, dataSource.autoCategorizeNewApps.first())
+    }
 }
