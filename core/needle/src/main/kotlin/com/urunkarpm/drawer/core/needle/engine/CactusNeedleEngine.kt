@@ -36,6 +36,80 @@ class CactusNeedleEngine @Inject constructor(
 
         withTimeoutOrNull(INFERENCE_TIMEOUT_MS) {
             val trimmed = query.trim()
+            val lower = trimmed.lowercase()
+
+            if (lower.contains("bluetooth")) {
+                return@withTimeoutOrNull listOf(
+                    ToolCallResult(
+                        toolName = "toggle_setting",
+                        arguments = buildJsonObject { put("setting", "BLUETOOTH") }
+                    )
+                )
+            }
+
+            if (lower.contains("wifi") || lower.contains("wi-fi") || lower.contains("internet")) {
+                return@withTimeoutOrNull listOf(
+                    ToolCallResult(
+                        toolName = "toggle_setting",
+                        arguments = buildJsonObject { put("setting", "WIFI") }
+                    )
+                )
+            }
+
+            if (lower.contains("hotspot") || lower.contains("tethering")) {
+                return@withTimeoutOrNull listOf(
+                    ToolCallResult(
+                        toolName = "toggle_setting",
+                        arguments = buildJsonObject { put("setting", "HOTSPOT") }
+                    )
+                )
+            }
+
+            if (lower.contains("volume") || lower.contains("sound") || lower.contains("mute")) {
+                return@withTimeoutOrNull listOf(
+                    ToolCallResult(
+                        toolName = "toggle_setting",
+                        arguments = buildJsonObject { put("setting", "SOUND") }
+                    )
+                )
+            }
+
+            if (lower.contains("brightness") || lower.contains("display setting")) {
+                return@withTimeoutOrNull listOf(
+                    ToolCallResult(
+                        toolName = "toggle_setting",
+                        arguments = buildJsonObject { put("setting", "DISPLAY") }
+                    )
+                )
+            }
+
+            if (lower.contains("battery")) {
+                return@withTimeoutOrNull listOf(
+                    ToolCallResult(
+                        toolName = "toggle_setting",
+                        arguments = buildJsonObject { put("setting", "BATTERY") }
+                    )
+                )
+            }
+
+            if (lower == "settings" || lower == "open settings" || lower == "system settings") {
+                return@withTimeoutOrNull listOf(
+                    ToolCallResult(
+                        toolName = "open_settings",
+                        arguments = buildJsonObject {}
+                    )
+                )
+            }
+
+            if (lower.contains("camera") || lower.contains("take a picture") || lower.contains("take a photo")) {
+                return@withTimeoutOrNull listOf(
+                    ToolCallResult(
+                        toolName = "open_camera",
+                        arguments = buildJsonObject {}
+                    )
+                )
+            }
+
             val timerPattern = Pattern.compile("(?i)(?:set\\s+)?timer\\s+(?:for\\s+)?(\\d+)\\s*(m|min|minute|minutes|s|sec|second|seconds)?")
             val timerMatcher = timerPattern.matcher(trimmed)
             if (timerMatcher.find()) {

@@ -53,5 +53,36 @@ object StandardTools {
         }
     )
 
-    val allTools = listOf(setTimerTool, setAlarmTool)
+    val toggleSettingTool = ToolDefinition(
+        name = "toggle_setting",
+        description = "Opens settings or toggles device setting: bluetooth, wifi, hotspot, sound, display, battery",
+        parameters = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("setting") {
+                    put("type", "string")
+                    put("description", "Setting to toggle: BLUETOOTH, WIFI, HOTSPOT, SOUND, DISPLAY, BATTERY")
+                }
+            }
+            put("required", JsonArray(listOf(JsonPrimitive("setting"))))
+        }
+    )
+
+    val openSettingsTool = ToolDefinition(
+        name = "open_settings",
+        description = "Opens system settings",
+        parameters = buildJsonObject {
+            put("type", "object")
+        }
+    )
+
+    val openCameraTool = ToolDefinition(
+        name = "open_camera",
+        description = "Opens device camera",
+        parameters = buildJsonObject {
+            put("type", "object")
+        }
+    )
+
+    val allTools = listOf(setTimerTool, setAlarmTool, toggleSettingTool, openSettingsTool, openCameraTool)
 }

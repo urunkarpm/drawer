@@ -68,6 +68,11 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import java.util.Locale
+import android.provider.Settings
+import android.provider.AlarmClock
+import android.provider.MediaStore
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CameraCharacteristics
 import android.os.Bundle
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.feature.home.component.WidgetsPage
@@ -344,6 +349,229 @@ fun HomeScreen(
         viewModel.refreshWeather()
     }
 
+    val handleVoiceCommand = { spokenText: String ->
+        val trimmed = spokenText.trim()
+        val lower = trimmed.lowercase()
+
+        val timerPattern = java.util.regex.Pattern.compile("(?i)(?:set\\s+)?timer\\s+(?:for\\s+)?(\\d+)\\s*(m|min|minute|minutes|s|sec|second|seconds)?")
+        val timerMatcher = timerPattern.matcher(trimmed)
+        val isTimer = timerMatcher.find()
+
+        val alarmPattern = java.util.regex.Pattern.compile("(?i)(?:set\\s+)?alarm\\s+(?:for\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?")
+        val alarmMatcher = alarmPattern.matcher(trimmed)
+        val isAlarm = alarmMatcher.find()
+
+        when {
+            // 1. Flashlight / Torch
+            lower.contains("flashlight") || lower.contains("torch") -> {
+                val enable = if (lower.contains("off") || lower.contains("disable") || lower.contains("stop")) false else true
+                val success = toggleTorch(context, enable)
+                if (success) {
+                    viewModel.showUserMessage(if (enable) "Flashlight turned on" else "Flashlight turned off")
+                } else {
+                    try {
+                        val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                        viewModel.showUserMessage("Opening Camera")
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 2. Bluetooth
+            lower.contains("bluetooth") -> {
+                try {
+                    val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Bluetooth Settings")
+                } catch (_: Exception) {
+                    try {
+                        val fallback = Intent(Settings.ACTION_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(fallback)
+                        viewModel.showUserMessage("Opening Settings")
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 3. Wi-Fi / Internet
+            lower.contains("wifi") || lower.contains("wi-fi") || lower.contains("internet") -> {
+                try {
+                    val intent = Intent(Settings.ACTION_WIFI_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Wi-Fi Settings")
+                } catch (_: Exception) {
+                    try {
+                        val fallback = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(fallback)
+                        viewModel.showUserMessage("Opening Wireless Settings")
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 4. Hotspot / Tethering
+            lower.contains("hotspot") || lower.contains("tethering") -> {
+                try {
+                    val intent = Intent().apply {
+                        component = ComponentName("com.android.settings", "com.android.settings.TetherSettings")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Hotspot Settings")
+                } catch (_: Exception) {
+                    try {
+                        val intent = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                        viewModel.showUserMessage("Opening Wireless Settings")
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 5. Do Not Disturb
+            lower.contains("do not disturb") || lower == "dnd" -> {
+                try {
+                    val intent = Intent(Settings.ACTION_ZEN_MODE_PRIORITY_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Do Not Disturb Settings")
+                } catch (_: Exception) {}
+            }
+
+            // 6. Sound / Volume
+            lower.contains("volume") || lower.contains("sound") || lower.contains("mute") -> {
+                try {
+                    val intent = Intent(Settings.ACTION_SOUND_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Sound Settings")
+                } catch (_: Exception) {}
+            }
+
+            // 7. Display / Brightness
+            lower.contains("brightness") || lower.contains("display setting") -> {
+                try {
+                    val intent = Intent(Settings.ACTION_DISPLAY_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Display Settings")
+                } catch (_: Exception) {}
+            }
+
+            // 8. Battery / Power
+            lower.contains("battery") || lower.contains("power save") || lower.contains("battery saver") -> {
+                try {
+                    val intent = Intent(Intent.ACTION_POWER_USAGE_SUMMARY).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Battery Settings")
+                } catch (_: Exception) {}
+            }
+
+            // 9. Airplane Mode
+            lower.contains("airplane mode") || lower.contains("aeroplane mode") -> {
+                try {
+                    val intent = Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Airplane Mode Settings")
+                } catch (_: Exception) {}
+            }
+
+            // 10. System Settings
+            lower == "settings" || lower == "open settings" || lower == "system settings" -> {
+                try {
+                    val intent = Intent(Settings.ACTION_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Settings")
+                } catch (_: Exception) {}
+            }
+
+            // 11. Camera
+            lower.contains("camera") || lower.contains("take a picture") || lower.contains("take a photo") || lower.contains("take a selfie") -> {
+                try {
+                    val intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage("Opening Camera")
+                } catch (_: Exception) {}
+            }
+
+            // 12. Timer
+            isTimer -> {
+                val count = timerMatcher.group(1)?.toIntOrNull() ?: 1
+                val unit = timerMatcher.group(2)?.lowercase() ?: "m"
+                val seconds = if (unit.startsWith("s")) count else count * 60
+                try {
+                    val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+                        putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+                        putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    val durationText = if (seconds >= 60) "${seconds / 60}m" else "${seconds}s"
+                    viewModel.showUserMessage("Setting timer for $durationText")
+                } catch (_: Exception) {}
+            }
+
+            // 13. Alarm
+            isAlarm -> {
+                var hour = alarmMatcher.group(1)?.toIntOrNull() ?: 7
+                val minute = alarmMatcher.group(2)?.toIntOrNull() ?: 0
+                val amPm = alarmMatcher.group(3)?.lowercase()
+                if (amPm == "pm" && hour < 12) hour += 12
+                if (amPm == "am" && hour == 12) hour = 0
+                try {
+                    val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                        putExtra(AlarmClock.EXTRA_HOUR, hour)
+                        putExtra(AlarmClock.EXTRA_MINUTES, minute)
+                        putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                    viewModel.showUserMessage(String.format(Locale.US, "Setting alarm for %02d:%02d", hour, minute))
+                } catch (_: Exception) {}
+            }
+
+            // 14. Direct App Launch (e.g. "open YouTube", "WhatsApp", "Spotify")
+            else -> {
+                val cleanAppName = trimmed.replaceFirst(Regex("^(?:open|launch|start|go to|run)\\s+", RegexOption.IGNORE_CASE), "").trim()
+                val installedApps = uiState.installedApps
+
+                val matchedApp = installedApps.firstOrNull { it.label.equals(cleanAppName, ignoreCase = true) }
+                    ?: installedApps.firstOrNull { it.label.equals(trimmed, ignoreCase = true) }
+                    ?: if (cleanAppName.length >= 3) installedApps.firstOrNull { it.label.startsWith(cleanAppName, ignoreCase = true) } else null
+                    ?: if (cleanAppName.length >= 4) installedApps.firstOrNull { it.label.contains(cleanAppName, ignoreCase = true) } else null
+
+                if (matchedApp != null) {
+                    viewModel.onAppClicked(matchedApp)
+                    viewModel.showUserMessage("Opening ${matchedApp.label}")
+                } else {
+                    // Fallback to searching in All Apps drawer
+                    viewModel.openAllApps()
+                    viewModel.onSearchQueryChanged(trimmed)
+                }
+            }
+        }
+    }
+
     val speechRecognizerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -352,8 +580,7 @@ fun HomeScreen(
                 ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
                 ?.firstOrNull { it.isNotBlank() }
             if (!spokenText.isNullOrBlank()) {
-                viewModel.openAllApps()
-                viewModel.onSearchQueryChanged(spokenText)
+                handleVoiceCommand(spokenText)
             }
         }
     }
@@ -1177,7 +1404,13 @@ fun HomeScreen(
             autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer,
             onOpenSettings = { isSettingsOpen = true },
             suggestedAction = suggestedAction,
-            onExecuteAction = { _ -> viewModel.closeAllApps() }
+            onExecuteAction = { action ->
+                try {
+                    action.intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(action.intent)
+                } catch (_: Exception) {}
+                viewModel.closeAllApps()
+            }
         )
 
         // ── App Long-Press Action Sheet ────────────────────────────────────────
@@ -1450,4 +1683,19 @@ fun HomeScreen(
         }
     }
 }
+}
+
+private fun toggleTorch(context: android.content.Context, enable: Boolean? = null): Boolean {
+    return try {
+        val cameraManager = context.getSystemService(android.content.Context.CAMERA_SERVICE) as? CameraManager ?: return false
+        val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
+            val chars = cameraManager.getCameraCharacteristics(id)
+            chars.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+        } ?: return false
+        val turnOn = enable ?: true
+        cameraManager.setTorchMode(cameraId, turnOn)
+        true
+    } catch (_: Exception) {
+        false
+    }
 }

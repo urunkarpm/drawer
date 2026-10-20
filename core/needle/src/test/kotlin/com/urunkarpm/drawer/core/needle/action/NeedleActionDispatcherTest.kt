@@ -49,6 +49,47 @@ class NeedleActionDispatcherTest {
     }
 
     @Test
+    fun testToggleSettingToolDispatch() {
+        val toolCall = ToolCallResult(
+            toolName = "toggle_setting",
+            arguments = buildJsonObject {
+                put("setting", "BLUETOOTH")
+            }
+        )
+
+        val action = dispatcher.dispatch(toolCall)
+        assertNotNull(action)
+        assertEquals("Open Bluetooth Settings", action?.title)
+        assertEquals(true, action?.isDirectExecutionSafe)
+    }
+
+    @Test
+    fun testOpenSettingsToolDispatch() {
+        val toolCall = ToolCallResult(
+            toolName = "open_settings",
+            arguments = buildJsonObject {}
+        )
+
+        val action = dispatcher.dispatch(toolCall)
+        assertNotNull(action)
+        assertEquals("Open Settings", action?.title)
+        assertEquals(true, action?.isDirectExecutionSafe)
+    }
+
+    @Test
+    fun testOpenCameraToolDispatch() {
+        val toolCall = ToolCallResult(
+            toolName = "open_camera",
+            arguments = buildJsonObject {}
+        )
+
+        val action = dispatcher.dispatch(toolCall)
+        assertNotNull(action)
+        assertEquals("Open Camera", action?.title)
+        assertEquals(true, action?.isDirectExecutionSafe)
+    }
+
+    @Test
     fun testUnknownToolReturnsNull() {
         val toolCall = ToolCallResult(
             toolName = "unknown_tool",
