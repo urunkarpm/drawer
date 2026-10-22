@@ -43,6 +43,7 @@ class DockViewModelTest {
     private val showLabelsFlow = MutableStateFlow(false)
     private val autoArrangeAppsFlow = MutableStateFlow(true)
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
+    private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
 
     private lateinit var viewModel: DockViewModel
 
@@ -72,6 +73,7 @@ class DockViewModelTest {
         every { preferencesDataSource.dockShowLabels } returns showLabelsFlow
         every { preferencesDataSource.autoArrangeApps } returns autoArrangeAppsFlow
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
+        every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
 
         dockItemsFlow.value = listOf(sampleDockItem)
         installedAppsFlow.value = listOf(sampleApp)
@@ -100,6 +102,7 @@ class DockViewModelTest {
             assertEquals(25f, state.surfaceBlurRadius)
             assertEquals(0.40f, state.surfaceStrokeOpacity)
             assertTrue(state.autoArrangeApps)
+            assertEquals(8, state.dockExpandedMaxApps)
             cancelAndIgnoreRemainingEvents()
         }
     }

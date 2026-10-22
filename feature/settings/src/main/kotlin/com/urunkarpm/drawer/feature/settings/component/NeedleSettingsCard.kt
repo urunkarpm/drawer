@@ -34,6 +34,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -46,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.urunkarpm.drawer.core.needle.model.ModelStatus
@@ -271,30 +275,30 @@ fun NeedleSettingsCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Strictness Chips
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            // Strictness Segmented Buttons
+            // ponytail: Native M3 SingleChoiceSegmentedButtonRow for strictness levels; ceiling: 3 levels; upgrade path: slider or bottom sheet.
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth()
             ) {
                 listOf(
                     "STRICT" to "Strict",
                     "BALANCED" to "Balanced",
                     "AGGRESSIVE" to "Aggressive"
-                ).forEach { (key, label) ->
+                ).forEachIndexed { index, (key, label) ->
                     val isSelected = strictness.equals(key, ignoreCase = true)
-                    FilterChip(
+                    SegmentedButton(
                         selected = isSelected,
                         onClick = { onStrictnessChange(key) },
-                        label = { Text(label) },
-                        leadingIcon = if (isSelected) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
-                                )
-                            }
-                        } else null
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
+                        icon = {},
+                        label = {
+                            Text(
+                                text = label,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
                     )
                 }
             }

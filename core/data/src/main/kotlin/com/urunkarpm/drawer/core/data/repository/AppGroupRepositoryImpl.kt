@@ -476,18 +476,12 @@ class AppGroupRepositoryImpl @Inject constructor(
 
         for (suggestion in suggestions) {
             if (suggestion.group.id !in knownGroupIds) {
+                // ponytail: dynamically created category drawers are assigned strictly sequential order indices to prevent order index fragmentation
                 val groupToInsert = suggestion.group.copy(
-                    orderIndex = if (suggestion.group.orderIndex > maxOrderIndex) {
-                        suggestion.group.orderIndex
-                    } else {
-                        ++maxOrderIndex
-                    }
+                    orderIndex = ++maxOrderIndex
                 )
                 appGroupDao.insertGroup(AppGroupEntity.fromDomain(groupToInsert))
                 knownGroupIds.add(suggestion.group.id)
-                if (groupToInsert.orderIndex > maxOrderIndex) {
-                    maxOrderIndex = groupToInsert.orderIndex
-                }
             }
         }
 
@@ -499,7 +493,8 @@ class AppGroupRepositoryImpl @Inject constructor(
             val groupId = suggestion.group.id
             val currentGroupItems = itemsByGroup[groupId] ?: mutableListOf()
             var nextOrder = (currentGroupItems.maxOfOrNull { it.orderIndex } ?: -1) + 1
-            val currentGroupKeys = currentGroupItems.map { "${it.packageName}/${it.activityName}#${it.userHandleId}" }.toSet()
+            // ponytail: tracking set is updated in-memory on every insertion to prevent duplicate records within the same batch.
+            val currentGroupKeys = currentGroupItems.map { "${it.packageName}/${it.activityName}#${it.userHandleId}" }.toMutableSet()
 
             for (app in suggestion.suggestedApps) {
                 val key = "${app.packageName}/${app.activityName}#${app.userHandleId}"
@@ -515,6 +510,7 @@ class AppGroupRepositoryImpl @Inject constructor(
                     customLabel = app.label
                 )
                 currentGroupItems.add(newItem)
+                currentGroupKeys.add(key)
                 itemsToInsert.add(newItem)
             }
         }

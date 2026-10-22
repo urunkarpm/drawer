@@ -101,6 +101,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.urunkarpm.drawer.core.needle.action.LauncherAction
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
@@ -127,7 +128,7 @@ fun AllAppsDrawer(
     onClose: () -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
     modifier: Modifier = Modifier,
-    iconShape: Shape = RoundedCornerShape(12.dp),
+    iconShape: Shape = CircleShape,
     dragDropState: AppDragDropState? = null,
     onDragDropResult: ((DragDropResult) -> Unit)? = null,
     drawerThemeMode: String = "SYSTEM",
@@ -588,20 +589,26 @@ private fun FrequentAppsRow(
     onDragDropResult: ((DragDropResult) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
-    val itemsToShow = remember(frequentApps) { frequentApps.take(5) }
+    val itemsToShow = remember(frequentApps) { frequentApps.take(6) }
     if (itemsToShow.isEmpty()) return
 
-    // ponytail: symmetric horizontal padding ensures suggestive apps row is perfectly centered end-to-end; ceiling: fixed horizontalPadding from screen width; upgrade path: adaptive padding provider.
+    val configuration = LocalConfiguration.current
+    val isSmallScreen = configuration.screenWidthDp < 360
+    val iconSize = if (isSmallScreen) 42.dp else 46.dp
+    val itemSpacing = if (isSmallScreen) 3.dp else 4.dp
+    val sidePadding = if (isSmallScreen) 8.dp else (horizontalPadding - 4.dp).coerceAtLeast(8.dp)
+
+    // ponytail: 6-item recently used apps row with adaptive compact icon sizing (46dp/42dp) and 4dp spacing ensures all 6 apps fit comfortably without clipping; ceiling: fixed single-row 6 apps; upgrade path: multi-row chip layout.
     Row(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentWidth(Alignment.CenterHorizontally)
             .widthIn(max = 760.dp)
             .padding(
-                horizontal = horizontalPadding,
+                horizontal = sidePadding,
                 vertical = 4.dp
             ),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         for (app in itemsToShow) {
@@ -614,6 +621,9 @@ private fun FrequentAppsRow(
                     onAppClick = onAppClick,
                     onAppLongClick = onAppLongClick,
                     iconLoader = iconLoader,
+                    iconSize = iconSize,
+                    itemHorizontalPadding = 2.dp,
+                    labelFontSize = 10.sp * LocalAppLabelScale.current,
                     iconShape = iconShape,
                     dragDropState = dragDropState,
                     onDragDropResult = onDragDropResult
@@ -631,7 +641,10 @@ private fun AppItemView(
     onAppLongClick: (AppInfo) -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
     modifier: Modifier = Modifier,
-    iconShape: Shape = RoundedCornerShape(12.dp),
+    iconSize: androidx.compose.ui.unit.Dp = 54.dp,
+    itemHorizontalPadding: androidx.compose.ui.unit.Dp = 4.dp,
+    labelFontSize: androidx.compose.ui.unit.TextUnit? = null,
+    iconShape: Shape = CircleShape,
     dragDropState: AppDragDropState? = null,
     onDragDropResult: ((DragDropResult) -> Unit)? = null,
     activeScrubLetterProvider: () -> String? = { null }
@@ -664,7 +677,7 @@ private fun AppItemView(
                 },
                 longPressRequired = true
             )
-            .padding(vertical = 8.dp, horizontal = 4.dp)
+            .padding(vertical = 6.dp, horizontal = itemHorizontalPadding)
             .semantics {
                 contentDescription = "${app.label}${if (app.isWorkProfile) " (Work Profile)" else ""}"
             }
@@ -678,7 +691,7 @@ private fun AppItemView(
                     onAppLongClick(app)
                 }
             )
-            .padding(vertical = 8.dp, horizontal = 4.dp)
+            .padding(vertical = 6.dp, horizontal = itemHorizontalPadding)
             .semantics {
                 contentDescription = "${app.label}${if (app.isWorkProfile) " (Work Profile)" else ""}"
             }
@@ -702,16 +715,17 @@ private fun AppItemView(
     ) {
         AppIconImage(
             key = app.componentKey,
-            size = 54.dp,
+            size = iconSize,
             label = app.label,
             isWorkProfile = app.isWorkProfile,
             iconShape = iconShape,
             iconLoader = { iconLoader(app) }
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+        val resolvedFontSize = labelFontSize ?: (MaterialTheme.typography.bodySmall.fontSize * labelScale)
         Text(
             text = app.label,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = MaterialTheme.typography.bodySmall.fontSize * labelScale),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = resolvedFontSize),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

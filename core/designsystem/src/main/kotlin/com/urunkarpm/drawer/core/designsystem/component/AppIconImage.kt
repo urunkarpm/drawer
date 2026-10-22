@@ -38,14 +38,15 @@ import kotlinx.coroutines.withContext
 
 /** Converts a DataStore icon-shape string to a Compose [Shape]. */
 fun iconShapeFromString(shapeName: String): Shape = when (shapeName) {
-    "CIRCLE" -> CircleShape
+    "CIRCLE", "SYSTEM" -> CircleShape
     "SQUIRCLE" -> RoundedCornerShape(30)            // 30% corner = squircle
     "ROUNDED_SQUARE" -> RoundedCornerShape(16.dp)
     "TEARDROP" -> RoundedCornerShape(
         topStartPercent = 50, topEndPercent = 50,
         bottomEndPercent = 50, bottomStartPercent = 12
     )
-    else -> RoundedCornerShape(12.dp)               // SYSTEM default
+    // ponytail: default icon shape is CircleShape for clean circular icons; ceiling: uniform clipping; upgrade path: custom SVG path masks.
+    else -> CircleShape
 }
 
 // Global in-memory LRU cache of rasterized ImageBitmaps for 0ms instantaneous frame-1 rendering
@@ -99,7 +100,7 @@ fun AppIconImage(
     size: Dp = 48.dp,
     label: String = "",
     isWorkProfile: Boolean = false,
-    iconShape: Shape = RoundedCornerShape(12.dp),
+    iconShape: Shape = CircleShape,
     key: Any? = null,
     iconLoader: (suspend () -> Drawable?)? = null,
     drawable: Drawable? = null

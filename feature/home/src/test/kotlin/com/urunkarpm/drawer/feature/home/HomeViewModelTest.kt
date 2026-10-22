@@ -49,7 +49,7 @@ class HomeViewModelTest {
     private val showWeatherFlow = MutableStateFlow(true)
     private val weatherUnitFlow = MutableStateFlow("CELSIUS")
     private val hideStatusBarFlow = MutableStateFlow(true)
-    private val adaptiveIconShapeFlow = MutableStateFlow("SYSTEM")
+    private val adaptiveIconShapeFlow = MutableStateFlow("CIRCLE")
     private val twoDrawersSideBySideFlow = MutableStateFlow(false)
     private val wallpaperBlurFlow = MutableStateFlow(false)
     private val wallpaperBlurRadiusFlow = MutableStateFlow(25f)
@@ -80,6 +80,7 @@ class HomeViewModelTest {
     private val wallpaperGradientAngleFlow = MutableStateFlow("DIAGONAL")
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
     private val enableOnDeviceAiFlow = MutableStateFlow(false)
+    private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
     private val lockLayoutFlow = MutableStateFlow(false)
     private val appLaunchCountsFlow = MutableStateFlow<Map<String, Int>>(emptyMap())
     private val appLastLaunchedTimesFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -147,6 +148,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.wallpaperGradientAngle } returns wallpaperGradientAngleFlow
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
         every { preferencesDataSource.enableOnDeviceAi } returns enableOnDeviceAiFlow
+        every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
         every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
@@ -339,14 +341,32 @@ class HomeViewModelTest {
             testScheduler.advanceUntilIdle()
 
             val app = sampleApps.first()
-            coEvery { dockRepository.addToDock(app) } returns true
+            coEvery { dockRepository.addToDock(app, any()) } returns true
 
             viewModel.pinToDock(app)
             testScheduler.advanceUntilIdle()
 
-            coVerify { dockRepository.addToDock(app) }
+            coVerify { dockRepository.addToDock(app, 5) }
             val state = expectMostRecentItem()
             assertEquals("Calculator pinned to dock", state.userMessage)
+        }
+    }
+
+    @Test
+    fun pinToDock_whenFullOrDuplicate_setsFailureUserMessage() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            val app = sampleApps.first()
+            coEvery { dockRepository.addToDock(app, any()) } returns false
+
+            viewModel.pinToDock(app)
+            testScheduler.advanceUntilIdle()
+
+            coVerify { dockRepository.addToDock(app, 5) }
+            val state = expectMostRecentItem()
+            assertEquals("Cannot pin to dock: full (max 5) or already in dock", state.userMessage)
         }
     }
 

@@ -59,7 +59,8 @@ data class DockSettings(
     val dockIconSize: Float = 56f,
     val dockShowLabels: Boolean = false,
     val dockCornerRadius: Float = 24f,
-    val openDrawerFromDockOnly: Boolean = false
+    val openDrawerFromDockOnly: Boolean = false,
+    val dockExpandedMaxApps: Int = 8
 )
 
 data class SurfaceSettings(
@@ -74,7 +75,7 @@ data class MiscSettings(
     val multiGroupApps: Boolean = false,
     val notificationsPrivacyMode: Boolean = false,
     val activeIconPack: String? = null,
-    val adaptiveIconShape: String = "SQUIRCLE",
+    val adaptiveIconShape: String = "CIRCLE",
     val twoDrawersSideBySide: Boolean = false,
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
@@ -89,7 +90,8 @@ data class MiscSettings(
     val aiCategorizationStrictness: String = "BALANCED",
     val aiCategorizeAllApps: Boolean = false,
     val aiForceWorkProfile: Boolean = true,
-    val enableOnDeviceAi: Boolean = false
+    val enableOnDeviceAi: Boolean = false,
+    val drawerTitleAnimation: String = "ACCENT_POP"
 )
 
 data class SettingsActionState(
@@ -128,7 +130,8 @@ private data class MiscPart4(
     val aiCategorizationStrictness: String,
     val aiCategorizeAllApps: Boolean,
     val aiForceWorkProfile: Boolean,
-    val enableOnDeviceAi: Boolean
+    val enableOnDeviceAi: Boolean,
+    val drawerTitleAnimation: String
 )
 
 private data class GradientVisuals(
@@ -168,7 +171,7 @@ data class SettingsUiState(
     val notificationSwipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
     val notificationSwipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
     val activeIconPack: String? = null,
-    val adaptiveIconShape: String = "SYSTEM",
+    val adaptiveIconShape: String = "CIRCLE",
     val twoDrawersSideBySide: Boolean = false,
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
@@ -196,7 +199,9 @@ data class SettingsUiState(
     val wallpaperGradientBlurPercent: Int = 40,
     val wallpaperGradientPalette: String = "FULL_SPECTRUM",
     val wallpaperGradientAngle: String = "DIAGONAL",
-    val dockMesmerizingGlow: Boolean = true
+    val dockMesmerizingGlow: Boolean = true,
+    val dockExpandedMaxApps: Int = 8,
+    val drawerTitleAnimation: String = "ACCENT_POP"
 )
 
 @HiltViewModel
@@ -267,14 +272,22 @@ class SettingsViewModel @Inject constructor(
         SurfaceSettings(themeStyle, opacity, blurRadius, strokeOpacity, cornerRadius)
     }
 
-    private val dockFlow = combine(
+    private val dockFlow = combine<Any, DockSettings>(
         preferencesDataSource.dockBackground,
         preferencesDataSource.dockIconSize,
         preferencesDataSource.dockShowLabels,
         preferencesDataSource.dockCornerRadius,
-        preferencesDataSource.openDrawerFromDockOnly
-    ) { dockBackground, dockIconSize, dockShowLabels, dockCornerRadius, openDrawerFromDockOnly ->
-        DockSettings(dockBackground, dockIconSize, dockShowLabels, dockCornerRadius, openDrawerFromDockOnly)
+        preferencesDataSource.openDrawerFromDockOnly,
+        preferencesDataSource.dockExpandedMaxApps
+    ) { values ->
+        DockSettings(
+            dockBackground = values[0] as String,
+            dockIconSize = values[1] as Float,
+            dockShowLabels = values[2] as Boolean,
+            dockCornerRadius = values[3] as Float,
+            openDrawerFromDockOnly = values[4] as Boolean,
+            dockExpandedMaxApps = values[5] as Int
+        )
     }
 
     private val dockAndSurfaceFlow = combine(dockFlow, surfaceFlow) { dock, surface ->
@@ -315,9 +328,10 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.aiCategorizationStrictness,
         preferencesDataSource.aiCategorizeAllApps,
         preferencesDataSource.aiForceWorkProfile,
-        preferencesDataSource.enableOnDeviceAi
-    ) { strictness, categorizeAll, forceWorkProfile, enableAi ->
-        MiscPart4(strictness, categorizeAll, forceWorkProfile, enableAi)
+        preferencesDataSource.enableOnDeviceAi,
+        preferencesDataSource.drawerTitleAnimation
+    ) { strictness, categorizeAll, forceWorkProfile, enableAi, titleAnim ->
+        MiscPart4(strictness, categorizeAll, forceWorkProfile, enableAi, titleAnim)
     }
 
     private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3, miscFlowPart4) { p1, p2, p3, p4 ->
@@ -340,7 +354,8 @@ class SettingsViewModel @Inject constructor(
             aiCategorizationStrictness = p4.aiCategorizationStrictness,
             aiCategorizeAllApps = p4.aiCategorizeAllApps,
             aiForceWorkProfile = p4.aiForceWorkProfile,
-            enableOnDeviceAi = p4.enableOnDeviceAi
+            enableOnDeviceAi = p4.enableOnDeviceAi,
+            drawerTitleAnimation = p4.drawerTitleAnimation
         )
     }
 
@@ -415,6 +430,7 @@ class SettingsViewModel @Inject constructor(
             dockIconSize = dock.dockIconSize,
             dockShowLabels = dock.dockShowLabels,
             dockCornerRadius = surface.surfaceCornerRadius,
+            dockExpandedMaxApps = dock.dockExpandedMaxApps,
             multiGroupApps = misc.multiGroupApps,
             notificationsPrivacyMode = misc.notificationsPrivacyMode,
             notificationSwipeRightAction = misc.notificationSwipeRightAction,
@@ -448,7 +464,8 @@ class SettingsViewModel @Inject constructor(
             wallpaperGradientBlurPercent = wallpaper.wallpaperGradientBlurPercent,
             wallpaperGradientPalette = wallpaper.wallpaperGradientPalette,
             wallpaperGradientAngle = wallpaper.wallpaperGradientAngle,
-            dockMesmerizingGlow = wallpaper.dockMesmerizingGlow
+            dockMesmerizingGlow = wallpaper.dockMesmerizingGlow,
+            drawerTitleAnimation = misc.drawerTitleAnimation
         )
     }.stateIn(
         scope = viewModelScope,
@@ -657,6 +674,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setDockExpandedMaxApps(maxApps: Int) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDockExpandedMaxApps(maxApps)
+        }
+    }
+
     fun setMultiGroupApps(multi: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setMultiGroupApps(multi)
@@ -703,6 +726,12 @@ class SettingsViewModel @Inject constructor(
     fun setAdaptiveIconShape(shape: String) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setAdaptiveIconShape(shape)
+        }
+    }
+
+    fun setDrawerTitleAnimation(mode: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDrawerTitleAnimation(mode)
         }
     }
 

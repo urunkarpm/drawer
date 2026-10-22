@@ -12,8 +12,14 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.BiasAlignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -40,18 +46,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Delete
@@ -104,6 +108,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
+import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupViewType
@@ -123,7 +128,7 @@ fun GroupsAccordion(
     viewModel: GroupsViewModel,
     modifier: Modifier = Modifier,
     twoDrawersSideBySide: Boolean = false,
-    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    iconShape: Shape = CircleShape,
     hoveredGroupId: String? = null,
     notificationPackages: Set<String> = emptySet(),
     onGroupPositioned: ((String, Rect) -> Unit)? = null,
@@ -135,6 +140,10 @@ fun GroupsAccordion(
     onPinToDock: ((AppInfo) -> Unit)? = null,
     isDragging: Boolean = false,
     hideDrawerIcons: Boolean = false,
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    isMesmerizingGlow: Boolean = true,
+    surfaceOpacity: Float = 0.65f,
+    surfaceStrokeOpacity: Float = 0.40f,
     onToggleExpand: ((String) -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -175,8 +184,8 @@ fun GroupsAccordion(
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Organize Drawers with AI",
+                            imageVector = Icons.Default.Category,
+                            contentDescription = "Organize Drawers",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier
                                 .padding(8.dp)
@@ -186,13 +195,13 @@ fun GroupsAccordion(
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Organize Drawers with AI",
+                            text = "Organize Drawers",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Automatically group your apps into smart drawers",
+                            text = "Automatically group your apps into organized drawers",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -248,6 +257,11 @@ fun GroupsAccordion(
                                 lockLayout = uiState.lockLayout,
                                 isDragging = isDragging,
                                 hideDrawerIcons = hideDrawerIcons,
+                                surfaceThemeStyle = surfaceThemeStyle,
+                                isMesmerizingGlow = isMesmerizingGlow,
+                                surfaceOpacity = surfaceOpacity,
+                                surfaceStrokeOpacity = surfaceStrokeOpacity,
+                                drawerTitleAnimation = uiState.drawerTitleAnimation,
                                 onOrganizeWithAi = { viewModel.startAiCategorization() }
                             )
                         }
@@ -288,6 +302,11 @@ fun GroupsAccordion(
                                 lockLayout = uiState.lockLayout,
                                 isDragging = isDragging,
                                 hideDrawerIcons = hideDrawerIcons,
+                                surfaceThemeStyle = surfaceThemeStyle,
+                                isMesmerizingGlow = isMesmerizingGlow,
+                                surfaceOpacity = surfaceOpacity,
+                                surfaceStrokeOpacity = surfaceStrokeOpacity,
+                                drawerTitleAnimation = uiState.drawerTitleAnimation,
                                 onOrganizeWithAi = { viewModel.startAiCategorization() }
                             )
                         }
@@ -330,6 +349,11 @@ fun GroupsAccordion(
                         lockLayout = uiState.lockLayout,
                         isDragging = isDragging,
                         hideDrawerIcons = hideDrawerIcons,
+                        surfaceThemeStyle = surfaceThemeStyle,
+                        isMesmerizingGlow = isMesmerizingGlow,
+                        surfaceOpacity = surfaceOpacity,
+                        surfaceStrokeOpacity = surfaceStrokeOpacity,
+                        drawerTitleAnimation = uiState.drawerTitleAnimation,
                         onOrganizeWithAi = { viewModel.startAiCategorization() }
                     )
                 }
@@ -449,7 +473,7 @@ private fun GroupCard(
     onAppClick: (AppInfo) -> Unit,
     onAppLongClick: (AppInfo) -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
-    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    iconShape: Shape = CircleShape,
     isCompact: Boolean = false,
     twoDrawersSideBySide: Boolean = false,
     isDropTarget: Boolean = false,
@@ -464,6 +488,11 @@ private fun GroupCard(
     lockLayout: Boolean = false,
     isDragging: Boolean = false,
     hideDrawerIcons: Boolean = false,
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    isMesmerizingGlow: Boolean = true,
+    surfaceOpacity: Float = 0.65f,
+    surfaceStrokeOpacity: Float = 0.40f,
+    drawerTitleAnimation: String = "ACCENT_POP",
     onOrganizeWithAi: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -477,6 +506,45 @@ private fun GroupCard(
         }
     }
     val groupIcon = GroupIcons.getIcon(group.iconName)
+
+    // ponytail: Drawer title lateral slide animation options. When expanded, titles glide smoothly to the right edge.
+    // Ceiling: fixed 5 animation modes; Upgrade path: custom user spring stiffness and physics sliders.
+    val isTitleAnimated = drawerTitleAnimation != "OFF"
+    val targetBias = if (isExpanded && isTitleAnimated) 1f else -1f
+
+    val biasAnimationSpec: AnimationSpec<Float> = when (drawerTitleAnimation) {
+        "FLUID_SPRING" -> spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow)
+        "KINETIC_DECEL" -> tween(durationMillis = 350, easing = CubicBezierEasing(0.05f, 0.9f, 0.1f, 1f))
+        "SNAPPY" -> if (isExpanded) {
+            spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow)
+        } else {
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+        }
+        "ACCENT_POP" -> spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow)
+        else -> snap()
+    }
+
+    val animatedBias by animateFloatAsState(
+        targetValue = targetBias,
+        animationSpec = biasAnimationSpec,
+        label = "drawerTitleBias"
+    )
+
+    val titleColor by animateColorAsState(
+        targetValue = if (isExpanded && drawerTitleAnimation == "ACCENT_POP") {
+            groupColor
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        animationSpec = tween(durationMillis = 280),
+        label = "drawerTitleColor"
+    )
+
+    val titleScale by animateFloatAsState(
+        targetValue = if (isExpanded && drawerTitleAnimation == "ACCENT_POP") 1.05f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow),
+        label = "drawerTitleScale"
+    )
 
     val notifyingPkgs = remember(resolvedGroup.apps, notificationPackages) {
         resolvedGroup.apps.map { it.packageName }.filter { it in notificationPackages }.toSet()
@@ -572,47 +640,42 @@ private fun GroupCard(
     )
 
     val listScrollState = rememberScrollState()
-    val scrollBlocker = remember {
-        object : NestedScrollConnection {
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource
-            ): Offset = Offset(0f, available.y)
-
-            override suspend fun onPostFling(
-                consumed: Velocity,
-                available: Velocity
-            ): Velocity = Velocity(0f, available.y)
-        }
-    }
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
 
     LaunchedEffect(group.isExpanded) {
         if (!group.isExpanded) {
             listScrollState.scrollTo(0)
+        } else {
+            // ponytail: smoothly bring expanded category drawer into full view above dock without layout jitter; ceiling: double-settle delay (120ms/160ms); upgrade path: AnimatedVisibility progress listener.
+            delay(120)
+            bringIntoViewRequester.bringIntoView()
+            delay(160)
+            bringIntoViewRequester.bringIntoView()
         }
     }
 
-    Card(
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .bringIntoViewRequester(bringIntoViewRequester)
             .graphicsLayer { scaleX = animatedScale; scaleY = animatedScale }
-            .onGloballyPositioned { coords -> onPositioned?.invoke(coords.boundsInRoot()) },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isDropTarget)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            else if (isExpanded)
-                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
-            else
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(animatedBorderWidth, animatedBorderColor)
+            .onGloballyPositioned { coords -> onPositioned?.invoke(coords.boundsInRoot()) }
     ) {
+        DrawerSurfaceBackground(
+            surfaceThemeStyle = surfaceThemeStyle,
+            shape = RoundedCornerShape(16.dp),
+            isExpanded = isExpanded,
+            accentColor = if (isExpanded || hasNotification) groupColor else null,
+            isDropTarget = isDropTarget,
+            isMesmerizingGlow = isMesmerizingGlow,
+            surfaceOpacity = surfaceOpacity,
+            surfaceStrokeOpacity = surfaceStrokeOpacity,
+            modifier = Modifier.matchParentSize()
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
                 .background(
                     Brush.verticalGradient(
                         colors = if (isExpanded) {
@@ -739,16 +802,27 @@ private fun GroupCard(
                         Spacer(modifier = Modifier.width(8.dp))
                     }
 
-                    Text(
-                        text = group.name,
-                        fontFamily = LocalHeaderFontFamily.current,
-                        style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp),
+                        contentAlignment = BiasAlignment(horizontalBias = animatedBias, verticalBias = 0f)
+                    ) {
+                        Text(
+                            text = group.name,
+                            fontFamily = LocalHeaderFontFamily.current,
+                            style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = titleColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = titleScale
+                                scaleY = titleScale
+                                transformOrigin = TransformOrigin(if (animatedBias > 0f) 1f else 0f, 0.5f)
+                            }
+                        )
+                    }
 
                     // Tactile circular touch backing for chevron
                     Box(
@@ -768,7 +842,6 @@ private fun GroupCard(
                         )
                     }
                 }
-            }
 
                 if (!lockLayout) {
                     DropdownMenu(
@@ -784,14 +857,14 @@ private fun GroupCard(
                             leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }
                         )
                         DropdownMenuItem(
-                            text = { Text("Organize with AI") },
+                            text = { Text("Organize Drawers") },
                             onClick = {
                                 showMenu = false
                                 onOrganizeWithAi()
                             },
                             leadingIcon = {
                                 Icon(
-                                    Icons.Default.AutoAwesome,
+                                    Icons.Default.Category,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -835,19 +908,14 @@ private fun GroupCard(
                 }
             }
 
-            // Aesthetic open and close animation with organic spring physics and parallax drift
+            // Aesthetic open and close animation with organic spring physics
+            // ponytail: clipToBounds + top vertical expansion prevents app icons from colliding into the drawer header
             AnimatedVisibility(
                 visible = group.isExpanded,
                 enter = expandVertically(
                     expandFrom = Alignment.Top,
                     animationSpec = spring(
                         dampingRatio = 0.82f,
-                        stiffness = 360f
-                    )
-                ) + slideInVertically(
-                    initialOffsetY = { -it / 6 },
-                    animationSpec = spring(
-                        dampingRatio = 0.85f,
                         stiffness = 360f
                     )
                 ) + fadeIn(
@@ -862,18 +930,13 @@ private fun GroupCard(
                         dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = Spring.StiffnessMedium
                     )
-                ) + slideOutVertically(
-                    targetOffsetY = { -it / 8 },
-                    animationSpec = tween(
-                        durationMillis = 180,
-                        easing = FastOutLinearInEasing
-                    )
                 ) + fadeOut(
                     animationSpec = tween(
                         durationMillis = 150,
                         easing = FastOutSlowInEasing
                     )
-                )
+                ),
+                modifier = Modifier.clipToBounds()
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     HorizontalDivider(
@@ -881,6 +944,7 @@ private fun GroupCard(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                         modifier = Modifier.padding(horizontal = if (isCompact) 10.dp else 16.dp)
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     if (resolvedGroup.apps.isEmpty()) {
                     Box(
@@ -899,12 +963,17 @@ private fun GroupCard(
                 } else {
                     val configuration = LocalConfiguration.current
                     val maxGroupHeight = if (configuration.screenHeightDp >= 800) 420.dp else if (isCompact) 240.dp else 280.dp
-                    Box(
-                        modifier = Modifier
+                    // ponytail: in single drawer mode, render apps directly in the parent vertical scroll container without height capping or inner scrolling to prevent nested scroll traps and dock occlusion; in two-column mode, constrain height to balance columns; ceiling: 420dp/280dp/240dp in side-by-side mode; upgrade path: dynamic viewport-aware height balancing.
+                    val contentModifier = if (twoDrawersSideBySide) {
+                        Modifier
                             .fillMaxWidth()
                             .heightIn(max = maxGroupHeight)
-                            .nestedScroll(scrollBlocker)
                             .verticalScroll(listScrollState, enabled = !isDragging)
+                    } else {
+                        Modifier.fillMaxWidth()
+                    }
+                    Box(
+                        modifier = contentModifier
                     ) {
                         // When drawers are compact on small screens, default to LIST view mode
                         val effectiveViewType = if (isCompact) {
@@ -963,6 +1032,7 @@ private fun GroupCard(
     }
 }
 }
+}
 
 @Composable
 private fun GroupGridLayout(
@@ -971,7 +1041,7 @@ private fun GroupGridLayout(
     onAppClick: (AppInfo) -> Unit,
     onAppLongClick: (AppInfo) -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
-    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    iconShape: Shape = CircleShape,
     isCompact: Boolean = false,
     notificationPackages: Set<String> = emptySet(),
     onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,
@@ -1127,7 +1197,7 @@ private fun GroupListLayout(
     onAppClick: (AppInfo) -> Unit,
     onAppLongClick: (AppInfo) -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
-    iconShape: Shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+    iconShape: Shape = CircleShape,
     isCompact: Boolean = false,
     notificationPackages: Set<String> = emptySet(),
     onAppPositioned: ((AppInfo, Rect) -> Unit)? = null,

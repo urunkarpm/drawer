@@ -22,7 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -138,7 +138,7 @@ fun AiCategorizationPreviewBottomSheet(
                     modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.AutoAwesome,
+                        imageVector = Icons.Default.Category,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
@@ -149,31 +149,14 @@ fun AiCategorizationPreviewBottomSheet(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Organize Drawers with AI",
+                        text = "Organize Drawers",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = if (isModelReady) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Text(
-                            text = if (isModelReady) "⚡ On-Device AI (Needle 3)" else "📋 Smart Metadata",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isModelReady) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (isModelReady) {
-                            "Suggested categorization powered by on-device Needle AI. Select the apps you'd like to assign."
-                        } else {
-                            "Suggested categorization based on smart app metadata. Select the apps you'd like to assign."
-                        },
+                        text = "Suggested categorization for your installed apps. Select the apps you'd like to assign.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -201,7 +184,7 @@ fun AiCategorizationPreviewBottomSheet(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "Analyzing installed apps on-device...",
+                            text = "Organizing installed apps...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

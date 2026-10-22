@@ -3,19 +3,10 @@ package com.urunkarpm.drawer.core.data.ai
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.needle.NeedleEngine
-import com.urunkarpm.drawer.core.needle.model.ModelStatus
-import com.urunkarpm.drawer.core.needle.model.ToolDefinition
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +20,7 @@ enum class TargetCategory(
         displayName = "Finance",
         groupAliases = listOf(
             "finance", "money", "bank", "banking", "wallet",
-            "crypto", "invest", "investment", "pay", "payment", "taxes"
+            "crypto", "invest", "investment", "pay", "payment", "taxes", "budget", "upi"
         )
     ),
     SOCIAL(
@@ -37,7 +28,7 @@ enum class TargetCategory(
         displayName = "Social",
         groupAliases = listOf(
             "social", "chat", "messaging", "messages", "messenger",
-            "friends", "communication", "connect", "dialer", "contacts"
+            "friends", "communication", "connect", "dialer", "contacts", "dating"
         )
     ),
     PRODUCTIVITY(
@@ -45,7 +36,7 @@ enum class TargetCategory(
         displayName = "Productivity",
         groupAliases = listOf(
             "work", "productivity", "deep work", "office", "projects",
-            "study", "notes", "tasks", "focus", "documents", "docs"
+            "study", "notes", "tasks", "focus", "documents", "docs", "workspace"
         )
     ),
     MEDIA(
@@ -53,7 +44,7 @@ enum class TargetCategory(
         displayName = "Media",
         groupAliases = listOf(
             "media", "entertainment", "music", "video", "streaming",
-            "photos", "movies", "gallery", "audio", "podcasts"
+            "photos", "movies", "gallery", "audio", "podcasts", "cinema"
         )
     ),
     UTILITIES(
@@ -61,21 +52,21 @@ enum class TargetCategory(
         displayName = "Utilities",
         groupAliases = listOf(
             "tool", "tools", "utility", "utilities", "system",
-            "toolbox", "settings"
+            "toolbox", "settings", "browser", "navigation", "travel", "transit"
         )
     ),
     GAMES(
         id = "games",
         displayName = "Games",
         groupAliases = listOf(
-            "game", "games", "gaming", "play", "arcade"
+            "game", "games", "gaming", "play", "arcade", "emulator"
         )
     ),
     HEALTH(
         id = "health",
         displayName = "Health",
         groupAliases = listOf(
-            "health", "fitness", "health & fitness", "health and fitness", "workout", "wellness", "wellbeing", "diet"
+            "health", "fitness", "health & fitness", "health and fitness", "workout", "wellness", "wellbeing", "diet", "gym"
         )
     ),
     SHOPPING(
@@ -83,7 +74,7 @@ enum class TargetCategory(
         displayName = "Shopping",
         groupAliases = listOf(
             "shopping", "shop", "food", "delivery", "store",
-            "ecommerce", "e-commerce", "groceries", "grocery", "orders"
+            "ecommerce", "e-commerce", "groceries", "grocery", "orders", "market"
         )
     )
 }
@@ -93,8 +84,9 @@ class AppCategorizerImpl @Inject constructor(
     private val needleEngine: NeedleEngine
 ) : AppCategorizer {
 
+    // ponytail: instant, deterministic, 100% offline rule and metadata engine is always ready without waiting on model downloads or LLM inference.
     override val isModelReady: Boolean
-        get() = needleEngine.modelStatus.value is ModelStatus.Ready
+        get() = true
 
     companion object {
         val DEFAULT_SUGGESTED_GROUPS: List<AppGroup> = listOf(
@@ -107,25 +99,20 @@ class AppCategorizerImpl @Inject constructor(
             AppGroup(id = "group_health", name = "Health & Fitness", iconName = "fitness_center", colorHex = "#14B8A6", orderIndex = 6),
             AppGroup(id = "group_shopping", name = "Shopping", iconName = "shopping_bag", colorHex = "#F97316", orderIndex = 7)
         )
-    }
 
-    private val categorizeTool = ToolDefinition(
-        name = "categorize_app",
-        description = "Categorize an Android application into a high-level drawer category",
-        parameters = buildJsonObject {
-            put("type", "object")
-            putJsonObject("properties") {
-                putJsonObject("category") {
-                    put("type", "string")
-                    put(
-                        "description",
-                        "Target category: finance, social, productivity, media, utilities, games, health, shopping"
-                    )
-                }
+        fun defaultGroupForCategory(category: TargetCategory): AppGroup {
+            return when (category) {
+                TargetCategory.FINANCE -> DEFAULT_SUGGESTED_GROUPS[0]
+                TargetCategory.SOCIAL -> DEFAULT_SUGGESTED_GROUPS[1]
+                TargetCategory.PRODUCTIVITY -> DEFAULT_SUGGESTED_GROUPS[2]
+                TargetCategory.MEDIA -> DEFAULT_SUGGESTED_GROUPS[3]
+                TargetCategory.UTILITIES -> DEFAULT_SUGGESTED_GROUPS[4]
+                TargetCategory.GAMES -> DEFAULT_SUGGESTED_GROUPS[5]
+                TargetCategory.HEALTH -> DEFAULT_SUGGESTED_GROUPS[6]
+                TargetCategory.SHOPPING -> DEFAULT_SUGGESTED_GROUPS[7]
             }
-            put("required", JsonArray(listOf(JsonPrimitive("category"))))
         }
-    )
+    }
 
     override suspend fun categorizeApps(
         apps: List<AppInfo>,
@@ -138,39 +125,74 @@ class AppCategorizerImpl @Inject constructor(
             return@withContext emptyList()
         }
 
-        val effectiveGroups = if (existingGroups.isEmpty()) {
-            DEFAULT_SUGGESTED_GROUPS
-        } else {
-            existingGroups
-        }
-
+        // Filter candidate apps if only unassigned apps should be organized
         val candidateApps = if (unassignedOnly) {
-            val assignedKeys = effectiveGroups.flatMap { group ->
+            val assignedKeys = existingGroups.flatMap { group ->
                 group.items.map { "${it.packageName}/${it.activityName}#${it.userHandleId}" }
             }.toSet()
-            val assignedPackages = effectiveGroups.flatMap { group ->
+            val assignedPackages = existingGroups.flatMap { group ->
                 group.items.map { it.packageName }
             }.toSet()
 
             apps.filter { app ->
-                app.componentKey !in assignedKeys && app.packageName !in assignedPackages
+                val key = app.componentKey.ifEmpty { "${app.packageName}/${app.activityName}#${app.userHandleId}" }
+                key !in assignedKeys && app.packageName !in assignedPackages
             }
         } else {
             apps
         }
 
-        val distinctApps = candidateApps.distinctBy { it.componentKey.ifEmpty { it.packageName } }
-        val appsByGroup = mutableMapOf<AppGroup, MutableList<AppInfo>>()
+        // ponytail: robustly deduplicate candidates by normalized component key or package name
+        val distinctApps = candidateApps.distinctBy {
+            val key = it.componentKey.ifBlank { "${it.packageName}/${it.activityName}#${it.userHandleId}" }
+            key.ifBlank { it.packageName }
+        }
+
+        // Active groups track existing user drawers plus any newly created drawers
+        val activeGroups = existingGroups.toMutableList()
+        val knownGroupIds = (existingGroups.map { it.id }).toMutableSet()
+        var nextOrderIndex = (existingGroups.maxOfOrNull { it.orderIndex } ?: -1) + 1
+
+        val appsByGroup = mutableMapOf<String, MutableList<AppInfo>>()
 
         for (app in distinctApps) {
             coroutineContext.ensureActive()
-            val category = classifyApp(app, strictness, forceWorkProfile) ?: continue
-            val matchedGroup = findMatchingGroup(category, effectiveGroups, strictness) ?: continue
-            appsByGroup.getOrPut(matchedGroup) { mutableListOf() }.add(app)
+            val category = try {
+                classifyApp(app, strictness, forceWorkProfile)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            } ?: continue
+
+            // 1. Check existing or already created groups for a match
+            var matchedGroup = findMatchingGroup(category, activeGroups, strictness)
+
+            // 2. ponytail: if no matching group exists, dynamically create an additional drawer for this category so no apps are discarded
+            if (matchedGroup == null) {
+                val template = defaultGroupForCategory(category)
+                val baseId = template.id
+                var uniqueId = baseId
+                var counter = 1
+                while (uniqueId in knownGroupIds) {
+                    uniqueId = "${baseId}_$counter"
+                    counter++
+                }
+                val newGroup = template.copy(
+                    id = uniqueId,
+                    orderIndex = nextOrderIndex++
+                )
+                knownGroupIds.add(newGroup.id)
+                activeGroups.add(newGroup)
+                matchedGroup = newGroup
+            }
+
+            appsByGroup.getOrPut(matchedGroup.id) { mutableListOf() }.add(app)
         }
 
-        effectiveGroups.mapNotNull { group ->
-            val suggestedApps = appsByGroup[group]
+        // Return suggestions preserving existing groups first, followed by any newly created groups
+        activeGroups.mapNotNull { group ->
+            val suggestedApps = appsByGroup[group.id]
             if (!suggestedApps.isNullOrEmpty()) {
                 CategorizationSuggestion(group = group, suggestedApps = suggestedApps)
             } else {
@@ -188,59 +210,21 @@ class AppCategorizerImpl @Inject constructor(
             return TargetCategory.PRODUCTIVITY
         }
 
-        if (needleEngine.modelStatus.value is ModelStatus.Ready) {
-            val needleCategory = queryNeedle(app)
-            if (needleCategory != null) {
-                return needleCategory
-            }
-        }
-
+        // ponytail: purely rule & metadata driven; no reliance on AI models ensures instant, bulletproof, offline categorization.
         return classifyByMetadata(app, strictness)
-    }
-
-    private suspend fun queryNeedle(app: AppInfo): TargetCategory? {
-        return try {
-            val results = needleEngine.predictToolCall(
-                query = "Categorize application: ${app.label} (${app.packageName})",
-                tools = listOf(categorizeTool)
-            )
-            val categoryArg = results.firstOrNull { it.toolName == "categorize_app" }
-                ?.arguments
-                ?.get("category")
-                ?.jsonPrimitive
-                ?.contentOrNull
-            categoryArg?.let { parseTargetCategory(it) }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parseTargetCategory(value: String): TargetCategory? {
-        val normalized = value.lowercase().trim()
-        return when {
-            normalized.contains("finance") || normalized.contains("money") || normalized.contains("bank") -> TargetCategory.FINANCE
-            normalized.contains("social") || normalized.contains("chat") || normalized.contains("messaging") -> TargetCategory.SOCIAL
-            normalized.contains("productiv") || normalized.contains("work") || normalized.contains("office") -> TargetCategory.PRODUCTIVITY
-            normalized.contains("media") || normalized.contains("music") || normalized.contains("video") || normalized.contains("entertainment") -> TargetCategory.MEDIA
-            normalized.contains("util") || normalized.contains("tool") || normalized.contains("system") -> TargetCategory.UTILITIES
-            normalized.contains("game") -> TargetCategory.GAMES
-            normalized.contains("health") || normalized.contains("fit") -> TargetCategory.HEALTH
-            normalized.contains("shop") || normalized.contains("food") -> TargetCategory.SHOPPING
-            else -> null
-        }
     }
 
     private fun classifyByMetadata(app: AppInfo, strictness: String = "BALANCED"): TargetCategory? {
         val isStrict = strictness.equals("STRICT", ignoreCase = true)
         val isAggressive = strictness.equals("AGGRESSIVE", ignoreCase = true)
         val allowLooseTokens = !isStrict
-        val pkg = app.packageName.lowercase()
-        val label = app.label.lowercase()
-        val labelTokens = label.split(" ", "_", "-", ".", "/").filter { it.isNotBlank() }
 
-        // 1. Finance
+        // Defensive sanitization: handle potential null or malformed strings safely
+        val pkg = app.packageName.lowercase().trim()
+        val label = app.label.lowercase().trim()
+        val labelTokens = label.split(Regex("[\\s_\\-./,;:!?()\\[\\]{}]+")).filter { it.isNotBlank() }
+
+        // 1. Finance & Banking & UPI & Investments
         if (pkg.contains("splitwise") || pkg.contains("gpay") || pkg.contains("phonepe") ||
             pkg.contains("paytm") || pkg.contains("cred") || pkg.contains("binance") ||
             pkg.contains("coinbase") || pkg.contains("zerodha") || pkg.contains("groww") ||
@@ -256,11 +240,27 @@ class AppCategorizerImpl @Inject constructor(
             pkg.contains("mint") || pkg.contains("ynab") || pkg.contains("quickbooks") ||
             pkg.contains("expensify") || pkg.contains("turbotax") || pkg.contains(".wallet") ||
             pkg.contains("wallet.") || pkg.contains("banking") || pkg.contains(".bank.") ||
-            pkg.contains("bank.") || pkg.contains(".pay.") ||
+            pkg.contains("bank.") || pkg.contains(".pay.") || pkg.contains("coindcx") ||
+            pkg.contains("wazirx") || pkg.contains("coinswitch") || pkg.contains("fi.money") ||
+            pkg.contains("onecard") || pkg.contains("slice") || pkg.contains("kreditbee") ||
+            pkg.contains("moneytap") || pkg.contains("cleartax") || pkg.contains("toshl") ||
+            pkg.contains("bluecoins") || pkg.contains("spendee") || pkg.contains("phantom") ||
+            pkg.contains("sbi") || pkg.contains("yono") || pkg.contains("hdfc") ||
+            pkg.contains("icici") || pkg.contains("imobile") || pkg.contains("axis") ||
+            pkg.contains("kotak") || pkg.contains("canara") || pkg.contains("baroda") ||
+            pkg.contains("pnb") || pkg.contains("indusind") || pkg.contains("federalbank") ||
+            pkg.contains("idfc") || pkg.contains("rbl") || pkg.contains("chase") ||
+            pkg.contains("bankofamerica") || pkg.contains("wellsfargo") || pkg.contains("citi") ||
+            pkg.contains("barclays") || pkg.contains("hsbc") || pkg.contains("capitalone") ||
             label.contains("splitwise") || label.contains("groww") || label.contains("bank") ||
             label.contains("finance") || label.contains("wallet") || label.contains("crypto") ||
             label.contains("invest") || label.contains("trading") || label.contains("stocks") ||
-            (allowLooseTokens && labelTokens.any { it in setOf("pay", "cash", "money", "tax", "taxes", "budget") })
+            label.contains("phonepe") || label.contains("paytm") || label.contains("gpay") ||
+            label.contains("cred") || label.contains("zerodha") || label.contains("upstox") ||
+            label.contains("angel one") || label.contains("dhan") || label.contains("kite") ||
+            label.contains("bhim") || label.contains("loan") || label.contains("credit card") ||
+            label.contains("mutual fund") || label.contains("demat") || label.contains("bitcoin") ||
+            (allowLooseTokens && labelTokens.any { it in setOf("pay", "cash", "money", "tax", "taxes", "budget", "upi", "coin", "expense", "expenses") })
         ) {
             return TargetCategory.FINANCE
         }
@@ -277,15 +277,23 @@ class AppCategorizerImpl @Inject constructor(
             pkg.contains("bumble") || pkg.contains("hinge") || pkg.contains("okcupid") ||
             pkg.contains("badoo") || pkg.contains("grindr") || pkg.contains("meetup") ||
             pkg.contains("messaging") || pkg.contains("messages") || pkg.contains("contacts") ||
-            pkg.contains("dialer") ||
-            label.contains("chat") || label.contains("social") || label.contains("telegram") ||
+            pkg.contains("dialer") || pkg.contains("truecaller") || pkg.contains("bereal") ||
+            pkg.contains("happn") || pkg.contains("jeevansathi") || pkg.contains("shaadi") ||
+            pkg.contains("matrimony") || pkg.contains("element.io") || pkg.contains("threema") ||
+            pkg.contains("session") ||
+            (label.contains("chat") && !label.contains("chatgpt") && !pkg.contains("chatgpt")) || label.contains("social") || label.contains("telegram") ||
             label.contains("reddit") || label.contains("instagram") || label.contains("messenger") ||
-            (allowLooseTokens && labelTokens.any { it in setOf("message", "messages", "dialer", "phone", "sms", "contacts") })
+            label.contains("whatsapp") || label.contains("discord") || label.contains("signal") ||
+            label.contains("twitter") || label.contains("threads") || label.contains("snapchat") ||
+            label.contains("linkedin") || label.contains("contacts") || label.contains("dialer") ||
+            label.contains("truecaller") || label.contains("tinder") || label.contains("bumble") ||
+            label.contains("hinge") || label.contains("dating") ||
+            (allowLooseTokens && labelTokens.any { it in setOf("message", "messages", "dialer", "phone", "sms", "contacts", "call", "talk") })
         ) {
             return TargetCategory.SOCIAL
         }
 
-        // 3. Work / Productivity
+        // 3. Work / Productivity & Office & AI Assistants
         if (pkg.contains("docs") || pkg.contains("sheets") || pkg.contains("slides") ||
             pkg.contains("drive") || pkg.contains("dropbox") || pkg.contains("onedrive") ||
             pkg.contains("slack") || pkg.contains("teams") || pkg.contains("calendar") ||
@@ -304,15 +312,25 @@ class AppCategorizerImpl @Inject constructor(
             pkg.contains("gmail") || pkg.contains("protonmail") || pkg.contains("spark") ||
             pkg.contains("camscanner") || pkg.contains("acrobat") || pkg.contains(".mail.") ||
             pkg.contains(".email.") || pkg.contains(".notes.") || pkg.contains(".calendar.") ||
+            pkg.contains("vflat") || pkg.contains("foxit") || pkg.contains("linear") ||
+            pkg.contains("basecamp") || pkg.contains("superhuman") || pkg.contains("bluemail") ||
+            pkg.contains("thunderbird") || pkg.contains("keep") || pkg.contains("zoho") ||
+            pkg.contains("mega.privacy") || pkg.contains("pcloud") ||
             label.contains("notes") || label.contains("office") || label.contains("todo") ||
             label.contains("docs") || label.contains("teams") || label.contains("chatgpt") ||
-            label.contains("claude") || label.contains("workspace") ||
-            (allowLooseTokens && labelTokens.any { it in setOf("mail", "task", "tasks", "work", "doc", "pdf", "meet", "keep") })
+            label.contains("claude") || label.contains("workspace") || label.contains("gemini") ||
+            label.contains("copilot") || label.contains("perplexity") || label.contains("notion") ||
+            label.contains("obsidian") || label.contains("evernote") || label.contains("drive") ||
+            label.contains("sheets") || label.contains("slides") || label.contains("word") ||
+            label.contains("excel") || label.contains("powerpoint") || label.contains("calendar") ||
+            label.contains("tasks") || label.contains("scanner") || label.contains("pdf reader") ||
+            label.contains("document") || label.contains("documents") ||
+            (allowLooseTokens && labelTokens.any { it in setOf("mail", "task", "tasks", "work", "doc", "pdf", "meet", "keep", "note", "notes", "sheet", "slide", "scan") })
         ) {
             return TargetCategory.PRODUCTIVITY
         }
 
-        // 4. Media & Entertainment
+        // 4. Media & Entertainment & Music & Video
         if (pkg.contains("youtube") || pkg.contains("spotify") || pkg.contains("netflix") ||
             pkg.contains("primevideo") || pkg.contains("prime video") || pkg.contains("hotstar") ||
             pkg.contains("disney") || pkg.contains("hulu") || pkg.contains("peacock") ||
@@ -324,17 +342,30 @@ class AppCategorizerImpl @Inject constructor(
             pkg.contains("plex") || pkg.contains("kodi") || pkg.contains("audible") ||
             pkg.contains("pocketcasts") || pkg.contains("tunein") || pkg.contains(".music.") ||
             pkg.contains(".video.") || pkg.contains(".player.") || pkg.contains(".radio.") ||
-            pkg.contains(".audio.") ||
+            pkg.contains(".audio.") || pkg.contains("jiocinema") || pkg.contains("sonyliv") ||
+            pkg.contains("zee5") || pkg.contains("snapseed") || pkg.contains("lightroom") ||
+            pkg.contains("vsco") || pkg.contains("picsart") || pkg.contains("inshot") ||
+            pkg.contains("capcut") || pkg.contains("poweramp") || pkg.contains("musicolet") ||
+            pkg.contains("blackplayer") || pkg.contains("jiosaavn") || pkg.contains("wynk") ||
+            pkg.contains("gaana") || pkg.contains("kuku.fm") || pkg.contains("pocketfm") ||
+            pkg.contains("storytel") || pkg.contains("apple.music") || pkg.contains("castbox") ||
+            pkg.contains("antennapod") || pkg.contains("sunnxt") || pkg.contains("aha") ||
+            pkg.contains("kick") ||
             label.contains("music") || label.contains("podcast") || label.contains("gallery") ||
             label.contains("photo") || label.contains("video") || label.contains("player") ||
             label.contains("radio") || label.contains("cinema") || label.contains("streaming") ||
             label.contains("spotify") || label.contains("vlc") || label.contains("shazam") ||
-            (allowLooseTokens && labelTokens.any { it in setOf("audio", "sound", "camera", "movie", "movies", "tv") })
+            label.contains("netflix") || label.contains("youtube") || label.contains("prime video") ||
+            label.contains("hotstar") || label.contains("camera") || label.contains("jiocinema") ||
+            label.contains("sonyliv") || label.contains("zee5") || label.contains("mx player") ||
+            label.contains("audible") || label.contains("fm") || label.contains("sound") ||
+            label.contains("mp3") ||
+            (allowLooseTokens && labelTokens.any { it in setOf("audio", "sound", "camera", "movie", "movies", "tv", "song", "songs", "film", "album", "track") })
         ) {
             return TargetCategory.MEDIA
         }
 
-        // 5. Utilities & System
+        // 5. Utilities & System & Navigation
         if (pkg.contains("settings") || pkg.contains("calculator") || pkg.contains("clock") ||
             pkg.contains("files") || pkg.contains("filemanager") || pkg.contains("browser") ||
             pkg.contains("chrome") || pkg.contains("firefox") || pkg.contains("edge") ||
@@ -348,44 +379,75 @@ class AppCategorizerImpl @Inject constructor(
             pkg.contains("cleaner") || pkg.contains("antivirus") || pkg.contains("vpn") ||
             pkg.contains("speedtest") || pkg.contains("flashlight") || pkg.contains("torch") ||
             pkg.contains("recorder") || pkg.contains("scanner") || pkg.contains("toolbox") ||
+            pkg.contains("maps") || pkg.contains("waze") || pkg.contains("uber") ||
+            pkg.contains("ola") || pkg.contains("rapido") || pkg.contains("irctc") ||
+            pkg.contains("rly") || pkg.contains("rail") || pkg.contains("transit") ||
+            pkg.contains("citymapper") || pkg.contains("protonvpn") || pkg.contains("nordvpn") ||
+            pkg.contains("mullvad") || pkg.contains("wireguard") || pkg.contains("adguard") ||
+            pkg.contains("gboard") || pkg.contains("swiftkey") || pkg.contains("solidexplorer") ||
+            pkg.contains("cxexplorer") || pkg.contains("zarchiver") ||
             label.contains("settings") || label.contains("calculator") || label.contains("clock") ||
             label.contains("files") || label.contains("browser") || label.contains("terminal") ||
             label.contains("utility") || label.contains("utilities") || label.contains("cleaner") ||
-            label.contains("vpn") ||
-            (allowLooseTokens && labelTokens.any { it in setOf("tools", "tool", "timer", "alarm", "stopwatch", "weather", "backup") })
+            label.contains("vpn") || label.contains("maps") || label.contains("weather") ||
+            label.contains("authenticator") || label.contains("speedtest") || label.contains("flashlight") ||
+            label.contains("torch") || label.contains("compass") || label.contains("uber") ||
+            label.contains("ola") || label.contains("rapido") || label.contains("transit") ||
+            (allowLooseTokens && labelTokens.any { it in setOf("tools", "tool", "timer", "alarm", "stopwatch", "weather", "backup", "vpn", "calc", "browser", "map", "nav", "cab", "ride") })
         ) {
             return TargetCategory.UTILITIES
         }
 
-        // 6. Games
+        // 6. Games & Emulators
         if (pkg.contains("steam") || pkg.contains("playstation") || pkg.contains("xbox") ||
             pkg.contains("epicgames") || pkg.contains("roblox") || pkg.contains("minecraft") ||
             pkg.contains("pubg") || pkg.contains("codm") || pkg.contains("genshin") ||
             pkg.contains("candycrush") || pkg.contains("clashofclans") || pkg.contains("clashroyale") ||
             pkg.contains("retroarch") || pkg.contains("ppsspp") || pkg.contains("emulator") ||
             pkg.contains(".game.") || pkg.contains(".games.") || pkg.contains(".gaming.") ||
-            pkg.contains("supercell") || pkg.contains("gameloft") ||
+            pkg.contains("supercell") || pkg.contains("gameloft") || pkg.contains("krafton") ||
+            pkg.contains("riotgames") || pkg.contains("blizzard") || pkg.contains("ea.com") ||
+            pkg.contains("ubisoft") || pkg.contains("mojang") || pkg.contains("hoyoverse") ||
+            pkg.contains("mihoyo") || pkg.contains("freefire") || pkg.contains("subwaysurf") ||
+            pkg.contains("asphalt") || pkg.contains("chess") || pkg.contains("ludo") ||
+            pkg.contains("sudoku") || pkg.contains("solitaire") || pkg.contains("pokemon") ||
+            pkg.contains("brawlstars") || pkg.contains("aethersx2") || pkg.contains("citra") ||
+            pkg.contains("dolphin") ||
             label.contains("game") || label.contains("games") || label.contains("arcade") ||
             label.contains("puzzle") || label.contains("chess") || label.contains("sudoku") ||
-            label.contains("solitaire") || label.contains("simulator")
+            label.contains("solitaire") || label.contains("simulator") || label.contains("pubg") ||
+            label.contains("minecraft") || label.contains("roblox") || label.contains("free fire") ||
+            label.contains("call of duty") || label.contains("clash") || label.contains("racing") ||
+            label.contains("rpg") || label.contains("board") || label.contains("cards") ||
+            label.contains("ludo") || label.contains("pool") || label.contains("cricket") ||
+            label.contains("fifa") || label.contains("emulator") ||
+            (allowLooseTokens && labelTokens.any { it in setOf("play", "game", "games", "arcade", "craft", "kart") })
         ) {
             return TargetCategory.GAMES
         }
 
-        // 7. Health & Fitness
+        // 7. Health & Fitness & Wellness
         if (pkg.contains("fitbit") || pkg.contains("garmin") || pkg.contains("strava") ||
             pkg.contains("runkeeper") || pkg.contains("myfitnesspal") || pkg.contains("calm") ||
             pkg.contains("headspace") || pkg.contains("whoop") || pkg.contains("oura") ||
-            pkg.contains("withings") || pkg.contains("pedometer") ||
+            pkg.contains("withings") || pkg.contains("pedometer") || pkg.contains("samsung.health") ||
+            pkg.contains("google.fit") || pkg.contains("nike.plus") || pkg.contains("cult.fit") ||
+            pkg.contains("healthifyme") || pkg.contains("flo.period") || pkg.contains("clue") ||
+            pkg.contains("1mg") || pkg.contains("pharmeasy") || pkg.contains("apollo") ||
+            pkg.contains("lifesum") || pkg.contains("cronometer") || pkg.contains("yuka") ||
+            pkg.contains("fasting") || pkg.contains("freeletics") || pkg.contains("hevy") ||
+            pkg.contains("jefit") ||
             label.contains("health") || label.contains("fitness") || label.contains("workout") ||
             label.contains("wellness") || label.contains("wellbeing") || label.contains("meditation") ||
             label.contains("yoga") || label.contains("step counter") || label.contains("calorie") ||
-            (allowLooseTokens && labelTokens.any { it in setOf("gym", "run", "running", "sleep", "diet") })
+            label.contains("strava") || label.contains("pedometer") || label.contains("gym") ||
+            label.contains("diet") || label.contains("pharmacy") || label.contains("medicine") ||
+            (allowLooseTokens && labelTokens.any { it in setOf("gym", "run", "running", "sleep", "diet", "step", "steps", "heart", "pulse", "fasting") })
         ) {
             return TargetCategory.HEALTH
         }
 
-        // 8. Shopping & Food
+        // 8. Shopping & Food Delivery & E-Commerce
         if (pkg.contains("amazon") || pkg.contains("ebay") || pkg.contains("flipkart") ||
             pkg.contains("walmart") || pkg.contains("target") || pkg.contains("aliexpress") ||
             pkg.contains("temu") || pkg.contains("shein") || pkg.contains("etsy") ||
@@ -394,9 +456,16 @@ class AppCategorizerImpl @Inject constructor(
             pkg.contains("doordash") || pkg.contains("instacart") || pkg.contains("blinkit") ||
             pkg.contains("zepto") || pkg.contains("bigbasket") || pkg.contains("grofers") ||
             pkg.contains("deliveroo") || pkg.contains("postmates") || pkg.contains("grubhub") ||
+            pkg.contains("nykaa") || pkg.contains("tatacliq") || pkg.contains("shopsy") ||
+            pkg.contains("olx") || pkg.contains("quikr") || pkg.contains("dominos") ||
+            pkg.contains("mcdonalds") || pkg.contains("kfc") || pkg.contains("starbucks") ||
+            pkg.contains("dineout") ||
             label.contains("shopping") || label.contains("grocery") || label.contains("groceries") ||
             label.contains("food delivery") || label.contains("store") || label.contains("market") ||
-            (allowLooseTokens && labelTokens.any { it in setOf("shop", "cart", "order", "deals") })
+            label.contains("amazon") || label.contains("flipkart") || label.contains("myntra") ||
+            label.contains("swiggy") || label.contains("zomato") || label.contains("blinkit") ||
+            label.contains("zepto") || label.contains("bigbasket") ||
+            (allowLooseTokens && labelTokens.any { it in setOf("shop", "cart", "order", "deals", "coupon", "coupons", "buy", "mall", "retail") })
         ) {
             return TargetCategory.SHOPPING
         }

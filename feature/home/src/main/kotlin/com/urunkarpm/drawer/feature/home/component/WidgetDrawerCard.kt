@@ -2,11 +2,19 @@ package com.urunkarpm.drawer.feature.home.component
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.BiasAlignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,6 +34,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,6 +68,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -81,6 +91,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
+import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.model.WidgetDrawer
 import com.urunkarpm.drawer.core.model.WidgetItem
@@ -105,6 +116,11 @@ fun WidgetDrawerCard(
     onMoveDown: () -> Unit = {},
     lockLayout: Boolean = false,
     hideDrawerIcons: Boolean = false,
+    drawerTitleAnimation: String = "ACCENT_POP",
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    isMesmerizingGlow: Boolean = true,
+    surfaceOpacity: Float = 0.65f,
+    surfaceStrokeOpacity: Float = 0.40f,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -120,6 +136,44 @@ fun WidgetDrawerCard(
             resolveWidgetDrawerIcon(drawer.title)
         }
     }
+
+    // ponytail: Drawer title lateral slide animation options. When expanded, titles glide smoothly to the right edge.
+    val isTitleAnimated = drawerTitleAnimation != "OFF"
+    val targetBias = if (drawer.isExpanded && isTitleAnimated) 1f else -1f
+
+    val biasAnimationSpec: AnimationSpec<Float> = when (drawerTitleAnimation) {
+        "FLUID_SPRING" -> spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow)
+        "KINETIC_DECEL" -> tween(durationMillis = 350, easing = CubicBezierEasing(0.05f, 0.9f, 0.1f, 1f))
+        "SNAPPY" -> if (drawer.isExpanded) {
+            spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow)
+        } else {
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+        }
+        "ACCENT_POP" -> spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow)
+        else -> snap()
+    }
+
+    val animatedBias by animateFloatAsState(
+        targetValue = targetBias,
+        animationSpec = biasAnimationSpec,
+        label = "widgetDrawerTitleBias"
+    )
+
+    val titleColor by animateColorAsState(
+        targetValue = if (drawer.isExpanded && drawerTitleAnimation == "ACCENT_POP") {
+            drawerColor
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        animationSpec = tween(durationMillis = 280),
+        label = "widgetDrawerTitleColor"
+    )
+
+    val titleScale by animateFloatAsState(
+        targetValue = if (drawer.isExpanded && drawerTitleAnimation == "ACCENT_POP") 1.05f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow),
+        label = "widgetDrawerTitleScale"
+    )
 
     val chevronRotation by animateFloatAsState(
         targetValue = if (drawer.isExpanded) 180f else 0f,
@@ -141,21 +195,23 @@ fun WidgetDrawerCard(
         label = "drawerBorderColor"
     )
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (drawer.isExpanded)
-                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
-            else
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.88f),
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(1.dp, animatedBorderColor)
+    Box(
+        modifier = modifier.fillMaxWidth()
     ) {
+        DrawerSurfaceBackground(
+            surfaceThemeStyle = surfaceThemeStyle,
+            shape = RoundedCornerShape(16.dp),
+            isExpanded = drawer.isExpanded,
+            accentColor = drawerColor,
+            isMesmerizingGlow = isMesmerizingGlow,
+            surfaceOpacity = surfaceOpacity,
+            surfaceStrokeOpacity = surfaceStrokeOpacity,
+            modifier = Modifier.matchParentSize()
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
                 .background(
                     Brush.verticalGradient(
                         colors = if (drawer.isExpanded) {
@@ -209,24 +265,38 @@ fun WidgetDrawerCard(
                         Spacer(modifier = Modifier.width(12.dp))
                     }
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = drawer.title,
-                            fontFamily = LocalHeaderFontFamily.current,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        val widgetCount = drawer.widgets.size
-                        Text(
-                            text = if (widgetCount == 1) "1 WIDGET" else "$widgetCount WIDGETS",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 0.6.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                        )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp),
+                        contentAlignment = BiasAlignment(horizontalBias = animatedBias, verticalBias = 0f)
+                    ) {
+                        Column(
+                            horizontalAlignment = if (animatedBias > 0f) Alignment.End else Alignment.Start,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = titleScale
+                                scaleY = titleScale
+                                transformOrigin = TransformOrigin(if (animatedBias > 0f) 1f else 0f, 0.5f)
+                            }
+                        ) {
+                            Text(
+                                text = drawer.title,
+                                fontFamily = LocalHeaderFontFamily.current,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = titleColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val widgetCount = drawer.widgets.size
+                            Text(
+                                text = if (widgetCount == 1) "1 WIDGET" else "$widgetCount WIDGETS",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 0.6.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
+                        }
                     }
 
                     if (!lockLayout) {
@@ -348,19 +418,14 @@ fun WidgetDrawerCard(
                 }
             }
 
-            // Aesthetic open and close animation with organic spring physics and parallax drift
+            // Aesthetic open and close animation with organic spring physics
+            // ponytail: clipToBounds + top vertical expansion prevents widgets from colliding into drawer header
             AnimatedVisibility(
                 visible = drawer.isExpanded,
                 enter = expandVertically(
                     expandFrom = Alignment.Top,
                     animationSpec = spring(
                         dampingRatio = 0.82f,
-                        stiffness = 360f
-                    )
-                ) + slideInVertically(
-                    initialOffsetY = { -it / 6 },
-                    animationSpec = spring(
-                        dampingRatio = 0.85f,
                         stiffness = 360f
                     )
                 ) + fadeIn(
@@ -372,21 +437,22 @@ fun WidgetDrawerCard(
                         dampingRatio = 0.90f,
                         stiffness = 420f
                     )
-                ) + slideOutVertically(
-                    targetOffsetY = { -it / 8 },
-                    animationSpec = spring(
-                        dampingRatio = 0.90f,
-                        stiffness = 420f
-                    )
                 ) + fadeOut(
                     animationSpec = tween(140, easing = FastOutLinearInEasing)
-                )
+                ),
+                modifier = Modifier.clipToBounds()
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
                 ) {
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     val coverFlowHeight = (drawer.spanY * 70).coerceIn(140, 420)
                     IpodCoverFlowWidgetStack(
                         widgets = drawer.widgets,

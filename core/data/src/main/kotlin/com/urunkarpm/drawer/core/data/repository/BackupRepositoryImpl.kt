@@ -56,37 +56,16 @@ class BackupRepositoryImpl @Inject constructor(
         val dockItems = dockDao.getDockItems().first().map { it.toDomain() }
         val mutedRules = mutedAppDao.getAllRules().first().map { it.toDomain() }
         val iconOverrides = iconPackOverrideDao.getAllOverrides().first().map { it.toDomain() }
-        val widgetDrawers = widgetDao.getAllDrawers().first().map { it.toDomain() }
-        val widgets = widgetDao.getAllWidgets().first().map { it.toDomain() }
+        val rawWidgets = widgetDao.getAllWidgets().first().map { it.toDomain() }
+        val widgetsByDrawerId = rawWidgets.filter { it.drawerId != null }.groupBy { it.drawerId }
+        val widgetDrawers = widgetDao.getAllDrawers().first().map { drawerEntity ->
+            drawerEntity.toDomain(widgetsByDrawerId[drawerEntity.id] ?: emptyList())
+        }
 
-        val preferencesBackup = LauncherPreferencesBackup(
-            themeMode = preferencesDataSource.themeMode.first(),
-            dynamicColor = preferencesDataSource.dynamicColor.first(),
-            hideStatusBar = preferencesDataSource.hideStatusBar.first(),
-            showWeather = preferencesDataSource.showWeather.first(),
-            weatherUnit = preferencesDataSource.weatherUnit.first(),
-            is24Hour = preferencesDataSource.is24Hour.first(),
-            manualCityName = preferencesDataSource.manualCityName.first(),
-            manualLat = preferencesDataSource.manualLat.first(),
-            manualLon = preferencesDataSource.manualLon.first(),
-            dockBackground = preferencesDataSource.dockBackground.first(),
-            dockIconSize = preferencesDataSource.dockIconSize.first(),
-            dockShowLabels = preferencesDataSource.dockShowLabels.first(),
-            dockCornerRadius = preferencesDataSource.dockCornerRadius.first(),
-            multiGroupApps = preferencesDataSource.multiGroupApps.first(),
-            notificationsPrivacyMode = preferencesDataSource.notificationsPrivacyMode.first(),
-            activeIconPack = preferencesDataSource.activeIconPack.first(),
-            adaptiveIconShape = preferencesDataSource.adaptiveIconShape.first(),
-            twoDrawersSideBySide = preferencesDataSource.twoDrawersSideBySide.first(),
-            enableWidgetsPage = preferencesDataSource.enableWidgetsPage.first(),
-            lockLayout = preferencesDataSource.lockLayout.first(),
-            autoArrangeApps = preferencesDataSource.autoArrangeApps.first(),
-            autoCategorizeNewApps = preferencesDataSource.autoCategorizeNewApps.first(),
-            drawerNotificationGlow = preferencesDataSource.drawerNotificationGlow.first()
-        )
+        val preferencesBackup = preferencesDataSource.getPreferencesBackup()
 
         val backup = LauncherBackup(
-            version = 2,
+            version = 3,
             exportTimestampMillis = System.currentTimeMillis(),
             groups = groups,
             dockItems = dockItems,
@@ -94,7 +73,7 @@ class BackupRepositoryImpl @Inject constructor(
             iconOverrides = iconOverrides,
             preferences = preferencesBackup,
             widgetDrawers = widgetDrawers,
-            widgets = widgets
+            widgets = rawWidgets
         )
 
         json.encodeToString(LauncherBackup.serializer(), backup)
@@ -102,7 +81,9 @@ class BackupRepositoryImpl @Inject constructor(
 
     override suspend fun restoreBackupJson(jsonString: String): Result<Unit> = withContext(ioDispatcher) {
         runCatching {
-            val backup = json.decodeFromString(LauncherBackup.serializer(), jsonString)
+            // ponytail: sanitize BOM and whitespace so backups modified on Windows or text editors decode reliably
+            val sanitized = jsonString.trim().trimStart('\uFEFF')
+            val backup = json.decodeFromString(LauncherBackup.serializer(), sanitized)
 
             // 1. Restore Groups and Items
             val groupEntities = backup.groups.map { AppGroupEntity.fromDomain(it) }
@@ -130,6 +111,7 @@ class BackupRepositoryImpl @Inject constructor(
             }
 
             // 5. Restore Widgets and Widget Drawers
+            // ponytail: merge flat widgets list and drawer-nested widgets to guarantee no widgets or drawers are lost across backup versions.
             widgetDao.clearAll()
             widgetDao.clearAllDrawers()
             if (backup.widgetDrawers.isNotEmpty()) {
@@ -137,35 +119,16 @@ class BackupRepositoryImpl @Inject constructor(
                     widgetDao.insertDrawer(WidgetDrawerEntity.fromDomain(drawer))
                 }
             }
-            if (backup.widgets.isNotEmpty()) {
-                backup.widgets.forEach { widget ->
+            val allWidgets = (backup.widgets + backup.widgetDrawers.flatMap { it.widgets })
+                .distinctBy { it.id }
+            if (allWidgets.isNotEmpty()) {
+                allWidgets.forEach { widget ->
                     widgetDao.insertWidget(WidgetItemEntity.fromDomain(widget))
                 }
             }
 
             // 6. Restore Preferences
-            val prefs = backup.preferences
-            preferencesDataSource.setThemeMode(prefs.themeMode)
-            preferencesDataSource.setDynamicColor(prefs.dynamicColor)
-            preferencesDataSource.setHideStatusBar(prefs.hideStatusBar)
-            preferencesDataSource.setShowWeather(prefs.showWeather)
-            preferencesDataSource.setWeatherUnit(prefs.weatherUnit)
-            preferencesDataSource.setIs24Hour(prefs.is24Hour)
-            preferencesDataSource.setManualLocation(prefs.manualCityName, prefs.manualLat, prefs.manualLon)
-            preferencesDataSource.setDockBackground(prefs.dockBackground)
-            preferencesDataSource.setDockIconSize(prefs.dockIconSize)
-            preferencesDataSource.setDockShowLabels(prefs.dockShowLabels)
-            preferencesDataSource.setDockCornerRadius(prefs.dockCornerRadius)
-            preferencesDataSource.setMultiGroupApps(prefs.multiGroupApps)
-            preferencesDataSource.setNotificationsPrivacyMode(prefs.notificationsPrivacyMode)
-            preferencesDataSource.setActiveIconPack(prefs.activeIconPack)
-            preferencesDataSource.setAdaptiveIconShape(prefs.adaptiveIconShape)
-            preferencesDataSource.setTwoDrawersSideBySide(prefs.twoDrawersSideBySide)
-            preferencesDataSource.setEnableWidgetsPage(prefs.enableWidgetsPage)
-            preferencesDataSource.setLockLayout(prefs.lockLayout)
-            preferencesDataSource.setAutoArrangeApps(prefs.autoArrangeApps)
-            preferencesDataSource.setAutoCategorizeNewApps(prefs.autoCategorizeNewApps)
-            preferencesDataSource.setDrawerNotificationGlow(prefs.drawerNotificationGlow)
+            preferencesDataSource.restorePreferences(backup.preferences)
         }
     }
 }

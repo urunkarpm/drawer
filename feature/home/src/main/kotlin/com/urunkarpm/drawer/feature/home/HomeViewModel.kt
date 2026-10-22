@@ -1,16 +1,19 @@
 package com.urunkarpm.drawer.feature.home
 
+import android.content.Context
 import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.DockRepository
 import com.urunkarpm.drawer.core.data.repository.WeatherRepository
+import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.AppShortcutInfo
 import com.urunkarpm.drawer.core.model.WeatherInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.urunkarpm.drawer.core.designsystem.component.AppIconCache
 import com.urunkarpm.drawer.core.designsystem.component.toImageBitmapSafe
 import com.urunkarpm.drawer.core.needle.NeedleEngine
@@ -37,7 +40,7 @@ data class GlancePrefs(
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
     val hideStatusBar: Boolean = true,
-    val adaptiveIconShape: String = "SQUIRCLE",
+    val adaptiveIconShape: String = "CIRCLE",
     val twoDrawersSideBySide: Boolean = false,
     val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
@@ -62,7 +65,8 @@ data class GlancePrefs(
     val wallpaperGradientPalette: String = "FULL_SPECTRUM",
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
-    val enableOnDeviceAi: Boolean = false
+    val enableOnDeviceAi: Boolean = false,
+    val drawerTitleAnimation: String = "ACCENT_POP"
 )
 
 data class HomeDialogsState(
@@ -88,7 +92,7 @@ data class HomeUiState(
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
     val hideStatusBar: Boolean = true,
-    val adaptiveIconShape: String = "SQUIRCLE",
+    val adaptiveIconShape: String = "CIRCLE",
     val twoDrawersSideBySide: Boolean = false,
     val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
@@ -121,7 +125,8 @@ data class HomeUiState(
     val wallpaperGradientPalette: String = "FULL_SPECTRUM",
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
-    val enableOnDeviceAi: Boolean = false
+    val enableOnDeviceAi: Boolean = false,
+    val drawerTitleAnimation: String = "ACCENT_POP"
 )
 
 data class SurfaceThemePrefs(
@@ -140,7 +145,8 @@ class HomeViewModel @Inject constructor(
     private val preferencesDataSource: DrawerPreferencesDataSource,
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository,
     private val needleEngine: NeedleEngine,
-    private val needleActionDispatcher: NeedleActionDispatcher
+    private val needleActionDispatcher: NeedleActionDispatcher,
+    @ApplicationContext private val context: Context? = null
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -183,7 +189,8 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.wallpaperGradientPalette,
         preferencesDataSource.wallpaperGradientAngle,
         preferencesDataSource.dockMesmerizingGlow,
-        preferencesDataSource.enableOnDeviceAi
+        preferencesDataSource.enableOnDeviceAi,
+        preferencesDataSource.drawerTitleAnimation
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -216,6 +223,7 @@ class HomeViewModel @Inject constructor(
         val wallpaperGradientAngle = values[27] as String
         val dockMesmerizingGlow = values[28] as Boolean
         val enableOnDeviceAi = values[29] as Boolean
+        val drawerTitleAnimation = values[30] as String
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -246,7 +254,8 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientPalette,
             wallpaperGradientAngle,
             dockMesmerizingGlow,
-            enableOnDeviceAi
+            enableOnDeviceAi,
+            drawerTitleAnimation
         )
     }
 
@@ -371,7 +380,8 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientPalette = glancePrefs.wallpaperGradientPalette,
             wallpaperGradientAngle = glancePrefs.wallpaperGradientAngle,
             dockMesmerizingGlow = glancePrefs.dockMesmerizingGlow,
-            enableOnDeviceAi = glancePrefs.enableOnDeviceAi
+            enableOnDeviceAi = glancePrefs.enableOnDeviceAi,
+            drawerTitleAnimation = glancePrefs.drawerTitleAnimation
         )
     }.stateIn(
         scope = viewModelScope,
@@ -421,11 +431,17 @@ class HomeViewModel @Inject constructor(
 
     fun pinToDock(app: AppInfo) {
         viewModelScope.launch {
-            val added = dockRepository.addToDock(app)
+            val isFoldableOrTab = context != null && DevicePostureUtils.isFoldableOrTablet(context)
+            val maxLimit = if (isFoldableOrTab) {
+                preferencesDataSource.dockExpandedMaxApps.first()
+            } else {
+                5
+            }
+            val added = dockRepository.addToDock(app, maxLimit)
             _userMessage.value = if (added) {
                 "${app.label} pinned to dock"
             } else {
-                "Cannot pin to dock: full (max 5) or already in dock"
+                "Cannot pin to dock: full (max $maxLimit) or already in dock"
             }
             dismissAppMenu()
         }
@@ -550,7 +566,7 @@ class HomeViewModel @Inject constructor(
                 "Theme set to ${mode.lowercase().replaceFirstChar { it.uppercase() }}"
             }
             "ICON_SHAPE" -> {
-                val shape = value?.uppercase()?.trim() ?: "SQUIRCLE"
+                val shape = value?.uppercase()?.trim() ?: "CIRCLE"
                 preferencesDataSource.setAdaptiveIconShape(shape)
                 "Icon shape set to ${shape.lowercase().replace("_", " ")}"
             }

@@ -1,6 +1,7 @@
 package com.urunkarpm.drawer.core.datastore
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.urunkarpm.drawer.core.model.LauncherPreferencesBackup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -202,5 +203,68 @@ class DrawerPreferencesDataSourceTest {
         val dataSource = createDataSource(backgroundScope)
         dataSource.setAutoCategorizeNewApps(false)
         assertEquals(false, dataSource.autoCategorizeNewApps.first())
+    }
+
+    @Test
+    fun defaultDrawerTitleAnimationIsAccentPop() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals("ACCENT_POP", dataSource.drawerTitleAnimation.first())
+    }
+
+    @Test
+    fun updateDrawerTitleAnimationPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setDrawerTitleAnimation("KINETIC_DECEL")
+        assertEquals("KINETIC_DECEL", dataSource.drawerTitleAnimation.first())
+    }
+
+    @Test
+    fun getPreferencesBackupAndRestorePreferencesRoundTrip() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        val initialBackup = dataSource.getPreferencesBackup()
+        assertEquals("SYSTEM", initialBackup.themeMode)
+        assertEquals("ACCENT_POP", initialBackup.drawerTitleAnimation)
+        assertEquals(true, initialBackup.dynamicColor)
+
+        val customBackup = initialBackup.copy(
+            themeMode = "DARK",
+            drawerThemeMode = "AMOLED",
+            drawerTitleAnimation = "KINETIC_DECEL",
+            dynamicColor = false,
+            hideStatusBar = false,
+            dockBackground = "SOLID",
+            surfaceThemeStyle = "FROSTED",
+            surfaceOpacity = 0.85f,
+            headerFontFamily = "SERIF",
+            appLabelScale = "LARGE",
+            stealthTheme = true,
+            stealthContrastLevel = "HIGH",
+            dynamicWallpaperEnabled = true,
+            wallpaperGradientSpeedSeconds = 5,
+            autoCategorizeNewApps = false,
+            aiCategorizationStrictness = "STRICT",
+            enableOnDeviceAi = true
+        )
+
+        dataSource.restorePreferences(customBackup)
+
+        val restoredBackup = dataSource.getPreferencesBackup()
+        assertEquals("DARK", restoredBackup.themeMode)
+        assertEquals("AMOLED", restoredBackup.drawerThemeMode)
+        assertEquals("KINETIC_DECEL", restoredBackup.drawerTitleAnimation)
+        assertEquals(false, restoredBackup.dynamicColor)
+        assertEquals(false, restoredBackup.hideStatusBar)
+        assertEquals("SOLID", restoredBackup.dockBackground)
+        assertEquals("FROSTED", restoredBackup.surfaceThemeStyle)
+        assertEquals(0.85f, restoredBackup.surfaceOpacity, 0.001f)
+        assertEquals("SERIF", restoredBackup.headerFontFamily)
+        assertEquals("LARGE", restoredBackup.appLabelScale)
+        assertEquals(true, restoredBackup.stealthTheme)
+        assertEquals("HIGH", restoredBackup.stealthContrastLevel)
+        assertEquals(true, restoredBackup.dynamicWallpaperEnabled)
+        assertEquals(5, restoredBackup.wallpaperGradientSpeedSeconds)
+        assertEquals(false, restoredBackup.autoCategorizeNewApps)
+        assertEquals("STRICT", restoredBackup.aiCategorizationStrictness)
+        assertEquals(true, restoredBackup.enableOnDeviceAi)
     }
 }

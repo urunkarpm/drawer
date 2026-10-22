@@ -117,7 +117,7 @@ fun WalkthroughOverlay(
     onSetIs24Hour: (Boolean) -> Unit = {},
     showWeather: Boolean = true,
     onSetShowWeather: (Boolean) -> Unit = {},
-    adaptiveIconShape: String = "SQUIRCLE",
+    adaptiveIconShape: String = "CIRCLE",
     onSetAdaptiveIconShape: (String) -> Unit = {},
     drawerThemeMode: String = "SYSTEM",
     onSetDrawerThemeMode: (String) -> Unit = {},

@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -64,6 +66,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -87,9 +92,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
+import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
 import com.urunkarpm.drawer.core.designsystem.theme.labelScaleFromName
@@ -99,7 +107,10 @@ import com.urunkarpm.drawer.feature.iconpacks.component.IconPackPickerSheet
 import com.urunkarpm.drawer.feature.settings.component.NeedleSettingsCard
 import com.urunkarpm.drawer.feature.settings.component.SettingsDrawerCard
 import com.urunkarpm.drawer.feature.settings.component.SettingsGlanceHeader
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val DRAWER_APPEARANCE = "APPEARANCE"
 private const val DRAWER_TYPOGRAPHY = "TYPOGRAPHY"
@@ -175,9 +186,11 @@ fun SettingsScreen(
             coroutineScope.launch {
                 try {
                     val jsonContent = viewModel.getBackupJson()
-                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.bufferedWriter().use { writer ->
-                            writer.write(jsonContent)
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                            outputStream.bufferedWriter().use { writer ->
+                                writer.write(jsonContent)
+                            }
                         }
                     }
                     viewModel.notifyBackupExported()
@@ -194,9 +207,11 @@ fun SettingsScreen(
         if (uri != null) {
             coroutineScope.launch {
                 try {
-                    val jsonContent = context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                        inputStream.bufferedReader().use { reader ->
-                            reader.readText()
+                    val jsonContent = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                            inputStream.bufferedReader().use { reader ->
+                                reader.readText()
+                            }
                         }
                     }
                     if (jsonContent != null) {
@@ -240,80 +255,54 @@ fun SettingsScreen(
                     isExpanded = DRAWER_APPEARANCE in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_APPEARANCE) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     Text(
                         text = "Theme Mode",
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        ThemeOptionChip(
-                            label = "System",
-                            selected = uiState.themeMode == "SYSTEM",
-                            onClick = { viewModel.setThemeMode("SYSTEM") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "Light",
-                            selected = uiState.themeMode == "LIGHT",
-                            onClick = { viewModel.setThemeMode("LIGHT") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "Dark",
-                            selected = uiState.themeMode == "DARK",
-                            onClick = { viewModel.setThemeMode("DARK") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "AMOLED",
-                            selected = uiState.themeMode == "AMOLED",
-                            onClick = { viewModel.setThemeMode("AMOLED") },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "SYSTEM" to "System",
+                            "LIGHT" to "Light",
+                            "DARK" to "Dark",
+                            "AMOLED" to "AMOLED"
+                        ),
+                        selected = uiState.themeMode,
+                        onSelect = { viewModel.setThemeMode(it) }
+                    )
 
-                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                     Text(
                         text = "App Drawer Theme",
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Clean, solid theme for the full app drawer (3 modes)",
+                        text = "Clean, solid theme for the full app drawer",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ThemeOptionChip(
-                            label = "White",
-                            selected = uiState.drawerThemeMode == "WHITE" || uiState.drawerThemeMode == "LIGHT",
-                            onClick = { viewModel.setDrawerThemeMode("WHITE") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "Dark",
-                            selected = uiState.drawerThemeMode == "DARK",
-                            onClick = { viewModel.setDrawerThemeMode("DARK") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "System",
-                            selected = uiState.drawerThemeMode == "SYSTEM",
-                            onClick = { viewModel.setDrawerThemeMode("SYSTEM") },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "WHITE" to "White",
+                            "DARK" to "Dark",
+                            "SYSTEM" to "System"
+                        ),
+                        selected = if (uiState.drawerThemeMode == "LIGHT") "WHITE" else uiState.drawerThemeMode,
+                        onSelect = { viewModel.setDrawerThemeMode(it) }
+                    )
 
                     SettingsSwitchRow(
                         title = "Dynamic Color (Material You)",
@@ -377,115 +366,82 @@ fun SettingsScreen(
                         Text(
                             text = "Gradient Shift Speed",
                             style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Frequency of smooth gradient color morphing",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf(2 to "2s", 3 to "3s", 5 to "5s", 8 to "8s", 12 to "12s").forEach { (speed, label) ->
-                                ThemeOptionChip(
-                                    label = label,
-                                    selected = uiState.wallpaperGradientSpeedSeconds == speed,
-                                    onClick = { viewModel.setWallpaperGradientSpeedSeconds(speed) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SettingsSegmentedRow(
+                            options = listOf(
+                                2 to "2s",
+                                3 to "3s",
+                                5 to "5s",
+                                8 to "8s",
+                                12 to "12s"
+                            ),
+                            selected = uiState.wallpaperGradientSpeedSeconds,
+                            onSelect = { viewModel.setWallpaperGradientSpeedSeconds(it) }
+                        )
 
-                        SettingsDivider(modifier = Modifier.padding(vertical = 6.dp))
+                        SettingsDivider(modifier = Modifier.padding(vertical = 10.dp))
 
                         Text(
                             text = "Pantone Harmonic Palette",
                             style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Harmonized authentic Pantone tones across the spectrum",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                ThemeOptionChip(
-                                    label = "Full Spectrum",
-                                    selected = uiState.wallpaperGradientPalette == "FULL_SPECTRUM",
-                                    onClick = { viewModel.setWallpaperGradientPalette("FULL_SPECTRUM") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                ThemeOptionChip(
-                                    label = "Color of Year",
-                                    selected = uiState.wallpaperGradientPalette == "PANTONE_COTY",
-                                    onClick = { viewModel.setWallpaperGradientPalette("PANTONE_COTY") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                ThemeOptionChip(
-                                    label = "Aurora",
-                                    selected = uiState.wallpaperGradientPalette == "AURORA_BOREALIS",
-                                    onClick = { viewModel.setWallpaperGradientPalette("AURORA_BOREALIS") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                ThemeOptionChip(
-                                    label = "Sunset",
-                                    selected = uiState.wallpaperGradientPalette == "SUNSET_CHROMA",
-                                    onClick = { viewModel.setWallpaperGradientPalette("SUNSET_CHROMA") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                ThemeOptionChip(
-                                    label = "Twilight",
-                                    selected = uiState.wallpaperGradientPalette == "DEEP_TWILIGHT",
-                                    onClick = { viewModel.setWallpaperGradientPalette("DEEP_TWILIGHT") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                ThemeOptionChip(
-                                    label = "Pastel",
-                                    selected = uiState.wallpaperGradientPalette == "PASTEL_DREAM",
-                                    onClick = { viewModel.setWallpaperGradientPalette("PASTEL_DREAM") },
-                                    modifier = Modifier.weight(1f)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            listOf(
+                                "FULL_SPECTRUM" to "Full Spectrum",
+                                "PANTONE_COTY" to "Color of Year",
+                                "AURORA_BOREALIS" to "Aurora",
+                                "SUNSET_CHROMA" to "Sunset",
+                                "DEEP_TWILIGHT" to "Twilight",
+                                "PASTEL_DREAM" to "Pastel"
+                            ).forEach { (paletteKey, label) ->
+                                SettingsChoiceChip(
+                                    label = label,
+                                    selected = uiState.wallpaperGradientPalette == paletteKey,
+                                    onClick = { viewModel.setWallpaperGradientPalette(paletteKey) }
                                 )
                             }
                         }
 
-                        SettingsDivider(modifier = Modifier.padding(vertical = 6.dp))
+                        SettingsDivider(modifier = Modifier.padding(vertical = 10.dp))
 
                         Text(
                             text = "Gradient Flow Direction",
                             style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf(
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SettingsSegmentedRow(
+                            options = listOf(
                                 "DIAGONAL" to "Diagonal",
                                 "VERTICAL" to "Vertical",
                                 "RADIAL" to "Radial"
-                            ).forEach { (dir, label) ->
-                                ThemeOptionChip(
-                                    label = label,
-                                    selected = uiState.wallpaperGradientAngle == dir,
-                                    onClick = { viewModel.setWallpaperGradientAngle(dir) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
+                            ),
+                            selected = uiState.wallpaperGradientAngle,
+                            onSelect = { viewModel.setWallpaperGradientAngle(it) }
+                        )
 
                         SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
 
@@ -540,7 +496,11 @@ fun SettingsScreen(
                     isExpanded = DRAWER_TYPOGRAPHY in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_TYPOGRAPHY) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     Text(
                         text = "Header & Clock Font",
@@ -734,29 +694,15 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ThemeOptionChip(
-                            label = "Small",
-                            selected = uiState.appLabelScale == "SMALL",
-                            onClick = { viewModel.setAppLabelScale("SMALL") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "Default",
-                            selected = uiState.appLabelScale == "NORMAL",
-                            onClick = { viewModel.setAppLabelScale("NORMAL") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "Large",
-                            selected = uiState.appLabelScale == "LARGE",
-                            onClick = { viewModel.setAppLabelScale("LARGE") },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "SMALL" to "Small",
+                            "NORMAL" to "Default",
+                            "LARGE" to "Large"
+                        ),
+                        selected = uiState.appLabelScale,
+                        onSelect = { viewModel.setAppLabelScale(it) }
+                    )
 
                     Spacer(modifier = Modifier.height(10.dp))
                     Surface(
@@ -796,55 +742,40 @@ fun SettingsScreen(
                 val dockSummary = "$dockStyleName • ${uiState.dockIconSize.toInt()}dp${if (uiState.dockShowLabels) " • Labels" else ""}"
 
                 SettingsDrawerCard(
-                    title = "Dock Theming & Style",
+                    title = "Surfaces & Dock Theming",
                     subtitle = dockSummary,
                     icon = Icons.Default.ViewCarousel,
                     iconTint = Color(0xFF0EA5E9),
                     isExpanded = DRAWER_DOCK in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_DOCK) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     Text(
-                        text = "Dock Style",
+                        text = "Dock & Drawer Style",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Aesthetic appearance for the bottom dock bar",
+                        text = "Unified aesthetic appearance for the dock and drawers",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        ThemeOptionChip(
-                            label = "Liquid Glass",
-                            selected = uiState.surfaceThemeStyle == "LIQUID_GLASS",
-                            onClick = { viewModel.setSurfaceThemeStyle("LIQUID_GLASS") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "Frosted Blur",
-                            selected = uiState.surfaceThemeStyle == "BLUR",
-                            onClick = { viewModel.setSurfaceThemeStyle("BLUR") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "Solid",
-                            selected = uiState.surfaceThemeStyle == "SOLID",
-                            onClick = { viewModel.setSurfaceThemeStyle("SOLID") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ThemeOptionChip(
-                            label = "Clear",
-                            selected = uiState.surfaceThemeStyle == "TRANSPARENT",
-                            onClick = { viewModel.setSurfaceThemeStyle("TRANSPARENT") },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "LIQUID_GLASS" to "Glass",
+                            "BLUR" to "Blur",
+                            "SOLID" to "Solid",
+                            "TRANSPARENT" to "Clear"
+                        ),
+                        selected = uiState.surfaceThemeStyle,
+                        onSelect = { viewModel.setSurfaceThemeStyle(it) }
+                    )
 
                     Spacer(modifier = Modifier.height(10.dp))
                     Surface(
@@ -865,7 +796,7 @@ fun SettingsScreen(
                                     .height(72.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                val previewShape = RoundedCornerShape(uiState.surfaceCornerRadius.dp)
+                                val previewShape = CircleShape
                                 val previewIcons = listOf(
                                     Icons.Default.Phone to Color(0xFF10B981),
                                     Icons.Default.Email to Color(0xFF3B82F6),
@@ -894,7 +825,7 @@ fun SettingsScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .size(34.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clip(CircleShape)
                                                     .background(tint.copy(alpha = 0.20f)),
                                                 contentAlignment = Alignment.Center
                                             ) {
@@ -1014,12 +945,42 @@ fun SettingsScreen(
                         checked = uiState.openDrawerFromDockOnly,
                         onCheckedChange = { viewModel.setOpenDrawerFromDockOnly(it) }
                     )
+
+                    // ponytail: expanded dock capacity is visible exclusively to foldable and tablet form-factors; ceiling: 6..10 app slider; upgrade path: per-breakpoint custom dock app lists.
+                    val isFoldableOrTablet = remember(context) {
+                        DevicePostureUtils.isFoldableOrTablet(context)
+                    }
+                    if (isFoldableOrTablet) {
+                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        Text(
+                            text = "Foldable & Tablet Dock",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SettingsSliderRow(
+                            title = "Expanded Dock Capacity",
+                            subtitle = "Maximum apps visible in open foldable or tablet mode (compact 5 apps when folded)",
+                            value = uiState.dockExpandedMaxApps.toFloat(),
+                            onValueChange = { viewModel.setDockExpandedMaxApps(it.roundToInt()) },
+                            valueRange = 6f..10f,
+                            steps = 3,
+                            valueLabel = "${uiState.dockExpandedMaxApps} apps"
+                        )
+                    }
                 }
             }
 
             DRAWER_CATEGORIES -> {
                 val layoutMode = if (uiState.twoDrawersSideBySide) "2 Columns" else "Single Column"
-                val categoriesSummary = "$layoutMode${if (uiState.enableWidgetsPage) " • Widget Feed" else ""}${if (uiState.lockLayout) " • Locked" else ""}"
+                val animLabel = when (uiState.drawerTitleAnimation) {
+                    "ACCENT_POP" -> "Accent Pop"
+                    "FLUID_SPRING" -> "Elastic"
+                    "KINETIC_DECEL" -> "Sleek"
+                    "SNAPPY" -> "Snappy"
+                    else -> "Static"
+                }
+                val categoriesSummary = "$layoutMode • $animLabel${if (uiState.enableWidgetsPage) " • Widget Feed" else ""}${if (uiState.lockLayout) " • Locked" else ""}"
 
                 SettingsDrawerCard(
                     title = "App Categories & Drawers",
@@ -1029,7 +990,11 @@ fun SettingsScreen(
                     isExpanded = DRAWER_CATEGORIES in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_CATEGORIES) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     SettingsSwitchRow(
                         title = "Two Drawers Side by Side",
@@ -1082,6 +1047,36 @@ fun SettingsScreen(
                         checked = uiState.autoCategorizeNewApps,
                         onCheckedChange = { viewModel.setAutoCategorizeNewApps(it) }
                     )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Drawer Title Animation",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Animate drawer category title across the card when opening or closing",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        SettingsSegmentedRow(
+                            options = listOf(
+                                "ACCENT_POP" to "Accent",
+                                "FLUID_SPRING" to "Elastic",
+                                "KINETIC_DECEL" to "Sleek",
+                                "SNAPPY" to "Snappy",
+                                "OFF" to "Off"
+                            ),
+                            selected = uiState.drawerTitleAnimation,
+                            onSelect = { viewModel.setDrawerTitleAnimation(it) }
+                        )
+                    }
                 }
             }
 
@@ -1103,7 +1098,11 @@ fun SettingsScreen(
                     isExpanded = DRAWER_GLANCE in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_GLANCE) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     SettingsSwitchRow(
                         title = "24-Hour Clock",
@@ -1126,26 +1125,18 @@ fun SettingsScreen(
                         Text(
                             text = "Temperature Unit",
                             style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            ThemeOptionChip(
-                                label = "Celsius (°C)",
-                                selected = uiState.weatherUnit == "CELSIUS",
-                                onClick = { viewModel.setWeatherUnit("CELSIUS") },
-                                modifier = Modifier.weight(1f)
-                            )
-                            ThemeOptionChip(
-                                label = "Fahrenheit (°F)",
-                                selected = uiState.weatherUnit == "FAHRENHEIT",
-                                onClick = { viewModel.setWeatherUnit("FAHRENHEIT") },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SettingsSegmentedRow(
+                            options = listOf(
+                                "CELSIUS" to "Celsius (°C)",
+                                "FAHRENHEIT" to "Fahrenheit (°F)"
+                            ),
+                            selected = uiState.weatherUnit,
+                            onSelect = { viewModel.setWeatherUnit(it) }
+                        )
 
                         SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -1209,7 +1200,11 @@ fun SettingsScreen(
                     isExpanded = DRAWER_NOTIFICATIONS in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_NOTIFICATIONS) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     SettingsSwitchRow(
                         title = "Privacy Mode",
@@ -1278,32 +1273,19 @@ fun SettingsScreen(
                             Text(
                                 text = "Contrast Level",
                                 style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                ThemeOptionChip(
-                                    label = "Low",
-                                    selected = uiState.stealthContrastLevel == "LOW",
-                                    onClick = { viewModel.setStealthContrastLevel("LOW") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                ThemeOptionChip(
-                                    label = "Lower",
-                                    selected = uiState.stealthContrastLevel == "LOWER",
-                                    onClick = { viewModel.setStealthContrastLevel("LOWER") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                ThemeOptionChip(
-                                    label = "Lowest",
-                                    selected = uiState.stealthContrastLevel == "LOWEST",
-                                    onClick = { viewModel.setStealthContrastLevel("LOWEST") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SettingsSegmentedRow(
+                                options = listOf(
+                                    "LOW" to "Low",
+                                    "LOWER" to "Lower",
+                                    "LOWEST" to "Lowest"
+                                ),
+                                selected = uiState.stealthContrastLevel,
+                                onSelect = { viewModel.setStealthContrastLevel(it) }
+                            )
 
                             SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -1332,7 +1314,11 @@ fun SettingsScreen(
                     isExpanded = DRAWER_ICON_PACKS in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_ICON_PACKS) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     Row(
                         modifier = Modifier
@@ -1373,7 +1359,11 @@ fun SettingsScreen(
                     isExpanded = DRAWER_BACKUP in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_BACKUP) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     Text(
                         text = "Export or import your entire configuration (categories, dock, mute rules, and personalisation settings) to a single JSON file.",
@@ -1403,7 +1393,16 @@ fun SettingsScreen(
 
                         OutlinedButton(
                             onClick = {
-                                importBackupLauncher.launch(arrayOf("application/json", "*/*"))
+                                // ponytail: pass explicit supported JSON mime types instead of wildcard */* which confuses DocumentsUI on Pixel devices causing files to be grayed out.
+                                importBackupLauncher.launch(
+                                    arrayOf(
+                                        "application/json",
+                                        "text/plain",
+                                        "application/octet-stream",
+                                        "text/json",
+                                        "text/x-json"
+                                    )
+                                )
                             },
                             modifier = Modifier.weight(1f)
                         ) {
@@ -1440,7 +1439,11 @@ fun SettingsScreen(
                     isExpanded = DRAWER_ABOUT in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_ABOUT) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius
+                    cornerRadius = cornerRadius,
+                    surfaceThemeStyle = uiState.surfaceThemeStyle,
+                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                    surfaceOpacity = uiState.surfaceOpacity,
+                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                 ) {
                     Text(
                         text = "Drawer Launcher",
@@ -1573,7 +1576,21 @@ fun SettingsScreen(
         }
     }
 
-    Scaffold(
+    val isSystemDark = isSystemInDarkTheme()
+    val isSettingsDark = when (uiState.themeMode) {
+        "LIGHT" -> false
+        "DARK", "AMOLED" -> true
+        else -> isSystemDark
+    }
+    val isSettingsAmoled = uiState.themeMode == "AMOLED"
+
+    // ponytail: Theme mode only styles the Settings panel; home screen overlay stays dark.
+    DrawerTheme(
+        darkTheme = isSettingsDark,
+        isAmoled = isSettingsAmoled,
+        dynamicColor = uiState.dynamicColor
+    ) {
+        Scaffold(
         topBar = {
             TopAppBar(
                 title = {
@@ -1790,6 +1807,7 @@ fun SettingsScreen(
             }
         )
     }
+    }
 }
 
 @Composable
@@ -1856,8 +1874,40 @@ private fun SettingsSliderRow(
     }
 }
 
+// ponytail: Native M3 SingleChoiceSegmentedButtonRow for compact fixed options; ceiling: up to 5 short items; upgrade path: scrollable row or bottom sheet for larger sets.
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThemeOptionChip(
+private fun <T> SettingsSegmentedRow(
+    options: List<Pair<T, String>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SingleChoiceSegmentedButtonRow(
+        modifier = modifier.fillMaxWidth()
+    ) {
+        options.forEachIndexed { index, (key, label) ->
+            SegmentedButton(
+                selected = selected == key,
+                onClick = { onSelect(key) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                icon = {}, // ponytail: omit checkmark to maximize available text width and prevent line-wrapping on narrow screens
+                label = {
+                    Text(
+                        text = label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            )
+        }
+    }
+}
+
+// ponytail: Natural-width choice chip for multi-word or variable options; ceiling: simple pill chips; upgrade path: grid cards with live previews.
+@Composable
+private fun SettingsChoiceChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -1870,7 +1920,9 @@ private fun ThemeOptionChip(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         },
         leadingIcon = if (selected) {
@@ -1887,6 +1939,21 @@ private fun ThemeOptionChip(
 }
 
 @Composable
+private fun ThemeOptionChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SettingsChoiceChip(
+        label = label,
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
+@Composable
 private fun SettingsSwitchRow(
     title: String,
     subtitle: String,
@@ -1897,8 +1964,9 @@ private fun SettingsSwitchRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -1908,11 +1976,14 @@ private fun SettingsSwitchRow(
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (subtitle.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         Spacer(modifier = Modifier.width(16.dp))
         Switch(

@@ -710,7 +710,7 @@ class CactusNeedleEngine @Inject constructor(
         val iconShapePattern = Pattern.compile("(?i)(?:change\\s+)?icon\\s+shape\\s+(?:to\\s+)?(circle|squircle|rounded\\s*rectangle|teardrop|hexagon|octagon)")
         val iconShapeMatcher = iconShapePattern.matcher(cleanQuery)
         if (iconShapeMatcher.find()) {
-            val shape = iconShapeMatcher.group(1)?.replace(" ", "_")?.uppercase() ?: "SQUIRCLE"
+            val shape = iconShapeMatcher.group(1)?.replace(" ", "_")?.uppercase() ?: "CIRCLE"
             return listOf(
                 ToolCallResult(
                     toolName = "change_app_setting",

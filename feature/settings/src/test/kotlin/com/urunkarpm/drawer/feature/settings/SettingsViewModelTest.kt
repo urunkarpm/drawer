@@ -46,7 +46,7 @@ class SettingsViewModelTest {
     private val notificationSwipeRightActionFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ)
     private val notificationSwipeLeftActionFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS)
     private val activeIconPackFlow = MutableStateFlow<String?>(null)
-    private val adaptiveIconShapeFlow = MutableStateFlow("SYSTEM")
+    private val adaptiveIconShapeFlow = MutableStateFlow("CIRCLE")
     private val twoDrawersSideBySideFlow = MutableStateFlow(false)
     private val wallpaperBlurFlow = MutableStateFlow(false)
     private val wallpaperBlurRadiusFlow = MutableStateFlow(25f)
@@ -82,6 +82,8 @@ class SettingsViewModelTest {
     private val aiCategorizeAllAppsFlow = MutableStateFlow(false)
     private val aiForceWorkProfileFlow = MutableStateFlow(true)
     private val enableOnDeviceAiFlow = MutableStateFlow(false)
+    private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
+    private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -142,6 +144,8 @@ class SettingsViewModelTest {
         every { preferencesDataSource.aiCategorizeAllApps } returns aiCategorizeAllAppsFlow
         every { preferencesDataSource.aiForceWorkProfile } returns aiForceWorkProfileFlow
         every { preferencesDataSource.enableOnDeviceAi } returns enableOnDeviceAiFlow
+        every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
+        every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -167,7 +171,8 @@ class SettingsViewModelTest {
             assertEquals("CELSIUS", state.weatherUnit)
             assertEquals("LIQUID_GLASS", state.dockBackground)
             assertEquals(56f, state.dockIconSize)
-            assertEquals("SYSTEM", state.adaptiveIconShape)
+            assertEquals("CIRCLE", state.adaptiveIconShape)
+            assertEquals("ACCENT_POP", state.drawerTitleAnimation)
             assertEquals("LIQUID_GLASS", state.surfaceThemeStyle)
             assertEquals(0.65f, state.surfaceOpacity)
             assertEquals(25f, state.surfaceBlurRadius)
@@ -186,8 +191,16 @@ class SettingsViewModelTest {
             assertEquals("LOW", state.stealthContrastLevel)
             assertFalse(state.stealthLimitBrightness)
             assertTrue(state.autoCategorizeNewApps)
+            assertEquals(8, state.dockExpandedMaxApps)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun setDockExpandedMaxApps_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setDockExpandedMaxApps(9)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setDockExpandedMaxApps(9) }
     }
 
     @Test
@@ -223,6 +236,13 @@ class SettingsViewModelTest {
         viewModel.setThemeMode("AMOLED")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setThemeMode("AMOLED") }
+    }
+
+    @Test
+    fun setDrawerTitleAnimation_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setDrawerTitleAnimation("KINETIC_DECEL")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setDrawerTitleAnimation("KINETIC_DECEL") }
     }
 
     @Test

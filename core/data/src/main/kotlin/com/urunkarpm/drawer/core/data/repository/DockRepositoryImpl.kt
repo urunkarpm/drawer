@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import android.content.Context
+import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import android.content.Intent
 import android.net.Uri
 import android.provider.MediaStore
@@ -40,9 +41,16 @@ class DockRepositoryImpl @Inject constructor(
         .onStart { ensureSeeded() }
         .map { list -> list.map { it.toDomain() } }
 
-    override suspend fun addToDock(app: AppInfo): Boolean = withContext(ioDispatcher) {
+    override suspend fun addToDock(app: AppInfo, maxCapacity: Int?): Boolean = withContext(ioDispatcher) {
         val currentItems = dockDao.getDockItems().first()
-        if (currentItems.size >= 5) {
+        val isFoldableOrTab = context != null && DevicePostureUtils.isFoldableOrTablet(context)
+        val effectiveLimit = maxCapacity ?: if (isFoldableOrTab) {
+            val expandedPref = preferencesDataSourceProvider?.get()?.dockExpandedMaxApps?.first() ?: 8
+            expandedPref
+        } else {
+            5
+        }
+        if (currentItems.size >= effectiveLimit) {
             return@withContext false
         }
 

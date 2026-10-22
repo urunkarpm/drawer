@@ -65,6 +65,17 @@ class DockRepositoryImplTest {
     }
 
     @Test
+    fun addToDock_succeedsWhenMoreThanFiveItemsWithExpandedCapacity() = runTest(testDispatcher) {
+        dockFlow.value = (0..4).map { i ->
+            DockItemEntity(position = i, packageName = "pkg.$i", activityName = "act.$i")
+        }
+
+        val added = repository.addToDock(sampleApp, maxCapacity = 8)
+        assertTrue(added)
+        coVerify(exactly = 1) { dockDao.insertDockItem(any()) }
+    }
+
+    @Test
     fun addToDock_failsWhenAppAlreadyInDock() = runTest(testDispatcher) {
         dockFlow.value = listOf(
             DockItemEntity(position = 0, packageName = sampleApp.packageName, activityName = sampleApp.activityName)

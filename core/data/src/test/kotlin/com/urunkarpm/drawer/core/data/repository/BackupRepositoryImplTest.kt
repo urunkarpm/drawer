@@ -16,10 +16,12 @@ import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.DockItem
 import com.urunkarpm.drawer.core.model.LauncherBackup
+import com.urunkarpm.drawer.core.model.LauncherPreferencesBackup
 import com.urunkarpm.drawer.core.model.MuteRuleType
 import com.urunkarpm.drawer.core.model.MutedAppRule
 import com.urunkarpm.drawer.core.model.WidgetDrawer
 import com.urunkarpm.drawer.core.model.WidgetItem
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -64,29 +66,15 @@ class BackupRepositoryImplTest {
         every { widgetDao.getAllDrawers() } returns widgetDrawersFlow
         every { widgetDao.getAllWidgets() } returns widgetsFlow
 
-        every { preferencesDataSource.themeMode } returns MutableStateFlow("DARK")
-        every { preferencesDataSource.dynamicColor } returns MutableStateFlow(true)
-        every { preferencesDataSource.hideStatusBar } returns MutableStateFlow(false)
-        every { preferencesDataSource.showWeather } returns MutableStateFlow(true)
-        every { preferencesDataSource.weatherUnit } returns MutableStateFlow("CELSIUS")
-        every { preferencesDataSource.is24Hour } returns MutableStateFlow(true)
-        every { preferencesDataSource.manualCityName } returns MutableStateFlow("Berlin")
-        every { preferencesDataSource.manualLat } returns MutableStateFlow(52.52)
-        every { preferencesDataSource.manualLon } returns MutableStateFlow(13.405)
-        every { preferencesDataSource.dockBackground } returns MutableStateFlow("BLUR")
-        every { preferencesDataSource.dockIconSize } returns MutableStateFlow(56f)
-        every { preferencesDataSource.dockShowLabels } returns MutableStateFlow(false)
-        every { preferencesDataSource.dockCornerRadius } returns MutableStateFlow(24f)
-        every { preferencesDataSource.multiGroupApps } returns MutableStateFlow(false)
-        every { preferencesDataSource.notificationsPrivacyMode } returns MutableStateFlow(false)
-        every { preferencesDataSource.activeIconPack } returns MutableStateFlow(null)
-        every { preferencesDataSource.adaptiveIconShape } returns MutableStateFlow("SQUIRCLE")
-        every { preferencesDataSource.twoDrawersSideBySide } returns MutableStateFlow(true)
-        every { preferencesDataSource.enableWidgetsPage } returns MutableStateFlow(true)
-        every { preferencesDataSource.lockLayout } returns MutableStateFlow(false)
-        every { preferencesDataSource.autoArrangeApps } returns MutableStateFlow(true)
-        every { preferencesDataSource.autoCategorizeNewApps } returns MutableStateFlow(true)
-        every { preferencesDataSource.drawerNotificationGlow } returns MutableStateFlow(true)
+        coEvery { preferencesDataSource.getPreferencesBackup() } returns LauncherPreferencesBackup(
+            themeMode = "DARK",
+            dynamicColor = true,
+            twoDrawersSideBySide = true,
+            autoCategorizeNewApps = true,
+            surfaceThemeStyle = "LIQUID_GLASS",
+            headerFontFamily = "GOOGLE_SANS"
+        )
+        coEvery { preferencesDataSource.restorePreferences(any()) } returns Unit
 
         repository = BackupRepositoryImpl(
             appGroupDao = appGroupDao,
@@ -130,17 +118,21 @@ class BackupRepositoryImplTest {
         assertEquals(1, decoded.mutedRules.size)
         assertEquals(1, decoded.widgetDrawers.size)
         assertEquals("Tools", decoded.widgetDrawers[0].title)
+        assertEquals(1, decoded.widgetDrawers[0].widgets.size)
+        assertEquals("com.weather", decoded.widgetDrawers[0].widgets[0].packageName)
         assertEquals(1, decoded.widgets.size)
         assertEquals("com.weather", decoded.widgets[0].packageName)
         assertEquals(101, decoded.widgets[0].appWidgetId)
         assertTrue(decoded.preferences.twoDrawersSideBySide)
         assertTrue(decoded.preferences.autoCategorizeNewApps)
+        assertEquals("LIQUID_GLASS", decoded.preferences.surfaceThemeStyle)
+        assertEquals("GOOGLE_SANS", decoded.preferences.headerFontFamily)
     }
 
     @Test
     fun restoreBackupJson_restoresDatabasePreferencesAndWidgets() = runTest(testDispatcher) {
         val backup = LauncherBackup(
-            version = 2,
+            version = 3,
             exportTimestampMillis = 1000L,
             groups = listOf(
                 AppGroup(
@@ -171,7 +163,7 @@ class BackupRepositoryImplTest {
                     autoDismiss = false
                 )
             ),
-            preferences = com.urunkarpm.drawer.core.model.LauncherPreferencesBackup(
+            preferences = LauncherPreferencesBackup(
                 themeMode = "AMOLED",
                 dynamicColor = false,
                 dockBackground = "SOLID",
@@ -209,12 +201,39 @@ class BackupRepositoryImplTest {
         coVerify { widgetDao.clearAllDrawers() }
         coVerify { widgetDao.insertDrawer(match { it.id == "wd_fin" && it.title == "Finance Widgets" }) }
         coVerify { widgetDao.insertWidget(match { it.id == "w_stock" && it.packageName == "com.stocks" && it.drawerId == "wd_fin" }) }
-        coVerify { preferencesDataSource.setThemeMode("AMOLED") }
-        coVerify { preferencesDataSource.setDynamicColor(false) }
-        coVerify { preferencesDataSource.setDockBackground("SOLID") }
-        coVerify { preferencesDataSource.setAdaptiveIconShape("CIRCLE") }
-        coVerify { preferencesDataSource.setTwoDrawersSideBySide(true) }
-        coVerify { preferencesDataSource.setAutoCategorizeNewApps(false) }
+        coVerify { preferencesDataSource.restorePreferences(match { it.themeMode == "AMOLED" && it.dockBackground == "SOLID" }) }
+    }
+
+    @Test
+    fun restoreBackupJson_withBomAndNestedWidgets_restoresSuccessfully() = runTest(testDispatcher) {
+        val widget1 = WidgetItem(
+            id = "w_clock",
+            appWidgetId = 10,
+            packageName = "com.clock",
+            providerClassName = "ClockWidget",
+            drawerId = "wd_main"
+        )
+        val drawer = WidgetDrawer(
+            id = "wd_main",
+            title = "Main Drawer",
+            orderIndex = 0,
+            widgets = listOf(widget1)
+        )
+        val backup = LauncherBackup(
+            version = 3,
+            exportTimestampMillis = 2000L,
+            groups = emptyList(),
+            dockItems = emptyList(),
+            widgetDrawers = listOf(drawer),
+            widgets = listOf(widget1)
+        )
+
+        val jsonString = "\uFEFF" + Json.encodeToString(LauncherBackup.serializer(), backup)
+        val result = repository.restoreBackupJson(jsonString)
+
+        assertTrue(result.isSuccess)
+        coVerify { widgetDao.insertDrawer(match { it.id == "wd_main" }) }
+        coVerify(exactly = 1) { widgetDao.insertWidget(match { it.id == "w_clock" }) }
     }
 
     @Test

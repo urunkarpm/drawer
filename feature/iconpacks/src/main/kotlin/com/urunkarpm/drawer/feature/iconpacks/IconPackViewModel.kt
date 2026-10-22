@@ -17,7 +17,7 @@ import javax.inject.Inject
 data class IconPackUiState(
     val installedPacks: List<IconPackInfo> = emptyList(),
     val activePackPackage: String? = null,
-    val adaptiveIconShape: String = "SYSTEM",
+    val adaptiveIconShape: String = "CIRCLE",
     val overrides: List<IconOverride> = emptyList(),
     val isLoading: Boolean = true
 )

@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
 import com.urunkarpm.drawer.core.needle.model.ModelProcessingState
 import com.urunkarpm.drawer.core.needle.model.ProcessingStep
 
@@ -66,6 +67,10 @@ fun AiAssistantDrawer(
     onExpandedChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onOpenVoiceSearch: () -> Unit,
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    isMesmerizingGlow: Boolean = true,
+    surfaceOpacity: Float = 0.65f,
+    surfaceStrokeOpacity: Float = 0.40f,
     modifier: Modifier = Modifier
 ) {
     // When the assistant gives an output or starts processing, automatically expand the drawer
@@ -86,28 +91,22 @@ fun AiAssistantDrawer(
         label = "ai_chevron"
     )
 
-    val cardBorderColor by animateColorAsState(
-        targetValue = if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.40f)
-        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
-        label = "aiBorderColor"
-    )
-
-    Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isExpanded)
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
-            else
-                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(1.dp, cardBorderColor),
+    Box(
         modifier = modifier.fillMaxWidth()
     ) {
+        DrawerSurfaceBackground(
+            surfaceThemeStyle = surfaceThemeStyle,
+            shape = RoundedCornerShape(22.dp),
+            isExpanded = isExpanded,
+            isMesmerizingGlow = isMesmerizingGlow,
+            surfaceOpacity = surfaceOpacity,
+            surfaceStrokeOpacity = surfaceStrokeOpacity,
+            modifier = Modifier.matchParentSize()
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             // Header Row (Always visible, matching NotificationDrawer sizing)

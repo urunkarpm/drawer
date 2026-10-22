@@ -11,6 +11,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalOverscrollConfiguration
+import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -232,7 +235,7 @@ fun HomeScreen(
         uiState.installedApps
             .distinctBy { it.packageName }
             .sortedByDescending { scoreApp(it) }
-            .take(5)
+            .take(6)
     }
 
     val configuration = LocalConfiguration.current
@@ -1668,7 +1671,11 @@ fun HomeScreen(
                             isDragging = dragDropState.isDragging,
                             stealthTheme = uiState.stealthTheme,
                             stealthContrastLevel = uiState.stealthContrastLevel,
-                            stealthLimitBrightness = uiState.stealthLimitBrightness
+                            stealthLimitBrightness = uiState.stealthLimitBrightness,
+                            surfaceThemeStyle = uiState.surfaceThemeStyle,
+                            isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                            surfaceOpacity = uiState.surfaceOpacity,
+                            surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
                         )
 
                         // 1b. AI Assistant Drawer: Same size/styling, placed directly below Notification Drawer
@@ -1676,6 +1683,10 @@ fun HomeScreen(
                             com.urunkarpm.drawer.feature.home.component.AiAssistantDrawer(
                                 state = modelProcessingState,
                                 isExpanded = isAssistantExpanded,
+                                surfaceThemeStyle = uiState.surfaceThemeStyle,
+                                isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                                surfaceOpacity = uiState.surfaceOpacity,
+                                surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                                 onExpandedChange = { expanded ->
                                     isAssistantExpanded = expanded
                                     if (expanded) {
@@ -1701,6 +1712,10 @@ fun HomeScreen(
                         GroupsAccordion(
                             viewModel = groupsViewModel,
                             twoDrawersSideBySide = effectiveTwoDrawersSideBySide,
+                            surfaceThemeStyle = uiState.surfaceThemeStyle,
+                            isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                            surfaceOpacity = uiState.surfaceOpacity,
+                            surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                             iconShape = com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString(
                                 uiState.adaptiveIconShape
                             ),
@@ -1747,6 +1762,9 @@ fun HomeScreen(
                             isDragging = dragDropState.isDragging,
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        // Sane bottom spacing so expanded lower drawers can be scrolled comfortably above the dock
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
 
                 // Bottom: Dock (swiping up from dock opens app drawer instantaneously)
@@ -1811,6 +1829,10 @@ fun HomeScreen(
             private val resistanceGatePx = 72f
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // ponytail: rightward swipe on home screen (page 1) consumes edge overscroll immediately to prevent stretchy rubber-band effect; ceiling: full edge overscroll suppression; upgrade path: customizable edge bounce physics.
+                if (source == NestedScrollSource.UserInput && pagerState.currentPage == 1 && available.x < 0f) {
+                    return Offset(available.x, 0f)
+                }
                 if (source == NestedScrollSource.UserInput && pagerState.currentPage == 1 && available.x > 0f) {
                     if (pullAccumulator < resistanceGatePx) {
                         val needed = resistanceGatePx - pullAccumulator
@@ -1854,65 +1876,76 @@ fun HomeScreen(
     }
 
     if (uiState.enableWidgetsPage) {
-        HorizontalPager(
-            state = pagerState,
-            userScrollEnabled = !dragDropState.isDragging &&
-                !uiState.isAllAppsOpen &&
-                !isSettingsOpen &&
-                !isCameraOpen &&
-                !isNotificationExpanded &&
-                !groupsUiState.groups.any { it.group.isExpanded } &&
-                !uiState.widgetDrawers.any { it.isExpanded },
-            flingBehavior = PagerDefaults.flingBehavior(
+        @OptIn(ExperimentalFoundationApi::class)
+        CompositionLocalProvider(
+            LocalOverscrollFactory provides null,
+            LocalOverscrollConfiguration provides null
+        ) {
+            HorizontalPager(
                 state = pagerState,
-                snapPositionalThreshold = 0.35f
-            ),
-            modifier = Modifier
-                .fillMaxSize()
-                .nestedScroll(widgetPageResistanceConnection)
-        ) { page ->
-            if (page == 0) {
-                WidgetsPage(
-                    drawers = uiState.widgetDrawers,
-                    standaloneWidgets = uiState.standaloneWidgets,
-                    widgetHostManager = widgetHostManager,
-                    onAddWidgetClick = { targetDrawerId -> launchAddWidgetFlow(targetDrawerId) },
-                    onCreateDrawer = { title, iconName, colorHex -> viewModel.createWidgetDrawer(title, iconName, colorHex) },
-                    onUpdateDrawer = { drawer -> viewModel.updateWidgetDrawer(drawer) },
-                    onToggleDrawerExpand = { drawerId -> viewModel.toggleWidgetDrawerExpand(drawerId) },
-                    onCollapseAllDrawers = { viewModel.collapseAllWidgetDrawers() },
-                    onDeleteDrawer = { drawerId, deleteChildren ->
-                        if (deleteChildren) {
-                            val drawer = uiState.widgetDrawers.find { it.id == drawerId }
-                            drawer?.widgets?.forEach { w ->
-                                widgetHostManager.deleteAppWidgetId(w.appWidgetId)
+                userScrollEnabled = !dragDropState.isDragging &&
+                    !uiState.isAllAppsOpen &&
+                    !isSettingsOpen &&
+                    !isCameraOpen &&
+                    !isNotificationExpanded &&
+                    !groupsUiState.groups.any { it.group.isExpanded } &&
+                    !uiState.widgetDrawers.any { it.isExpanded },
+                flingBehavior = PagerDefaults.flingBehavior(
+                    state = pagerState,
+                    snapPositionalThreshold = 0.35f
+                ),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(widgetPageResistanceConnection)
+            ) { page ->
+                if (page == 0) {
+                    WidgetsPage(
+                        drawers = uiState.widgetDrawers,
+                        standaloneWidgets = uiState.standaloneWidgets,
+                        widgetHostManager = widgetHostManager,
+                        onAddWidgetClick = { targetDrawerId -> launchAddWidgetFlow(targetDrawerId) },
+                        onCreateDrawer = { title, iconName, colorHex -> viewModel.createWidgetDrawer(title, iconName, colorHex) },
+                        onUpdateDrawer = { drawer -> viewModel.updateWidgetDrawer(drawer) },
+                        onToggleDrawerExpand = { drawerId -> viewModel.toggleWidgetDrawerExpand(drawerId) },
+                        onCollapseAllDrawers = { viewModel.collapseAllWidgetDrawers() },
+                        onDeleteDrawer = { drawerId, deleteChildren ->
+                            if (deleteChildren) {
+                                val drawer = uiState.widgetDrawers.find { it.id == drawerId }
+                                drawer?.widgets?.forEach { w ->
+                                    widgetHostManager.deleteAppWidgetId(w.appWidgetId)
+                                }
                             }
-                        }
-                        viewModel.deleteWidgetDrawer(drawerId, deleteChildren)
-                    },
-                    onDeleteWidget = { id, appWidgetId ->
-                        widgetHostManager.deleteAppWidgetId(appWidgetId)
-                        viewModel.deleteWidget(id, appWidgetId)
-                    },
-                    onMoveWidget = { index, up -> viewModel.moveWidget(index, up) },
-                    onMoveDrawer = { index, up -> viewModel.moveWidgetDrawer(index, up) },
-                    onUpdateWidgetSpan = { id, spanX, spanY, heightDp -> viewModel.updateWidgetSpan(id, spanX, spanY, heightDp) },
-                    onMoveWidgetToDrawer = { widgetId, drawerId -> viewModel.moveWidgetToDrawer(widgetId, drawerId) },
-                    onReorderWidgetInDrawer = { drawerId, fromIdx, toIdx -> viewModel.reorderWidgetsInDrawer(drawerId, fromIdx, toIdx) },
-                    lockLayout = groupsUiState.lockLayout,
-                    hideDrawerIcons = uiState.hideDrawerIcons,
-                    onBackToHome = {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(1)
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
-                        .navigationBarsPadding()
-                )
-            } else {
-                homeContent()
+                            viewModel.deleteWidgetDrawer(drawerId, deleteChildren)
+                        },
+                        onDeleteWidget = { id, appWidgetId ->
+                            widgetHostManager.deleteAppWidgetId(appWidgetId)
+                            viewModel.deleteWidget(id, appWidgetId)
+                        },
+                        onMoveWidget = { index, up -> viewModel.moveWidget(index, up) },
+                        onMoveDrawer = { index, up -> viewModel.moveWidgetDrawer(index, up) },
+                        onUpdateWidgetSpan = { id, spanX, spanY, heightDp -> viewModel.updateWidgetSpan(id, spanX, spanY, heightDp) },
+                        onMoveWidgetToDrawer = { widgetId, drawerId -> viewModel.moveWidgetToDrawer(widgetId, drawerId) },
+                        onReorderWidgetInDrawer = { drawerId, fromIdx, toIdx -> viewModel.reorderWidgetsInDrawer(drawerId, fromIdx, toIdx) },
+                        lockLayout = groupsUiState.lockLayout,
+                        hideDrawerIcons = uiState.hideDrawerIcons,
+                        drawerTitleAnimation = uiState.drawerTitleAnimation,
+                        surfaceThemeStyle = uiState.surfaceThemeStyle,
+                        isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                        surfaceOpacity = uiState.surfaceOpacity,
+                        surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                        onBackToHome = {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(1)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
+                            .navigationBarsPadding()
+                    )
+                } else {
+                    homeContent()
+                }
             }
         }
     } else {

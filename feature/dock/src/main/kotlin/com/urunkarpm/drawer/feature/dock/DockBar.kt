@@ -59,6 +59,8 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
@@ -75,6 +77,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
 import com.urunkarpm.drawer.core.model.AppInfo
@@ -86,14 +89,34 @@ import com.urunkarpm.drawer.core.designsystem.component.DockSurfaceBackground
 @Composable
 fun DockBar(
     modifier: Modifier = Modifier,
-    iconShape: Shape = RoundedCornerShape(12.dp),
+    iconShape: Shape = CircleShape,
     viewModel: DockViewModel = hiltViewModel(),
     isDropTarget: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val shape = RoundedCornerShape(uiState.cornerRadiusDp.dp)
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+
+    // ponytail: Dynamic dock capacity dynamically adjusts based on foldable hinge posture and screen mode; ceiling: 5 apps when folded, up to dockExpandedMaxApps when unfolded/tablet; upgrade path: continuous multi-breakpoint dock layout.
+    val isOpenFoldableOrTablet = remember(context, configuration) {
+        DevicePostureUtils.isOpenFoldableOrTablet(context, configuration)
+    }
+    val isFoldableOrTablet = remember(context) {
+        DevicePostureUtils.isFoldableOrTablet(context)
+    }
+    val maxCapacity = if (isFoldableOrTablet) uiState.dockExpandedMaxApps else 5
+    val visibleApps = remember(uiState.resolvedApps, isOpenFoldableOrTablet, uiState.dockExpandedMaxApps) {
+        if (!isOpenFoldableOrTablet) {
+            uiState.resolvedApps.take(5)
+        } else {
+            uiState.resolvedApps.take(uiState.dockExpandedMaxApps)
+        }
+    }
+
+    // ponytail: dock is 100% curved (pill/capsule) for sleek modern styling; ceiling: fixed capsule geometry; upgrade path: customizable dock corner slider in settings.
+    val shape = CircleShape
 
     val animatedScale by animateFloatAsState(
         targetValue = if (isDropTarget) 1.04f else 1f,
@@ -107,7 +130,7 @@ fun DockBar(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (uiState.resolvedApps.isEmpty()) {
+        if (visibleApps.isEmpty()) {
             val emptyDockWidth = 280.dp.coerceAtMost(maxWidth)
             Box(
                 modifier = Modifier
@@ -136,7 +159,7 @@ fun DockBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Long-press any app to pin here (max 5)",
+                        text = "Long-press any app to pin here (max $maxCapacity)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -144,7 +167,7 @@ fun DockBar(
                 }
             }
         } else {
-            val itemCount = uiState.resolvedApps.size
+            val itemCount = visibleApps.size
             val targetIconSizeDp = uiState.iconSizeDp.dp
             val dockPaddingHorizontal = 12.dp
             val maxInnerWidth = (maxWidth - (dockPaddingHorizontal * 2)).coerceAtLeast(0.dp)
@@ -238,7 +261,7 @@ fun DockBar(
                     horizontalArrangement = Arrangement.spacedBy(actualSpacing, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    uiState.resolvedApps.forEachIndexed { index, (dockItem, app) ->
+                    visibleApps.forEachIndexed { index, (dockItem, app) ->
                     key(dockItem.position, dockItem.packageName) {
                         val isBeingDragged = (draggedSlotIndex == index)
 
@@ -272,6 +295,7 @@ fun DockBar(
                             isBeingDragged = isBeingDragged,
                             dragTranslationX = { if (isBeingDragged) dragOffsetPx else animatedShiftPx },
                             iconShape = iconShape,
+                            maxCapacity = maxCapacity,
                             modifier = Modifier
                                 .weight(1f)
                                 .zIndex(if (isBeingDragged) 10f else 1f),
@@ -298,8 +322,8 @@ fun DockBar(
                                 val fromIdx = draggedSlotIndex
                                 val toIdx = currentTargetIndex
                                 if (fromIdx != null && toIdx != null && fromIdx != toIdx && toIdx in 0 until itemCount) {
-                                    val fromPos = uiState.resolvedApps[fromIdx].first.position
-                                    val toPos = uiState.resolvedApps[toIdx].first.position
+                                    val fromPos = visibleApps[fromIdx].first.position
+                                    val toPos = visibleApps[toIdx].first.position
                                     viewModel.reorderDock(fromPos, toPos)
                                 }
                                 draggedSlotIndex = null
@@ -338,7 +362,7 @@ fun DockBar(
         DockActionBottomSheet(
             dockItem = dockItem,
             app = app,
-            totalItems = uiState.resolvedApps.size,
+            totalItems = visibleApps.size,
             onDismissRequest = { viewModel.dismissMenu() },
             sheetState = sheetState,
             onRemoveFromDock = { viewModel.removeItem(dockItem.position) },
@@ -380,7 +404,8 @@ private fun DockAppSlot(
     onRemove: () -> Unit,
     iconLoader: suspend () -> android.graphics.drawable.Drawable?,
     modifier: Modifier = Modifier,
-    iconShape: Shape = RoundedCornerShape(12.dp)
+    iconShape: Shape = CircleShape,
+    maxCapacity: Int = 5
 ) {
     val haptic = LocalHapticFeedback.current
     val labelScale = LocalAppLabelScale.current
@@ -417,7 +442,7 @@ private fun DockAppSlot(
                 .then(gestureModifier)
                 .padding(horizontal = 2.dp, vertical = 2.dp)
                 .semantics {
-                    contentDescription = "Dock item $label, slot ${dockItem.position + 1} of 5"
+                    contentDescription = "Dock item $label, slot ${dockItem.position + 1} of $maxCapacity"
                 }
         ) {
             AppIconImage(

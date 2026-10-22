@@ -7,8 +7,10 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.urunkarpm.drawer.core.model.LauncherPreferencesBackup
 import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -78,6 +80,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val WALLPAPER_GRADIENT_PALETTE = stringPreferencesKey("wallpaper_gradient_palette")
         val WALLPAPER_GRADIENT_ANGLE = stringPreferencesKey("wallpaper_gradient_angle")
         val DOCK_MESMERIZING_GLOW = booleanPreferencesKey("dock_mesmerizing_glow")
+        val DOCK_EXPANDED_MAX_APPS = androidx.datastore.preferences.core.intPreferencesKey("dock_expanded_max_apps")
         val APP_LAUNCH_COUNTS = stringPreferencesKey("app_launch_counts")
         val APP_LAST_LAUNCHED_TIMES = stringPreferencesKey("app_last_launched_times")
         val AUTO_CATEGORIZE_NEW_APPS = booleanPreferencesKey("auto_categorize_new_apps")
@@ -85,6 +88,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val AI_CATEGORIZE_ALL_APPS = booleanPreferencesKey("ai_categorize_all_apps")
         val AI_FORCE_WORK_PROFILE = booleanPreferencesKey("ai_force_work_profile")
         val ENABLE_ON_DEVICE_AI = booleanPreferencesKey("enable_on_device_ai")
+        val DRAWER_TITLE_ANIMATION = stringPreferencesKey("drawer_title_animation")
     }
 
     val appLaunchCounts: Flow<Map<String, Int>> = dataStore.data.map { prefs ->
@@ -151,6 +155,7 @@ class DrawerPreferencesDataSource @Inject constructor(
     val dockIconSize: Flow<Float> = dataStore.data.map { it[PreferencesKeys.DOCK_ICON_SIZE] ?: 56f }
     val dockShowLabels: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DOCK_SHOW_LABELS] ?: false }
     val dockCornerRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f }
+    val dockExpandedMaxApps: Flow<Int> = dataStore.data.map { it[PreferencesKeys.DOCK_EXPANDED_MAX_APPS] ?: 8 }
 
     val surfaceThemeStyle: Flow<String> = dataStore.data.map {
         it[PreferencesKeys.SURFACE_THEME_STYLE] ?: it[PreferencesKeys.DOCK_BACKGROUND] ?: "LIQUID_GLASS"
@@ -191,7 +196,10 @@ class DrawerPreferencesDataSource @Inject constructor(
     }
 
     val activeIconPack: Flow<String?> = dataStore.data.map { it[PreferencesKeys.ACTIVE_ICON_PACK] }
-    val adaptiveIconShape: Flow<String> = dataStore.data.map { it[PreferencesKeys.ADAPTIVE_ICON_SHAPE] ?: "SQUIRCLE" }
+    // ponytail: default icon shape is CIRCLE across launcher preferences
+    val adaptiveIconShape: Flow<String> = dataStore.data.map { it[PreferencesKeys.ADAPTIVE_ICON_SHAPE] ?: "CIRCLE" }
+    // ponytail: drawer title animation mode on open/close (ACCENT_POP, FLUID_SPRING, KINETIC_DECEL, SNAPPY, OFF)
+    val drawerTitleAnimation: Flow<String> = dataStore.data.map { it[PreferencesKeys.DRAWER_TITLE_ANIMATION] ?: "ACCENT_POP" }
     val twoDrawersSideBySide: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.TWO_DRAWERS_SIDE_BY_SIDE] ?: false }
     val wallpaperBlur: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR] ?: true }
     val wallpaperBlurRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR_RADIUS] ?: 25f }
@@ -308,6 +316,10 @@ class DrawerPreferencesDataSource @Inject constructor(
         dataStore.edit { it[PreferencesKeys.DOCK_CORNER_RADIUS] = radiusDp }
     }
 
+    suspend fun setDockExpandedMaxApps(maxApps: Int) {
+        dataStore.edit { it[PreferencesKeys.DOCK_EXPANDED_MAX_APPS] = maxApps.coerceIn(6, 10) }
+    }
+
     suspend fun setMultiGroupApps(multi: Boolean) {
         dataStore.edit { it[PreferencesKeys.MULTI_GROUP_APPS] = multi }
     }
@@ -333,6 +345,10 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setAdaptiveIconShape(shape: String) {
         dataStore.edit { it[PreferencesKeys.ADAPTIVE_ICON_SHAPE] = shape }
+    }
+
+    suspend fun setDrawerTitleAnimation(mode: String) {
+        dataStore.edit { it[PreferencesKeys.DRAWER_TITLE_ANIMATION] = mode }
     }
 
     suspend fun setTwoDrawersSideBySide(enabled: Boolean) {
@@ -473,6 +489,158 @@ class DrawerPreferencesDataSource @Inject constructor(
                 updatedTimes
             }
             prefs[PreferencesKeys.APP_LAST_LAUNCHED_TIMES] = Json.encodeToString(prunedTimes)
+        }
+    }
+
+    // ponytail: reads all preferences in a single DataStore transaction rather than launching 40+ separate flows.
+    suspend fun getPreferencesBackup(): LauncherPreferencesBackup {
+        val p = dataStore.data.first()
+        val launchCounts = p[PreferencesKeys.APP_LAUNCH_COUNTS]?.let {
+            try { Json.decodeFromString<Map<String, Int>>(it) } catch (_: Throwable) { emptyMap() }
+        } ?: emptyMap()
+        val launchTimes = p[PreferencesKeys.APP_LAST_LAUNCHED_TIMES]?.let {
+            try { Json.decodeFromString<Map<String, Long>>(it) } catch (_: Throwable) { emptyMap() }
+        } ?: emptyMap()
+
+        return LauncherPreferencesBackup(
+            themeMode = p[PreferencesKeys.THEME_MODE] ?: "SYSTEM",
+            drawerThemeMode = p[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM",
+            dynamicColor = p[PreferencesKeys.DYNAMIC_COLOR] ?: true,
+            hideStatusBar = p[PreferencesKeys.HIDE_STATUS_BAR] ?: true,
+            showWeather = p[PreferencesKeys.SHOW_WEATHER] ?: true,
+            weatherUnit = p[PreferencesKeys.WEATHER_UNIT] ?: "CELSIUS",
+            is24Hour = p[PreferencesKeys.IS_24_HOUR] ?: true,
+            manualCityName = p[PreferencesKeys.MANUAL_CITY_NAME],
+            manualLat = p[PreferencesKeys.MANUAL_LAT],
+            manualLon = p[PreferencesKeys.MANUAL_LON],
+            dockBackground = p[PreferencesKeys.DOCK_BACKGROUND] ?: "BLUR",
+            dockIconSize = p[PreferencesKeys.DOCK_ICON_SIZE] ?: 56f,
+            dockShowLabels = p[PreferencesKeys.DOCK_SHOW_LABELS] ?: false,
+            dockCornerRadius = p[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f,
+            surfaceThemeStyle = p[PreferencesKeys.SURFACE_THEME_STYLE] ?: p[PreferencesKeys.DOCK_BACKGROUND] ?: "LIQUID_GLASS",
+            surfaceOpacity = p[PreferencesKeys.SURFACE_OPACITY] ?: 0.65f,
+            surfaceBlurRadius = p[PreferencesKeys.SURFACE_BLUR_RADIUS] ?: 25f,
+            surfaceStrokeOpacity = p[PreferencesKeys.SURFACE_STROKE_OPACITY] ?: 0.40f,
+            surfaceCornerRadius = p[PreferencesKeys.SURFACE_CORNER_RADIUS] ?: p[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f,
+            multiGroupApps = p[PreferencesKeys.MULTI_GROUP_APPS] ?: false,
+            notificationsPrivacyMode = p[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] ?: false,
+            notificationSwipeRightAction = p[PreferencesKeys.NOTIFICATION_SWIPE_RIGHT_ACTION] ?: "MARK_AS_READ",
+            notificationSwipeLeftAction = p[PreferencesKeys.NOTIFICATION_SWIPE_LEFT_ACTION] ?: "DISMISS",
+            activeIconPack = p[PreferencesKeys.ACTIVE_ICON_PACK],
+            adaptiveIconShape = p[PreferencesKeys.ADAPTIVE_ICON_SHAPE] ?: "CIRCLE",
+            drawerTitleAnimation = p[PreferencesKeys.DRAWER_TITLE_ANIMATION] ?: "ACCENT_POP",
+            twoDrawersSideBySide = p[PreferencesKeys.TWO_DRAWERS_SIDE_BY_SIDE] ?: false,
+            wallpaperBlur = p[PreferencesKeys.WALLPAPER_BLUR] ?: true,
+            wallpaperBlurRadius = p[PreferencesKeys.WALLPAPER_BLUR_RADIUS] ?: 25f,
+            enableWidgetsPage = p[PreferencesKeys.ENABLE_WIDGETS_PAGE] ?: true,
+            lockLayout = p[PreferencesKeys.LOCK_LAYOUT] ?: false,
+            autoArrangeApps = p[PreferencesKeys.AUTO_ARRANGE_APPS] ?: true,
+            autoOpenKeyboardInDrawer = p[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] ?: false,
+            showDuoStatusWidget = p[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] ?: true,
+            enableCameraMirror = p[PreferencesKeys.ENABLE_CAMERA_MIRROR] ?: true,
+            categoryAlignment = p[PreferencesKeys.CATEGORY_ALIGNMENT] ?: "BOTTOM",
+            headerFontFamily = p[PreferencesKeys.HEADER_FONT_FAMILY] ?: "GOOGLE_SANS",
+            appLabelScale = p[PreferencesKeys.APP_LABEL_SCALE] ?: "NORMAL",
+            openDrawerFromDockOnly = p[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] ?: false,
+            duoStatusPosition = p[PreferencesKeys.DUO_STATUS_POSITION] ?: "TEMP",
+            hideDrawerIcons = p[PreferencesKeys.HIDE_DRAWER_ICONS] ?: false,
+            stealthTheme = p[PreferencesKeys.STEALTH_THEME] ?: false,
+            stealthContrastLevel = p[PreferencesKeys.STEALTH_CONTRAST_LEVEL] ?: "LOW",
+            stealthLimitBrightness = p[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] ?: false,
+            drawerNotificationGlow = p[PreferencesKeys.DRAWER_NOTIFICATION_GLOW] ?: true,
+            dynamicWallpaperEnabled = p[PreferencesKeys.DYNAMIC_WALLPAPER_ENABLED] ?: false,
+            wallpaperGradientSpeedSeconds = p[PreferencesKeys.WALLPAPER_GRADIENT_SPEED_SECONDS] ?: 3,
+            wallpaperGradientBlurPercent = p[PreferencesKeys.WALLPAPER_GRADIENT_BLUR_PERCENT] ?: 40,
+            wallpaperGradientPalette = p[PreferencesKeys.WALLPAPER_GRADIENT_PALETTE] ?: "FULL_SPECTRUM",
+            wallpaperGradientAngle = p[PreferencesKeys.WALLPAPER_GRADIENT_ANGLE] ?: "DIAGONAL",
+            dockMesmerizingGlow = p[PreferencesKeys.DOCK_MESMERIZING_GLOW] ?: true,
+            dockExpandedMaxApps = p[PreferencesKeys.DOCK_EXPANDED_MAX_APPS] ?: 8,
+            autoCategorizeNewApps = p[PreferencesKeys.AUTO_CATEGORIZE_NEW_APPS] ?: true,
+            aiCategorizationStrictness = p[PreferencesKeys.AI_CATEGORIZATION_STRICTNESS] ?: "BALANCED",
+            aiCategorizeAllApps = p[PreferencesKeys.AI_CATEGORIZE_ALL_APPS] ?: false,
+            aiForceWorkProfile = p[PreferencesKeys.AI_FORCE_WORK_PROFILE] ?: true,
+            enableOnDeviceAi = p[PreferencesKeys.ENABLE_ON_DEVICE_AI] ?: false,
+            appLaunchCounts = launchCounts,
+            appLastLaunchedTimes = launchTimes
+        )
+    }
+
+    // ponytail: atomic bulk update of all preferences in a single DataStore edit transaction to avoid dozens of sequential disk writes and duplicate UI re-render triggers.
+    suspend fun restorePreferences(prefs: LauncherPreferencesBackup) {
+        dataStore.edit { p ->
+            p[PreferencesKeys.THEME_MODE] = prefs.themeMode
+            p[PreferencesKeys.DRAWER_THEME_MODE] = prefs.drawerThemeMode
+            p[PreferencesKeys.DYNAMIC_COLOR] = prefs.dynamicColor
+            p[PreferencesKeys.HIDE_STATUS_BAR] = prefs.hideStatusBar
+            p[PreferencesKeys.SHOW_WEATHER] = prefs.showWeather
+            p[PreferencesKeys.WEATHER_UNIT] = prefs.weatherUnit
+            p[PreferencesKeys.IS_24_HOUR] = prefs.is24Hour
+
+            val cityName = prefs.manualCityName
+            if (cityName != null) p[PreferencesKeys.MANUAL_CITY_NAME] = cityName else p.remove(PreferencesKeys.MANUAL_CITY_NAME)
+            val lat = prefs.manualLat
+            if (lat != null) p[PreferencesKeys.MANUAL_LAT] = lat else p.remove(PreferencesKeys.MANUAL_LAT)
+            val lon = prefs.manualLon
+            if (lon != null) p[PreferencesKeys.MANUAL_LON] = lon else p.remove(PreferencesKeys.MANUAL_LON)
+
+            p[PreferencesKeys.DOCK_BACKGROUND] = prefs.dockBackground
+            p[PreferencesKeys.DOCK_ICON_SIZE] = prefs.dockIconSize
+            p[PreferencesKeys.DOCK_SHOW_LABELS] = prefs.dockShowLabels
+            p[PreferencesKeys.DOCK_CORNER_RADIUS] = prefs.dockCornerRadius
+
+            p[PreferencesKeys.SURFACE_THEME_STYLE] = prefs.surfaceThemeStyle
+            p[PreferencesKeys.SURFACE_OPACITY] = prefs.surfaceOpacity
+            p[PreferencesKeys.SURFACE_BLUR_RADIUS] = prefs.surfaceBlurRadius
+            p[PreferencesKeys.SURFACE_STROKE_OPACITY] = prefs.surfaceStrokeOpacity
+            p[PreferencesKeys.SURFACE_CORNER_RADIUS] = prefs.surfaceCornerRadius
+
+            p[PreferencesKeys.MULTI_GROUP_APPS] = prefs.multiGroupApps
+            p[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] = prefs.notificationsPrivacyMode
+            p[PreferencesKeys.NOTIFICATION_SWIPE_RIGHT_ACTION] = prefs.notificationSwipeRightAction
+            p[PreferencesKeys.NOTIFICATION_SWIPE_LEFT_ACTION] = prefs.notificationSwipeLeftAction
+
+            val activePack = prefs.activeIconPack
+            if (activePack != null) p[PreferencesKeys.ACTIVE_ICON_PACK] = activePack else p.remove(PreferencesKeys.ACTIVE_ICON_PACK)
+            p[PreferencesKeys.ADAPTIVE_ICON_SHAPE] = prefs.adaptiveIconShape
+            p[PreferencesKeys.DRAWER_TITLE_ANIMATION] = prefs.drawerTitleAnimation
+            p[PreferencesKeys.TWO_DRAWERS_SIDE_BY_SIDE] = prefs.twoDrawersSideBySide
+            p[PreferencesKeys.WALLPAPER_BLUR] = prefs.wallpaperBlur
+            p[PreferencesKeys.WALLPAPER_BLUR_RADIUS] = prefs.wallpaperBlurRadius
+            p[PreferencesKeys.LOCK_LAYOUT] = prefs.lockLayout
+            p[PreferencesKeys.AUTO_ARRANGE_APPS] = prefs.autoArrangeApps
+            p[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] = prefs.autoOpenKeyboardInDrawer
+            p[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] = prefs.showDuoStatusWidget
+            p[PreferencesKeys.ENABLE_CAMERA_MIRROR] = prefs.enableCameraMirror
+            p[PreferencesKeys.CATEGORY_ALIGNMENT] = prefs.categoryAlignment
+            p[PreferencesKeys.ENABLE_WIDGETS_PAGE] = prefs.enableWidgetsPage
+            p[PreferencesKeys.HEADER_FONT_FAMILY] = prefs.headerFontFamily
+            p[PreferencesKeys.APP_LABEL_SCALE] = prefs.appLabelScale
+            p[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] = prefs.openDrawerFromDockOnly
+            p[PreferencesKeys.DUO_STATUS_POSITION] = prefs.duoStatusPosition
+            p[PreferencesKeys.HIDE_DRAWER_ICONS] = prefs.hideDrawerIcons
+            p[PreferencesKeys.STEALTH_THEME] = prefs.stealthTheme
+            p[PreferencesKeys.STEALTH_CONTRAST_LEVEL] = prefs.stealthContrastLevel
+            p[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] = prefs.stealthLimitBrightness
+            p[PreferencesKeys.DRAWER_NOTIFICATION_GLOW] = prefs.drawerNotificationGlow
+            p[PreferencesKeys.DYNAMIC_WALLPAPER_ENABLED] = prefs.dynamicWallpaperEnabled
+            p[PreferencesKeys.WALLPAPER_GRADIENT_SPEED_SECONDS] = prefs.wallpaperGradientSpeedSeconds
+            p[PreferencesKeys.WALLPAPER_GRADIENT_BLUR_PERCENT] = prefs.wallpaperGradientBlurPercent
+            p[PreferencesKeys.WALLPAPER_GRADIENT_PALETTE] = prefs.wallpaperGradientPalette
+            p[PreferencesKeys.WALLPAPER_GRADIENT_ANGLE] = prefs.wallpaperGradientAngle
+            p[PreferencesKeys.DOCK_MESMERIZING_GLOW] = prefs.dockMesmerizingGlow
+            p[PreferencesKeys.DOCK_EXPANDED_MAX_APPS] = prefs.dockExpandedMaxApps
+            p[PreferencesKeys.AUTO_CATEGORIZE_NEW_APPS] = prefs.autoCategorizeNewApps
+            p[PreferencesKeys.AI_CATEGORIZATION_STRICTNESS] = prefs.aiCategorizationStrictness
+            p[PreferencesKeys.AI_CATEGORIZE_ALL_APPS] = prefs.aiCategorizeAllApps
+            p[PreferencesKeys.AI_FORCE_WORK_PROFILE] = prefs.aiForceWorkProfile
+            p[PreferencesKeys.ENABLE_ON_DEVICE_AI] = prefs.enableOnDeviceAi
+
+            if (prefs.appLaunchCounts.isNotEmpty()) {
+                p[PreferencesKeys.APP_LAUNCH_COUNTS] = Json.encodeToString(prefs.appLaunchCounts)
+            }
+            if (prefs.appLastLaunchedTimes.isNotEmpty()) {
+                p[PreferencesKeys.APP_LAST_LAUNCHED_TIMES] = Json.encodeToString(prefs.appLastLaunchedTimes)
+            }
         }
     }
 }

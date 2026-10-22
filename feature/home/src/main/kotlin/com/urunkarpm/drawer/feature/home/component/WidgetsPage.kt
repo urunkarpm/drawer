@@ -98,6 +98,11 @@ fun WidgetsPage(
     onReorderWidgetInDrawer: (drawerId: String, fromIndex: Int, toIndex: Int) -> Unit,
     lockLayout: Boolean = false,
     hideDrawerIcons: Boolean = false,
+    drawerTitleAnimation: String = "ACCENT_POP",
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    isMesmerizingGlow: Boolean = true,
+    surfaceOpacity: Float = 0.65f,
+    surfaceStrokeOpacity: Float = 0.40f,
     onBackToHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -355,7 +360,12 @@ fun WidgetsPage(
                             onResizeWidget = { w -> widgetToResize = w },
                             onReorderWidget = { fromIdx, toIdx -> onReorderWidgetInDrawer(drawer.id, fromIdx, toIdx) },
                             lockLayout = lockLayout,
-                            hideDrawerIcons = hideDrawerIcons
+                            hideDrawerIcons = hideDrawerIcons,
+                            surfaceThemeStyle = surfaceThemeStyle,
+                            isMesmerizingGlow = isMesmerizingGlow,
+                            surfaceOpacity = surfaceOpacity,
+                            surfaceStrokeOpacity = surfaceStrokeOpacity,
+                            drawerTitleAnimation = drawerTitleAnimation
                         )
                     }
 

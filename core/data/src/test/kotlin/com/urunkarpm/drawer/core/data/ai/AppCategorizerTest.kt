@@ -5,20 +5,15 @@ import com.urunkarpm.drawer.core.model.AppGroupItem
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.needle.NeedleEngine
 import com.urunkarpm.drawer.core.needle.model.ModelStatus
-import com.urunkarpm.drawer.core.needle.model.ToolCallResult
-import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 
@@ -154,33 +149,140 @@ class AppCategorizerTest {
     }
 
     @Test
-    fun categorizeApps_whenNeedleEngineReady_usesModelPrediction() = runTest {
-        every { needleEngine.modelStatus } returns MutableStateFlow(
-            ModelStatus.Ready(modelPath = "/data/model.bin", sizeMb = 120.0f)
-        )
-        coEvery { needleEngine.predictToolCall(any(), any()) } returns listOf(
-            ToolCallResult(
-                toolName = "categorize_app",
-                arguments = buildJsonObject {
-                    put("category", "games")
-                }
-            )
-        )
-
+    fun categorizeApps_neverQueriesNeedleEngine_pureOfflineRuleEngine() = runTest {
         val categorizer = AppCategorizerImpl(needleEngine)
 
         val groups = listOf(
-            AppGroup(id = "games_group", name = "Games", orderIndex = 0)
+            AppGroup(id = "group_media", name = "Media", orderIndex = 0)
         )
 
         val apps = listOf(
-            AppInfo(packageName = "com.obscure.title", activityName = ".Main", label = "Mystery Game")
+            AppInfo(packageName = "com.spotify.music", activityName = ".Main", label = "Spotify")
         )
 
         val suggestions = categorizer.categorizeApps(apps, groups)
-        val gamesSuggestion = suggestions.firstOrNull { it.group.id == "games_group" }
-        assertNotNull(gamesSuggestion)
-        assertTrue(gamesSuggestion!!.suggestedApps.any { it.label == "Mystery Game" })
+        assertNotNull(suggestions.firstOrNull { it.group.id == "group_media" })
+
+        // Verify that NeedleEngine is never called for categorization
+        coVerify(exactly = 0) { needleEngine.predictToolCall(any(), any()) }
+    }
+
+    @Test
+    fun categorizeApps_whenTargetDrawerMissing_dynamicallyCreatesAdditionalDrawer() = runTest {
+        val categorizer = AppCategorizerImpl(needleEngine)
+
+        // User only has a single "Work" drawer
+        val existingGroups = listOf(
+            AppGroup(id = "group_work", name = "Deep Work", orderIndex = 0)
+        )
+
+        val apps = listOf(
+            AppInfo(packageName = "com.google.android.apps.docs", activityName = ".Main", label = "Google Docs"),
+            AppInfo(packageName = "com.spotify.music", activityName = ".Main", label = "Spotify"),
+            AppInfo(packageName = "com.splitwise.app", activityName = ".Main", label = "Splitwise"),
+            AppInfo(packageName = "org.telegram.messenger", activityName = ".Main", label = "Telegram"),
+            AppInfo(packageName = "com.mojang.minecraftpe", activityName = ".Main", label = "Minecraft")
+        )
+
+        val suggestions = categorizer.categorizeApps(apps, existingGroups)
+
+        // Existing drawer should contain Google Docs
+        val workSuggestion = suggestions.firstOrNull { it.group.id == "group_work" }
+        assertNotNull("Work drawer should receive docs", workSuggestion)
+        assertTrue(workSuggestion!!.suggestedApps.any { it.label == "Google Docs" })
+
+        // New drawers should be dynamically created for Spotify, Splitwise, Telegram, Minecraft
+        val mediaSuggestion = suggestions.firstOrNull { it.group.name == "Media" }
+        assertNotNull("Media drawer should be dynamically created", mediaSuggestion)
+        assertTrue(mediaSuggestion!!.suggestedApps.any { it.label == "Spotify" })
+
+        val financeSuggestion = suggestions.firstOrNull { it.group.name == "Finance" }
+        assertNotNull("Finance drawer should be dynamically created", financeSuggestion)
+        assertTrue(financeSuggestion!!.suggestedApps.any { it.label == "Splitwise" })
+
+        val socialSuggestion = suggestions.firstOrNull { it.group.name == "Social" }
+        assertNotNull("Social drawer should be dynamically created", socialSuggestion)
+        assertTrue(socialSuggestion!!.suggestedApps.any { it.label == "Telegram" })
+
+        val gamesSuggestion = suggestions.firstOrNull { it.group.name == "Games" }
+        assertNotNull("Games drawer should be dynamically created", gamesSuggestion)
+        assertTrue(gamesSuggestion!!.suggestedApps.any { it.label == "Minecraft" })
+
+        // Verify order indices are sequential
+        assertTrue(mediaSuggestion.group.orderIndex > 0)
+        assertTrue(financeSuggestion.group.orderIndex > 0)
+    }
+
+    @Test
+    fun categorizeApps_bulletProofHandlingOfEdgeCaseApps() = runTest {
+        val categorizer = AppCategorizerImpl(needleEngine)
+
+        val apps = listOf(
+            AppInfo(packageName = "com.empty.label", activityName = ".Act", label = ""),
+            AppInfo(packageName = "com.special.chars", activityName = ".Act", label = "[C++] Compiler & Tools (Pro)*"),
+            AppInfo(packageName = "com.malformed.regex", activityName = ".Act", label = "App+ (Alpha/Beta?!)"),
+            AppInfo(packageName = "", activityName = "", label = "Empty Package")
+        )
+
+        // Must execute cleanly without throwing PatternSyntaxException, NullPointerException, or crash
+        val suggestions = categorizer.categorizeApps(apps, existingGroups = emptyList(), strictness = "BALANCED")
+        assertNotNull(suggestions)
+    }
+
+    @Test
+    fun categorizeApps_mapsExpandedIndianAndGlobalAppEcosystem() = runTest {
+        val categorizer = AppCategorizerImpl(needleEngine)
+
+        val apps = listOf(
+            // Finance: UPI & Neobanks & Investing
+            AppInfo(packageName = "com.phonepe.app", activityName = ".Main", label = "PhonePe"),
+            AppInfo(packageName = "net.one97.paytm", activityName = ".Main", label = "Paytm"),
+            AppInfo(packageName = "com.zerodha.kite3", activityName = ".Main", label = "Kite"),
+            AppInfo(packageName = "com.nextbillion.groww", activityName = ".Main", label = "Groww"),
+            // Media: Indian & Global OTT
+            AppInfo(packageName = "com.jio.media.ondemand", activityName = ".Main", label = "JioCinema"),
+            AppInfo(packageName = "com.sonyliv", activityName = ".Main", label = "Sony LIV"),
+            AppInfo(packageName = "com.kuku.fm", activityName = ".Main", label = "Kuku FM"),
+            // Quick commerce & food
+            AppInfo(packageName = "com.grofers.customerapp", activityName = ".Main", label = "Blinkit"),
+            AppInfo(packageName = "com.application.zomato", activityName = ".Main", label = "Zomato"),
+            // Productivity: Modern AI
+            AppInfo(packageName = "com.openai.chatgpt", activityName = ".Main", label = "ChatGPT"),
+            AppInfo(packageName = "com.anthropic.claude", activityName = ".Main", label = "Claude"),
+            // Utilities: Travel & Security
+            AppInfo(packageName = "com.google.android.apps.maps", activityName = ".Main", label = "Google Maps"),
+            AppInfo(packageName = "com.bitwarden", activityName = ".Main", label = "Bitwarden")
+        )
+
+        val suggestions = categorizer.categorizeApps(apps, existingGroups = emptyList())
+
+        val finance = suggestions.firstOrNull { it.group.id == "group_finance" }
+        assertNotNull(finance)
+        assertTrue(finance!!.suggestedApps.any { it.label == "PhonePe" })
+        assertTrue(finance.suggestedApps.any { it.label == "Paytm" })
+        assertTrue(finance.suggestedApps.any { it.label == "Kite" })
+        assertTrue(finance.suggestedApps.any { it.label == "Groww" })
+
+        val media = suggestions.firstOrNull { it.group.id == "group_media" }
+        assertNotNull(media)
+        assertTrue(media!!.suggestedApps.any { it.label == "JioCinema" })
+        assertTrue(media.suggestedApps.any { it.label == "Sony LIV" })
+        assertTrue(media.suggestedApps.any { it.label == "Kuku FM" })
+
+        val shopping = suggestions.firstOrNull { it.group.id == "group_shopping" }
+        assertNotNull(shopping)
+        assertTrue(shopping!!.suggestedApps.any { it.label == "Blinkit" })
+        assertTrue(shopping.suggestedApps.any { it.label == "Zomato" })
+
+        val productivity = suggestions.firstOrNull { it.group.id == "group_work" }
+        assertNotNull(productivity)
+        assertTrue(productivity!!.suggestedApps.any { it.label == "ChatGPT" })
+        assertTrue(productivity.suggestedApps.any { it.label == "Claude" })
+
+        val utilities = suggestions.firstOrNull { it.group.id == "group_utilities" }
+        assertNotNull(utilities)
+        assertTrue(utilities!!.suggestedApps.any { it.label == "Google Maps" })
+        assertTrue(utilities.suggestedApps.any { it.label == "Bitwarden" })
     }
 
     @Test
@@ -307,33 +409,8 @@ class AppCategorizerTest {
     }
 
     @Test
-    fun queryNeedle_whenCancellationExceptionThrown_rethrows() = runTest {
-        every { needleEngine.modelStatus } returns MutableStateFlow(
-            ModelStatus.Ready(modelPath = "/path", sizeMb = 100f)
-        )
-        coEvery { needleEngine.predictToolCall(any(), any()) } throws CancellationException("Coroutines job cancelled")
-
+    fun isModelReady_alwaysTrue() {
         val categorizer = AppCategorizerImpl(needleEngine)
-        val groups = listOf(AppGroup(id = "group_finance", name = "Finance"))
-        val apps = listOf(AppInfo(packageName = "com.test", activityName = ".Act", label = "TestApp"))
-
-        try {
-            categorizer.categorizeApps(apps, groups)
-            fail("Expected CancellationException was not thrown")
-        } catch (e: CancellationException) {
-            assertEquals("Coroutines job cancelled", e.message)
-        }
-    }
-
-    @Test
-    fun isModelReady_reflectsNeedleModelStatus() {
-        val modelStatusFlow = MutableStateFlow<ModelStatus>(ModelStatus.NotDownloaded)
-        every { needleEngine.modelStatus } returns modelStatusFlow
-
-        val categorizer = AppCategorizerImpl(needleEngine)
-        assertFalse(categorizer.isModelReady)
-
-        modelStatusFlow.value = ModelStatus.Ready(modelPath = "/path", sizeMb = 100f)
         assertTrue(categorizer.isModelReady)
     }
 

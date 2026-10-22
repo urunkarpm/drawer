@@ -31,7 +31,8 @@ data class DockUiState(
     val selectedDockItemForMenu: Pair<DockItem, AppInfo?>? = null,
     val isEditMode: Boolean = false,
     val autoArrangeApps: Boolean = true,
-    val mesmerizingGlow: Boolean = true
+    val mesmerizingGlow: Boolean = true,
+    val dockExpandedMaxApps: Int = 8
 )
 
 @HiltViewModel
@@ -58,9 +59,10 @@ class DockViewModel @Inject constructor(
         preferencesDataSource.dockIconSize,
         preferencesDataSource.dockShowLabels,
         preferencesDataSource.autoArrangeApps,
-        preferencesDataSource.dockMesmerizingGlow
-    ) { iconSize, showLabels, autoArrangeApps, mesmerizingGlow ->
-        DockLayoutPreferences(iconSize, showLabels, autoArrangeApps, mesmerizingGlow)
+        preferencesDataSource.dockMesmerizingGlow,
+        preferencesDataSource.dockExpandedMaxApps
+    ) { iconSize, showLabels, autoArrangeApps, mesmerizingGlow, expandedMaxApps ->
+        DockLayoutPreferences(iconSize, showLabels, autoArrangeApps, mesmerizingGlow, expandedMaxApps)
     }
 
     private val dockPreferencesFlow = combine(
@@ -76,7 +78,8 @@ class DockViewModel @Inject constructor(
             blurRadius = theme.blurRadius,
             strokeOpacity = theme.strokeOpacity,
             autoArrangeApps = layout.autoArrangeApps,
-            mesmerizingGlow = layout.mesmerizingGlow
+            mesmerizingGlow = layout.mesmerizingGlow,
+            dockExpandedMaxApps = layout.dockExpandedMaxApps
         )
     }
 
@@ -114,7 +117,8 @@ class DockViewModel @Inject constructor(
             selectedDockItemForMenu = selectedItem,
             isEditMode = isEditMode,
             autoArrangeApps = prefs.autoArrangeApps,
-            mesmerizingGlow = prefs.mesmerizingGlow
+            mesmerizingGlow = prefs.mesmerizingGlow,
+            dockExpandedMaxApps = prefs.dockExpandedMaxApps
         )
     }.stateIn(
         scope = viewModelScope,
@@ -134,7 +138,8 @@ private data class DockLayoutPreferences(
     val iconSize: Float,
     val showLabels: Boolean,
     val autoArrangeApps: Boolean,
-    val mesmerizingGlow: Boolean
+    val mesmerizingGlow: Boolean,
+    val dockExpandedMaxApps: Int
 )
 
 private data class DockPreferences(
@@ -146,7 +151,8 @@ private data class DockPreferences(
     val blurRadius: Float,
     val strokeOpacity: Float,
     val autoArrangeApps: Boolean,
-    val mesmerizingGlow: Boolean
+    val mesmerizingGlow: Boolean,
+    val dockExpandedMaxApps: Int
 )
 
     fun reorderDock(fromPosition: Int, toPosition: Int) {

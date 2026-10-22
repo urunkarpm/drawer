@@ -44,6 +44,7 @@ data class GroupsUiState(
     val showCreateDialog: Boolean = false,
     val lockLayout: Boolean = false,
     val drawerNotificationGlow: Boolean = true,
+    val drawerTitleAnimation: String = "ACCENT_POP",
     val allApps: List<AppInfo> = emptyList(), // ponytail: exposed for bulk add
     val isAiCategorizing: Boolean = false,
     val aiSuggestions: List<CategorizationSuggestion>? = null,
@@ -90,12 +91,20 @@ class GroupsViewModel @Inject constructor(
         Triple(isCategorizing, suggestions, modelReady)
     }
 
+    private data class GroupPrefs(
+        val multiGroup: Boolean,
+        val lockLayout: Boolean,
+        val drawerGlow: Boolean,
+        val drawerTitleAnimation: String
+    )
+
     private val groupPrefsFlow = combine(
         preferencesDataSource.multiGroupApps,
         preferencesDataSource.lockLayout,
-        preferencesDataSource.drawerNotificationGlow
-    ) { multiGroup, lockLayout, drawerGlow ->
-        Triple(multiGroup, lockLayout, drawerGlow)
+        preferencesDataSource.drawerNotificationGlow,
+        preferencesDataSource.drawerTitleAnimation
+    ) { multiGroup, lockLayout, drawerGlow, titleAnim ->
+        GroupPrefs(multiGroup, lockLayout, drawerGlow, titleAnim)
     }
 
     val uiState: StateFlow<GroupsUiState> = combine(
@@ -104,7 +113,7 @@ class GroupsViewModel @Inject constructor(
         groupPrefsFlow,
         dialogsState,
         aiState
-    ) { groups, installedApps, (multiGroup, lockLayout, drawerGlow), dialogs, (isCategorizing, suggestions, modelReady) ->
+    ) { groups, installedApps, groupPrefs, dialogs, (isCategorizing, suggestions, modelReady) ->
         // Primary lookup: packageName/activityName
         val appMap = installedApps.associateBy { "${it.packageName}/${it.activityName}" }
         // Fallback lookup: packageName only (first match) - handles cases where activityName differs
@@ -123,12 +132,13 @@ class GroupsViewModel @Inject constructor(
         }
         GroupsUiState(
             groups = resolvedGroups,
-            multiGroupEnabled = multiGroup,
+            multiGroupEnabled = groupPrefs.multiGroup,
             selectedAppForAction = dialogs.selectedAppForAction,
             groupBeingEdited = dialogs.groupBeingEdited,
             showCreateDialog = dialogs.showCreateDialog,
-            lockLayout = lockLayout,
-            drawerNotificationGlow = drawerGlow,
+            lockLayout = groupPrefs.lockLayout,
+            drawerNotificationGlow = groupPrefs.drawerGlow,
+            drawerTitleAnimation = groupPrefs.drawerTitleAnimation,
             allApps = installedApps.sortedBy { it.label.lowercase() },
             isAiCategorizing = isCategorizing,
             aiSuggestions = suggestions,
@@ -155,9 +165,9 @@ class GroupsViewModel @Inject constructor(
         viewModelScope.launch {
             appRepository.newlyInstalledApp.collect { newApp ->
                 try {
-                    val isAiEnabled = preferencesDataSource.enableOnDeviceAi.first()
+                    // ponytail: auto-categorization does not require on-device AI models; works immediately and offline.
                     val isAutoSuggest = preferencesDataSource.autoCategorizeNewApps.first()
-                    if (isAiEnabled && isAutoSuggest) {
+                    if (isAutoSuggest) {
                         val targetDrawer = appGroupRepository.suggestDrawerForApp(newApp)
                         if (targetDrawer != null) {
                             _installSuggestion.value = newApp to targetDrawer

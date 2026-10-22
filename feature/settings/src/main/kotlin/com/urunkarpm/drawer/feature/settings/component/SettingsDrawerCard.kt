@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 
 /**
@@ -62,6 +63,10 @@ fun SettingsDrawerCard(
     modifier: Modifier = Modifier,
     isCompact: Boolean = false,
     cornerRadius: Dp = 20.dp,
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    isMesmerizingGlow: Boolean = true,
+    surfaceOpacity: Float = 0.65f,
+    surfaceStrokeOpacity: Float = 0.40f,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -74,15 +79,24 @@ fun SettingsDrawerCard(
         label = "drawer_chevron_rotation"
     )
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(cornerRadius),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
-            contentColor = MaterialTheme.colorScheme.onSurface
-        )
+    Box(
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        DrawerSurfaceBackground(
+            surfaceThemeStyle = surfaceThemeStyle,
+            shape = RoundedCornerShape(cornerRadius),
+            isExpanded = isExpanded,
+            accentColor = iconTint,
+            isMesmerizingGlow = isMesmerizingGlow,
+            surfaceOpacity = surfaceOpacity,
+            surfaceStrokeOpacity = surfaceStrokeOpacity,
+            modifier = Modifier.matchParentSize()
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(cornerRadius))
+        ) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()

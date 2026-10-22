@@ -32,6 +32,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -158,7 +159,11 @@ fun NotificationDrawer(
     // ponytail: stealth colors applied only to notification cards; no new libraries; ceiling: no per-app masking; upgrade path: StealthColors(dark, light) factory.
     stealthTheme: Boolean = false,
     stealthContrastLevel: String = "LOW",
-    stealthLimitBrightness: Boolean = false
+    stealthLimitBrightness: Boolean = false,
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    isMesmerizingGlow: Boolean = true,
+    surfaceOpacity: Float = 0.65f,
+    surfaceStrokeOpacity: Float = 0.40f
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val muteSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -218,7 +223,7 @@ fun NotificationDrawer(
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
-        // ── Onboarding Banner ─────────────────────────────────────────────────
+        // â”€â”€ Onboarding Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (!uiState.isPermissionGranted) {
             Card(
                 shape = RoundedCornerShape(22.dp),
@@ -263,7 +268,7 @@ fun NotificationDrawer(
                 }
             }
 
-        // ── Notifications Card ────────────────────────────────────────────────
+        // â”€â”€ Notifications Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         } else {
             val hasNotifications = uiState.activeNotifications.isNotEmpty()
             val hasClearableNotifications = remember(uiState.activeNotifications) {
@@ -312,16 +317,7 @@ fun NotificationDrawer(
                 animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
                 label = "notifBorderColor"
             )
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isExpanded)
-                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
-                    else
-                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                border = BorderStroke(1.dp, cardBorderColor),
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .pointerInput(isExpanded) {
@@ -337,9 +333,31 @@ fun NotificationDrawer(
                         }
                     }
             ) {
+                if (!stealthTheme) {
+                    DrawerSurfaceBackground(
+                        surfaceThemeStyle = surfaceThemeStyle,
+                        shape = RoundedCornerShape(22.dp),
+                        isExpanded = isExpanded,
+                        isMesmerizingGlow = isMesmerizingGlow,
+                        surfaceOpacity = surfaceOpacity,
+                        surfaceStrokeOpacity = surfaceStrokeOpacity,
+                        modifier = Modifier.matchParentSize()
+                    )
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = if (isExpanded)
+                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
+                        else
+                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                        border = BorderStroke(1.dp, cardBorderColor),
+                        modifier = Modifier.matchParentSize()
+                    ) {}
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
                         .background(
                             Brush.verticalGradient(
                                 colors = listOf(
@@ -350,7 +368,7 @@ fun NotificationDrawer(
                         )
                 ) {
 
-                    // ── Collapsed header (always visible) ─────────────────────
+                    // â”€â”€ Collapsed header (always visible) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     val headerInteractionSource = remember { MutableInteractionSource() }
                     Row(
                         modifier = Modifier
@@ -418,7 +436,7 @@ fun NotificationDrawer(
                             Text(
                                 text = if (!hasNotifications) "All caught up"
                                 else if (isExpanded) {
-                                    "$count alert${if (count != 1) "s" else ""} • Tap to collapse"
+                                    "$count alert${if (count != 1) "s" else ""} â€¢ Tap to collapse"
                                 }
                                 else "$count alert${if (count != 1) "s" else ""}",
                                 style = MaterialTheme.typography.labelSmall,
@@ -445,7 +463,7 @@ fun NotificationDrawer(
                         }
                     }
 
-                    // ── Expanded body ─────────────────────────────────────────
+                    // â”€â”€ Expanded body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     AnimatedVisibility(
                         visible = isExpanded,
                         enter = expandVertically(
@@ -648,7 +666,7 @@ fun NotificationDrawer(
     }
 }
 
-// ── Private helpers ────────────────────────────────────────────────────────────
+// â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Displays notification app icons in the notification card header.

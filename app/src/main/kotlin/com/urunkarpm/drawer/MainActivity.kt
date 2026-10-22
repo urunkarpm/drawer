@@ -6,7 +6,6 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,7 +37,6 @@ class MainActivity : ComponentActivity() {
         enableHighRefreshRate()
         com.urunkarpm.drawer.core.data.worker.WeatherRefreshWorker.enqueuePeriodic(this)
         setContent {
-            val themeMode by preferencesDataSource.themeMode.collectAsStateWithLifecycle(initialValue = "SYSTEM")
             val dynamicColor by preferencesDataSource.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
             val hideStatusBar by preferencesDataSource.hideStatusBar.collectAsStateWithLifecycle(initialValue = true)
             val wallpaperBlur by preferencesDataSource.wallpaperBlur.collectAsStateWithLifecycle(initialValue = false)
@@ -65,19 +63,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val isSystemDark = isSystemInDarkTheme()
-            val isDark = when (themeMode) {
-                "LIGHT" -> false
-                "DARK", "AMOLED" -> true
-                else -> isSystemDark
-            }
-            val isAmoled = themeMode == "AMOLED"
-
             var showAccessibilityPrompt by remember { mutableStateOf(false) }
 
+            // ponytail: Launcher wallpaper overlay surfaces stay consistently dark; themeMode scopes only to SettingsScreen.
             DrawerTheme(
-                darkTheme = isDark,
-                isAmoled = isAmoled,
+                darkTheme = true,
+                isAmoled = false,
                 dynamicColor = dynamicColor
             ) {
                 HomeScreen(

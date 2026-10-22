@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface DockRepository {
     val dockItems: Flow<List<DockItem>>
-    suspend fun addToDock(app: AppInfo): Boolean
+    suspend fun addToDock(app: AppInfo, maxCapacity: Int? = null): Boolean
     suspend fun removeFromDock(position: Int)
     suspend fun reorderDock(fromPosition: Int, toPosition: Int)
     suspend fun clearDock()

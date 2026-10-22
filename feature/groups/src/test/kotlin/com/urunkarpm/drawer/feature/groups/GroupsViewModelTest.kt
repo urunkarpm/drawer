@@ -44,6 +44,7 @@ class GroupsViewModelTest {
     private val multiGroupFlow = MutableStateFlow(false)
     private val lockLayoutFlow = MutableStateFlow(false)
     private val drawerNotificationGlowFlow = MutableStateFlow(true)
+    private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
 
     private lateinit var viewModel: GroupsViewModel
 
@@ -74,6 +75,7 @@ class GroupsViewModelTest {
         every { preferencesDataSource.multiGroupApps } returns multiGroupFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.drawerNotificationGlow } returns drawerNotificationGlowFlow
+        every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
 
         groupsFlow.value = listOf(sampleGroup)
         installedAppsFlow.value = listOf(appZ, appA)
