@@ -16,6 +16,7 @@ import android.provider.Settings
 import android.telephony.PhoneStateListener
 import android.telephony.SignalStrength
 import android.telephony.TelephonyCallback
+import android.telephony.TelephonyDisplayInfo
 import android.telephony.TelephonyManager
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -126,7 +127,8 @@ data class DuoSystemStatus(
     val isWifiConnected: Boolean = false,
     val wifiLevel: Int = 0, // 0..4
     val isCellularConnected: Boolean = false,
-    val cellularLevel: Int = 0 // 0..4
+    val cellularLevel: Int = 0, // 0..4
+    val networkType: String? = null // "5G", "5G+", "4G", "4G+", "3G", "2G"
 )
 
 @Immutable
@@ -587,6 +589,40 @@ private suspend fun executeQuickSpeedTest(
     }
 
     "Unavailable"
+}
+
+// ponytail: Cellular network generation decoder resolving 5G NSA/SA, 5G+ (mmWave/Advanced), 4G+ (LTE CA), 4G, 3G, and 2G; ceiling: rootless TelephonyDisplayInfo branding; upgrade path: 3GPP ARFCN / band aggregation telemetry.
+internal fun resolveNetworkTypeLabel(networkType: Int, overrideType: Int): String? {
+    when (overrideType) {
+        TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_ADVANCED -> return "5G+"
+        @Suppress("DEPRECATION")
+        TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_NSA_MMWAVE -> return "5G+"
+        TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_NSA -> return "5G"
+        TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_LTE_CA,
+        TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_LTE_ADVANCED_PRO -> return "4G+"
+    }
+
+    return when (networkType) {
+        TelephonyManager.NETWORK_TYPE_NR -> "5G"
+        TelephonyManager.NETWORK_TYPE_LTE -> "4G"
+        TelephonyManager.NETWORK_TYPE_HSPAP,
+        TelephonyManager.NETWORK_TYPE_HSPA,
+        TelephonyManager.NETWORK_TYPE_HSDPA,
+        TelephonyManager.NETWORK_TYPE_HSUPA,
+        TelephonyManager.NETWORK_TYPE_UMTS,
+        TelephonyManager.NETWORK_TYPE_EVDO_0,
+        TelephonyManager.NETWORK_TYPE_EVDO_A,
+        TelephonyManager.NETWORK_TYPE_EVDO_B,
+        TelephonyManager.NETWORK_TYPE_EHRPD,
+        TelephonyManager.NETWORK_TYPE_TD_SCDMA -> "3G"
+        TelephonyManager.NETWORK_TYPE_GPRS,
+        TelephonyManager.NETWORK_TYPE_EDGE,
+        TelephonyManager.NETWORK_TYPE_CDMA,
+        TelephonyManager.NETWORK_TYPE_1xRTT,
+        TelephonyManager.NETWORK_TYPE_IDEN,
+        TelephonyManager.NETWORK_TYPE_GSM -> "2G"
+        else -> null
+    }
 }
 
 /**
@@ -1191,12 +1227,17 @@ fun DuoStatusIcon(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val carrierSuffix = if (status.isCellularConnected && !status.networkType.isNullOrBlank()) {
+                        " • ${status.networkType}"
+                    } else ""
                     Text(
-                        text = "Carrier",
+                        text = "Carrier$carrierSuffix",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = displayColor.copy(alpha = 0.65f),
-                        letterSpacing = 0.3.sp
+                        letterSpacing = 0.3.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
 
                     Row(
@@ -1336,6 +1377,7 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     var wifiLevel by remember { mutableIntStateOf(0) }
     var isCellularConnected by remember { mutableStateOf(false) }
     var cellularLevel by remember { mutableIntStateOf(0) }
+    var networkType by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(lifecycleOwner, context) {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
@@ -1395,6 +1437,17 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             if (level > 0) isCellularConnected = true
         }
 
+        fun updateFromDisplayInfo(telephonyDisplayInfo: TelephonyDisplayInfo) {
+            val resolved = resolveNetworkTypeLabel(
+                telephonyDisplayInfo.networkType,
+                telephonyDisplayInfo.overrideNetworkType
+            )
+            networkType = resolved
+            if (!resolved.isNullOrBlank()) {
+                isCellularConnected = true
+            }
+        }
+
         fun startListening() {
             runCatching {
                 val receiver = object : BroadcastReceiver() {
@@ -1426,10 +1479,29 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             }
 
             runCatching {
+                val initialType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    tm?.dataNetworkType ?: TelephonyManager.NETWORK_TYPE_UNKNOWN
+                } else {
+                    @Suppress("DEPRECATION")
+                    tm?.networkType ?: TelephonyManager.NETWORK_TYPE_UNKNOWN
+                }
+                val resolved = resolveNetworkTypeLabel(initialType, 0)
+                if (!resolved.isNullOrBlank()) {
+                    networkType = resolved
+                }
+            }
+
+            runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val callback = object : TelephonyCallback(), TelephonyCallback.SignalStrengthsListener {
+                    val callback = object : TelephonyCallback(),
+                        TelephonyCallback.SignalStrengthsListener,
+                        TelephonyCallback.DisplayInfoListener {
                         override fun onSignalStrengthsChanged(signalStrength: SignalStrength) {
                             updateFromSignal(signalStrength)
+                        }
+
+                        override fun onDisplayInfoChanged(telephonyDisplayInfo: TelephonyDisplayInfo) {
+                            updateFromDisplayInfo(telephonyDisplayInfo)
                         }
                     }
                     telephonyCallback = callback
@@ -1502,6 +1574,7 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
         isWifiConnected = isWifiConnected,
         wifiLevel = wifiLevel,
         isCellularConnected = isCellularConnected,
-        cellularLevel = cellularLevel
+        cellularLevel = cellularLevel,
+        networkType = networkType
     )
 }

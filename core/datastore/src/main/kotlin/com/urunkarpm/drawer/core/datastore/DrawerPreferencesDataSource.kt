@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.urunkarpm.drawer.core.model.LauncherPreferencesBackup
 import com.urunkarpm.drawer.core.model.NotificationSwipeAction
+import com.urunkarpm.drawer.core.model.WeatherInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -32,6 +33,10 @@ class DrawerPreferencesDataSource @Inject constructor(
         val MANUAL_CITY_NAME = stringPreferencesKey("manual_city_name")
         val MANUAL_LAT = doublePreferencesKey("manual_lat")
         val MANUAL_LON = doublePreferencesKey("manual_lon")
+        val LAST_KNOWN_WEATHER_LAT = doublePreferencesKey("last_known_weather_lat")
+        val LAST_KNOWN_WEATHER_LON = doublePreferencesKey("last_known_weather_lon")
+        val LAST_KNOWN_WEATHER_CITY = stringPreferencesKey("last_known_weather_city")
+        val CACHED_WEATHER_INFO = stringPreferencesKey("cached_weather_info")
 
         val DOCK_BACKGROUND = stringPreferencesKey("dock_background")
         val DOCK_ICON_SIZE = floatPreferencesKey("dock_icon_size")
@@ -150,6 +155,17 @@ class DrawerPreferencesDataSource @Inject constructor(
     val manualCityName: Flow<String?> = dataStore.data.map { it[PreferencesKeys.MANUAL_CITY_NAME] }
     val manualLat: Flow<Double?> = dataStore.data.map { it[PreferencesKeys.MANUAL_LAT] }
     val manualLon: Flow<Double?> = dataStore.data.map { it[PreferencesKeys.MANUAL_LON] }
+    val lastKnownWeatherLat: Flow<Double?> = dataStore.data.map { it[PreferencesKeys.LAST_KNOWN_WEATHER_LAT] }
+    val lastKnownWeatherLon: Flow<Double?> = dataStore.data.map { it[PreferencesKeys.LAST_KNOWN_WEATHER_LON] }
+    val lastKnownWeatherCity: Flow<String?> = dataStore.data.map { it[PreferencesKeys.LAST_KNOWN_WEATHER_CITY] }
+    val cachedWeatherInfo: Flow<WeatherInfo?> = dataStore.data.map { prefs ->
+        val raw = prefs[PreferencesKeys.CACHED_WEATHER_INFO] ?: return@map null
+        try {
+            Json.decodeFromString<WeatherInfo>(raw)
+        } catch (_: Throwable) {
+            null
+        }
+    }
 
     val dockBackground: Flow<String> = dataStore.data.map { it[PreferencesKeys.DOCK_BACKGROUND] ?: "BLUR" }
     val dockIconSize: Flow<Float> = dataStore.data.map { it[PreferencesKeys.DOCK_ICON_SIZE] ?: 56f }
@@ -268,6 +284,24 @@ class DrawerPreferencesDataSource @Inject constructor(
             if (cityName != null) prefs[PreferencesKeys.MANUAL_CITY_NAME] = cityName else prefs.remove(PreferencesKeys.MANUAL_CITY_NAME)
             if (lat != null) prefs[PreferencesKeys.MANUAL_LAT] = lat else prefs.remove(PreferencesKeys.MANUAL_LAT)
             if (lon != null) prefs[PreferencesKeys.MANUAL_LON] = lon else prefs.remove(PreferencesKeys.MANUAL_LON)
+        }
+    }
+
+    suspend fun setLastKnownWeatherLocation(lat: Double, lon: Double, city: String?) {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.LAST_KNOWN_WEATHER_LAT] = lat
+            prefs[PreferencesKeys.LAST_KNOWN_WEATHER_LON] = lon
+            if (!city.isNullOrBlank() && !city.equals("My Location", ignoreCase = true) && !city.equals("Unknown", ignoreCase = true) && !city.equals("Local Weather", ignoreCase = true)) {
+                prefs[PreferencesKeys.LAST_KNOWN_WEATHER_CITY] = city
+            }
+        }
+    }
+
+    suspend fun setCachedWeatherInfo(info: WeatherInfo) {
+        dataStore.edit { prefs ->
+            try {
+                prefs[PreferencesKeys.CACHED_WEATHER_INFO] = Json.encodeToString(info)
+            } catch (_: Throwable) {}
         }
     }
 

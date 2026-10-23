@@ -7,6 +7,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -266,5 +268,44 @@ class DrawerPreferencesDataSourceTest {
         assertEquals(false, restoredBackup.autoCategorizeNewApps)
         assertEquals("STRICT", restoredBackup.aiCategorizationStrictness)
         assertEquals(true, restoredBackup.enableOnDeviceAi)
+    }
+
+    @Test
+    fun lastKnownWeatherLocationPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setLastKnownWeatherLocation(37.7749, -122.4194, "San Francisco")
+        assertEquals(37.7749, dataSource.lastKnownWeatherLat.first()!!, 0.0001)
+        assertEquals(-122.4194, dataSource.lastKnownWeatherLon.first()!!, 0.0001)
+        assertEquals("San Francisco", dataSource.lastKnownWeatherCity.first())
+    }
+
+    @Test
+    fun lastKnownWeatherLocationIgnoresPlaceholders() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setLastKnownWeatherLocation(37.7750, -122.4195, "My Location")
+        assertEquals(37.7750, dataSource.lastKnownWeatherLat.first()!!, 0.0001)
+        assertEquals(-122.4195, dataSource.lastKnownWeatherLon.first()!!, 0.0001)
+        assertNull(dataSource.lastKnownWeatherCity.first())
+    }
+
+    @Test
+    fun cachedWeatherInfoPersistsAndHydrates() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertNull(dataSource.cachedWeatherInfo.first())
+
+        val info = com.urunkarpm.drawer.core.model.WeatherInfo(
+            temperatureCelsius = 22.5,
+            weatherCode = 0,
+            conditionDescription = "Clear sky",
+            cityName = "Austin",
+            lastUpdatedMillis = 1700000000000L
+        )
+        dataSource.setCachedWeatherInfo(info)
+
+        val cached = dataSource.cachedWeatherInfo.first()
+        assertNotNull(cached)
+        assertEquals(22.5, cached!!.temperatureCelsius, 0.01)
+        assertEquals("Clear sky", cached.conditionDescription)
+        assertEquals("Austin", cached.cityName)
     }
 }

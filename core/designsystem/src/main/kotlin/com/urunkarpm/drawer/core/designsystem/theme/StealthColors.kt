@@ -34,4 +34,11 @@ object StealthColors {
         "LOWEST" -> bodyLowest
         else     -> bodyLow
     }
+
+    /** Returns the icon alpha for the given contrast level key ("LOW", "LOWER", "LOWEST"). */
+    fun iconAlpha(contrastLevel: String): Float = when (contrastLevel) {
+        "LOWEST" -> 0.28f
+        "LOWER"  -> 0.38f
+        else     -> iconAlpha
+    }
 }

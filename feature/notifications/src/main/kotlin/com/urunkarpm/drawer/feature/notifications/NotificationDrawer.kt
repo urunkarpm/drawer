@@ -308,7 +308,13 @@ fun NotificationDrawer(
             }
 
             val chevronBgColor by animateColorAsState(
-                targetValue = if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                targetValue = if (stealthTheme) {
+                    StealthColors.cardBackground
+                } else if (isExpanded) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                },
                 animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
                 label = "chevronBgColor"
             )
@@ -346,11 +352,13 @@ fun NotificationDrawer(
                 } else {
                     Surface(
                         shape = RoundedCornerShape(22.dp),
-                        color = if (isExpanded)
-                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
-                        else
-                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
-                        border = BorderStroke(1.dp, cardBorderColor),
+                        color = if (stealthTheme) StealthColors.cardBackground
+                        else if (isExpanded) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.92f)
+                        else MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.82f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (stealthTheme) Color.Transparent else cardBorderColor
+                        ),
                         modifier = Modifier.matchParentSize()
                     ) {}
                 }
@@ -359,7 +367,8 @@ fun NotificationDrawer(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(22.dp))
                         .background(
-                            Brush.verticalGradient(
+                            if (stealthTheme) Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
+                            else Brush.verticalGradient(
                                 colors = listOf(
                                     MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
                                     Color.Transparent
@@ -401,20 +410,26 @@ fun NotificationDrawer(
                         if (hasNotifications) {
                             NotificationIconStack(
                                 groups = uiState.groupedNotifications,
-                                iconLoader = iconLoader
+                                iconLoader = iconLoader,
+                                stealthTheme = stealthTheme,
+                                stealthContrastLevel = stealthContrastLevel
                             )
                         } else {
                             Box(
                                 modifier = Modifier
                                     .size(26.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                                    .background(
+                                        if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel).copy(alpha = 0.12f)
+                                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.NotificationsNone,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                           else MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -428,7 +443,7 @@ fun NotificationDrawer(
                                 fontFamily = LocalHeaderFontFamily.current,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -436,11 +451,11 @@ fun NotificationDrawer(
                             Text(
                                 text = if (!hasNotifications) "All caught up"
                                 else if (isExpanded) {
-                                    "$count alert${if (count != 1) "s" else ""} â€¢ Tap to collapse"
+                                    "$count alert${if (count != 1) "s" else ""} • Tap to collapse"
                                 }
                                 else "$count alert${if (count != 1) "s" else ""}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
@@ -455,7 +470,9 @@ fun NotificationDrawer(
                             Icon(
                                 imageVector = Icons.Default.KeyboardArrowDown,
                                 contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                tint = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                else if (isExpanded) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .size(20.dp)
                                     .graphicsLayer { rotationZ = chevronRotation }
@@ -668,6 +685,34 @@ fun NotificationDrawer(
 
 // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+private val stealthIconColorMatrix = ColorMatrix().apply { setToSaturation(0f) }
+private val stealthIconPaint = Paint().apply {
+    colorFilter = ColorFilter.colorMatrix(stealthIconColorMatrix)
+}
+
+/**
+ * Desaturates app icons to monochrome grayscale and dims them based on the stealth contrast level.
+ * When [stealthTheme] is false, this is a no-op returning the receiver modifier directly.
+ */
+private fun Modifier.stealthAppIcon(
+    stealthTheme: Boolean,
+    contrastLevel: String = "LOW"
+): Modifier {
+    if (!stealthTheme) return this
+    val targetAlpha = StealthColors.iconAlpha(contrastLevel)
+    return this
+        .graphicsLayer {
+            alpha = targetAlpha
+        }
+        .drawWithContent {
+            drawIntoCanvas { canvas ->
+                canvas.saveLayer(size.toRect(), stealthIconPaint)
+                drawContent()
+                canvas.restore()
+            }
+        }
+}
+
 /**
  * Displays notification app icons in the notification card header.
  *
@@ -680,7 +725,9 @@ fun NotificationDrawer(
 private fun NotificationIconStack(
     groups: List<AppNotificationGroup>,
     iconLoader: (suspend (String) -> Drawable?)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    stealthTheme: Boolean = false,
+    stealthContrastLevel: String = "LOW"
 ) {
     val distinctApps = remember(groups) {
         groups.distinctBy { it.packageName }
@@ -706,11 +753,13 @@ private fun NotificationIconStack(
                 iconLoader = if (iconLoader != null) {
                     { iconLoader(group.packageName) }
                 } else null,
-                modifier = Modifier.graphicsLayer {
-                    shadowElevation = 2.dp.toPx()
-                    shape = CircleShape
-                    clip = true
-                }
+                modifier = Modifier
+                    .graphicsLayer {
+                        shadowElevation = if (stealthTheme) 0f else 2.dp.toPx()
+                        shape = CircleShape
+                        clip = true
+                    }
+                    .stealthAppIcon(stealthTheme, stealthContrastLevel)
             )
         }
     } else {
@@ -719,7 +768,9 @@ private fun NotificationIconStack(
         NotificationIconOrbit(
             apps = distinctApps,
             iconLoader = iconLoader,
-            modifier = modifier
+            modifier = modifier,
+            stealthTheme = stealthTheme,
+            stealthContrastLevel = stealthContrastLevel
         )
     }
 }
@@ -734,7 +785,9 @@ private fun NotificationIconStack(
 private fun NotificationIconOrbit(
     apps: List<AppNotificationGroup>,
     iconLoader: (suspend (String) -> Drawable?)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    stealthTheme: Boolean = false,
+    stealthContrastLevel: String = "LOW"
 ) {
     val count = apps.size
     val containerSize = 42.dp
@@ -801,6 +854,7 @@ private fun NotificationIconOrbit(
                 // Continuous depth: 1.0 (dead front) to 0.0 (far rear)
                 val depth = ((cosVal + 1f) / 2f).coerceIn(0f, 1f)
                 val saturation = ((depth - 0.25f) / 0.55f).coerceIn(0f, 1f)
+                val effSaturation = if (stealthTheme) 0f else saturation
 
                 // ponytail: Continuous depth desaturation: background icons go black & white, forward icons colorise; ceiling: software canvas layer allocation during partial desaturation; upgrade path: RenderEffect on Android 12+.
                 AppIconImage(
@@ -822,18 +876,23 @@ private fun NotificationIconOrbit(
                             translationY = ry * cosVal // True 2.5D elliptical curve
                             scaleX = scale
                             scaleY = scale
-                            this.alpha = when {
+                            val baseAlpha = when {
                                 count <= 3 -> 0.58f + (0.42f * depth)
                                 count == 4 -> 0.35f + (0.65f * depth)
                                 else -> ((depth - 0.16f) / 0.84f).coerceIn(0f, 1f)
                             }
-                            shadowElevation = (depth * 3.dp.toPx()).coerceAtLeast(0f)
+                            this.alpha = if (stealthTheme) {
+                                baseAlpha * StealthColors.iconAlpha(stealthContrastLevel)
+                            } else {
+                                baseAlpha
+                            }
+                            shadowElevation = if (stealthTheme) 0f else (depth * 3.dp.toPx()).coerceAtLeast(0f)
                             shape = CircleShape
                             clip = true
                         }
                         .drawWithContent {
-                            if (saturation < 0.99f) {
-                                colorMatrix.setToSaturation(saturation)
+                            if (effSaturation < 0.99f) {
+                                colorMatrix.setToSaturation(effSaturation)
                                 colorPaint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
                                 drawIntoCanvas { canvas ->
                                     canvas.saveLayer(size.toRect(), colorPaint)
@@ -1025,7 +1084,9 @@ private fun EndlessNotificationCard(
                                 iconLoader = if (iconLoader != null) {
                                     { iconLoader(item.packageName) }
                                 } else null,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .stealthAppIcon(stealthTheme, stealthContrastLevel)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -1052,7 +1113,8 @@ private fun EndlessNotificationCard(
                                 Icon(
                                     imageVector = Icons.Default.NotificationsOff,
                                     contentDescription = "Quick mute ${item.appName}",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(15.dp)
                                 )
                             }
@@ -1064,7 +1126,8 @@ private fun EndlessNotificationCard(
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Dismiss",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(15.dp)
                                     )
                                 }
@@ -1166,10 +1229,7 @@ private fun AppNotificationGroupCard(
                         } else null,
                         modifier = Modifier
                             .size(24.dp)
-                            .then(
-                                if (stealthTheme) Modifier.graphicsLayer { alpha = StealthColors.iconAlpha }
-                                else Modifier
-                            )
+                            .stealthAppIcon(stealthTheme, stealthContrastLevel)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -1189,7 +1249,7 @@ private fun AppNotificationGroupCard(
                         Icon(
                             imageVector = Icons.Default.NotificationsOff,
                             contentDescription = "Quick mute ${group.appName}",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     }

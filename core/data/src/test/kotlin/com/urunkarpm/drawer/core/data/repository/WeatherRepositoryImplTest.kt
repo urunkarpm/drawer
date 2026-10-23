@@ -8,6 +8,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -64,5 +66,23 @@ class WeatherRepositoryImplTest {
         val (descStorm, iconStorm) = WeatherRepositoryImpl.mapWmoCode(95)
         assertEquals("Thunderstorm", descStorm)
         assertEquals("thunderstorm", iconStorm)
+    }
+
+    @Test
+    fun isValidCoordinate_validatesRealWorldCoordinates() {
+        assertTrue(WeatherRepositoryImpl.isValidCoordinate(37.7749, -122.4194))
+        assertTrue(WeatherRepositoryImpl.isValidCoordinate(51.5074, -0.1278))
+        assertTrue(WeatherRepositoryImpl.isValidCoordinate(19.0760, 72.8777))
+        assertTrue(WeatherRepositoryImpl.isValidCoordinate(-33.8688, 151.2093))
+    }
+
+    @Test
+    fun isValidCoordinate_rejectsNullIslandAndOutOfRange() {
+        assertFalse(WeatherRepositoryImpl.isValidCoordinate(0.0, 0.0))
+        assertFalse(WeatherRepositoryImpl.isValidCoordinate(0.00005, -0.00005))
+        assertFalse(WeatherRepositoryImpl.isValidCoordinate(95.0, 10.0))
+        assertFalse(WeatherRepositoryImpl.isValidCoordinate(-91.0, 10.0))
+        assertFalse(WeatherRepositoryImpl.isValidCoordinate(40.0, 195.0))
+        assertFalse(WeatherRepositoryImpl.isValidCoordinate(40.0, -185.0))
     }
 }
