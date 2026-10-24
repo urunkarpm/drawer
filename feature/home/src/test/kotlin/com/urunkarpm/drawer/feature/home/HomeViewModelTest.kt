@@ -64,6 +64,7 @@ class HomeViewModelTest {
     private val surfaceBlurRadiusFlow = MutableStateFlow(25f)
     private val surfaceStrokeOpacityFlow = MutableStateFlow(0.40f)
     private val surfaceCornerRadiusFlow = MutableStateFlow(24f)
+    private val cinematicPaletteFlow = MutableStateFlow("DEFAULT")
     private val headerFontFamilyFlow = MutableStateFlow("SYSTEM")
     private val appLabelScaleFlow = MutableStateFlow("NORMAL")
     private val openDrawerFromDockOnlyFlow = MutableStateFlow(false)
@@ -155,6 +156,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
         every { preferencesDataSource.surfaceStrokeOpacity } returns surfaceStrokeOpacityFlow
         every { preferencesDataSource.surfaceCornerRadius } returns surfaceCornerRadiusFlow
+        every { preferencesDataSource.cinematicPalette } returns cinematicPaletteFlow
         every { preferencesDataSource.appLaunchCounts } returns appLaunchCountsFlow
         every { preferencesDataSource.appLastLaunchedTimes } returns appLastLaunchedTimesFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow

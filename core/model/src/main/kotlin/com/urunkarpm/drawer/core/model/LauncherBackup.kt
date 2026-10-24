@@ -23,6 +23,7 @@ data class LauncherPreferencesBackup(
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
     val surfaceCornerRadius: Float = 24f,
+    val cinematicPalette: String = "DEFAULT",
     val multiGroupApps: Boolean = false,
     val notificationsPrivacyMode: Boolean = false,
     val notificationSwipeRightAction: String = "MARK_AS_READ",

@@ -245,7 +245,8 @@ class DrawerPreferencesDataSourceTest {
             wallpaperGradientSpeedSeconds = 5,
             autoCategorizeNewApps = false,
             aiCategorizationStrictness = "STRICT",
-            enableOnDeviceAi = true
+            enableOnDeviceAi = true,
+            cinematicPalette = "TEAL_AMBER"
         )
 
         dataSource.restorePreferences(customBackup)
@@ -268,6 +269,20 @@ class DrawerPreferencesDataSourceTest {
         assertEquals(false, restoredBackup.autoCategorizeNewApps)
         assertEquals("STRICT", restoredBackup.aiCategorizationStrictness)
         assertEquals(true, restoredBackup.enableOnDeviceAi)
+        assertEquals("TEAL_AMBER", restoredBackup.cinematicPalette)
+    }
+
+    @Test
+    fun defaultCinematicPaletteIsDefault() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals("DEFAULT", dataSource.cinematicPalette.first())
+    }
+
+    @Test
+    fun updateCinematicPalettePersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setCinematicPalette("CYBERPUNK")
+        assertEquals("CYBERPUNK", dataSource.cinematicPalette.first())
     }
 
     @Test

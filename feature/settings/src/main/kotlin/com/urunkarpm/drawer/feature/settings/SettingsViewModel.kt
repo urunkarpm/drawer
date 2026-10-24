@@ -68,7 +68,8 @@ data class SurfaceSettings(
     val surfaceOpacity: Float = 0.65f,
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
-    val surfaceCornerRadius: Float = 24f
+    val surfaceCornerRadius: Float = 24f,
+    val cinematicPalette: String = "DEFAULT"
 )
 
 data class MiscSettings(
@@ -162,6 +163,7 @@ data class SettingsUiState(
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
     val surfaceCornerRadius: Float = 24f,
+    val cinematicPalette: String = "DEFAULT",
     val dockBackground: String = "LIQUID_GLASS",
     val dockIconSize: Float = 56f,
     val dockShowLabels: Boolean = false,
@@ -263,13 +265,18 @@ class SettingsViewModel @Inject constructor(
     }
 
     private val surfaceFlow = combine(
-        preferencesDataSource.surfaceThemeStyle,
-        preferencesDataSource.surfaceOpacity,
-        preferencesDataSource.surfaceBlurRadius,
-        preferencesDataSource.surfaceStrokeOpacity,
-        preferencesDataSource.surfaceCornerRadius
-    ) { themeStyle, opacity, blurRadius, strokeOpacity, cornerRadius ->
-        SurfaceSettings(themeStyle, opacity, blurRadius, strokeOpacity, cornerRadius)
+        combine(
+            preferencesDataSource.surfaceThemeStyle,
+            preferencesDataSource.surfaceCornerRadius,
+            preferencesDataSource.cinematicPalette
+        ) { themeStyle, cornerRadius, palette -> Triple(themeStyle, cornerRadius, palette) },
+        combine(
+            preferencesDataSource.surfaceOpacity,
+            preferencesDataSource.surfaceBlurRadius,
+            preferencesDataSource.surfaceStrokeOpacity
+        ) { opacity, blurRadius, strokeOpacity -> Triple(opacity, blurRadius, strokeOpacity) }
+    ) { (themeStyle, cornerRadius, palette), (opacity, blurRadius, strokeOpacity) ->
+        SurfaceSettings(themeStyle, opacity, blurRadius, strokeOpacity, cornerRadius, palette)
     }
 
     private val dockFlow = combine<Any, DockSettings>(
@@ -426,6 +433,7 @@ class SettingsViewModel @Inject constructor(
             surfaceBlurRadius = surface.surfaceBlurRadius,
             surfaceStrokeOpacity = surface.surfaceStrokeOpacity,
             surfaceCornerRadius = surface.surfaceCornerRadius,
+            cinematicPalette = surface.cinematicPalette,
             dockBackground = surface.surfaceThemeStyle,
             dockIconSize = dock.dockIconSize,
             dockShowLabels = dock.dockShowLabels,
@@ -647,6 +655,12 @@ class SettingsViewModel @Inject constructor(
     fun setSurfaceCornerRadius(radiusDp: Float) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setSurfaceCornerRadius(radiusDp)
+        }
+    }
+
+    fun setCinematicPalette(palette: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setCinematicPalette(palette)
         }
     }
 

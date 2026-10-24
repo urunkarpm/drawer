@@ -44,6 +44,7 @@ class DockViewModelTest {
     private val autoArrangeAppsFlow = MutableStateFlow(true)
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
     private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
+    private val cinematicPaletteFlow = MutableStateFlow("DEFAULT")
 
     private lateinit var viewModel: DockViewModel
 
@@ -74,6 +75,7 @@ class DockViewModelTest {
         every { preferencesDataSource.autoArrangeApps } returns autoArrangeAppsFlow
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
         every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
+        every { preferencesDataSource.cinematicPalette } returns cinematicPaletteFlow
 
         dockItemsFlow.value = listOf(sampleDockItem)
         installedAppsFlow.value = listOf(sampleApp)

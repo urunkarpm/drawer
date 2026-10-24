@@ -32,7 +32,8 @@ data class DockUiState(
     val isEditMode: Boolean = false,
     val autoArrangeApps: Boolean = true,
     val mesmerizingGlow: Boolean = true,
-    val dockExpandedMaxApps: Int = 8
+    val dockExpandedMaxApps: Int = 8,
+    val cinematicPalette: String = "DEFAULT"
 )
 
 @HiltViewModel
@@ -46,13 +47,18 @@ class DockViewModel @Inject constructor(
     private val _isEditMode = MutableStateFlow(false)
 
     private val dockThemePrefsFlow = combine(
-        preferencesDataSource.surfaceThemeStyle,
-        preferencesDataSource.surfaceCornerRadius,
-        preferencesDataSource.surfaceOpacity,
-        preferencesDataSource.surfaceBlurRadius,
-        preferencesDataSource.surfaceStrokeOpacity
-    ) { theme, cornerRadius, opacity, blurRadius, strokeOpacity ->
-        DockThemePreferences(theme, opacity, blurRadius, strokeOpacity, cornerRadius)
+        combine(
+            preferencesDataSource.surfaceThemeStyle,
+            preferencesDataSource.surfaceCornerRadius,
+            preferencesDataSource.cinematicPalette
+        ) { theme, cornerRadius, palette -> Triple(theme, cornerRadius, palette) },
+        combine(
+            preferencesDataSource.surfaceOpacity,
+            preferencesDataSource.surfaceBlurRadius,
+            preferencesDataSource.surfaceStrokeOpacity
+        ) { opacity, blurRadius, strokeOpacity -> Triple(opacity, blurRadius, strokeOpacity) }
+    ) { (theme, cornerRadius, palette), (opacity, blurRadius, strokeOpacity) ->
+        DockThemePreferences(theme, opacity, blurRadius, strokeOpacity, cornerRadius, palette)
     }
 
     private val dockLayoutPrefsFlow = combine(
@@ -79,7 +85,8 @@ class DockViewModel @Inject constructor(
             strokeOpacity = theme.strokeOpacity,
             autoArrangeApps = layout.autoArrangeApps,
             mesmerizingGlow = layout.mesmerizingGlow,
-            dockExpandedMaxApps = layout.dockExpandedMaxApps
+            dockExpandedMaxApps = layout.dockExpandedMaxApps,
+            cinematicPalette = theme.cinematicPalette
         )
     }
 
@@ -118,7 +125,8 @@ class DockViewModel @Inject constructor(
             isEditMode = isEditMode,
             autoArrangeApps = prefs.autoArrangeApps,
             mesmerizingGlow = prefs.mesmerizingGlow,
-            dockExpandedMaxApps = prefs.dockExpandedMaxApps
+            dockExpandedMaxApps = prefs.dockExpandedMaxApps,
+            cinematicPalette = prefs.cinematicPalette
         )
     }.stateIn(
         scope = viewModelScope,
@@ -131,7 +139,8 @@ private data class DockThemePreferences(
     val opacity: Float,
     val blurRadius: Float,
     val strokeOpacity: Float,
-    val cornerRadius: Float
+    val cornerRadius: Float,
+    val cinematicPalette: String = "DEFAULT"
 )
 
 private data class DockLayoutPreferences(
@@ -152,7 +161,8 @@ private data class DockPreferences(
     val strokeOpacity: Float,
     val autoArrangeApps: Boolean,
     val mesmerizingGlow: Boolean,
-    val dockExpandedMaxApps: Int
+    val dockExpandedMaxApps: Int,
+    val cinematicPalette: String = "DEFAULT"
 )
 
     fun reorderDock(fromPosition: Int, toPosition: Int) {

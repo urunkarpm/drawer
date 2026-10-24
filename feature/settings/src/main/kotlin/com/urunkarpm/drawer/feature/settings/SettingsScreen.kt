@@ -1,11 +1,15 @@
 package com.urunkarpm.drawer.feature.settings
 
+import androidx.compose.runtime.CompositionLocalProvider
+
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -77,10 +81,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import com.urunkarpm.drawer.core.designsystem.theme.CinematicPalettes
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -98,13 +105,12 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
+import com.urunkarpm.drawer.core.designsystem.theme.GoogleSansFontFamily
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
 import com.urunkarpm.drawer.core.designsystem.theme.labelScaleFromName
-import com.urunkarpm.drawer.core.needle.model.ModelStatus
 import com.urunkarpm.drawer.feature.iconpacks.IconPackViewModel
 import com.urunkarpm.drawer.feature.iconpacks.component.IconPackPickerSheet
-import com.urunkarpm.drawer.feature.settings.component.NeedleSettingsCard
 import com.urunkarpm.drawer.feature.settings.component.SettingsDrawerCard
 import com.urunkarpm.drawer.feature.settings.component.SettingsGlanceHeader
 import kotlin.math.roundToInt
@@ -113,25 +119,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val DRAWER_APPEARANCE = "APPEARANCE"
-private const val DRAWER_TYPOGRAPHY = "TYPOGRAPHY"
-private const val DRAWER_DOCK = "DOCK"
-private const val DRAWER_CATEGORIES = "CATEGORIES"
-private const val DRAWER_GLANCE = "GLANCE"
-private const val DRAWER_NOTIFICATIONS = "NOTIFICATIONS"
-private const val DRAWER_ICON_PACKS = "ICON_PACKS"
-private const val DRAWER_BACKUP = "BACKUP"
-private const val DRAWER_ABOUT = "ABOUT"
+private const val DRAWER_HOME = "HOME"
+private const val DRAWER_PRIVACY = "PRIVACY"
 
 private val ALL_DRAWER_KEYS = listOf(
     DRAWER_APPEARANCE,
-    DRAWER_TYPOGRAPHY,
-    DRAWER_DOCK,
-    DRAWER_CATEGORIES,
-    DRAWER_GLANCE,
-    DRAWER_NOTIFICATIONS,
-    DRAWER_ICON_PACKS,
-    DRAWER_BACKUP,
-    DRAWER_ABOUT
+    DRAWER_HOME,
+    DRAWER_PRIVACY
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -145,7 +139,6 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val iconPackUiState by iconPackViewModel.uiState.collectAsStateWithLifecycle()
-    val needleModelStatus by viewModel.needleModelStatus.collectAsStateWithLifecycle(initialValue = ModelStatus.NotDownloaded)
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -237,30 +230,34 @@ fun SettingsScreen(
                     "AMOLED" -> "AMOLED Pure Black"
                     else -> uiState.themeMode
                 }
+                val selectedPalette = CinematicPalettes.find(uiState.cinematicPalette)
                 val appearanceSummary = buildString {
                     append(themeLabel)
+                    if (selectedPalette.id != CinematicPalettes.ID_DEFAULT) {
+                        append(" • ")
+                        append(selectedPalette.name)
+                    } else {
+                        append(" • ")
+                        append(uiState.surfaceThemeStyle.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() })
+                    }
                     if (uiState.dynamicWallpaperEnabled) {
-                        append(" • Pantone Gradient (${uiState.wallpaperGradientSpeedSeconds}s)")
+                        append(" • Pantone (${uiState.wallpaperGradientSpeedSeconds}s)")
                     } else if (uiState.wallpaperBlur) {
                         append(" • Blur (${uiState.wallpaperBlurRadius.toInt()}px)")
                     }
-                    if (uiState.hideStatusBar) append(" • Fullscreen")
                 }
 
                 SettingsDrawerCard(
-                    title = "Appearance & Display",
+                    title = "Surface & Appearance",
                     subtitle = appearanceSummary,
                     icon = Icons.Outlined.ColorLens,
-                    iconTint = Color(0xFF6366F1),
+                    iconTint = MaterialTheme.colorScheme.primary,
                     isExpanded = DRAWER_APPEARANCE in expandedDrawers,
                     onToggle = { toggleDrawer(DRAWER_APPEARANCE) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
+                    cornerRadius = cornerRadius
                 ) {
+                    // ── 1. Themes & Colors ──
                     Text(
                         text = "Theme Mode",
                         style = MaterialTheme.typography.titleSmall,
@@ -304,6 +301,8 @@ fun SettingsScreen(
                         onSelect = { viewModel.setDrawerThemeMode(it) }
                     )
 
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
                     SettingsSwitchRow(
                         title = "Dynamic Color (Material You)",
                         subtitle = "Derive accent colors from your wallpaper",
@@ -320,17 +319,275 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.setAutoOpenKeyboardInDrawer(it) }
                     )
 
-                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    SettingsSwitchRow(
-                        title = "Hide Status Bar",
-                        subtitle = "Maximize screen real estate by hiding the system bar",
-                        checked = uiState.hideStatusBar,
-                        onCheckedChange = { viewModel.setHideStatusBar(it) }
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    // ── Cinematic Color Grading Palettes ──
+                    Text(
+                        text = "Cinematic Color Grading",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Curated Hollywood & fine-art palettes applied to dock glass, specular rims, and category cards",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CinematicPalettes.allPalettes.forEach { palette ->
+                            val isSelected = uiState.cinematicPalette.equals(palette.id, ignoreCase = true)
+                            Surface(
+                                onClick = { viewModel.setCinematicPalette(palette.id) },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)
+                                },
+                                border = if (isSelected) {
+                                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                                } else {
+                                    BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 3-tone color swatch pills
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy((-6).dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(palette.primaryAccent)
+                                                .border(1.5.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(palette.secondaryAccent)
+                                                .border(1.5.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(palette.rimStart)
+                                                .border(1.5.dp, Color.White.copy(alpha = 0.5f), CircleShape)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = palette.name,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = palette.subtitle,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = palette.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(26.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.primary),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    // ── 2. Surface & Glassmorphism ──
+                    Text(
+                        text = "Surface Aesthetic Style",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Unified aesthetic appearance for the dock and drawers",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "LIQUID_GLASS" to "Glass",
+                            "BLUR" to "Blur",
+                            "SOLID" to "Solid",
+                            "TRANSPARENT" to "Clear"
+                        ),
+                        selected = uiState.surfaceThemeStyle,
+                        onSelect = { viewModel.setSurfaceThemeStyle(it) }
                     )
 
-                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "Preview",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(72.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val previewShape = CircleShape
+                                val previewIcons = listOf(
+                                    Icons.Default.Phone to Color(0xFF10B981),
+                                    Icons.Default.Email to Color(0xFF3B82F6),
+                                    Icons.Default.CameraAlt to Color(0xFFEC4899),
+                                    Icons.Default.Language to Color(0xFFF59E0B)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.85f)
+                                        .height(60.dp)
+                                        .clip(RoundedCornerShape(uiState.surfaceCornerRadius.dp))
+                                ) {
+                                    com.urunkarpm.drawer.core.designsystem.component.DockSurfaceBackground(
+                                        backgroundStyle = uiState.surfaceThemeStyle,
+                                        shape = RoundedCornerShape(uiState.surfaceCornerRadius.dp),
+                                        surfaceOpacity = uiState.surfaceOpacity,
+                                        surfaceBlurRadius = uiState.surfaceBlurRadius,
+                                        surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                                        isDropTarget = false,
+                                        isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                                        cinematicPaletteId = uiState.cinematicPalette,
+                                        modifier = Modifier.matchParentSize()
+                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        previewIcons.forEach { (icon, color) ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .clip(previewShape)
+                                                    .background(color.copy(alpha = 0.2f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = icon,
+                                                    contentDescription = null,
+                                                    tint = color,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
+                    if (uiState.surfaceThemeStyle != "TRANSPARENT" && uiState.surfaceThemeStyle != "SOLID") {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        SettingsSliderRow(
+                            title = "Surface Opacity",
+                            subtitle = "Glass translucency level",
+                            value = uiState.surfaceOpacity,
+                            onValueChange = { viewModel.setSurfaceOpacity(it) },
+                            valueRange = 0.10f..1.0f,
+                            valueLabel = "${(uiState.surfaceOpacity * 100).toInt()}%"
+                        )
+
+                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        SettingsSliderRow(
+                            title = "Blur Depth",
+                            subtitle = "Frosted background blur intensity",
+                            value = uiState.surfaceBlurRadius,
+                            onValueChange = { viewModel.setSurfaceBlurRadius(it) },
+                            valueRange = 5f..80f,
+                            valueLabel = "${uiState.surfaceBlurRadius.toInt()} px"
+                        )
+
+                        if (uiState.surfaceThemeStyle == "LIQUID_GLASS") {
+                            SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            SettingsSliderRow(
+                                title = "Glass Highlight",
+                                subtitle = "Top rim specular light reflection",
+                                value = uiState.surfaceStrokeOpacity,
+                                onValueChange = { viewModel.setSurfaceStrokeOpacity(it) },
+                                valueRange = 0f..1.0f,
+                                valueLabel = "${(uiState.surfaceStrokeOpacity * 100).toInt()}%"
+                            )
+                        }
+                    }
+
+                    if (uiState.surfaceThemeStyle != "TRANSPARENT") {
+                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        SettingsSliderRow(
+                            title = "Corner Curvature",
+                            subtitle = "Border radius for dock and drawer surfaces",
+                            value = uiState.surfaceCornerRadius,
+                            onValueChange = { viewModel.setSurfaceCornerRadius(it) },
+                            valueRange = 0f..36f,
+                            steps = 8,
+                            valueLabel = "${uiState.surfaceCornerRadius.toInt()} dp"
+                        )
+                    }
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    // ── 3. Wallpaper Blur & Gradient ──
                     SettingsSwitchRow(
                         title = "Wallpaper Blur",
                         subtitle = "Add frosted blur to home background wallpaper",
@@ -454,58 +711,16 @@ fun SettingsScreen(
                             steps = 19,
                             valueLabel = "${uiState.wallpaperGradientBlurPercent}%"
                         )
-
-                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                        SettingsSwitchRow(
-                            title = "Mesmerizing Dock Prismatic Glow",
-                            subtitle = "Iridescent glass sheen catching light from the gradient wallpaper",
-                            checked = uiState.dockMesmerizingGlow,
-                            onCheckedChange = { viewModel.setDockMesmerizingGlow(it) }
-                        )
                     }
-                }
-            }
 
-            DRAWER_TYPOGRAPHY -> {
-                val fontName = when (uiState.headerFontFamily) {
-                    "GOOGLE_SANS", "GOOGLE SANS", "PRODUCT_SANS" -> "Google Sans"
-                    "HELVETICA" -> "Helvetica"
-                    "ROBOTO" -> "Roboto"
-                    "TIMES_NEW_ROMAN", "TIMES" -> "Times New Roman"
-                    "ARIAL" -> "Arial"
-                    "TEXAS_TROUPE" -> "Texas Troupe"
-                    "SYSTEM" -> "System Sans"
-                    "SERIF" -> "Serif"
-                    "MONOSPACE" -> "Monospace"
-                    "CURSIVE" -> "Cursive"
-                    else -> uiState.headerFontFamily
-                }
-                val labelSizeName = when (uiState.appLabelScale) {
-                    "SMALL" -> "Small"
-                    "LARGE" -> "Large"
-                    else -> "Default"
-                }
-                val typographySummary = "$fontName • $labelSizeName Labels"
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-                SettingsDrawerCard(
-                    title = "Typography & Font Packs",
-                    subtitle = typographySummary,
-                    icon = Icons.Outlined.TextFields,
-                    iconTint = Color(0xFF8B5CF6),
-                    isExpanded = DRAWER_TYPOGRAPHY in expandedDrawers,
-                    onToggle = { toggleDrawer(DRAWER_TYPOGRAPHY) },
-                    isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
-                ) {
+                    // ── 4. Typography & Font Packs ──
                     Text(
                         text = "Header & Clock Font",
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "Choose the display font for the clock, weather, and group headers",
@@ -535,11 +750,9 @@ fun SettingsScreen(
                             "CURSIVE" to "Cursive"
                         )
                     }
-
                     val currentFontDisplayName = fontOptions.find { it.first == currentFontKey }?.second
-                        ?: currentFontKey
+                        ?: currentFontKey.lowercase().replaceFirstChar { it.uppercase() }
 
-                    // ponytail: DropdownMenu showing fonts rendered directly in their actual custom typeface; ceiling: scrollable dropdown popup; upgrade path: modal bottom sheet with search.
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -563,14 +776,15 @@ fun SettingsScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = currentFontDisplayName,
-                                        fontFamily = currentFontFamily,
+                                        // ponytail: font selector row label strictly uses Google Sans
+                                        fontFamily = GoogleSansFontFamily,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = "Sample: 12:45 • Social • Notes",
-                                        fontFamily = currentFontFamily,
+                                        fontFamily = GoogleSansFontFamily,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary
                                     )
@@ -653,31 +867,6 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            val fontBio = when (uiState.headerFontFamily) {
-                                "GOOGLE_SANS", "GOOGLE SANS" -> "Geometric modern sans-serif designed for Google Pixel & Material Design"
-                                "SPOOKYY" -> "Quirky playful hand-cut Halloween-themed display typeface"
-                                "DS_DIGITAL", "DS-DIGITAL" -> "Authentic 7-segment retro digital LCD display font"
-                                "EVIL_EMPIRE" -> "Bold angular stencil display font with high-impact sci-fi aesthetic"
-                                "HYPIK" -> "Futuristic cyber-geometric cyberpunk display font"
-                                "HELVETICA" -> "1957 • Clean, neutral, neo-grotesque sans-serif (BMW, NYC Subway)"
-                                "ROBOTO" -> "2011 • Geometric-leaning sans-serif designed by Google for Android"
-                                "TIMES_NEW_ROMAN", "TIMES" -> "1931 • Classic, high-legibility serif built for The Times"
-                                "ARIAL" -> "1982 • Ubiquitous, widely installed modern digital sans-serif"
-                                "TEXAS_TROUPE" -> "Display decorative western header font"
-                                "SYSTEM" -> "Android native system sans-serif"
-                                "SERIF" -> "Standard book serif"
-                                "MONOSPACE" -> "Fixed-width terminal typeface"
-                                "CURSIVE" -> "Fluid handwriting cursive script"
-                                else -> ""
-                            }
-                            if (fontBio.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = fontBio,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                )
-                            }
                         }
                     }
 
@@ -686,7 +875,8 @@ fun SettingsScreen(
                     Text(
                         text = "App Label Size",
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "Scale font size for app titles across home, groups, and dock",
@@ -704,298 +894,92 @@ fun SettingsScreen(
                         onSelect = { viewModel.setAppLabelScale(it) }
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        modifier = Modifier.fillMaxWidth()
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    // ── 5. Icons & Shapes ──
+                    val packLabel = iconPackUiState.installedPacks.firstOrNull { it.packageName == uiState.activeIconPack }?.name
+                        ?: if (uiState.activeIconPack == null) "System Default" else uiState.activeIconPack
+                    val shapeName = uiState.adaptiveIconShape.lowercase().replaceFirstChar { it.uppercase() }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { showIconPicker = true }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Preview",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = "Customize Icons & Shapes",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Pack: $packLabel • Shape: $shapeName",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            val labelScale = labelScaleFromName(uiState.appLabelScale)
-                            Text(
-                                text = "Sample App",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * labelScale
-                                ),
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
                         }
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
 
-            DRAWER_DOCK -> {
-                val dockStyleName = when (uiState.surfaceThemeStyle) {
-                    "LIQUID_GLASS" -> "Liquid Glass"
-                    "BLUR" -> "Frosted Blur"
-                    "SOLID" -> "Solid"
-                    "TRANSPARENT" -> "Clear"
-                    else -> uiState.surfaceThemeStyle
-                }
-                val dockSummary = "$dockStyleName • ${uiState.dockIconSize.toInt()}dp${if (uiState.dockShowLabels) " • Labels" else ""}"
+            DRAWER_HOME -> {
+                val layoutMode = if (uiState.twoDrawersSideBySide) "Dual Column" else "Single Column"
+                val alignmentLabel = if (uiState.categoryAlignment == "BOTTOM") "Bottom" else "Top"
+                val homeSummary = "Alignment: $alignmentLabel • $layoutMode • ${uiState.dockExpandedMaxApps} Max Dock Apps"
 
                 SettingsDrawerCard(
-                    title = "Surfaces & Dock Theming",
-                    subtitle = dockSummary,
+                    title = "Home & Ergonomics",
+                    subtitle = homeSummary,
                     icon = Icons.Default.ViewCarousel,
-                    iconTint = Color(0xFF0EA5E9),
-                    isExpanded = DRAWER_DOCK in expandedDrawers,
-                    onToggle = { toggleDrawer(DRAWER_DOCK) },
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    isExpanded = DRAWER_HOME in expandedDrawers,
+                    onToggle = { toggleDrawer(DRAWER_HOME) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
+                    cornerRadius = cornerRadius
                 ) {
+                    // ── 1. Category Drawers & Thumb Zone ──
                     Text(
-                        text = "Dock & Drawer Style",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Category Drawers & Thumb Zone",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // ponytail: Category alignment toggle allows user to pick between Bottom thumb-zone alignment and Top stack; ceiling: Bottom or Top; upgrade path: custom vertical offset slider.
                     Text(
-                        text = "Unified aesthetic appearance for the dock and drawers",
+                        text = "Category Alignment",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Choose whether category drawers stack up from the bottom (natural thumb zone) or down from the glance header",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingsSegmentedRow(
                         options = listOf(
-                            "LIQUID_GLASS" to "Glass",
-                            "BLUR" to "Blur",
-                            "SOLID" to "Solid",
-                            "TRANSPARENT" to "Clear"
+                            "BOTTOM" to "Bottom (Down)",
+                            "TOP" to "Top (Up)"
                         ),
-                        selected = uiState.surfaceThemeStyle,
-                        onSelect = { viewModel.setSurfaceThemeStyle(it) }
+                        selected = uiState.categoryAlignment,
+                        onSelect = { viewModel.setCategoryAlignment(it) }
                     )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "Preview",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(72.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                val previewShape = CircleShape
-                                val previewIcons = listOf(
-                                    Icons.Default.Phone to Color(0xFF10B981),
-                                    Icons.Default.Email to Color(0xFF3B82F6),
-                                    Icons.Default.CameraAlt to Color(0xFFEC4899),
-                                    Icons.Default.Language to Color(0xFFF59E0B)
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .width(224.dp)
-                                        .height(52.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    com.urunkarpm.drawer.core.designsystem.component.DockSurfaceBackground(
-                                        backgroundStyle = uiState.surfaceThemeStyle,
-                                        shape = previewShape,
-                                        surfaceOpacity = uiState.surfaceOpacity,
-                                        surfaceBlurRadius = uiState.surfaceBlurRadius,
-                                        surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
-                                        modifier = Modifier.matchParentSize()
-                                    )
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        previewIcons.forEach { (icon, tint) ->
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(34.dp)
-                                                    .clip(CircleShape)
-                                                    .background(tint.copy(alpha = 0.20f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = icon,
-                                                    contentDescription = null,
-                                                    tint = tint,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            val styleDescription = when (uiState.surfaceThemeStyle) {
-                                "LIQUID_GLASS" -> "Liquid Glass: Multi-layer luminous glass gradient with top specular shine"
-                                "BLUR" -> "Frosted Blur: Translucent acrylic diffusion with soft frosted borders"
-                                "SOLID" -> "Solid: 100% opaque Material 3 floating shelf with elevation"
-                                "TRANSPARENT" -> "Clear: Minimal floating icons with zero container chrome"
-                                else -> ""
-                            }
-                            if (styleDescription.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = styleDescription,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                )
-                            }
-                        }
-                    }
-
-                    if (uiState.surfaceThemeStyle == "LIQUID_GLASS" || uiState.surfaceThemeStyle == "BLUR") {
-                        SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        SettingsSliderRow(
-                            title = "Surface Opacity",
-                            subtitle = "Glass translucency level",
-                            value = uiState.surfaceOpacity,
-                            onValueChange = { viewModel.setSurfaceOpacity(it) },
-                            valueRange = 0.10f..1.0f,
-                            valueLabel = "${(uiState.surfaceOpacity * 100).toInt()}%"
-                        )
-
-                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        SettingsSliderRow(
-                            title = "Blur Depth",
-                            subtitle = "Frosted background blur intensity",
-                            value = uiState.surfaceBlurRadius,
-                            onValueChange = { viewModel.setSurfaceBlurRadius(it) },
-                            valueRange = 5f..80f,
-                            valueLabel = "${uiState.surfaceBlurRadius.toInt()} px"
-                        )
-
-                        if (uiState.surfaceThemeStyle == "LIQUID_GLASS") {
-                            SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            SettingsSliderRow(
-                                title = "Glass Highlight",
-                                subtitle = "Top rim specular light reflection",
-                                value = uiState.surfaceStrokeOpacity,
-                                onValueChange = { viewModel.setSurfaceStrokeOpacity(it) },
-                                valueRange = 0f..1.0f,
-                                valueLabel = "${(uiState.surfaceStrokeOpacity * 100).toInt()}%"
-                            )
-                        }
-                    }
-
-                    if (uiState.surfaceThemeStyle != "TRANSPARENT") {
-                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        SettingsSliderRow(
-                            title = "Corner Curvature",
-                            subtitle = "Border radius for dock and drawer surfaces",
-                            value = uiState.surfaceCornerRadius,
-                            onValueChange = { viewModel.setSurfaceCornerRadius(it) },
-                            valueRange = 0f..36f,
-                            steps = 8,
-                            valueLabel = "${uiState.surfaceCornerRadius.toInt()} dp"
-                        )
-                    }
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    Text(
-                        text = "Dock Layout",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    SettingsSliderRow(
-                        title = "Dock Icon Size",
-                        subtitle = "Scaled proportionally across all dock slots",
-                        value = uiState.dockIconSize,
-                        onValueChange = { viewModel.setDockIconSize(it) },
-                        valueRange = 40f..72f,
-                        steps = 7,
-                        valueLabel = "${uiState.dockIconSize.toInt()} dp"
-                    )
-                    SettingsSwitchRow(
-                        title = "Show App Labels",
-                        subtitle = "Display app names beneath dock icons",
-                        checked = uiState.dockShowLabels,
-                        onCheckedChange = { viewModel.setDockShowLabels(it) }
-                    )
 
-                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    SettingsSwitchRow(
-                        title = "Free Drag & Auto-Arrange",
-                        subtitle = "Freely slide apps left or right with instant auto-rearrangement",
-                        checked = uiState.autoArrangeApps,
-                        onCheckedChange = { viewModel.setAutoArrangeApps(it) }
-                    )
-
-                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    SettingsSwitchRow(
-                        title = "Open Drawer From Dock Only",
-                        subtitle = "Only open the app drawer when swiping up on the dock, disabling home screen swipe up",
-                        checked = uiState.openDrawerFromDockOnly,
-                        onCheckedChange = { viewModel.setOpenDrawerFromDockOnly(it) }
-                    )
-
-                    // ponytail: expanded dock capacity is visible exclusively to foldable and tablet form-factors; ceiling: 6..10 app slider; upgrade path: per-breakpoint custom dock app lists.
-                    val isFoldableOrTablet = remember(context) {
-                        DevicePostureUtils.isFoldableOrTablet(context)
-                    }
-                    if (isFoldableOrTablet) {
-                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        Text(
-                            text = "Foldable & Tablet Dock",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        SettingsSliderRow(
-                            title = "Expanded Dock Capacity",
-                            subtitle = "Maximum apps visible in open foldable or tablet mode (compact 5 apps when folded)",
-                            value = uiState.dockExpandedMaxApps.toFloat(),
-                            onValueChange = { viewModel.setDockExpandedMaxApps(it.roundToInt()) },
-                            valueRange = 6f..10f,
-                            steps = 3,
-                            valueLabel = "${uiState.dockExpandedMaxApps} apps"
-                        )
-                    }
-                }
-            }
-
-            DRAWER_CATEGORIES -> {
-                val layoutMode = if (uiState.twoDrawersSideBySide) "2 Columns" else "Single Column"
-                val animLabel = when (uiState.drawerTitleAnimation) {
-                    "ACCENT_POP" -> "Accent Pop"
-                    "FLUID_SPRING" -> "Elastic"
-                    "KINETIC_DECEL" -> "Sleek"
-                    "SNAPPY" -> "Snappy"
-                    else -> "Static"
-                }
-                val categoriesSummary = "$layoutMode • $animLabel${if (uiState.enableWidgetsPage) " • Widget Feed" else ""}${if (uiState.lockLayout) " • Locked" else ""}"
-
-                SettingsDrawerCard(
-                    title = "App Categories & Drawers",
-                    subtitle = categoriesSummary,
-                    icon = Icons.Default.FormatPaint,
-                    iconTint = Color(0xFFF59E0B),
-                    isExpanded = DRAWER_CATEGORIES in expandedDrawers,
-                    onToggle = { toggleDrawer(DRAWER_CATEGORIES) },
-                    isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
-                ) {
                     SettingsSwitchRow(
                         title = "Two Drawers Side by Side",
                         subtitle = "Show category drawers in dual columns side by side on home page",
@@ -1010,15 +994,6 @@ fun SettingsScreen(
                         subtitle = "Allow a single app to be assigned to multiple categories",
                         checked = uiState.multiGroupApps,
                         onCheckedChange = { viewModel.setMultiGroupApps(it) }
-                    )
-
-                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    SettingsSwitchRow(
-                        title = "Left-Hand Widget Page",
-                        subtitle = "Enable a dedicated full-page widget feed by swiping right from Home",
-                        checked = uiState.enableWidgetsPage,
-                        onCheckedChange = { viewModel.setEnableWidgetsPage(it) }
                     )
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -1077,33 +1052,91 @@ fun SettingsScreen(
                             onSelect = { viewModel.setDrawerTitleAnimation(it) }
                         )
                     }
-                }
-            }
 
-            DRAWER_GLANCE -> {
-                val clockFormat = if (uiState.is24Hour) "24h Clock" else "12h Clock"
-                val glanceSummary = buildString {
-                    append(clockFormat)
-                    if (uiState.showWeather) {
-                        append(" • Weather (${if (uiState.weatherUnit == "FAHRENHEIT") "°F" else "°C"})")
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    // ── 2. Dock Bar ──
+                    Text(
+                        text = "Dock Bar & Navigation",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    SettingsSliderRow(
+                        title = "Dock Icon Size",
+                        subtitle = "Scaled proportionally across all dock slots",
+                        value = uiState.dockIconSize,
+                        onValueChange = { viewModel.setDockIconSize(it) },
+                        valueRange = 40f..72f,
+                        steps = 7,
+                        valueLabel = "${uiState.dockIconSize.toInt()} dp"
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    SettingsSwitchRow(
+                        title = "Show App Labels",
+                        subtitle = "Display app names beneath dock icons",
+                        checked = uiState.dockShowLabels,
+                        onCheckedChange = { viewModel.setDockShowLabels(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    SettingsSwitchRow(
+                        title = "Free Drag & Auto-Arrange",
+                        subtitle = "Freely slide apps left or right with instant auto-rearrangement",
+                        checked = uiState.autoArrangeApps,
+                        onCheckedChange = { viewModel.setAutoArrangeApps(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    SettingsSwitchRow(
+                        title = "Open Drawer From Dock Only",
+                        subtitle = "Only open the app drawer when swiping up on the dock, disabling home screen swipe up",
+                        checked = uiState.openDrawerFromDockOnly,
+                        onCheckedChange = { viewModel.setOpenDrawerFromDockOnly(it) }
+                    )
+
+                    val isFoldableOrTablet = remember(context) {
+                        DevicePostureUtils.isFoldableOrTablet(context)
                     }
-                    if (uiState.enableCameraMirror) append(" • Camera Mirror")
-                }
+                    if (isFoldableOrTablet) {
+                        SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        SettingsSliderRow(
+                            title = "Foldable / Tablet Dock Capacity",
+                            subtitle = "Number of app slots in unfolded posture",
+                            value = uiState.dockExpandedMaxApps.toFloat(),
+                            onValueChange = { viewModel.setDockExpandedMaxApps(it.toInt()) },
+                            valueRange = 6f..10f,
+                            steps = 3,
+                            valueLabel = "${uiState.dockExpandedMaxApps} apps"
+                        )
+                    }
 
-                SettingsDrawerCard(
-                    title = "At A Glance",
-                    subtitle = glanceSummary,
-                    icon = Icons.Default.Schedule,
-                    iconTint = Color(0xFF10B981),
-                    isExpanded = DRAWER_GLANCE in expandedDrawers,
-                    onToggle = { toggleDrawer(DRAWER_GLANCE) },
-                    isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
-                ) {
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    SettingsSwitchRow(
+                        title = "Mesmerizing Dock Prismatic Glow",
+                        subtitle = "Iridescent glass sheen catching light along the dock boundary",
+                        checked = uiState.dockMesmerizingGlow,
+                        onCheckedChange = { viewModel.setDockMesmerizingGlow(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    // ── 3. Glance Header & Widgets ──
+                    Text(
+                        text = "Glance Header & Widgets",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
                     SettingsSwitchRow(
                         title = "24-Hour Clock",
                         subtitle = "Use 24-hour format instead of 12-hour AM/PM",
@@ -1186,43 +1219,54 @@ fun SettingsScreen(
                         checked = uiState.enableCameraMirror,
                         onCheckedChange = { viewModel.setEnableCameraMirror(it) }
                     )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Hide Status Bar",
+                        subtitle = "Maximize screen real estate by hiding the system status bar",
+                        checked = uiState.hideStatusBar,
+                        onCheckedChange = { viewModel.setHideStatusBar(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Left-Hand Widget Page",
+                        subtitle = "Enable dedicated full-page widget feed by swiping right from Home",
+                        checked = uiState.enableWidgetsPage,
+                        onCheckedChange = { viewModel.setEnableWidgetsPage(it) }
+                    )
                 }
             }
 
-            DRAWER_NOTIFICATIONS -> {
-                val notifSummary = if (uiState.notificationsPrivacyMode) "Privacy Mode Active" else "Standard Alerts"
+            DRAWER_PRIVACY -> {
+                val installedVersion = remember(context) {
+                    runCatching {
+                        val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                        pInfo.versionName ?: "1.2.4"
+                    }.getOrDefault("1.2.4")
+                }
+                val privacySummary = "Notifications • Local Backup • Version $installedVersion"
 
                 SettingsDrawerCard(
-                    title = "Notifications",
-                    subtitle = notifSummary,
-                    icon = Icons.Default.Notifications,
-                    iconTint = Color(0xFFEF4444),
-                    isExpanded = DRAWER_NOTIFICATIONS in expandedDrawers,
-                    onToggle = { toggleDrawer(DRAWER_NOTIFICATIONS) },
+                    title = "Privacy & Data",
+                    subtitle = privacySummary,
+                    icon = Icons.Default.Security,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    isExpanded = DRAWER_PRIVACY in expandedDrawers,
+                    onToggle = { toggleDrawer(DRAWER_PRIVACY) },
                     isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
+                    cornerRadius = cornerRadius
                 ) {
-                    SettingsSwitchRow(
-                        title = "Privacy Mode",
-                        subtitle = "Hide notification body content on the home screen",
-                        checked = uiState.notificationsPrivacyMode,
-                        onCheckedChange = { viewModel.setNotificationsPrivacyMode(it) }
+                    // ── 1. Notification Hub & Stealth ──
+                    Text(
+                        text = "Notification Hub & Privacy",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
-
-                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    SettingsSwitchRow(
-                        title = "Glowing Drawer Icon",
-                        subtitle = "Pulse glow the drawer icon when an app inside has a notification until acknowledged",
-                        checked = uiState.drawerNotificationGlow,
-                        onCheckedChange = { viewModel.setDrawerNotificationGlow(it) }
-                    )
-
-                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Row(
                         modifier = Modifier
@@ -1257,8 +1301,24 @@ fun SettingsScreen(
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    // Stealth theme
-                    // ponytail: flat toggle + AnimatedVisibility sub-panel; no nested nav; ceiling: single stealth level, no per-app masking.
+                    SettingsSwitchRow(
+                        title = "Privacy Mode",
+                        subtitle = "Hide notification body content on the home screen",
+                        checked = uiState.notificationsPrivacyMode,
+                        onCheckedChange = { viewModel.setNotificationsPrivacyMode(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Glowing Drawer Icon",
+                        subtitle = "Pulse glow the drawer icon when an app inside has a notification until acknowledged",
+                        checked = uiState.drawerNotificationGlow,
+                        onCheckedChange = { viewModel.setDrawerNotificationGlow(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
                     SettingsSwitchRow(
                         title = "Stealth Theme",
                         subtitle = "Makes notifications harder to read from the side. Not a security feature.",
@@ -1297,74 +1357,17 @@ fun SettingsScreen(
                             )
                         }
                     }
-                }
-            }
 
-            DRAWER_ICON_PACKS -> {
-                val packLabel = iconPackUiState.installedPacks.firstOrNull { it.packageName == uiState.activeIconPack }?.name
-                    ?: if (uiState.activeIconPack == null) "System Default" else uiState.activeIconPack
-                val shapeName = uiState.adaptiveIconShape.lowercase().replaceFirstChar { it.uppercase() }
-                val iconPackSummary = "$packLabel • $shapeName"
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-                SettingsDrawerCard(
-                    title = "Icon Packs & Shapes",
-                    subtitle = iconPackSummary,
-                    icon = Icons.Default.Palette,
-                    iconTint = Color(0xFFEC4899),
-                    isExpanded = DRAWER_ICON_PACKS in expandedDrawers,
-                    onToggle = { toggleDrawer(DRAWER_ICON_PACKS) },
-                    isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { showIconPicker = true }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Customize Icons & Shapes",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "Pack: $packLabel • Shape: $shapeName",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Default.Palette,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            DRAWER_BACKUP -> {
-                SettingsDrawerCard(
-                    title = "Backup & Restore",
-                    subtitle = "JSON Configuration Export / Import",
-                    icon = Icons.Default.FileUpload,
-                    iconTint = Color(0xFF3B82F6),
-                    isExpanded = DRAWER_BACKUP in expandedDrawers,
-                    onToggle = { toggleDrawer(DRAWER_BACKUP) },
-                    isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
-                ) {
+                    // ── 2. Backup & Restore ──
+                    Text(
+                        text = "Backup & Restore",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Export or import your entire configuration (categories, dock, mute rules, and personalisation settings) to a single JSON file.",
                         style = MaterialTheme.typography.bodySmall,
@@ -1393,7 +1396,6 @@ fun SettingsScreen(
 
                         OutlinedButton(
                             onClick = {
-                                // ponytail: pass explicit supported JSON mime types instead of wildcard */* which confuses DocumentsUI on Pixel devices causing files to be grayed out.
                                 importBackupLauncher.launch(
                                     arrayOf(
                                         "application/json",
@@ -1419,65 +1421,28 @@ fun SettingsScreen(
                             Text("Import")
                         }
                     }
-                }
-            }
 
-            DRAWER_ABOUT -> {
-                // ponytail: dynamically read package versionName at runtime rather than hardcoding string; ceiling: fallback to 1.2.4 if packageInfo fails; upgrade path: inject BuildConfig via DI.
-                val installedVersion = remember(context) {
-                    runCatching {
-                        val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                        pInfo.versionName ?: "1.2.4"
-                    }.getOrDefault("1.2.4")
-                }
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-                SettingsDrawerCard(
-                    title = "About Drawer",
-                    subtitle = "Version $installedVersion • Offline & Private",
-                    icon = Icons.Outlined.Info,
-                    iconTint = Color(0xFF64748B),
-                    isExpanded = DRAWER_ABOUT in expandedDrawers,
-                    onToggle = { toggleDrawer(DRAWER_ABOUT) },
-                    isCompact = isCompact,
-                    cornerRadius = cornerRadius,
-                    surfaceThemeStyle = uiState.surfaceThemeStyle,
-                    isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                    surfaceOpacity = uiState.surfaceOpacity,
-                    surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
-                ) {
+                    // ── 3. About Drawer ──
                     Text(
-                        text = "Drawer Launcher",
+                        text = "About Drawer",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Version $installedVersion (API ${android.os.Build.VERSION.SDK_INT})",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "A personalisation-first launcher built with 100% Jetpack Compose and offline privacy. Zero tracking, zero telemetry.",
                         style = MaterialTheme.typography.bodySmall
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
-                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // About Creator Section
-                    Text(
-                        text = "Developer",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Designed and crafted by Prasenjeet Urunkar with a focus on fluid gesture navigation, deep aesthetic personalisation, and offline privacy.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedButton(
                         onClick = {
@@ -1498,9 +1463,7 @@ fun SettingsScreen(
                         Text("uprasenjeet.vercel.app")
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1526,9 +1489,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1590,26 +1551,36 @@ fun SettingsScreen(
         isAmoled = isSettingsAmoled,
         dynamicColor = uiState.dynamicColor
     ) {
-        Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Settings",
-                        fontFamily = LocalHeaderFontFamily.current,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+        // ponytail: Settings strictly enforces Google Sans font family regardless of user-selected launcher font
+        CompositionLocalProvider(
+            LocalHeaderFontFamily provides GoogleSansFontFamily
+        ) {
+            Scaffold(
+            containerColor = MaterialTheme.colorScheme.surface,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "Settings",
+                            fontFamily = GoogleSansFontFamily,
+                            fontWeight = FontWeight.SemiBold
                         )
-                    }
-                }
-            )
-        },
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+            },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier.fillMaxSize()
     ) { paddingValues ->
@@ -1642,25 +1613,6 @@ fun SettingsScreen(
                         cornerRadius = cornerRadius
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                }
-
-                // On-Device AI Controls
-                item(key = "NEEDLE_AI_SETTINGS") {
-                    NeedleSettingsCard(
-                        status = needleModelStatus,
-                        enableOnDeviceAi = uiState.enableOnDeviceAi,
-                        onEnableOnDeviceAiChange = { viewModel.setEnableOnDeviceAi(it) },
-                        strictness = uiState.aiCategorizationStrictness,
-                        onStrictnessChange = { viewModel.setAiCategorizationStrictness(it) },
-                        categorizeAllApps = uiState.aiCategorizeAllApps,
-                        onCategorizeAllAppsChange = { viewModel.setAiCategorizeAllApps(it) },
-                        forceWorkProfile = uiState.aiForceWorkProfile,
-                        onForceWorkProfileChange = { viewModel.setAiForceWorkProfile(it) },
-                        autoCategorizeNewApps = uiState.autoCategorizeNewApps,
-                        onAutoCategorizeNewAppsChange = { viewModel.setAutoCategorizeNewApps(it) },
-                        onDownload = { viewModel.downloadNeedleModel() },
-                        onDelete = { viewModel.deleteNeedleModel() }
-                    )
                 }
 
                 // Settings Drawers: Always single column in Settings screen
@@ -1807,6 +1759,7 @@ fun SettingsScreen(
             }
         )
     }
+        }
     }
 }
 
@@ -1830,6 +1783,9 @@ private fun SettingsSliderRow(
     subtitle: String? = null,
     modifier: Modifier = Modifier
 ) {
+    var localValue by remember(value) { mutableFloatStateOf(value) }
+    var isDragging by remember { mutableStateOf(false) }
+
     Column(modifier = modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1864,9 +1820,17 @@ private fun SettingsSliderRow(
                 )
             }
         }
+        // ponytail: updates local state during drag and commits to DataStore on release (onValueChangeFinished) to eliminate 60fps disk writes and jank; ceiling: commit on release; upgrade path: debounced live preview.
         Slider(
-            value = value,
-            onValueChange = onValueChange,
+            value = if (isDragging) localValue else value,
+            onValueChange = {
+                isDragging = true
+                localValue = it
+            },
+            onValueChangeFinished = {
+                isDragging = false
+                onValueChange(localValue)
+            },
             valueRange = valueRange,
             steps = steps,
             modifier = Modifier.fillMaxWidth()

@@ -2,7 +2,6 @@ package com.urunkarpm.drawer.core.needle.engine
 
 import android.util.Log
 import com.urunkarpm.drawer.core.needle.NeedleEngine
-import com.urunkarpm.drawer.core.needle.download.NeedleModelManager
 import com.urunkarpm.drawer.core.needle.model.ModelProcessingState
 import com.urunkarpm.drawer.core.needle.model.ModelStatus
 import com.urunkarpm.drawer.core.needle.model.ProcessingStep
@@ -15,34 +14,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.floatOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import java.io.File
 import java.util.regex.Pattern
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class CactusNeedleEngine @Inject constructor(
-    private val modelManager: NeedleModelManager
-) : NeedleEngine {
+class CactusNeedleEngine @Inject constructor() : NeedleEngine {
 
-    override val modelStatus: StateFlow<ModelStatus> = modelManager.status
+    override val modelStatus: StateFlow<ModelStatus> = MutableStateFlow(ModelStatus.NotDownloaded)
 
     private val _processingState = MutableStateFlow(ModelProcessingState())
     override val processingState: StateFlow<ModelProcessingState> = _processingState.asStateFlow()
 
     private val json = Json { ignoreUnknownKeys = true }
-
-    @Volatile
-    private var lastToolsJsonHash: Int? = null
 
     override fun updateProcessingSuccess(summary: String) {
         _processingState.value = _processingState.value.copy(
@@ -97,168 +85,15 @@ class CactusNeedleEngine @Inject constructor(
             return@withContext results
         }
 
-        // 2. SLOW PATH: Ambiguous/complex natural language queries -> on-device neural model (if downloaded)
-        val status = modelStatus.value
-        val hasNativeModel = status is ModelStatus.Ready && NeedleNativeBridge.isAvailable()
-
-        _processingState.value = ModelProcessingState(
-            query = query,
-            step = ProcessingStep.Inferring,
-            modelName = if (hasNativeModel) "Needle 3 (CQ2 Laddered SAN · 121M)" else "Needle (Instant Router)",
-            isNativeInference = hasNativeModel,
-            timestampMs = System.currentTimeMillis()
-        )
-
-        val results = withTimeoutOrNull(INFERENCE_TIMEOUT_MS) {
-            clauses.flatMap { clause ->
-                // Check if this specific clause matched fast path
-                val fastForClause = predictSingleToolCall(clause, tools)
-                if (fastForClause.isNotEmpty()) {
-                    fastForClause
-                } else if (hasNativeModel && shouldAttemptNativeInference(clause)) {
-                    val nativeResults = predictWithNativeModel(clause, tools, status.modelPath)
-                    if (nativeResults.isNotEmpty()) {
-                        nativeResults
-                    } else {
-                        predictSingleToolCall(clause, tools)
-                    }
-                } else {
-                    emptyList()
-                }
-            }
-        } ?: emptyList()
-
-        if (results.isEmpty()) {
+        // ponytail: AI neural model dropped completely; fallback to single-clause matches without heavy LLM latency
+        val fallbackResults = clauses.flatMap { clause -> predictSingleToolCall(clause, tools) }
+        if (fallbackResults.isEmpty()) {
             _processingState.value = _processingState.value.copy(
                 step = ProcessingStep.Executing,
                 summary = "Checking launcher actions..."
             )
         }
-
-        results
-    }
-
-    private fun shouldAttemptNativeInference(clause: String): Boolean {
-        val trimmed = clause.trim()
-        if (trimmed.length < 3) return false
-        // Single short token with no spaces is typically a search prefix (e.g. typing app name)
-        if (!trimmed.contains(' ') && trimmed.length < 5) return false
-        return true
-    }
-
-    private fun predictWithNativeModel(
-        clause: String,
-        tools: List<ToolDefinition>,
-        modelPath: String
-    ): List<ToolCallResult> {
-        if (!NeedleNativeBridge.isAvailable()) return emptyList()
-
-        return try {
-            val file = File(modelPath)
-            if (!file.exists() || file.length() == 0L) {
-                return emptyList()
-            }
-
-            val loaded = NeedleNativeBridge.loadModel(file.absolutePath)
-            if (!loaded) {
-                Log.w(TAG, "Native loadModel failed: ${NeedleNativeBridge.getLastError()}")
-                return emptyList()
-            }
-
-            val toolsJson = serializeTools(tools)
-            val toolsHash = toolsJson.hashCode()
-
-            if (lastToolsJsonHash != toolsHash) {
-                NeedleNativeBridge.reset()
-                val initialized = NeedleNativeBridge.init(
-                    systemPrompt = "You are an intelligent home launcher assistant that calls tools accurately.",
-                    toolsJson = toolsJson
-                )
-                if (!initialized) {
-                    Log.w(TAG, "Native init failed: ${NeedleNativeBridge.getLastError()}")
-                    return emptyList()
-                }
-                lastToolsJsonHash = toolsHash
-            } else {
-                NeedleNativeBridge.reset()
-            }
-
-            val rawJson = NeedleNativeBridge.complete(clause, maxTokens = 128)
-            if (rawJson.isNullOrBlank()) {
-                return emptyList()
-            }
-
-            parseNeedleResponse(rawJson, clause)
-        } catch (e: Throwable) {
-            Log.e(TAG, "Exception during native model prediction: ${e.message}", e)
-            emptyList()
-        }
-    }
-
-    private fun serializeTools(tools: List<ToolDefinition>): String {
-        val array = buildJsonArray {
-            tools.forEach { tool ->
-                add(
-                    buildJsonObject {
-                        put("name", tool.name)
-                        put("description", tool.description)
-                        put("parameters", tool.parameters)
-                    }
-                )
-            }
-        }
-        return array.toString()
-    }
-
-    private fun parseNeedleResponse(rawJson: String, query: String): List<ToolCallResult> {
-        return try {
-            val root = json.parseToJsonElement(rawJson).jsonObject
-            val functionCalls = root["function_calls"]?.jsonArray ?: return emptyList()
-
-            val reasoning = root["reasoning"]?.jsonPrimitive?.content
-            val confidence = root["confidence"]?.jsonPrimitive?.floatOrNull
-            val prefillTps = root["prefill_tps"]?.jsonPrimitive?.floatOrNull
-            val decodeTps = root["decode_tps"]?.jsonPrimitive?.floatOrNull
-            val peakRamMb = root["peak_ram_mb"]?.jsonPrimitive?.floatOrNull
-
-            val results = functionCalls.mapNotNull { element ->
-                val callObj = element.jsonObject
-                val name = callObj["name"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                val args = callObj["arguments"]?.jsonObject ?: buildJsonObject {}
-                ToolCallResult(toolName = name, arguments = args)
-            }
-
-            if (results.isNotEmpty()) {
-                val first = results.first()
-                val argsMap = first.arguments.mapValues {
-                    try {
-                        it.value.jsonPrimitive.content
-                    } catch (_: Throwable) {
-                        it.value.toString()
-                    }
-                }
-                _processingState.value = ModelProcessingState(
-                    query = query,
-                    step = ProcessingStep.Executing,
-                    modelName = "Needle 3 (CQ2 · 121M On-Device)",
-                    reasoning = reasoning,
-                    confidence = confidence,
-                    prefillTps = prefillTps,
-                    decodeTps = decodeTps,
-                    peakRamMb = peakRamMb,
-                    toolName = first.toolName,
-                    arguments = argsMap,
-                    rawJson = rawJson,
-                    isNativeInference = true,
-                    timestampMs = System.currentTimeMillis()
-                )
-            }
-
-            results
-        } catch (e: Throwable) {
-            Log.w(TAG, "Failed to parse Needle response: ${e.message}")
-            emptyList()
-        }
+        return@withContext fallbackResults
     }
 
     internal fun splitCompoundClauses(query: String): List<String> {
@@ -1077,26 +912,16 @@ class CactusNeedleEngine @Inject constructor(
         return emptyList()
     }
 
-    override suspend fun getEmbedding(text: String): FloatArray? = withContext(Dispatchers.Default) {
-        if (modelStatus.value !is ModelStatus.Ready) return@withContext null
-        FloatArray(EMBEDDING_DIM) { 0.0f }
-    }
+    override suspend fun getEmbedding(text: String): FloatArray? = null
 
-    override suspend fun downloadModel(): Result<Unit> {
-        return modelManager.downloadModel()
-    }
+    override suspend fun downloadModel(): Result<Unit> = Result.success(Unit)
 
     override suspend fun deleteModel(): Boolean {
-        lastToolsJsonHash = null
-        NeedleNativeBridge.reset()
-        val deleted = modelManager.deleteModel()
         _processingState.value = ModelProcessingState()
-        return deleted
+        return true
     }
 
     companion object {
         private const val TAG = "CactusNeedleEngine"
-        private const val INFERENCE_TIMEOUT_MS = 3000L
-        private const val EMBEDDING_DIM = 768
     }
 }

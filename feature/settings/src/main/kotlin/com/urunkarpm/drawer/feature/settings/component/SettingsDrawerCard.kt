@@ -29,15 +29,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -45,28 +44,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
-import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
+import com.urunkarpm.drawer.core.designsystem.theme.GoogleSansFontFamily
 
 /**
- * An expandable drawer card for settings categories, architectured with
- * identical aesthetics, curvature, and animations to the home screen category drawers.
+ * ponytail: Native Google Pixel-style settings card; solid Material 3 surface container,
+ * crisp rounded corners, clean tonal circular icon badge, and zero glassmorphism or dock color adaptation.
  */
 @Composable
 fun SettingsDrawerCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    iconTint: Color,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
     isExpanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
     isCompact: Boolean = false,
-    cornerRadius: Dp = 20.dp,
-    surfaceThemeStyle: String = "LIQUID_GLASS",
-    isMesmerizingGlow: Boolean = true,
-    surfaceOpacity: Float = 0.65f,
-    surfaceStrokeOpacity: Float = 0.40f,
+    cornerRadius: Dp = 24.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
@@ -79,90 +73,79 @@ fun SettingsDrawerCard(
         label = "drawer_chevron_rotation"
     )
 
-    Box(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        DrawerSurfaceBackground(
-            surfaceThemeStyle = surfaceThemeStyle,
-            shape = RoundedCornerShape(cornerRadius),
-            isExpanded = isExpanded,
-            accentColor = iconTint,
-            isMesmerizingGlow = isMesmerizingGlow,
-            surfaceOpacity = surfaceOpacity,
-            surfaceStrokeOpacity = surfaceStrokeOpacity,
-            modifier = Modifier.matchParentSize()
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(cornerRadius),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(cornerRadius))
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Surface(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onToggle()
-                    },
-                color = Color.Transparent
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = if (isCompact) 10.dp else 16.dp,
-                            vertical = if (isCompact) 10.dp else 12.dp
-                        ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(if (isCompact) 30.dp else 36.dp)
-                            .clip(CircleShape)
-                            .background(iconTint.copy(alpha = 0.18f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = iconTint,
-                            modifier = Modifier.size(if (isCompact) 17.dp else 20.dp)
-                        )
                     }
+                    .padding(
+                        horizontal = if (isCompact) 12.dp else 16.dp,
+                        vertical = if (isCompact) 12.dp else 16.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Pixel-style tonal circular icon badge
+                Box(
+                    modifier = Modifier
+                        .size(if (isCompact) 36.dp else 42.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(if (isCompact) 18.dp else 22.dp)
+                    )
+                }
 
-                    Spacer(modifier = Modifier.width(if (isCompact) 8.dp else 12.dp))
+                Spacer(modifier = Modifier.width(if (isCompact) 12.dp else 16.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        // ponytail: Settings strictly preserves Google Sans native typography across all categories
+                        fontFamily = GoogleSansFontFamily,
+                        style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (subtitle.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = title,
-                            fontFamily = LocalHeaderFontFamily.current,
-                            style = if (isCompact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            text = subtitle,
+                            style = if (isCompact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (subtitle.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = subtitle,
-                                style = if (isCompact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
                     }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (isExpanded) "Collapse $title" else "Expand $title",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
-                    )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse $title" else "Expand $title",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.graphicsLayer { rotationZ = chevronRotation }
+                )
             }
 
             AnimatedVisibility(
@@ -184,14 +167,14 @@ fun SettingsDrawerCard(
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                         thickness = 0.5.dp,
-                        modifier = Modifier.padding(horizontal = if (isCompact) 10.dp else 16.dp)
+                        modifier = Modifier.padding(horizontal = if (isCompact) 12.dp else 16.dp)
                     )
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(
-                                horizontal = if (isCompact) 10.dp else 16.dp,
-                                vertical = if (isCompact) 10.dp else 14.dp
+                                horizontal = if (isCompact) 12.dp else 16.dp,
+                                vertical = if (isCompact) 12.dp else 16.dp
                             ),
                         content = content
                     )

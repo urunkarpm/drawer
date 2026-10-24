@@ -22,12 +22,14 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.WindowInsets
@@ -102,7 +104,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import com.urunkarpm.drawer.feature.home.component.FrontCameraPreview
-import com.urunkarpm.drawer.feature.home.component.ModelProcessingDrawer
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
@@ -272,11 +273,9 @@ fun HomeScreen(
     var isDuoStatusExpanded by remember { mutableStateOf(false) }
     var showHomeMenu by remember { mutableStateOf(false) }
     var isNotificationExpanded by remember { mutableStateOf(false) }
-    var isAssistantExpanded by remember { mutableStateOf(false) }
     var isCameraOpen by remember { mutableStateOf(false) }
     var glanceBounds by remember { mutableStateOf<Rect?>(null) }
     var notificationBounds by remember { mutableStateOf<Rect?>(null) }
-    var assistantBounds by remember { mutableStateOf<Rect?>(null) }
     var rootColumnBounds by remember { mutableStateOf<Rect?>(null) }
 
     val handleDragDropResult: (DragDropResult) -> Unit = { result ->
@@ -343,18 +342,10 @@ fun HomeScreen(
         }
     }
 
-    // When AllApps drawer opens, collapse notification and assistant drawers
+    // When AllApps drawer opens, collapse notification drawer
     LaunchedEffect(uiState.isAllAppsOpen) {
         if (uiState.isAllAppsOpen) {
             isNotificationExpanded = false
-            isAssistantExpanded = false
-        }
-    }
-
-    // ponytail: Mutual exclusion: if any category drawer opens, close assistant drawer. Only notification and assistant drawer can be open simultaneously.
-    LaunchedEffect(groupsUiState.groups) {
-        if (groupsUiState.groups.any { it.group.isExpanded }) {
-            isAssistantExpanded = false
         }
     }
 
@@ -1094,12 +1085,16 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        locationPermissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+        val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!fineGranted && !coarseGranted) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
             )
-        )
+        }
     }
 
     LaunchedEffect(uiState.userMessage) {
@@ -1109,8 +1104,8 @@ fun HomeScreen(
         }
     }
 
-    // Back: close camera preview, settings, duo status breakdown, popup menu, category picker, action sheet, all-apps, notification drawer, assistant drawer, or group accordion
-    BackHandler(enabled = isDuoStatusExpanded || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || isAssistantExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
+    // Back: close camera preview, settings, duo status breakdown, popup menu, category picker, action sheet, all-apps, notification drawer, or group accordion
+    BackHandler(enabled = isDuoStatusExpanded || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
         when {
             isDuoStatusExpanded -> isDuoStatusExpanded = false
             isCameraOpen -> isCameraOpen = false
@@ -1120,7 +1115,6 @@ fun HomeScreen(
             uiState.selectedAppForMenu != null -> viewModel.dismissAppMenu()
             uiState.isAllAppsOpen -> viewModel.closeAllApps()
             isNotificationExpanded -> isNotificationExpanded = false
-            isAssistantExpanded -> isAssistantExpanded = false
             groupsUiState.groups.any { it.group.isExpanded } -> groupsViewModel.collapseAllGroups()
         }
     }
@@ -1509,7 +1503,7 @@ fun HomeScreen(
                                 rootColumnBounds = coords.boundsInRoot()
                             }
                             // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
-                            .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, isAssistantExpanded, groupsUiState.groups, isDuoStatusExpanded) {
+                            .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups, isDuoStatusExpanded) {
                                 if (!uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
                                     detectTapGestures(
                                         onTap = { offset ->
@@ -1519,15 +1513,11 @@ fun HomeScreen(
                                             val isOverGlance = glanceBounds?.contains(rootPos) == true
                                             val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
                                             val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            val isOverAssistant = assistantBounds?.contains(rootPos) == true
                                             if (isDuoStatusExpanded) {
                                                 isDuoStatusExpanded = false
-                                            } else if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification && !isOverAssistant) {
+                                            } else if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
                                                 if (isNotificationExpanded) {
                                                     isNotificationExpanded = false
-                                                }
-                                                if (isAssistantExpanded) {
-                                                    isAssistantExpanded = false
                                                 }
                                                 if (groupsUiState.groups.any { it.group.isExpanded }) {
                                                     groupsViewModel.collapseAllGroups()
@@ -1545,8 +1535,7 @@ fun HomeScreen(
                                             val isOverGlance = glanceBounds?.contains(rootPos) == true
                                             val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
                                             val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            val isOverAssistant = assistantBounds?.contains(rootPos) == true
-                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification && !isOverAssistant) {
+                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
                                                 onDoubleTapLock()
                                             }
                                         },
@@ -1561,8 +1550,7 @@ fun HomeScreen(
                                             val isOverGlance = glanceBounds?.contains(rootPos) == true
                                             val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
                                             val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            val isOverAssistant = assistantBounds?.contains(rootPos) == true
-                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification && !isOverAssistant) {
+                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
                                                 showHomeMenu = true
                                             }
                                         }
@@ -1577,8 +1565,7 @@ fun HomeScreen(
                                     val colBounds = rootColumnBounds ?: Rect.Zero
                                     val rootPos = Offset(colBounds.left + down.position.x, colBounds.top + down.position.y)
                                     val isInsideNotification = notificationBounds?.contains(rootPos) == true
-                                    val isInsideAssistant = assistantBounds?.contains(rootPos) == true
-                                    if (isInsideNotification || isInsideAssistant) {
+                                    if (isInsideNotification) {
                                         return@awaitEachGesture
                                     }
                                     val isOverOtherDrawers = dragDropState.groupBounds.values.any { it.contains(rootPos) }
@@ -1618,7 +1605,6 @@ fun HomeScreen(
                         duoStatusPosition = uiState.duoStatusPosition,
                         isDuoStatusExpanded = isDuoStatusExpanded,
                         onToggleDuoStatusExpand = { isDuoStatusExpanded = !isDuoStatusExpanded },
-                        onOpenVoiceSearch = null,
                         modifier = Modifier
                             .fillMaxWidth()
                             .zIndex(100f)
@@ -1630,14 +1616,25 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // Middle: Notifications (always full width at top) + Category Drawers (side-by-side or stacked vertically)
-                    Column(
+                    // ponytail: Category alignment respects user toggle between Bottom (thumb-zone) and Top (stacked under glance header).
+                    BoxWithConstraints(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .nestedScroll(homeNestedScrollConnection)
-                            .verticalScroll(homeScrollState, enabled = !dragDropState.isDragging && !isNotificationExpanded),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        val minContentHeight = maxHeight
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = minContentHeight)
+                                .nestedScroll(homeNestedScrollConnection)
+                                .verticalScroll(homeScrollState, enabled = !dragDropState.isDragging && !isNotificationExpanded),
+                            verticalArrangement = if (uiState.categoryAlignment.equals("BOTTOM", ignoreCase = true)) {
+                                Arrangement.spacedBy(10.dp, Alignment.Bottom)
+                            } else {
+                                Arrangement.spacedBy(10.dp, Alignment.Top)
+                            }
+                        ) {
                         Spacer(modifier = Modifier.height(2.dp))
 
                         // 1. Notification Drawer: Stays fixed at top as stable accordion item; no layout shifts when drawers open
@@ -1675,38 +1672,11 @@ fun HomeScreen(
                             surfaceThemeStyle = uiState.surfaceThemeStyle,
                             isMesmerizingGlow = uiState.dockMesmerizingGlow,
                             surfaceOpacity = uiState.surfaceOpacity,
-                            surfaceStrokeOpacity = uiState.surfaceStrokeOpacity
+                            surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                            cinematicPaletteId = uiState.cinematicPalette
                         )
 
-                        // 1b. AI Assistant Drawer: Same size/styling, placed directly below Notification Drawer
-                        if (uiState.enableOnDeviceAi) {
-                            com.urunkarpm.drawer.feature.home.component.AiAssistantDrawer(
-                                state = modelProcessingState,
-                                isExpanded = isAssistantExpanded,
-                                surfaceThemeStyle = uiState.surfaceThemeStyle,
-                                isMesmerizingGlow = uiState.dockMesmerizingGlow,
-                                surfaceOpacity = uiState.surfaceOpacity,
-                                surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
-                                onExpandedChange = { expanded ->
-                                    isAssistantExpanded = expanded
-                                    if (expanded) {
-                                        // Only notification and assistant drawer can be open at the same time:
-                                        // Close any open category drawers
-                                        groupsViewModel.collapseAllGroups()
-                                    }
-                                },
-                                onDismiss = {
-                                    viewModel.resetCommandProcessingState()
-                                    isAssistantExpanded = false
-                                },
-                                onOpenVoiceSearch = handleVoiceSearch,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .onGloballyPositioned { coords ->
-                                        assistantBounds = coords.boundsInRoot()
-                                    }
-                            )
-                        }
+                        // ponytail: dropped AI assistant drawer completely; ceiling: zero on-screen assistant layout clutter; upgrade path: restore AiAssistantDrawer if on-device model is reintroduced.
 
                         // 2. Rest of the Drawers (App Categories): Side by side (2 columns) if enabled, otherwise single column
                         GroupsAccordion(
@@ -1716,6 +1686,7 @@ fun HomeScreen(
                             isMesmerizingGlow = uiState.dockMesmerizingGlow,
                             surfaceOpacity = uiState.surfaceOpacity,
                             surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                            cinematicPaletteId = uiState.cinematicPalette,
                             iconShape = com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString(
                                 uiState.adaptiveIconShape
                             ),
@@ -1725,8 +1696,6 @@ fun HomeScreen(
                             onToggleExpand = { groupId ->
                                 val group = groupsUiState.groups.find { it.group.id == groupId }
                                 if (group != null && !group.group.isExpanded) {
-                                    // Opening any category drawer closes assistant drawer
-                                    isAssistantExpanded = false
                                     if (!effectiveTwoDrawersSideBySide) {
                                         isNotificationExpanded = false
                                     }
@@ -1766,6 +1735,7 @@ fun HomeScreen(
                         // Sane bottom spacing so expanded lower drawers can be scrolled comfortably above the dock
                         Spacer(modifier = Modifier.height(24.dp))
                     }
+                }
 
                 // Bottom: Dock (swiping up from dock opens app drawer instantaneously)
                 Box(

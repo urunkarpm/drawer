@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
+import com.urunkarpm.drawer.core.designsystem.theme.CinematicPalettes
 
 @Composable
 fun DockSurfaceBackground(
@@ -27,10 +28,18 @@ fun DockSurfaceBackground(
     surfaceStrokeOpacity: Float,
     isDropTarget: Boolean = false,
     isMesmerizingGlow: Boolean = true,
+    cinematicPaletteId: String = "DEFAULT",
     modifier: Modifier = Modifier
 ) {
     val opacity = surfaceOpacity.coerceIn(0.10f, 1.0f)
     val strokeAlpha = surfaceStrokeOpacity.coerceIn(0.0f, 1.0f)
+    val palette = CinematicPalettes.find(cinematicPaletteId)
+    val isCinematic = palette.id != CinematicPalettes.ID_DEFAULT
+
+    val rimStartColor = if (isCinematic) palette.rimStart else Color(0x99FFBE98)
+    val rimEndColor = if (isCinematic) palette.rimEnd else Color(0x806667AB)
+    val surfaceBaseColor = if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surface
+    val surfaceContainerColor = if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceContainerHighest
 
     when {
         isDropTarget -> {
@@ -50,15 +59,18 @@ fun DockSurfaceBackground(
 
         backgroundStyle == "SOLID" -> {
             // 100% opaque, physical Material 3 shelf with elevation and crisp border
+            val solidColor = if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceContainerHighest
+            val solidBorder = if (isCinematic) {
+                BorderStroke(1.5.dp, palette.primaryAccent.copy(alpha = 0.60f))
+            } else {
+                BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.85f))
+            }
             Surface(
                 shape = shape,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                color = solidColor,
                 shadowElevation = 10.dp,
                 tonalElevation = 6.dp,
-                border = BorderStroke(
-                    1.5.dp,
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.85f)
-                ),
+                border = solidBorder,
                 modifier = modifier
             ) {}
         }
@@ -68,14 +80,18 @@ fun DockSurfaceBackground(
             val frostedGradient = Brush.verticalGradient(
                 colors = listOf(
                     Color.White.copy(alpha = (0.28f * opacity).coerceIn(0f, 1f)),
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = (0.75f * opacity).coerceIn(0f, 1f)),
-                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = (0.85f * opacity).coerceIn(0f, 1f))
+                    (if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = (0.75f * opacity).coerceIn(0f, 1f)),
+                    (if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceContainer).copy(alpha = (0.85f * opacity).coerceIn(0f, 1f))
                 )
             )
             val frostedBorder = BorderStroke(
                 1.5.dp,
                 Brush.verticalGradient(
-                    colors = if (isMesmerizingGlow) listOf(
+                    colors = if (isCinematic) listOf(
+                        rimStartColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f)),
+                        Color.White.copy(alpha = (0.60f * opacity).coerceIn(0f, 1f)),
+                        rimEndColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f))
+                    ) else if (isMesmerizingGlow) listOf(
                         Color(0x99FFBE98), // Pantone Peach Fuzz ambient rim
                         Color.White.copy(alpha = (0.60f * opacity).coerceIn(0f, 1f)),
                         Color(0x806667AB)  // Pantone Very Peri ambient base
@@ -94,16 +110,18 @@ fun DockSurfaceBackground(
                     .border(frostedBorder, shape)
             ) {
                 // Subtle frosted inner diffuse overlay with chromatic refraction
-                if (isMesmerizingGlow) {
+                if (isCinematic || isMesmerizingGlow) {
+                    val innerStart = if (isCinematic) palette.glowColor.copy(alpha = 0.15f) else Color(0x18FFBE98)
+                    val innerEnd = if (isCinematic) palette.secondaryAccent.copy(alpha = 0.15f) else Color(0x186667AB)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
                                 Brush.linearGradient(
                                     colors = listOf(
-                                        Color(0x18FFBE98),
+                                        innerStart,
                                         Color.Transparent,
-                                        Color(0x186667AB)
+                                        innerEnd
                                     )
                                 )
                             )
@@ -123,14 +141,18 @@ fun DockSurfaceBackground(
             val glassGradient = Brush.verticalGradient(
                 colors = listOf(
                     Color.White.copy(alpha = (0.30f * opacity).coerceIn(0f, 1f)),
-                    MaterialTheme.colorScheme.surface.copy(alpha = (0.60f * opacity).coerceIn(0f, 1f)),
-                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = (0.85f * opacity).coerceIn(0f, 1f))
+                    surfaceBaseColor.copy(alpha = (0.60f * opacity).coerceIn(0f, 1f)),
+                    surfaceContainerColor.copy(alpha = (0.85f * opacity).coerceIn(0f, 1f))
                 )
             )
             val glassBorder = BorderStroke(
                 1.5.dp,
                 Brush.verticalGradient(
-                    colors = if (isMesmerizingGlow) listOf(
+                    colors = if (isCinematic) listOf(
+                        Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
+                        rimStartColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f)),
+                        rimEndColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f))
+                    ) else if (isMesmerizingGlow) listOf(
                         Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
                         Color(0xB3FFBE98), // Pantone Peach Fuzz prismatic refraction
                         Color(0x996667AB)  // Pantone Very Peri luminous glow
@@ -155,7 +177,13 @@ fun DockSurfaceBackground(
                         .height(2.5.dp)
                         .background(
                             Brush.horizontalGradient(
-                                colors = if (isMesmerizingGlow) listOf(
+                                colors = if (isCinematic) listOf(
+                                    Color.Transparent,
+                                    rimStartColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f)),
+                                    Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
+                                    rimEndColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f)),
+                                    Color.Transparent
+                                ) else if (isMesmerizingGlow) listOf(
                                     Color.Transparent,
                                     Color(0xB3FFBE98),
                                     Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
@@ -187,10 +215,18 @@ fun DrawerSurfaceBackground(
     isDropTarget: Boolean = false,
     isMesmerizingGlow: Boolean = true,
     surfaceOpacity: Float = 0.65f,
-    surfaceStrokeOpacity: Float = 0.40f
+    surfaceStrokeOpacity: Float = 0.40f,
+    cinematicPaletteId: String = "DEFAULT"
 ) {
     val opacity = surfaceOpacity.coerceIn(0.10f, 1.0f)
     val strokeAlpha = surfaceStrokeOpacity.coerceIn(0.0f, 1.0f)
+    val palette = CinematicPalettes.find(cinematicPaletteId)
+    val isCinematic = palette.id != CinematicPalettes.ID_DEFAULT
+
+    val rimStartColor = if (isCinematic) palette.rimStart else Color(0x99FFBE98)
+    val rimEndColor = if (isCinematic) palette.rimEnd else Color(0x806667AB)
+    val surfaceBaseColor = if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surface
+    val surfaceContainerColor = if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceContainerHighest
 
     when {
         isDropTarget -> {
@@ -206,24 +242,28 @@ fun DrawerSurfaceBackground(
         surfaceThemeStyle == "TRANSPARENT" -> {
             val bgAlpha = if (isExpanded) 0.35f else 0.10f * opacity
             val borderAlpha = if (isExpanded) 0.35f else 0.18f * strokeAlpha
-            val borderColor = accentColor?.copy(alpha = borderAlpha)
+            val effectiveAccent = if (isCinematic) palette.primaryAccent else accentColor
+            val borderColor = effectiveAccent?.copy(alpha = borderAlpha)
                 ?: MaterialTheme.colorScheme.outlineVariant.copy(alpha = borderAlpha)
             Box(
                 modifier = modifier
                     .clip(shape)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = bgAlpha))
+                    .background(surfaceBaseColor.copy(alpha = bgAlpha))
                     .border(BorderStroke(1.dp, borderColor), shape)
             )
         }
 
         surfaceThemeStyle == "SOLID" -> {
-            val containerColor = if (isExpanded) {
+            val containerColor = if (isCinematic) {
+                palette.surfaceColor
+            } else if (isExpanded) {
                 MaterialTheme.colorScheme.surfaceContainerHighest
             } else {
                 MaterialTheme.colorScheme.surfaceContainer
             }
-            val borderColor = if (isExpanded && accentColor != null) {
-                accentColor.copy(alpha = 0.60f)
+            val effectiveAccent = if (isCinematic) palette.primaryAccent else accentColor
+            val borderColor = if (isExpanded && effectiveAccent != null) {
+                effectiveAccent.copy(alpha = 0.60f)
             } else {
                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.85f)
             }
@@ -241,17 +281,21 @@ fun DrawerSurfaceBackground(
             val frostedGradient = Brush.verticalGradient(
                 colors = listOf(
                     Color.White.copy(alpha = (0.28f * opacity).coerceIn(0f, 1f)),
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = ((if (isExpanded) 0.85f else 0.75f) * opacity).coerceIn(0f, 1f)),
-                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = ((if (isExpanded) 0.92f else 0.85f) * opacity).coerceIn(0f, 1f))
+                    (if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = ((if (isExpanded) 0.85f else 0.75f) * opacity).coerceIn(0f, 1f)),
+                    (if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceContainer).copy(alpha = ((if (isExpanded) 0.92f else 0.85f) * opacity).coerceIn(0f, 1f))
                 )
             )
             val frostedBorder = BorderStroke(
                 1.5.dp,
                 Brush.verticalGradient(
-                    colors = if (isExpanded && accentColor != null) listOf(
+                    colors = if (isExpanded && (accentColor != null || isCinematic)) listOf(
                         Color.White.copy(alpha = (0.65f * opacity).coerceIn(0f, 1f)),
-                        accentColor.copy(alpha = 0.50f),
-                        accentColor.copy(alpha = 0.30f)
+                        (if (isCinematic) palette.primaryAccent else accentColor!!).copy(alpha = 0.50f),
+                        (if (isCinematic) palette.secondaryAccent else accentColor!!).copy(alpha = 0.30f)
+                    ) else if (isCinematic) listOf(
+                        rimStartColor.copy(alpha = (0.75f * opacity).coerceIn(0f, 1f)),
+                        Color.White.copy(alpha = (0.60f * opacity).coerceIn(0f, 1f)),
+                        rimEndColor.copy(alpha = (0.75f * opacity).coerceIn(0f, 1f))
                     ) else if (isMesmerizingGlow) listOf(
                         Color(0x99FFBE98),
                         Color.White.copy(alpha = (0.60f * opacity).coerceIn(0f, 1f)),
@@ -270,16 +314,18 @@ fun DrawerSurfaceBackground(
                     .background(frostedGradient)
                     .border(frostedBorder, shape)
             ) {
-                if (isMesmerizingGlow) {
+                if (isCinematic || isMesmerizingGlow) {
+                    val innerStart = if (isCinematic) palette.glowColor.copy(alpha = 0.12f) else Color(0x14FFBE98)
+                    val innerEnd = if (isCinematic) palette.secondaryAccent.copy(alpha = 0.12f) else Color(0x146667AB)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
                                 Brush.linearGradient(
                                     colors = listOf(
-                                        Color(0x14FFBE98),
+                                        innerStart,
                                         Color.Transparent,
-                                        Color(0x146667AB)
+                                        innerEnd
                                     )
                                 )
                             )
@@ -293,17 +339,21 @@ fun DrawerSurfaceBackground(
             val glassGradient = Brush.verticalGradient(
                 colors = listOf(
                     Color.White.copy(alpha = (0.30f * opacity).coerceIn(0f, 1f)),
-                    MaterialTheme.colorScheme.surface.copy(alpha = ((if (isExpanded) 0.75f else 0.60f) * opacity).coerceIn(0f, 1f)),
-                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = ((if (isExpanded) 0.95f else 0.85f) * opacity).coerceIn(0f, 1f))
+                    surfaceBaseColor.copy(alpha = ((if (isExpanded) 0.75f else 0.60f) * opacity).coerceIn(0f, 1f)),
+                    surfaceContainerColor.copy(alpha = ((if (isExpanded) 0.95f else 0.85f) * opacity).coerceIn(0f, 1f))
                 )
             )
             val glassBorder = BorderStroke(
                 1.5.dp,
                 Brush.verticalGradient(
-                    colors = if (isExpanded && accentColor != null) listOf(
+                    colors = if (isExpanded && (accentColor != null || isCinematic)) listOf(
                         Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
-                        accentColor.copy(alpha = 0.65f),
-                        accentColor.copy(alpha = 0.35f)
+                        (if (isCinematic) palette.primaryAccent else accentColor!!).copy(alpha = 0.65f),
+                        (if (isCinematic) palette.secondaryAccent else accentColor!!).copy(alpha = 0.35f)
+                    ) else if (isCinematic) listOf(
+                        Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
+                        rimStartColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f)),
+                        rimEndColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f))
                     ) else if (isMesmerizingGlow) listOf(
                         Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
                         Color(0xB3FFBE98),
@@ -328,7 +378,13 @@ fun DrawerSurfaceBackground(
                         .height(2.5.dp)
                         .background(
                             Brush.horizontalGradient(
-                                colors = if (isMesmerizingGlow) listOf(
+                                colors = if (isCinematic) listOf(
+                                    Color.Transparent,
+                                    rimStartColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f)),
+                                    Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),
+                                    rimEndColor.copy(alpha = (0.85f * strokeAlpha).coerceIn(0f, 1f)),
+                                    Color.Transparent
+                                ) else if (isMesmerizingGlow) listOf(
                                     Color.Transparent,
                                     Color(0xB3FFBE98),
                                     Color.White.copy(alpha = (0.95f * strokeAlpha).coerceIn(0f, 1f)),

@@ -36,8 +36,8 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -263,7 +263,8 @@ fun AllAppsDrawer(
                     ): Offset {
                         if (!gridState.canScrollBackward && available.y > 0f && source == NestedScrollSource.UserInput) {
                             overscrollDownAccumulator += available.y
-                            if (overscrollDownAccumulator > 180f) {
+                            // ponytail: deliberate pull-down threshold (450px ~120dp) ensures user explicitly pulls to dismiss; ceiling: fixed px threshold; upgrade path: spring swipe-dismiss physics.
+                            if (overscrollDownAccumulator > 450f) {
                                 overscrollDownAccumulator = 0f
                                 onClose()
                             }
@@ -309,8 +310,7 @@ fun AllAppsDrawer(
                         translationY = (overscrollDownAccumulator * 0.25f).coerceIn(0f, 60f)
                     }
                     .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
-                    .navigationBarsPadding()
-                    .imePadding()
+                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                     .nestedScroll(nestedScrollConnection)
             ) {
                 var handleDragAccumulator by remember { mutableFloatStateOf(0f) }

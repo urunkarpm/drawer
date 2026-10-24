@@ -81,6 +81,7 @@ class HomeViewModelActionTest {
         every { preferencesDataSource.surfaceBlurRadius } returns MutableStateFlow(25f)
         every { preferencesDataSource.surfaceStrokeOpacity } returns MutableStateFlow(0.40f)
         every { preferencesDataSource.surfaceCornerRadius } returns MutableStateFlow(24f)
+        every { preferencesDataSource.cinematicPalette } returns MutableStateFlow("DEFAULT")
         every { preferencesDataSource.appLaunchCounts } returns MutableStateFlow(emptyMap())
         every { preferencesDataSource.appLastLaunchedTimes } returns MutableStateFlow(emptyMap())
         every { widgetRepository.getAllWidgets() } returns MutableStateFlow(emptyList())

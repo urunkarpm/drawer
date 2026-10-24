@@ -56,6 +56,7 @@ class SettingsViewModelTest {
     private val surfaceBlurRadiusFlow = MutableStateFlow(25f)
     private val surfaceStrokeOpacityFlow = MutableStateFlow(0.40f)
     private val surfaceCornerRadiusFlow = MutableStateFlow(24f)
+    private val cinematicPaletteFlow = MutableStateFlow("DEFAULT")
     private val autoArrangeAppsFlow = MutableStateFlow(true)
     private val showDuoStatusWidgetFlow = MutableStateFlow(true)
     private val enableCameraMirrorFlow = MutableStateFlow(true)
@@ -110,6 +111,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
         every { preferencesDataSource.surfaceStrokeOpacity } returns surfaceStrokeOpacityFlow
         every { preferencesDataSource.surfaceCornerRadius } returns surfaceCornerRadiusFlow
+        every { preferencesDataSource.cinematicPalette } returns cinematicPaletteFlow
         every { preferencesDataSource.autoArrangeApps } returns autoArrangeAppsFlow
         every { preferencesDataSource.multiGroupApps } returns multiGroupAppsFlow
         every { preferencesDataSource.notificationsPrivacyMode } returns notificationsPrivacyModeFlow
@@ -409,5 +411,12 @@ class SettingsViewModelTest {
         coVerify { preferencesDataSource.setWallpaperGradientPalette("AURORA_BOREALIS") }
         coVerify { preferencesDataSource.setWallpaperGradientAngle("RADIAL") }
         coVerify { preferencesDataSource.setDockMesmerizingGlow(false) }
+    }
+
+    @Test
+    fun setCinematicPalette_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setCinematicPalette("MARIANA_ABYSS")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setCinematicPalette("MARIANA_ABYSS") }
     }
 }

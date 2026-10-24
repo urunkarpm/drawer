@@ -9,7 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.AlarmClock
 import android.provider.CalendarContract
-import android.speech.RecognizerIntent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,11 +26,6 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -203,7 +198,6 @@ fun GlanceHeader(
     duoStatusPosition: String = "TEMP",
     isDuoStatusExpanded: Boolean = false,
     onToggleDuoStatusExpand: () -> Unit = {},
-    onOpenVoiceSearch: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -234,17 +228,8 @@ fun GlanceHeader(
         "--°"
     }
 
-    val weatherLocationText = if (weatherInfo != null) {
-        val condition = weatherInfo.conditionDescription.trim()
-        val city = weatherInfo.cityName.trim()
-        if (city.isNotBlank() && !city.equals("Unknown", ignoreCase = true)) {
-            "$condition, $city"
-        } else {
-            condition
-        }
-    } else {
-        "Tap to load"
-    }
+    // ponytail: Display condition description only to eliminate text clipping on narrow screens; ceiling: condition description only; upgrade path: optional expandable forecast widget.
+    val weatherLocationText = weatherInfo?.conditionDescription?.trim()?.ifBlank { "Weather" } ?: "Tap to load"
 
     val wallpaperContrast = rememberWallpaperContrastColors()
     val displayColor = wallpaperContrast.primaryText
@@ -293,83 +278,84 @@ fun GlanceHeader(
     ) {
         // Left: Live Clock & Date (2 Tiers)
         Column(
-            modifier = Modifier
-                .weight(1f)
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.Start
+        ) {
+            // Tier 1: Clock Display (Min height 48.dp & matching baseline as Temperature, accessible touch target)
+            Row(
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
                     .combinedClickable(
                         onClick = {
                             if (isDuoStatusExpanded) onToggleDuoStatusExpand() else launchClock(context)
                         },
                         onLongClick = onOpenSettings
                     ),
-                horizontalAlignment = Alignment.Start
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Tier 1: Clock Display (Exact height 48.dp & matching baseline as Temperature)
-                Row(
-                    modifier = Modifier.height(48.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Text(
+                    text = timeDigits,
+                    fontFamily = LocalHeaderFontFamily.current,
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = displayColor,
+                    style = TextStyle(
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                        lineHeight = 44.sp,
+                        shadow = textShadow
+                    ),
+                    letterSpacing = (-0.5).sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.alignByBaseline()
+                )
+                if (amPm != null) {
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
-                        text = timeDigits,
+                        text = amPm,
                         fontFamily = LocalHeaderFontFamily.current,
-                        fontSize = 44.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Normal,
-                        color = displayColor,
-                        style = TextStyle(
-                            platformStyle = PlatformTextStyle(includeFontPadding = false),
-                            lineHeight = 44.sp,
-                            shadow = textShadow
-                        ),
-                        letterSpacing = (-0.5).sp,
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier.alignByBaseline()
-                    )
-                    if (amPm != null) {
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = amPm,
-                            fontFamily = LocalHeaderFontFamily.current,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = subtextColor,
-                            style = TextStyle(
-                                platformStyle = PlatformTextStyle(includeFontPadding = false),
-                                shadow = textShadow
-                            ),
-                            modifier = Modifier.alignByBaseline()
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Tier 2: Date Display (Matching 24.dp height & vertical center as weather location)
-                Row(
-                    modifier = Modifier.height(24.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = formattedDate,
-                        fontFamily = LocalHeaderFontFamily.current,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
                         color = subtextColor,
                         style = TextStyle(
                             platformStyle = PlatformTextStyle(includeFontPadding = false),
                             shadow = textShadow
                         ),
-                        letterSpacing = 0.1.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.combinedClickable(
-                            onClick = {
-                                if (isDuoStatusExpanded) onToggleDuoStatusExpand() else launchCalendar(context)
-                            },
-                            onLongClick = onOpenSettings
-                        )
+                        modifier = Modifier.alignByBaseline()
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Tier 2: Date Display (Min height 28.dp with dedicated accessible touch target for Calendar)
+            Row(
+                modifier = Modifier
+                    .heightIn(min = 28.dp)
+                    .combinedClickable(
+                        onClick = {
+                            if (isDuoStatusExpanded) onToggleDuoStatusExpand() else launchCalendar(context)
+                        },
+                        onLongClick = onOpenSettings
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formattedDate,
+                    fontFamily = LocalHeaderFontFamily.current,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = subtextColor,
+                    style = TextStyle(
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                        shadow = textShadow
+                    ),
+                    letterSpacing = 0.1.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
 
         // Center: Duo Status Icon in between Time and Temp
         if (showDuoStatus) {
@@ -415,20 +401,20 @@ fun GlanceHeader(
 
         // Right: Temperature & Location (2 Tiers) - Exactly matching left side alignment!
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .combinedClickable(
-                    onClick = {
-                        if (isDuoStatusExpanded) onToggleDuoStatusExpand() else onRefreshWeather()
-                    },
-                    onLongClick = onOpenSettings
-                ),
+            modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.End
         ) {
-            // Tier 1: Temperature Display (Same height 48.dp, lineHeight 44.sp & exact baseline as Clock)
+            // Tier 1: Temperature Display (Min height 48.dp, lineHeight 44.sp & exact baseline as Clock)
             if (showWeather) {
                 Row(
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .combinedClickable(
+                            onClick = {
+                                if (isDuoStatusExpanded) onToggleDuoStatusExpand() else onRefreshWeather()
+                            },
+                            onLongClick = onOpenSettings
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End
                 ) {
@@ -458,10 +444,18 @@ fun GlanceHeader(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Tier 2: Weather Condition & Location Display (Same height 24.dp & baseline as Date)
+            // Tier 2: Weather Condition Display (Min height 28.dp & baseline as Date)
+            // ponytail: Removed settings gear icon from GlanceHeader to adhere to Fitts's Law (48dp min touch targets) and eliminate clutter; users long-press empty space or clock/temp to open settings.
             if (showWeather) {
                 Row(
-                    modifier = Modifier.height(24.dp),
+                    modifier = Modifier
+                        .heightIn(min = 28.dp)
+                        .combinedClickable(
+                            onClick = {
+                                if (isDuoStatusExpanded) onToggleDuoStatusExpand() else onRefreshWeather()
+                            },
+                            onLongClick = onOpenSettings
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End
                 ) {
@@ -478,76 +472,11 @@ fun GlanceHeader(
                         letterSpacing = 0.1.sp,
                         textAlign = TextAlign.End,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    IconButton(
-                        onClick = {
-                            if (onOpenVoiceSearch != null) {
-                                onOpenVoiceSearch()
-                            } else {
-                                launchSpeechRecognizer(context)
-                            }
-                        },
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Voice Search / AI Actions",
-                            tint = subtextColor.copy(alpha = 0.85f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Open Settings",
-                            tint = subtextColor.copy(alpha = 0.85f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
                 }
             } else {
-                Row(
-                    modifier = Modifier.height(24.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    IconButton(
-                        onClick = {
-                            if (onOpenVoiceSearch != null) {
-                                onOpenVoiceSearch()
-                            } else {
-                                launchSpeechRecognizer(context)
-                            }
-                        },
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Voice Search / AI Actions",
-                            tint = subtextColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Open Settings",
-                            tint = subtextColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.height(28.dp))
             }
         }
     }
@@ -582,35 +511,5 @@ private fun launchCalendar(context: Context) {
         context.startActivity(intent)
     } catch (_: Exception) {
         // Fallback: don't crash if no calendar app found
-    }
-}
-
-private fun launchSpeechRecognizer(context: Context) {
-    try {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault().toLanguageTag())
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, java.util.Locale.getDefault().toLanguageTag())
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak an action or app name...")
-            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        context.startActivity(intent)
-    } catch (_: Exception) {
-        try {
-            val intent = Intent(Intent.ACTION_VOICE_COMMAND).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(intent)
-        } catch (_: Exception) {
-            try {
-                val intent = Intent(RecognizerIntent.ACTION_WEB_SEARCH).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
-            } catch (_: Exception) {
-                // Fallback: don't crash if no voice service found
-            }
-        }
     }
 }

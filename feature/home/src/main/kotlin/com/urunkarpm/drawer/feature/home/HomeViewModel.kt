@@ -48,7 +48,7 @@ data class GlancePrefs(
     val autoOpenKeyboardInDrawer: Boolean = false,
     val showDuoStatusWidget: Boolean = true,
     val enableCameraMirror: Boolean = true,
-    val categoryAlignment: String = "TOP",
+    val categoryAlignment: String = "BOTTOM",
     val enableWidgetsPage: Boolean = true,
     val headerFontFamily: String = "SYSTEM",
     val appLabelScale: String = "NORMAL",
@@ -100,7 +100,7 @@ data class HomeUiState(
     val autoOpenKeyboardInDrawer: Boolean = false,
     val showDuoStatusWidget: Boolean = true,
     val enableCameraMirror: Boolean = true,
-    val categoryAlignment: String = "TOP",
+    val categoryAlignment: String = "BOTTOM",
     val enableWidgetsPage: Boolean = true,
     val widgets: List<com.urunkarpm.drawer.core.model.WidgetItem> = emptyList(),
     val widgetDrawers: List<com.urunkarpm.drawer.core.model.WidgetDrawer> = emptyList(),
@@ -110,6 +110,7 @@ data class HomeUiState(
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
     val surfaceCornerRadius: Float = 24f,
+    val cinematicPalette: String = "DEFAULT",
     val headerFontFamily: String = "SYSTEM",
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
@@ -134,7 +135,8 @@ data class SurfaceThemePrefs(
     val surfaceOpacity: Float = 0.65f,
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
-    val surfaceCornerRadius: Float = 24f
+    val surfaceCornerRadius: Float = 24f,
+    val cinematicPalette: String = "DEFAULT"
 )
 
 @HiltViewModel
@@ -270,13 +272,18 @@ class HomeViewModel @Inject constructor(
     }
 
     private val surfacePrefsFlow = combine(
-        preferencesDataSource.surfaceThemeStyle,
-        preferencesDataSource.surfaceOpacity,
-        preferencesDataSource.surfaceBlurRadius,
-        preferencesDataSource.surfaceStrokeOpacity,
-        preferencesDataSource.surfaceCornerRadius
-    ) { theme, opacity, blurRadius, strokeOpacity, cornerRadius ->
-        SurfaceThemePrefs(theme, opacity, blurRadius, strokeOpacity, cornerRadius)
+        combine(
+            preferencesDataSource.surfaceThemeStyle,
+            preferencesDataSource.surfaceCornerRadius,
+            preferencesDataSource.cinematicPalette
+        ) { theme, cornerRadius, palette -> Triple(theme, cornerRadius, palette) },
+        combine(
+            preferencesDataSource.surfaceOpacity,
+            preferencesDataSource.surfaceBlurRadius,
+            preferencesDataSource.surfaceStrokeOpacity
+        ) { opacity, blurRadius, strokeOpacity -> Triple(opacity, blurRadius, strokeOpacity) }
+    ) { (theme, cornerRadius, palette), (opacity, blurRadius, strokeOpacity) ->
+        SurfaceThemePrefs(theme, opacity, blurRadius, strokeOpacity, cornerRadius, palette)
     }
 
     private var cachedAppsRef: List<AppInfo>? = null
@@ -365,6 +372,7 @@ class HomeViewModel @Inject constructor(
             surfaceBlurRadius = surfacePrefs.surfaceBlurRadius,
             surfaceStrokeOpacity = surfacePrefs.surfaceStrokeOpacity,
             surfaceCornerRadius = surfacePrefs.surfaceCornerRadius,
+            cinematicPalette = surfacePrefs.cinematicPalette,
             headerFontFamily = glancePrefs.headerFontFamily,
             appLabelScale = glancePrefs.appLabelScale,
             openDrawerFromDockOnly = glancePrefs.openDrawerFromDockOnly,
@@ -943,6 +951,12 @@ class HomeViewModel @Inject constructor(
     fun setSurfaceThemeStyle(style: String) {
         viewModelScope.launch(Dispatchers.IO) {
             preferencesDataSource.setSurfaceThemeStyle(style)
+        }
+    }
+
+    fun setCinematicPalette(palette: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            preferencesDataSource.setCinematicPalette(palette)
         }
     }
 

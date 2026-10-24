@@ -26,7 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
+import com.urunkarpm.drawer.core.designsystem.theme.GoogleSansFontFamily
 
 @Composable
 fun SettingsGlanceHeader(
@@ -34,7 +34,7 @@ fun SettingsGlanceHeader(
     openDrawersCount: Int,
     onToggleExpandAll: () -> Unit,
     modifier: Modifier = Modifier,
-    cornerRadius: Dp = 20.dp
+    cornerRadius: Dp = 24.dp
 ) {
     val areAllExpanded = openDrawersCount == totalDrawers
 
@@ -42,7 +42,7 @@ fun SettingsGlanceHeader(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(cornerRadius),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
@@ -56,7 +56,8 @@ fun SettingsGlanceHeader(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Drawer Settings",
-                    fontFamily = LocalHeaderFontFamily.current,
+                    // ponytail: Settings glance header stays locked to Google Sans
+                    fontFamily = GoogleSansFontFamily,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary

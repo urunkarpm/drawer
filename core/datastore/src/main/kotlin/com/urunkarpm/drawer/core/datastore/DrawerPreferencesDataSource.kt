@@ -48,6 +48,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val SURFACE_BLUR_RADIUS = floatPreferencesKey("surface_blur_radius")
         val SURFACE_STROKE_OPACITY = floatPreferencesKey("surface_stroke_opacity")
         val SURFACE_CORNER_RADIUS = floatPreferencesKey("surface_corner_radius")
+        val CINEMATIC_PALETTE = stringPreferencesKey("cinematic_palette")
 
         val MULTI_GROUP_APPS = booleanPreferencesKey("multi_group_apps")
 
@@ -182,6 +183,7 @@ class DrawerPreferencesDataSource @Inject constructor(
     val surfaceCornerRadius: Flow<Float> = dataStore.data.map {
         it[PreferencesKeys.SURFACE_CORNER_RADIUS] ?: it[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f
     }
+    val cinematicPalette: Flow<String> = dataStore.data.map { it[PreferencesKeys.CINEMATIC_PALETTE] ?: "DEFAULT" }
 
     val multiGroupApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.MULTI_GROUP_APPS] ?: false }
 
@@ -336,6 +338,10 @@ class DrawerPreferencesDataSource @Inject constructor(
             it[PreferencesKeys.SURFACE_CORNER_RADIUS] = radiusDp
             it[PreferencesKeys.DOCK_CORNER_RADIUS] = radiusDp
         }
+    }
+
+    suspend fun setCinematicPalette(palette: String) {
+        dataStore.edit { it[PreferencesKeys.CINEMATIC_PALETTE] = palette }
     }
 
     suspend fun setDockIconSize(sizeDp: Float) {
@@ -556,6 +562,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             surfaceBlurRadius = p[PreferencesKeys.SURFACE_BLUR_RADIUS] ?: 25f,
             surfaceStrokeOpacity = p[PreferencesKeys.SURFACE_STROKE_OPACITY] ?: 0.40f,
             surfaceCornerRadius = p[PreferencesKeys.SURFACE_CORNER_RADIUS] ?: p[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f,
+            cinematicPalette = p[PreferencesKeys.CINEMATIC_PALETTE] ?: "DEFAULT",
             multiGroupApps = p[PreferencesKeys.MULTI_GROUP_APPS] ?: false,
             notificationsPrivacyMode = p[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] ?: false,
             notificationSwipeRightAction = p[PreferencesKeys.NOTIFICATION_SWIPE_RIGHT_ACTION] ?: "MARK_AS_READ",
@@ -627,6 +634,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             p[PreferencesKeys.SURFACE_BLUR_RADIUS] = prefs.surfaceBlurRadius
             p[PreferencesKeys.SURFACE_STROKE_OPACITY] = prefs.surfaceStrokeOpacity
             p[PreferencesKeys.SURFACE_CORNER_RADIUS] = prefs.surfaceCornerRadius
+            p[PreferencesKeys.CINEMATIC_PALETTE] = prefs.cinematicPalette
 
             p[PreferencesKeys.MULTI_GROUP_APPS] = prefs.multiGroupApps
             p[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] = prefs.notificationsPrivacyMode

@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -164,7 +165,18 @@ object PantonePalettes {
     )
 
     fun findPalette(id: String): PantonePalette {
-        return allPalettes.find { it.id.equals(id, ignoreCase = true) } ?: FullSpectrum
+        val found = allPalettes.find { it.id.equals(id, ignoreCase = true) }
+        if (found != null) return found
+        val cinematic = com.urunkarpm.drawer.core.designsystem.theme.CinematicPalettes.find(id)
+        if (cinematic.steps.isNotEmpty()) {
+            return PantonePalette(
+                id = cinematic.id,
+                name = cinematic.name,
+                description = cinematic.description,
+                steps = cinematic.steps
+            )
+        }
+        return FullSpectrum
     }
 }
 
@@ -222,38 +234,36 @@ fun DynamicPantoneWallpaper(
         modifier
     }
 
-    Box(modifier = baseModifier.fillMaxSize()) {
-        // Render gradient based on angleStyle
-        val gradientBrush = remember(color1, color2, color3, angleStyle) {
-            when (angleStyle.uppercase()) {
-                "VERTICAL" -> Brush.verticalGradient(listOf(color1, color2, color3))
-                "HORIZONTAL" -> Brush.horizontalGradient(listOf(color1, color2, color3))
-                "RADIAL" -> Brush.radialGradient(
-                    colors = listOf(color1, color2, color3),
-                    center = Offset.Unspecified,
-                    radius = Float.POSITIVE_INFINITY
-                )
-                else -> Brush.linearGradient(
-                    colors = listOf(color1, color2, color3),
-                    start = Offset(0f, 0f),
-                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-                )
+    // Frosted atmospheric softening scrim (40% blur optical diffusion)
+    // Provides silkiness and anti-banding even on displays with lower bit-depth
+    val scrimAlpha = (blurPercent.coerceIn(0, 100) / 100f * 0.22f).coerceIn(0f, 0.40f)
+
+    // ponytail: Draw directly via drawBehind deferring animated color state reads to draw phase, bypassing recomposition churn and maintaining steady 120 FPS
+    Box(
+        modifier = baseModifier
+            .fillMaxSize()
+            .drawBehind {
+                val c1 = color1
+                val c2 = color2
+                val c3 = color3
+                val brush = when (angleStyle.uppercase()) {
+                    "VERTICAL" -> Brush.verticalGradient(listOf(c1, c2, c3))
+                    "HORIZONTAL" -> Brush.horizontalGradient(listOf(c1, c2, c3))
+                    "RADIAL" -> Brush.radialGradient(
+                        colors = listOf(c1, c2, c3),
+                        center = Offset.Unspecified,
+                        radius = size.maxDimension
+                    )
+                    else -> Brush.linearGradient(
+                        colors = listOf(c1, c2, c3),
+                        start = Offset(0f, 0f),
+                        end = Offset(size.width, size.height)
+                    )
+                }
+                drawRect(brush)
+                if (scrimAlpha > 0f) {
+                    drawRect(Color.Black.copy(alpha = scrimAlpha))
+                }
             }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(gradientBrush)
-        )
-
-        // Frosted atmospheric softening scrim (40% blur optical diffusion)
-        // Provides silkiness and anti-banding even on displays with lower bit-depth
-        val scrimAlpha = (blurPercent.coerceIn(0, 100) / 100f * 0.22f).coerceIn(0f, 0.40f)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = scrimAlpha))
-        )
-    }
+    )
 }

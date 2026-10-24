@@ -86,7 +86,11 @@ class MainActivity : ComponentActivity() {
                         onDismissRequest = { showAccessibilityPrompt = false },
                         title = { Text("Double-Tap to Lock") },
                         text = {
-                            Text("To lock your screen with a double-tap, enable 'Drawer Screen Lock' in Accessibility settings.")
+                            Text(
+                                "To lock your screen with a double-tap, enable 'Drawer Screen Lock' in Accessibility settings.\n\n" +
+                                "Drawer uses the AccessibilityService API solely to perform the screen-lock action (GLOBAL_ACTION_LOCK_SCREEN). " +
+                                "No personal information or screen content is accessed, collected, or stored."
+                            )
                         },
                         confirmButton = {
                             TextButton(
@@ -171,45 +175,19 @@ class MainActivity : ComponentActivity() {
                 ?: modes?.maxByOrNull { it.refreshRate }
             val refreshRate = targetMode?.refreshRate ?: 120.0f
             val params = window.attributes
-            if (targetMode != null) {
+            var changed = false
+            if (targetMode != null && params.preferredDisplayModeId != targetMode.modeId) {
                 params.preferredDisplayModeId = targetMode.modeId
+                changed = true
             }
-            params.preferredRefreshRate = refreshRate
-
-            // Lock display refresh rate to 120Hz ceiling while allowing smooth base downclocking for battery
-            val minRate = if (refreshRate >= 119.0f) 60.0f else 0.0f
-            runCatching {
-                val minField = params.javaClass.getField("preferredMinDisplayRefreshRate")
-                minField.set(params, minRate)
-            }
-            runCatching {
-                val maxField = params.javaClass.getField("preferredMaxDisplayRefreshRate")
-                maxField.set(params, refreshRate)
-            }
-            window.attributes = params
-
-            // Set 120Hz frame rate on surface control with seamless compatibility
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                runCatching {
-                    val rootSurfaceControl = window.decorView.rootSurfaceControl
-                    if (rootSurfaceControl != null) {
-                        val setFrameRateMethod = rootSurfaceControl.javaClass.getMethod(
-                            "setFrameRate",
-                            Float::class.javaPrimitiveType,
-                            Int::class.javaPrimitiveType
-                        )
-                        setFrameRateMethod.invoke(rootSurfaceControl, refreshRate, 0)
-                    }
-                }
+            if (params.preferredRefreshRate != refreshRate) {
+                params.preferredRefreshRate = refreshRate
+                changed = true
             }
 
-            // Android 14+ (API 34) frame rate category boost for butter-smooth touch interaction
-            if (android.os.Build.VERSION.SDK_INT >= 34) {
-                runCatching {
-                    val method = window.decorView.javaClass.getMethod("setFrameRateCategory", Int::class.javaPrimitiveType)
-                    // FRAME_RATE_CATEGORY_HIGH = 2
-                    method.invoke(window.decorView, 2)
-                }
+            // ponytail: update window attributes only when mode/rate actually changes to prevent repeated relayout churn
+            if (changed) {
+                window.attributes = params
             }
         } catch (_: Exception) {}
     }

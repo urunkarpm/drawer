@@ -13,9 +13,12 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -149,6 +152,7 @@ fun DockBar(
                     surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                     isDropTarget = isDropTarget,
                     isMesmerizingGlow = uiState.mesmerizingGlow,
+                    cinematicPaletteId = uiState.cinematicPalette,
                     modifier = Modifier.matchParentSize()
                 )
 
@@ -250,6 +254,7 @@ fun DockBar(
                     surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                     isDropTarget = isDropTarget,
                     isMesmerizingGlow = uiState.mesmerizingGlow,
+                    cinematicPaletteId = uiState.cinematicPalette,
                     modifier = Modifier.matchParentSize()
                 )
 
@@ -325,6 +330,10 @@ fun DockBar(
                                     val fromPos = visibleApps[fromIdx].first.position
                                     val toPos = visibleApps[toIdx].first.position
                                     viewModel.reorderDock(fromPos, toPos)
+                                } else if (fromIdx != null && toIdx != null && fromIdx == toIdx) {
+                                    visibleApps.getOrNull(fromIdx)?.let { (item, app) ->
+                                        viewModel.onItemLongClicked(item, app)
+                                    }
                                 }
                                 draggedSlotIndex = null
                                 dragOffsetPx = 0f
@@ -413,14 +422,46 @@ private fun DockAppSlot(
 
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
 
-    val gestureModifier = Modifier.combinedClickable(
-        onClick = currentOnClick,
-        onLongClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            currentOnLongClick()
-        }
-    )
+    // ponytail: Long-press drag enables native reordering across dock slots, while simple taps launch immediately; ceiling: 1D horizontal slot drag; upgrade path: freeform 2D gesture drag.
+    val gestureModifier = if (autoArrangeEnabled) {
+        Modifier
+            .pointerInput(isEditMode) {
+                if (isEditMode) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { currentOnDragStart() },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            currentOnDrag(dragAmount)
+                        },
+                        onDragEnd = { currentOnDragEnd() },
+                        onDragCancel = { currentOnDragEnd() }
+                    )
+                } else {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { currentOnDragStart() },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            currentOnDrag(dragAmount.x)
+                        },
+                        onDragEnd = { currentOnDragEnd() },
+                        onDragCancel = { currentOnDragEnd() }
+                    )
+                }
+            }
+            .clickable(onClick = currentOnClick)
+    } else {
+        Modifier.combinedClickable(
+            onClick = currentOnClick,
+            onLongClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                currentOnLongClick()
+            }
+        )
+    }
 
     Box(
         modifier = modifier

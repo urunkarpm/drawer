@@ -114,13 +114,11 @@ import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupViewType
 import com.urunkarpm.drawer.feature.groups.component.EditGroupDialog
 import com.urunkarpm.drawer.feature.groups.component.GroupItemActionBottomSheet
-import com.urunkarpm.drawer.feature.groups.component.AiCategorizationPreviewBottomSheet
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalConfiguration
 import com.urunkarpm.drawer.core.designsystem.modifier.appDragSource
-import com.urunkarpm.drawer.core.designsystem.modifier.autoCloseOnInactivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -144,6 +142,7 @@ fun GroupsAccordion(
     isMesmerizingGlow: Boolean = true,
     surfaceOpacity: Float = 0.65f,
     surfaceStrokeOpacity: Float = 0.40f,
+    cinematicPaletteId: String = "DEFAULT",
     onToggleExpand: ((String) -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -154,20 +153,14 @@ fun GroupsAccordion(
     val screenWidthDp = configuration.screenWidthDp
     val isCompactEffective = twoDrawersSideBySide && screenWidthDp < 600
 
+    // ponytail: Drawers remain open until user explicitly collapses them, taps outside, or launches an app; ceiling: manual dismiss; upgrade path: optional user-configured timeout in settings.
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .autoCloseOnInactivity(
-                active = hasExpandedGroup,
-                resetKey = uiState.groups.find { it.group.isExpanded }?.group?.id,
-                timeoutMs = 5000L,
-                onClose = { viewModel.collapseAllGroups() }
-            ),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (uiState.groups.isEmpty()) {
             Surface(
-                onClick = { viewModel.startAiCategorization() },
+                onClick = { viewModel.setShowCreateDialog(true) },
                 shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier
@@ -184,8 +177,8 @@ fun GroupsAccordion(
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Category,
-                            contentDescription = "Organize Drawers",
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Category",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier
                                 .padding(8.dp)
@@ -195,13 +188,13 @@ fun GroupsAccordion(
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Organize Drawers",
+                            text = "Add Category Drawer",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Automatically group your apps into organized drawers",
+                            text = "Tap to create your first category drawer and organize your apps",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -262,7 +255,7 @@ fun GroupsAccordion(
                                 surfaceOpacity = surfaceOpacity,
                                 surfaceStrokeOpacity = surfaceStrokeOpacity,
                                 drawerTitleAnimation = uiState.drawerTitleAnimation,
-                                onOrganizeWithAi = { viewModel.startAiCategorization() }
+                                cinematicPaletteId = cinematicPaletteId
                             )
                         }
                     }
@@ -307,7 +300,7 @@ fun GroupsAccordion(
                                 surfaceOpacity = surfaceOpacity,
                                 surfaceStrokeOpacity = surfaceStrokeOpacity,
                                 drawerTitleAnimation = uiState.drawerTitleAnimation,
-                                onOrganizeWithAi = { viewModel.startAiCategorization() }
+                                cinematicPaletteId = cinematicPaletteId
                             )
                         }
                     }
@@ -353,8 +346,7 @@ fun GroupsAccordion(
                         isMesmerizingGlow = isMesmerizingGlow,
                         surfaceOpacity = surfaceOpacity,
                         surfaceStrokeOpacity = surfaceStrokeOpacity,
-                        drawerTitleAnimation = uiState.drawerTitleAnimation,
-                        onOrganizeWithAi = { viewModel.startAiCategorization() }
+                        drawerTitleAnimation = uiState.drawerTitleAnimation
                     )
                 }
             }
@@ -442,22 +434,6 @@ fun GroupsAccordion(
             iconLoader = { viewModel.getAppIcon(app) }
         )
     }
-
-    // AI Categorization Preview Bottom Sheet
-    if (uiState.isAiCategorizing || uiState.aiSuggestions != null) {
-        val aiSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        AiCategorizationPreviewBottomSheet(
-            suggestions = uiState.aiSuggestions.orEmpty(),
-            isLoading = uiState.isAiCategorizing,
-            isModelReady = uiState.isAiModelReady,
-            sheetState = aiSheetState,
-            onDismissRequest = { viewModel.dismissAiSuggestions() },
-            onApplySuggestions = { approved ->
-                viewModel.applyAiSuggestions(approved)
-            },
-            iconLoader = { app -> viewModel.getAppIcon(app) }
-        )
-    }
 }
 
 @Composable
@@ -493,11 +469,12 @@ private fun GroupCard(
     surfaceOpacity: Float = 0.65f,
     surfaceStrokeOpacity: Float = 0.40f,
     drawerTitleAnimation: String = "ACCENT_POP",
-    onOrganizeWithAi: () -> Unit = {},
+    cinematicPaletteId: String = "DEFAULT",
     modifier: Modifier = Modifier
 ) {
     val group = resolvedGroup.group
     val isExpanded = group.isExpanded
+    val haptic = LocalHapticFeedback.current
     val groupColor = remember(group.colorHex, group.name, group.id) {
         if (!group.colorHex.isNullOrBlank() && group.colorHex != "#6750A4") {
             GroupIcons.parseColor(group.colorHex, fallback = GroupIcons.resolveCategoryColor(group.name, group.id))
@@ -670,6 +647,7 @@ private fun GroupCard(
             isMesmerizingGlow = isMesmerizingGlow,
             surfaceOpacity = surfaceOpacity,
             surfaceStrokeOpacity = surfaceStrokeOpacity,
+            cinematicPaletteId = cinematicPaletteId,
             modifier = Modifier.matchParentSize()
         )
         Column(
@@ -695,6 +673,8 @@ private fun GroupCard(
                         interactionSource = headerInteractionSource,
                         indication = null,
                         onClick = {
+                            // ponytail: crisp native tactile haptic feedback on category drawer snap/toggle; ceiling: TextHandleMove platform standard; upgrade path: custom vibration pattern.
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             acknowledgedPkgs = notifyingPkgs
                             onToggleExpand()
                         },
@@ -855,20 +835,6 @@ private fun GroupCard(
                                 onEditGroup()
                             },
                             leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Organize Drawers") },
-                            onClick = {
-                                showMenu = false
-                                onOrganizeWithAi()
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Category,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
                         )
                         if (groupIndex > 0) {
                             DropdownMenuItem(

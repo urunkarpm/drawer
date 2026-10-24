@@ -163,9 +163,11 @@ fun NotificationDrawer(
     surfaceThemeStyle: String = "LIQUID_GLASS",
     isMesmerizingGlow: Boolean = true,
     surfaceOpacity: Float = 0.65f,
-    surfaceStrokeOpacity: Float = 0.40f
+    surfaceStrokeOpacity: Float = 0.40f,
+    cinematicPaletteId: String = "DEFAULT"
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
     val muteSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val rulesSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -211,11 +213,6 @@ fun NotificationDrawer(
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        viewModel.checkPermission()
-        viewModel.rebindService()
-    }
-
-    LaunchedEffect(Unit) {
         viewModel.checkPermission()
         viewModel.rebindService()
     }
@@ -274,38 +271,8 @@ fun NotificationDrawer(
             val hasClearableNotifications = remember(uiState.activeNotifications) {
                 uiState.activeNotifications.any { it.isClearable }
             }
-            var isTouching by remember { mutableStateOf(false) }
-
-            // ponytail: disable infinite scroll when <= 3 notifications to avoid duplicate cards visible simultaneously; ceiling: threshold is fixed at 3 items based on max drawer height; upgrade path: dynamically measure viewport height vs item height.
-            val isInfinite = notifCount > 3
-            val endlessMultiplier = 10_000
-            val itemCount = if (isInfinite) notifCount * endlessMultiplier else notifCount
-            val initialItemIndex = if (isInfinite) (endlessMultiplier / 2) * notifCount else 0
-            val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialItemIndex)
-
-            LaunchedEffect(isInfinite) {
-                if (isInfinite) {
-                    listState.scrollToItem((endlessMultiplier / 2) * notifCount)
-                } else {
-                    listState.scrollToItem(0)
-                }
-            }
-
-            // ponytail: auto-close notification drawer 3s after scrolling or touch stops via snapshotFlow without recomposing composable; ceiling: fixed 3000ms delay; upgrade path: configurable timeout in preferences.
-            LaunchedEffect(isExpanded, uiState.selectedItemForMute, uiState.showRulesSheet) {
-                if (!isExpanded) return@LaunchedEffect
-                combine(
-                    snapshotFlow { listState.isScrollInProgress },
-                    snapshotFlow { isTouching }
-                ) { scrolling, touching ->
-                    !scrolling && !touching
-                }.collectLatest { isIdle ->
-                    if (isIdle && uiState.selectedItemForMute == null && !uiState.showRulesSheet) {
-                        delay(3000L)
-                        onExpandedChange(false)
-                    }
-                }
-            }
+            // ponytail: clean standard list state; notifications stay open until dismissed or toggled; ceiling: in-memory list; upgrade path: persistent notification store.
+            val listState = rememberLazyListState()
 
             val chevronBgColor by animateColorAsState(
                 targetValue = if (stealthTheme) {
@@ -324,20 +291,7 @@ fun NotificationDrawer(
                 label = "notifBorderColor"
             )
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .pointerInput(isExpanded) {
-                        if (!isExpanded) return@pointerInput
-                        awaitEachGesture {
-                            awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
-                            isTouching = true
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                if (event.changes.none { it.pressed }) break
-                            }
-                            isTouching = false
-                        }
-                    }
+                modifier = Modifier.fillMaxWidth()
             ) {
                 if (!stealthTheme) {
                     DrawerSurfaceBackground(
@@ -347,6 +301,7 @@ fun NotificationDrawer(
                         isMesmerizingGlow = isMesmerizingGlow,
                         surfaceOpacity = surfaceOpacity,
                         surfaceStrokeOpacity = surfaceStrokeOpacity,
+                        cinematicPaletteId = cinematicPaletteId,
                         modifier = Modifier.matchParentSize()
                     )
                 } else {
@@ -386,6 +341,8 @@ fun NotificationDrawer(
                                 interactionSource = headerInteractionSource,
                                 indication = null
                             ) {
+                                // ponytail: crisp native tactile feedback on notification drawer snap/toggle; ceiling: TextHandleMove; upgrade path: custom vibration pattern.
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onExpandedChange(!isExpanded)
                             }
                             .pointerInput(isExpanded) {
@@ -551,30 +508,22 @@ fun NotificationDrawer(
                                         .padding(vertical = 4.dp)
                                 ) {
                                     items(
-                                        count = itemCount,
-                                        key = { index ->
-                                            val actualIndex = if (isInfinite && notifCount > 0) ((index % notifCount) + notifCount) % notifCount else index
-                                            val key = uiState.activeNotifications.getOrNull(actualIndex)?.key ?: index
-                                            if (isInfinite) "$key-$index" else "$key"
-                                        }
-                                    ) { index ->
-                                        val actualIndex = if (isInfinite && notifCount > 0) ((index % notifCount) + notifCount) % notifCount else index
-                                        val item = uiState.activeNotifications.getOrNull(actualIndex)
-                                        if (item != null) {
-                                            EndlessNotificationCard(
-                                                item = item,
-                                                privacyMode = uiState.privacyMode,
-                                                iconLoader = iconLoader,
-                                                swipeRightAction = uiState.swipeRightAction,
-                                                swipeLeftAction = uiState.swipeLeftAction,
-                                                onOpen = { viewModel.openNotification(item.key) },
-                                                onDismiss = { viewModel.dismissNotification(item.key) },
-                                                onMarkAsRead = { viewModel.markNotificationAsRead(item.key) },
-                                                onQuickMute = { viewModel.selectItemForMute(item) },
-                                                stealthTheme = stealthTheme,
-                                                stealthContrastLevel = stealthContrastLevel
-                                            )
-                                        }
+                                        items = uiState.activeNotifications,
+                                        key = { it.key }
+                                    ) { item ->
+                                        EndlessNotificationCard(
+                                            item = item,
+                                            privacyMode = uiState.privacyMode,
+                                            iconLoader = iconLoader,
+                                            swipeRightAction = uiState.swipeRightAction,
+                                            swipeLeftAction = uiState.swipeLeftAction,
+                                            onOpen = { viewModel.openNotification(item.key) },
+                                            onDismiss = { viewModel.dismissNotification(item.key) },
+                                            onMarkAsRead = { viewModel.markNotificationAsRead(item.key) },
+                                            onQuickMute = { viewModel.selectItemForMute(item) },
+                                            stealthTheme = stealthTheme,
+                                            stealthContrastLevel = stealthContrastLevel
+                                        )
                                     }
                                 }
                             }

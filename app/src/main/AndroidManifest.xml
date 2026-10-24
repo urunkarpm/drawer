@@ -23,8 +23,6 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.FLASHLIGHT" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
-    <uses-permission android:name="android.permission.BIND_APPWIDGET"
-        tools:ignore="ProtectedPermissions" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
@@ -57,6 +55,7 @@
     <application
         android:name=".DrawerApplication"
         android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
