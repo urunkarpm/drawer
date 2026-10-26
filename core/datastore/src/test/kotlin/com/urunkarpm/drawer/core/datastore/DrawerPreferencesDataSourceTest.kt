@@ -323,4 +323,17 @@ class DrawerPreferencesDataSourceTest {
         assertEquals("Clear sky", cached.conditionDescription)
         assertEquals("Austin", cached.cityName)
     }
+
+    @Test
+    fun defaultBlurAppListOnOpenIsFalse() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(false, dataSource.blurAppListOnOpen.first())
+    }
+
+    @Test
+    fun updateBlurAppListOnOpenPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setBlurAppListOnOpen(true)
+        assertEquals(true, dataSource.blurAppListOnOpen.first())
+    }
 }

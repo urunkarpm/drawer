@@ -58,6 +58,7 @@ data class LauncherPreferencesBackup(
     val dockMesmerizingGlow: Boolean = true,
     val dockExpandedMaxApps: Int = 8,
     val autoCategorizeNewApps: Boolean = true,
+    val blurAppListOnOpen: Boolean = false,
     val aiCategorizationStrictness: String = "BALANCED",
     val aiCategorizeAllApps: Boolean = false,
     val aiForceWorkProfile: Boolean = true,

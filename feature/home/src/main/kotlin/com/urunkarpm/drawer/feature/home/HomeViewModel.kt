@@ -11,6 +11,7 @@ import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.AppShortcutInfo
+import com.urunkarpm.drawer.core.model.DockCapacityUtils
 import com.urunkarpm.drawer.core.model.WeatherInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -66,7 +67,8 @@ data class GlancePrefs(
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
     val enableOnDeviceAi: Boolean = false,
-    val drawerTitleAnimation: String = "ACCENT_POP"
+    val drawerTitleAnimation: String = "ACCENT_POP",
+    val blurAppListOnOpen: Boolean = false
 )
 
 data class HomeDialogsState(
@@ -127,7 +129,8 @@ data class HomeUiState(
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
     val enableOnDeviceAi: Boolean = false,
-    val drawerTitleAnimation: String = "ACCENT_POP"
+    val drawerTitleAnimation: String = "ACCENT_POP",
+    val blurAppListOnOpen: Boolean = false
 )
 
 data class SurfaceThemePrefs(
@@ -192,7 +195,8 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.wallpaperGradientAngle,
         preferencesDataSource.dockMesmerizingGlow,
         preferencesDataSource.enableOnDeviceAi,
-        preferencesDataSource.drawerTitleAnimation
+        preferencesDataSource.drawerTitleAnimation,
+        preferencesDataSource.blurAppListOnOpen
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -226,6 +230,7 @@ class HomeViewModel @Inject constructor(
         val dockMesmerizingGlow = values[28] as Boolean
         val enableOnDeviceAi = values[29] as Boolean
         val drawerTitleAnimation = values[30] as String
+        val blurAppListOnOpen = values[31] as Boolean
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -257,7 +262,8 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientAngle,
             dockMesmerizingGlow,
             enableOnDeviceAi,
-            drawerTitleAnimation
+            drawerTitleAnimation,
+            blurAppListOnOpen
         )
     }
 
@@ -389,7 +395,8 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientAngle = glancePrefs.wallpaperGradientAngle,
             dockMesmerizingGlow = glancePrefs.dockMesmerizingGlow,
             enableOnDeviceAi = glancePrefs.enableOnDeviceAi,
-            drawerTitleAnimation = glancePrefs.drawerTitleAnimation
+            drawerTitleAnimation = glancePrefs.drawerTitleAnimation,
+            blurAppListOnOpen = glancePrefs.blurAppListOnOpen
         )
     }.stateIn(
         scope = viewModelScope,
@@ -440,11 +447,9 @@ class HomeViewModel @Inject constructor(
     fun pinToDock(app: AppInfo) {
         viewModelScope.launch {
             val isFoldableOrTab = context != null && DevicePostureUtils.isFoldableOrTablet(context)
-            val maxLimit = if (isFoldableOrTab) {
-                preferencesDataSource.dockExpandedMaxApps.first()
-            } else {
-                5
-            }
+            val iconSize = preferencesDataSource.dockIconSize.first()
+            val expandedPref = preferencesDataSource.dockExpandedMaxApps.first()
+            val maxLimit = DockCapacityUtils.calculateCapacity(iconSize, isFoldableOrTab, expandedPref)
             val added = dockRepository.addToDock(app, maxLimit)
             _userMessage.value = if (added) {
                 "${app.label} pinned to dock"

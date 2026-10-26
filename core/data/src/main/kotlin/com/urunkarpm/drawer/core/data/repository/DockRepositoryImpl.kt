@@ -5,6 +5,7 @@ import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
 import com.urunkarpm.drawer.core.database.dao.DockDao
 import com.urunkarpm.drawer.core.database.entity.DockItemEntity
 import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.DockCapacityUtils
 import com.urunkarpm.drawer.core.model.DockItem
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -44,12 +45,10 @@ class DockRepositoryImpl @Inject constructor(
     override suspend fun addToDock(app: AppInfo, maxCapacity: Int?): Boolean = withContext(ioDispatcher) {
         val currentItems = dockDao.getDockItems().first()
         val isFoldableOrTab = context != null && DevicePostureUtils.isFoldableOrTablet(context)
-        val effectiveLimit = maxCapacity ?: if (isFoldableOrTab) {
-            val expandedPref = preferencesDataSourceProvider?.get()?.dockExpandedMaxApps?.first() ?: 8
-            expandedPref
-        } else {
-            5
-        }
+        val iconSize = preferencesDataSourceProvider?.get()?.dockIconSize?.first() ?: 56f
+        val expandedPref = preferencesDataSourceProvider?.get()?.dockExpandedMaxApps?.first() ?: 8
+        val defaultLimit = DockCapacityUtils.calculateCapacity(iconSize, isFoldableOrTab, expandedPref)
+        val effectiveLimit = maxCapacity ?: defaultLimit
         if (currentItems.size >= effectiveLimit) {
             return@withContext false
         }

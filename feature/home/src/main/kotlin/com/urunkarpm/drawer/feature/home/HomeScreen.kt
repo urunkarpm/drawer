@@ -83,6 +83,8 @@ import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.net.Uri
 import android.media.AudioManager
+import kotlin.math.pow
+
 import kotlin.math.roundToInt
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraCharacteristics
@@ -178,9 +180,15 @@ fun HomeScreen(
     val launchTimes by viewModel.appLastLaunchedTimes.collectAsStateWithLifecycle()
     val suggestedAction by viewModel.suggestedAction.collectAsStateWithLifecycle()
     val modelProcessingState by viewModel.modelProcessingState.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val screenHeightDp = configuration.screenHeightDp
+    val isSmallScreen = screenWidthDp < 360
+    val maxSuggestions = 6
 
-    // ponytail: Smart Frecency suggestion algorithm combining exponential recency decay, launch frequency, and time-of-day affinity with smart cold-start fallback; ceiling is local heuristic ranking without deep neural network; upgrade path is on-device AppSearch / ML suggestion engine.
-    val suggestedApps = remember(uiState.installedApps, launchCounts, launchTimes) {
+    // ponytail: Smart Continuous Frecency algorithm combining exponential half-life recency decay, sublinear frequency weighting, and time-of-day affinity with clean user app cold-start fallback; ceiling is local heuristic ranking without deep neural network; upgrade path is on-device AppSearch / ML suggestion engine.
+    val suggestedApps = remember(uiState.installedApps, launchCounts, launchTimes, maxSuggestions) {
         if (uiState.installedApps.isEmpty()) return@remember emptyList()
 
         val now = System.currentTimeMillis()
@@ -188,61 +196,102 @@ fun HomeScreen(
         val currentHour = currentCalendar.get(java.util.Calendar.HOUR_OF_DAY)
         val appCalendar = java.util.Calendar.getInstance()
 
-        fun scoreApp(app: AppInfo): Float {
-            // Count matching: exact componentKey, or sum of all components starting with packageName/
-            val count = launchCounts[app.componentKey]
-                ?: launchCounts.entries.filter { it.key.startsWith("${app.packageName}/") }.sumOf { it.value }
-                    .takeIf { it > 0 }
-                ?: launchCounts[app.packageName]
-                ?: 0
-
-            // Last launch time matching: exact componentKey, or max timestamp of package
-            val lastLaunch = launchTimes[app.componentKey]
-                ?: launchTimes.entries.filter { it.key.startsWith("${app.packageName}/") }.maxOfOrNull { it.value }
-                ?: launchTimes[app.packageName]
-                ?: 0L
-
-            if (count > 0 || lastLaunch > 0L) {
-                val frequencyScore = count * 15f
-
-                val diffMs = (now - lastLaunch).coerceAtLeast(0L)
-                val recencyBonus = when {
-                    diffMs < 30 * 60 * 1000L -> 120f       // Opened within last 30 mins -> immediate top priority
-                    diffMs < 2 * 60 * 60 * 1000L -> 80f     // Last 2 hours
-                    diffMs < 12 * 60 * 60 * 1000L -> 50f    // Last 12 hours
-                    diffMs < 24 * 60 * 60 * 1000L -> 30f    // Today
-                    diffMs < 3 * 24 * 60 * 60 * 1000L -> 18f// Last 3 days
-                    diffMs < 7 * 24 * 60 * 60 * 1000L -> 8f // Last 7 days
-                    else -> 2f
-                }
-
-                val timeBonus = if (lastLaunch > 0L) {
-                    appCalendar.timeInMillis = lastLaunch
-                    val lastHour = appCalendar.get(java.util.Calendar.HOUR_OF_DAY)
-                    val hourDiff = kotlin.math.abs(currentHour - lastHour)
-                    val circularDiff = kotlin.math.min(hourDiff, 24 - hourDiff)
-                    if (circularDiff <= 2) 20f else if (circularDiff <= 4) 10f else 0f
-                } else 0f
-
-                return frequencyScore + recencyBonus + timeBonus
-            }
-
-            // Cold-start fallback: prioritize recently installed or updated apps
-            val recencyTime = app.lastUpdateTimeMillis.coerceAtLeast(app.installTimeMillis)
-            val baseline = (recencyTime / 1_000_000_000_000.0).toFloat().coerceIn(0f, 3f)
-            return baseline
+        // Fast O(1) package-level aggregated lookups
+        val countsByPackage = HashMap<String, Int>(launchCounts.size)
+        for ((key, count) in launchCounts) {
+            val pkg = key.substringBefore('/').substringBefore('#')
+            countsByPackage[pkg] = (countsByPackage[pkg] ?: 0) + count
+        }
+        val timesByPackage = HashMap<String, Long>(launchTimes.size)
+        for ((key, time) in launchTimes) {
+            val pkg = key.substringBefore('/').substringBefore('#')
+            val existing = timesByPackage[pkg] ?: 0L
+            if (time > existing) timesByPackage[pkg] = time
         }
 
-        uiState.installedApps
-            .distinctBy { it.packageName }
-            .sortedByDescending { scoreApp(it) }
-            .take(6)
-    }
+        fun scoreApp(app: AppInfo): Float {
+            val count = launchCounts[app.componentKey] ?: countsByPackage[app.packageName] ?: 0
+            val lastLaunch = launchTimes[app.componentKey] ?: timesByPackage[app.packageName] ?: 0L
 
-    val configuration = LocalConfiguration.current
-    val screenWidthDp = configuration.screenWidthDp
-    val screenHeightDp = configuration.screenHeightDp
-    val isSmallScreen = screenWidthDp < 360
+            if (count <= 0 && lastLaunch <= 0L) {
+                return 0f
+            }
+
+            val diffMs = (now - lastLaunch).coerceAtLeast(0L)
+            val diffHours = diffMs / (1000.0 * 60.0 * 60.0)
+            // Continuous exponential decay with 48-hour half-life ensures recency fades smoothly without sudden cliff drops
+            val recencyWeight = 0.5.pow(diffHours / 48.0).toFloat()
+            // Damped frequency weight ensures active daily apps beat stale apps while preventing 500-launch apps from dominating forever
+            val frequencyWeight = kotlin.math.sqrt(count.toDouble()).toFloat() * 10f + 2f
+            var appScore = frequencyWeight * recencyWeight
+
+            // Time-of-day affinity: boost apps usually launched around this hour of day
+            if (lastLaunch > 0L) {
+                appCalendar.timeInMillis = lastLaunch
+                val lastHour = appCalendar.get(java.util.Calendar.HOUR_OF_DAY)
+                val hourDiff = kotlin.math.abs(currentHour - lastHour)
+                val circularDiff = kotlin.math.min(hourDiff, 24 - hourDiff)
+                if (circularDiff <= 2) {
+                    appScore *= 1.20f
+                } else if (circularDiff <= 4) {
+                    appScore *= 1.08f
+                }
+            }
+            return appScore
+        }
+
+        fun isIgnoredSystemPackage(pkgName: String): Boolean {
+            val pkg = pkgName.lowercase()
+            return pkg.startsWith("com.google.android.gms") ||
+                    pkg.startsWith("com.google.android.webview") ||
+                    pkg.startsWith("com.android.webview") ||
+                    pkg.startsWith("com.google.android.tts") ||
+                    pkg.startsWith("com.android.carrierconfig") ||
+                    pkg.startsWith("com.google.android.overlay") ||
+                    pkg.startsWith("com.google.android.ext") ||
+                    pkg.startsWith("com.android.stk") ||
+                    pkg.startsWith("com.google.android.marvin.talkback") ||
+                    pkg.startsWith("com.google.android.as") ||
+                    pkg.startsWith("com.google.android.feedback")
+        }
+
+        val eligibleApps = uiState.installedApps
+            .filter { app ->
+                app.packageName != context.packageName &&
+                app.label.isNotBlank() &&
+                !isIgnoredSystemPackage(app.packageName)
+            }
+            .distinctBy { it.packageName }
+
+        val scoredLaunchedApps = eligibleApps
+            .map { app -> app to scoreApp(app) }
+            .filter { it.second > 0f }
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        if (scoredLaunchedApps.size >= maxSuggestions) {
+            scoredLaunchedApps.take(maxSuggestions)
+        } else {
+            // Cold-start fallback: only suggest clean essential user-facing apps (dialer, messages, browser, camera, play store)
+            val pickedPackages = scoredLaunchedApps.map { it.packageName }.toSet()
+            val fallbackCandidates = eligibleApps.filter { it.packageName !in pickedPackages }
+            val priorityKeywords = listOf(
+                "dialer", "phone", "contact",
+                "message", "sms", "chat", "whatsapp", "telegram",
+                "chrome", "browser", "firefox",
+                "camera", "gallery", "photos",
+                "vending", "playstore", "store"
+            )
+            val sortedFallbacks = fallbackCandidates.sortedWith(
+                compareByDescending<AppInfo> { app ->
+                    val pkg = app.packageName.lowercase()
+                    val label = app.label.lowercase()
+                    if (priorityKeywords.any { pkg.contains(it) || label.contains(it) }) 1 else 0
+                }.thenByDescending { it.installTimeMillis }
+            )
+            (scoredLaunchedApps + sortedFallbacks).take(maxSuggestions)
+        }
+    }
     val isFoldableOrTablet = screenWidthDp >= 600
     val isLargeTablet = screenWidthDp >= 840
     val effectiveTwoDrawersSideBySide = uiState.twoDrawersSideBySide || isFoldableOrTablet
@@ -324,8 +373,6 @@ fun HomeScreen(
             isCameraOpen = false
         }
     }
-
-    val context = androidx.compose.ui.platform.LocalContext.current
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -1426,6 +1473,15 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
+                if (!actionTriggeredInScroll && !uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
+                    // Velocity handoff: quick upward flick directly triggers drawer opening
+                    if (available.y < -750f) {
+                        viewModel.openAllApps()
+                        actionTriggeredInScroll = true
+                        scrollUpAccumulator = 0f
+                        return available
+                    }
+                }
                 scrollDownAccumulator = 0f
                 scrollUpAccumulator = 0f
                 actionTriggeredInScroll = false
@@ -1923,26 +1979,36 @@ fun HomeScreen(
     }
 
         // ── All Apps Drawer Overlay (slides up from bottom) ───────────────────
+        val drawerIconShape = remember(uiState.adaptiveIconShape) {
+            com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString(uiState.adaptiveIconShape)
+        }
+        val onDrawerAppClick: (AppInfo) -> Unit = remember(viewModel) { { app: AppInfo -> viewModel.onAppClicked(app); Unit } }
+        val onDrawerAppLongClick: (AppInfo) -> Unit = remember(viewModel) { { app: AppInfo -> viewModel.onAppLongClicked(app); Unit } }
+        val onDrawerClose = remember(viewModel) { { viewModel.closeAllApps() } }
+        val onDrawerIconLoader: suspend (AppInfo) -> android.graphics.drawable.Drawable? = remember(viewModel) {
+            { app: AppInfo -> viewModel.getAppIcon(app) }
+        }
+        val onDrawerOpenSettings = remember { { isSettingsOpen = true } }
+
         AllAppsDrawer(
             visible = uiState.isAllAppsOpen,
             apps = uiState.filteredApps,
             frequentApps = suggestedApps,
             searchQuery = uiState.searchQuery,
             isLoading = uiState.isLoading,
-            iconShape = com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString(
-                uiState.adaptiveIconShape
-            ),
+            iconShape = drawerIconShape,
             dragDropState = if (groupsUiState.lockLayout) null else dragDropState,
             onDragDropResult = handleDragDropResult,
             onSearchQueryChanged = viewModel::onSearchQueryChanged,
-            onAppClick = { app -> viewModel.onAppClicked(app) },
-            onAppLongClick = { app -> viewModel.onAppLongClicked(app) },
-            onClose = { viewModel.closeAllApps() },
-            iconLoader = { app -> viewModel.getAppIcon(app) },
+            onAppClick = onDrawerAppClick,
+            onAppLongClick = onDrawerAppLongClick,
+            onClose = onDrawerClose,
+            iconLoader = onDrawerIconLoader,
             drawerThemeMode = uiState.drawerThemeMode,
             surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
             autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer,
-            onOpenSettings = { isSettingsOpen = true },
+            blurAppListOnOpen = uiState.blurAppListOnOpen,
+            onOpenSettings = onDrawerOpenSettings,
             suggestedAction = suggestedAction,
             onExecuteAction = { action ->
                 try {

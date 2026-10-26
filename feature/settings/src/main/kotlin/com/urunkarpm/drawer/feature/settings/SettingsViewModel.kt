@@ -31,6 +31,7 @@ data class ThemeSettings(
     val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
     val autoOpenKeyboardInDrawer: Boolean = false,
+    val blurAppListOnOpen: Boolean = false,
     val categoryAlignment: String = "BOTTOM",
     val enableWidgetsPage: Boolean = true
 )
@@ -157,6 +158,7 @@ data class SettingsUiState(
     val enableCameraMirror: Boolean = true,
     val categoryAlignment: String = "BOTTOM",
     val autoOpenKeyboardInDrawer: Boolean = false,
+    val blurAppListOnOpen: Boolean = false,
     val enableWidgetsPage: Boolean = true,
     val surfaceThemeStyle: String = "LIQUID_GLASS",
     val surfaceOpacity: Float = 0.65f,
@@ -226,6 +228,7 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.wallpaperBlur,
         preferencesDataSource.wallpaperBlurRadius,
         preferencesDataSource.autoOpenKeyboardInDrawer,
+        preferencesDataSource.blurAppListOnOpen,
         preferencesDataSource.categoryAlignment,
         preferencesDataSource.enableWidgetsPage
     ) { values ->
@@ -238,8 +241,9 @@ class SettingsViewModel @Inject constructor(
             wallpaperBlur = values[4] as Boolean,
             wallpaperBlurRadius = values[5] as Float,
             autoOpenKeyboardInDrawer = values[6] as Boolean,
-            categoryAlignment = values[7] as String,
-            enableWidgetsPage = values[8] as Boolean
+            blurAppListOnOpen = values[7] as Boolean,
+            categoryAlignment = values[8] as String,
+            enableWidgetsPage = values[9] as Boolean
         )
     }
 
@@ -427,6 +431,7 @@ class SettingsViewModel @Inject constructor(
             enableCameraMirror = glance.enableCameraMirror,
             categoryAlignment = theme.categoryAlignment,
             autoOpenKeyboardInDrawer = theme.autoOpenKeyboardInDrawer,
+            blurAppListOnOpen = theme.blurAppListOnOpen,
             enableWidgetsPage = theme.enableWidgetsPage,
             surfaceThemeStyle = surface.surfaceThemeStyle,
             surfaceOpacity = surface.surfaceOpacity,
@@ -794,6 +799,12 @@ class SettingsViewModel @Inject constructor(
     fun setAutoOpenKeyboardInDrawer(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setAutoOpenKeyboardInDrawer(enabled)
+        }
+    }
+
+    fun setBlurAppListOnOpen(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setBlurAppListOnOpen(enabled)
         }
     }
 

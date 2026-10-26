@@ -90,6 +90,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val APP_LAUNCH_COUNTS = stringPreferencesKey("app_launch_counts")
         val APP_LAST_LAUNCHED_TIMES = stringPreferencesKey("app_last_launched_times")
         val AUTO_CATEGORIZE_NEW_APPS = booleanPreferencesKey("auto_categorize_new_apps")
+        val BLUR_APP_LIST_ON_OPEN = booleanPreferencesKey("blur_app_list_on_open")
         val AI_CATEGORIZATION_STRICTNESS = stringPreferencesKey("ai_categorization_strictness")
         val AI_CATEGORIZE_ALL_APPS = booleanPreferencesKey("ai_categorize_all_apps")
         val AI_FORCE_WORK_PROFILE = booleanPreferencesKey("ai_force_work_profile")
@@ -132,6 +133,7 @@ class DrawerPreferencesDataSource @Inject constructor(
     val stealthLimitBrightness: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] ?: false }
 
     val autoOpenKeyboardInDrawer: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] ?: false }
+    val blurAppListOnOpen: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.BLUR_APP_LIST_ON_OPEN] ?: false }
     val showDuoStatusWidget: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] ?: true }
     val enableCameraMirror: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.ENABLE_CAMERA_MIRROR] ?: true }
     val categoryAlignment: Flow<String> = dataStore.data.map { it[PreferencesKeys.CATEGORY_ALIGNMENT] ?: "BOTTOM" }
@@ -411,6 +413,10 @@ class DrawerPreferencesDataSource @Inject constructor(
         dataStore.edit { it[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] = enabled }
     }
 
+    suspend fun setBlurAppListOnOpen(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.BLUR_APP_LIST_ON_OPEN] = enabled }
+    }
+
     suspend fun setShowDuoStatusWidget(show: Boolean) {
         dataStore.edit { it[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] = show }
     }
@@ -577,6 +583,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             lockLayout = p[PreferencesKeys.LOCK_LAYOUT] ?: false,
             autoArrangeApps = p[PreferencesKeys.AUTO_ARRANGE_APPS] ?: true,
             autoOpenKeyboardInDrawer = p[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] ?: false,
+            blurAppListOnOpen = p[PreferencesKeys.BLUR_APP_LIST_ON_OPEN] ?: false,
             showDuoStatusWidget = p[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] ?: true,
             enableCameraMirror = p[PreferencesKeys.ENABLE_CAMERA_MIRROR] ?: true,
             categoryAlignment = p[PreferencesKeys.CATEGORY_ALIGNMENT] ?: "BOTTOM",
@@ -651,6 +658,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             p[PreferencesKeys.LOCK_LAYOUT] = prefs.lockLayout
             p[PreferencesKeys.AUTO_ARRANGE_APPS] = prefs.autoArrangeApps
             p[PreferencesKeys.AUTO_OPEN_KEYBOARD_IN_DRAWER] = prefs.autoOpenKeyboardInDrawer
+            p[PreferencesKeys.BLUR_APP_LIST_ON_OPEN] = prefs.blurAppListOnOpen
             p[PreferencesKeys.SHOW_DUO_STATUS_WIDGET] = prefs.showDuoStatusWidget
             p[PreferencesKeys.ENABLE_CAMERA_MIRROR] = prefs.enableCameraMirror
             p[PreferencesKeys.CATEGORY_ALIGNMENT] = prefs.categoryAlignment

@@ -84,7 +84,9 @@ import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
 import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.DockCapacityUtils
 import com.urunkarpm.drawer.core.model.DockItem
+import com.urunkarpm.drawer.core.designsystem.animation.FluidSpringPhysics
 import com.urunkarpm.drawer.feature.dock.component.DockActionBottomSheet
 import com.urunkarpm.drawer.core.designsystem.component.DockSurfaceBackground
 
@@ -109,13 +111,15 @@ fun DockBar(
     val isFoldableOrTablet = remember(context) {
         DevicePostureUtils.isFoldableOrTablet(context)
     }
-    val maxCapacity = if (isFoldableOrTablet) uiState.dockExpandedMaxApps else 5
-    val visibleApps = remember(uiState.resolvedApps, isOpenFoldableOrTablet, uiState.dockExpandedMaxApps) {
-        if (!isOpenFoldableOrTablet) {
-            uiState.resolvedApps.take(5)
-        } else {
-            uiState.resolvedApps.take(uiState.dockExpandedMaxApps)
-        }
+    val maxCapacity = remember(uiState.iconSizeDp, isFoldableOrTablet, uiState.dockExpandedMaxApps) {
+        DockCapacityUtils.calculateCapacity(
+            iconSizeDp = uiState.iconSizeDp,
+            isFoldableOrTablet = isFoldableOrTablet,
+            expandedMaxApps = uiState.dockExpandedMaxApps
+        )
+    }
+    val visibleApps = remember(uiState.resolvedApps, maxCapacity) {
+        uiState.resolvedApps.take(maxCapacity)
     }
 
     // ponytail: dock is 100% curved (pill/capsule) for sleek modern styling; ceiling: fixed capsule geometry; upgrade path: customizable dock corner slider in settings.
@@ -213,6 +217,7 @@ fun DockBar(
             val haptic = LocalHapticFeedback.current
 
             var draggedSlotIndex by remember { mutableStateOf<Int?>(null) }
+            var rawDragOffsetPx by remember { mutableFloatStateOf(0f) }
             var dragOffsetPx by remember { mutableFloatStateOf(0f) }
             var currentTargetIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -282,9 +287,9 @@ fun DockBar(
 
                         val animatedShiftPx by animateFloatAsState(
                             targetValue = targetShiftPx,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
+                            animationSpec = FluidSpringPhysics.fluidSpring(
+                                dampingRatio = FluidSpringPhysics.FLUID_DAMPING_RATIO,
+                                stiffness = FluidSpringPhysics.FLUID_STIFFNESS
                             ),
                             label = "dockSlotShift_$index"
                         )
@@ -316,12 +321,21 @@ fun DockBar(
                             },
                             onDragStart = {
                                 draggedSlotIndex = index
+                                rawDragOffsetPx = 0f
                                 dragOffsetPx = 0f
                                 currentTargetIndex = index
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             },
                             onDrag = { dx ->
-                                dragOffsetPx += dx
+                                rawDragOffsetPx += dx
+                                val minLimit = -index * slotPitchPx
+                                val maxLimit = (itemCount - 1 - index) * slotPitchPx
+                                dragOffsetPx = FluidSpringPhysics.boundedRubberBand(
+                                    value = rawDragOffsetPx,
+                                    minLimit = minLimit,
+                                    maxLimit = maxLimit,
+                                    coefficient = slotPitchPx * 1.5f
+                                )
                             },
                             onDragEnd = {
                                 val fromIdx = draggedSlotIndex
@@ -336,6 +350,7 @@ fun DockBar(
                                     }
                                 }
                                 draggedSlotIndex = null
+                                rawDragOffsetPx = 0f
                                 dragOffsetPx = 0f
                                 currentTargetIndex = null
                             },

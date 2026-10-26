@@ -82,6 +82,9 @@ class HomeViewModelTest {
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
     private val enableOnDeviceAiFlow = MutableStateFlow(false)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
+    private val blurAppListOnOpenFlow = MutableStateFlow(false)
+    private val dockIconSizeFlow = MutableStateFlow(56f)
+    private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
     private val lockLayoutFlow = MutableStateFlow(false)
     private val appLaunchCountsFlow = MutableStateFlow<Map<String, Int>>(emptyMap())
     private val appLastLaunchedTimesFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -150,6 +153,9 @@ class HomeViewModelTest {
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
         every { preferencesDataSource.enableOnDeviceAi } returns enableOnDeviceAiFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
+        every { preferencesDataSource.blurAppListOnOpen } returns blurAppListOnOpenFlow
+        every { preferencesDataSource.dockIconSize } returns dockIconSizeFlow
+        every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.surfaceThemeStyle } returns surfaceThemeStyleFlow
         every { preferencesDataSource.surfaceOpacity } returns surfaceOpacityFlow
@@ -349,6 +355,25 @@ class HomeViewModelTest {
             testScheduler.advanceUntilIdle()
 
             coVerify { dockRepository.addToDock(app, 5) }
+            val state = expectMostRecentItem()
+            assertEquals("Calculator pinned to dock", state.userMessage)
+        }
+    }
+
+    @Test
+    fun pinToDock_whenSmallerIconSize_allowsMoreAppsToDock() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            dockIconSizeFlow.value = 40f
+            val app = sampleApps.first()
+            coEvery { dockRepository.addToDock(app, any()) } returns true
+
+            viewModel.pinToDock(app)
+            testScheduler.advanceUntilIdle()
+
+            coVerify { dockRepository.addToDock(app, 8) }
             val state = expectMostRecentItem()
             assertEquals("Calculator pinned to dock", state.userMessage)
         }

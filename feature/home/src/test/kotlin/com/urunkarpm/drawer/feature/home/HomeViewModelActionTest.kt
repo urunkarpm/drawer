@@ -76,6 +76,7 @@ class HomeViewModelActionTest {
         every { preferencesDataSource.dockMesmerizingGlow } returns MutableStateFlow(true)
         every { preferencesDataSource.enableOnDeviceAi } returns MutableStateFlow(true)
         every { preferencesDataSource.drawerTitleAnimation } returns MutableStateFlow("ACCENT_POP")
+        every { preferencesDataSource.blurAppListOnOpen } returns MutableStateFlow(false)
         every { preferencesDataSource.surfaceThemeStyle } returns MutableStateFlow("LIQUID_GLASS")
         every { preferencesDataSource.surfaceOpacity } returns MutableStateFlow(0.65f)
         every { preferencesDataSource.surfaceBlurRadius } returns MutableStateFlow(25f)

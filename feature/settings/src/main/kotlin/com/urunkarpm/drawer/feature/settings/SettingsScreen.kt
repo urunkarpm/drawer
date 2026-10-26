@@ -319,6 +319,15 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.setAutoOpenKeyboardInDrawer(it) }
                     )
 
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Blur App List on Open",
+                        subtitle = "Obscure apps with a blur when opening All Apps until tapped",
+                        checked = uiState.blurAppListOnOpen,
+                        onCheckedChange = { viewModel.setBlurAppListOnOpen(it) }
+                    )
+
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
 
@@ -1066,7 +1075,7 @@ fun SettingsScreen(
 
                     SettingsSliderRow(
                         title = "Dock Icon Size",
-                        subtitle = "Scaled proportionally across all dock slots",
+                        subtitle = "Scaled proportionally across all dock slots (smaller size allows up to 8 dock apps)",
                         value = uiState.dockIconSize,
                         onValueChange = { viewModel.setDockIconSize(it) },
                         valueRange = 40f..72f,

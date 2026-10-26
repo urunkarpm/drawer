@@ -19,6 +19,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -72,6 +74,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
@@ -81,6 +84,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import com.urunkarpm.drawer.core.designsystem.animation.FluidSpringPhysics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -134,6 +143,7 @@ fun AllAppsDrawer(
     drawerThemeMode: String = "SYSTEM",
     surfaceCornerRadiusDp: Float = 24f,
     autoOpenKeyboard: Boolean = false,
+    blurAppListOnOpen: Boolean = false,
     onOpenSettings: (() -> Unit)? = null,
     frequentApps: List<AppInfo> = emptyList(),
     suggestedAction: LauncherAction? = null,
@@ -155,32 +165,20 @@ fun AllAppsDrawer(
 
     // Wrap the entire app drawer with DrawerTheme so all typography, search bars, and app labels use correct theme contrast
     DrawerTheme(darkTheme = isDrawerDark) {
-        // Smooth Material motion ensures a consistent, one-pace slide without overshoot bouncing or late adjustment
+        // iOS-grade fluid critically damped spring transition settling around 320ms without artificial cubic beziers
         AnimatedVisibility(
             visible = visible,
             enter = slideInVertically(
                 initialOffsetY = { it },
-                animationSpec = tween(
-                    durationMillis = 280,
-                    easing = FastOutSlowInEasing
-                )
+                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = FluidSpringPhysics.FLUID_STIFFNESS)
             ) + fadeIn(
-                animationSpec = tween(
-                    durationMillis = 240,
-                    easing = FastOutSlowInEasing
-                )
+                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 400f)
             ),
             exit = slideOutVertically(
                 targetOffsetY = { it },
-                animationSpec = tween(
-                    durationMillis = 220,
-                    easing = FastOutLinearInEasing
-                )
+                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
             ) + fadeOut(
-                animationSpec = tween(
-                    durationMillis = 180,
-                    easing = FastOutSlowInEasing
-                )
+                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
             ),
             modifier = modifier
         ) {
@@ -195,6 +193,18 @@ fun AllAppsDrawer(
                     activeScrubLetter = null
                 }
             }
+
+            var isAppListBlurred by remember(visible) { mutableStateOf(visible && blurAppListOnOpen) }
+            LaunchedEffect(searchQuery) {
+                if (searchQuery.isNotBlank()) {
+                    isAppListBlurred = false
+                }
+            }
+            val blurTransition by animateFloatAsState(
+                targetValue = if (isAppListBlurred) 1f else 0f,
+                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+                label = "blurTransition"
+            )
 
             // Apps are already filtered in HomeViewModel; use directly to prevent double-allocation jank
             val displayedApps = apps
@@ -234,24 +244,62 @@ fun AllAppsDrawer(
                 map
             }
 
-            // NestedScrollConnection: when LazyGrid is scrolled to top, user can pull DOWN to dismiss.
-            var overscrollDownAccumulator by remember { mutableFloatStateOf(0f) }
+            // iOS-grade fluid spring & rubber-banding drag state with velocity handoff
+            val drawerTranslationY = remember { Animatable(0f) }
+            var rawDragDistanceY by remember { mutableFloatStateOf(0f) }
+            val handleVelocityTracker = remember { VelocityTracker() }
 
+            LaunchedEffect(visible) {
+                if (!visible) {
+                    drawerTranslationY.snapTo(0f)
+                    rawDragDistanceY = 0f
+                }
+            }
 
             val nestedScrollConnection = remember {
                 object : NestedScrollConnection {
                     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                        if (available.y < 0) {
-                            overscrollDownAccumulator = 0f
+                        // Immediately intercept downward pull from stroke 1 when at top of list
+                        if (available.y > 0f && !gridState.canScrollBackward && source == NestedScrollSource.UserInput) {
+                            rawDragDistanceY += available.y
+                            val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
+                            coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                            return available
+                        } else if (available.y < 0f && rawDragDistanceY > 0f) {
+                            // User pushing back upward while rubber-banded downward
+                            rawDragDistanceY = (rawDragDistanceY + available.y).coerceAtLeast(0f)
+                            val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
+                            coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                            return Offset(0f, available.y)
                         }
                         return Offset.Zero
                     }
 
-                    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                        val shouldClose = overscrollDownAccumulator > 80f && available.y > 1200f
-                        overscrollDownAccumulator = 0f
-                        if (shouldClose && !gridState.canScrollBackward) {
+                    override suspend fun onPreFling(available: Velocity): Velocity {
+                        // Downward flick anywhere near top closes immediately on 1 swipe
+                        if (!gridState.canScrollBackward && available.y > 250f) {
                             onClose()
+                            return available
+                        }
+                        return super.onPreFling(available)
+                    }
+
+                    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                        val vY = available.y
+                        if (rawDragDistanceY > 0f) {
+                            val shouldClose = rawDragDistanceY > 60f || vY > 250f
+                            if (shouldClose) {
+                                onClose()
+                            } else {
+                                coroutineScope.launch {
+                                    drawerTranslationY.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = FluidSpringPhysics.fluidSpring(),
+                                        initialVelocity = vY
+                                    )
+                                    rawDragDistanceY = 0f
+                                }
+                            }
                         }
                         return super.onPostFling(consumed, available)
                     }
@@ -262,14 +310,10 @@ fun AllAppsDrawer(
                         source: NestedScrollSource
                     ): Offset {
                         if (!gridState.canScrollBackward && available.y > 0f && source == NestedScrollSource.UserInput) {
-                            overscrollDownAccumulator += available.y
-                            // ponytail: deliberate pull-down threshold (450px ~120dp) ensures user explicitly pulls to dismiss; ceiling: fixed px threshold; upgrade path: spring swipe-dismiss physics.
-                            if (overscrollDownAccumulator > 450f) {
-                                overscrollDownAccumulator = 0f
-                                onClose()
-                            }
-                        } else if (available.y < 0f) {
-                            overscrollDownAccumulator = 0f
+                            rawDragDistanceY += available.y
+                            val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
+                            coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                            return Offset(0f, available.y)
                         }
                         return Offset.Zero
                     }
@@ -284,14 +328,16 @@ fun AllAppsDrawer(
 
             // 100% solid, crisp background in White, Dark, or System mode — no liquid glass translucency
             val drawerBackgroundColor = if (isDrawerDark) Color(0xFF141218) else Color(0xFFFFFFFF)
-            val drawerBorder = BorderStroke(1.dp, if (isDrawerDark) Color(0xFF2B2930) else Color(0xFFE5E7EB))
+            val drawerBorder = remember(isDrawerDark) { BorderStroke(1.dp, if (isDrawerDark) Color(0xFF2B2930) else Color(0xFFE5E7EB)) }
 
-            val drawerShape = RoundedCornerShape(
-                topStart = surfaceCornerRadiusDp.dp,
-                topEnd = surfaceCornerRadiusDp.dp,
-                bottomStart = 0.dp,
-                bottomEnd = 0.dp
-            )
+            val drawerShape = remember(surfaceCornerRadiusDp) {
+                RoundedCornerShape(
+                    topStart = surfaceCornerRadiusDp.dp,
+                    topEnd = surfaceCornerRadiusDp.dp,
+                    bottomStart = 0.dp,
+                    bottomEnd = 0.dp
+                )
+            }
 
             Surface(
                 shape = drawerShape,
@@ -307,137 +353,205 @@ fun AllAppsDrawer(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        translationY = (overscrollDownAccumulator * 0.25f).coerceIn(0f, 60f)
+                        translationY = drawerTranslationY.value
                     }
                     .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                     .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                     .nestedScroll(nestedScrollConnection)
             ) {
-                var handleDragAccumulator by remember { mutableFloatStateOf(0f) }
-                // Top subtle drag handle indicator with pull-down gesture
+                // Top subtle drag handle indicator with generous touch target & effortless 1-swipe dismiss
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 10.dp, bottom = 6.dp)
+                        .height(36.dp)
                         .pointerInput(Unit) {
-                            detectVerticalDragGestures(
-                                onDragStart = { handleDragAccumulator = 0f },
-                                onVerticalDrag = { _, dragAmount ->
-                                    handleDragAccumulator += dragAmount
-                                    if (handleDragAccumulator > 80f) {
-                                        handleDragAccumulator = 0f
-                                        onClose()
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                handleVelocityTracker.resetTracking()
+                                handleVelocityTracker.addPosition(down.uptimeMillis, down.position)
+                                var isDragging = false
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull() ?: break
+                                    if (change.changedToUp()) {
+                                        if (isDragging) {
+                                            val vY = handleVelocityTracker.calculateVelocity().y
+                                            val shouldClose = rawDragDistanceY > 60f || vY > 250f
+                                            if (shouldClose) {
+                                                onClose()
+                                            } else {
+                                                coroutineScope.launch {
+                                                    drawerTranslationY.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = FluidSpringPhysics.fluidSpring(),
+                                                        initialVelocity = vY
+                                                    )
+                                                    rawDragDistanceY = 0f
+                                                }
+                                            }
+                                        }
+                                        break
                                     }
-                                },
-                                onDragEnd = { handleDragAccumulator = 0f },
-                                onDragCancel = { handleDragAccumulator = 0f }
-                            )
+                                    val dragY = change.position.y - change.previousPosition.y
+                                    if (dragY > 0f || isDragging) {
+                                        change.consume()
+                                        isDragging = true
+                                        rawDragDistanceY = (rawDragDistanceY + dragY).coerceAtLeast(0f)
+                                        handleVelocityTracker.addPosition(change.uptimeMillis, change.position)
+                                        val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
+                                        coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                                    }
+                                }
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(width = 32.dp, height = 3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(2.dp))
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
                     )
                 }
 
-                // App Grid or Loading / Empty state
+                // 1. App List Grid Area with privacy blur support
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
-                    if (isLoading) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    } else if (displayedApps.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (searchQuery.isNotBlank()) "No apps found for \"$searchQuery\"" else "No apps installed",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    } else {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            val scrubProvider: () -> String? = { activeScrubLetter }
-
-                            LazyVerticalGrid(
-                                state = gridState,
-                                columns = GridCells.Fixed(gridColumns),
-                                contentPadding = PaddingValues(
-                                    start = horizontalPadding,
-                                    top = 8.dp,
-                                    end = if (searchQuery.isBlank() && displayedApps.size > 8) horizontalPadding + 24.dp else horizontalPadding,
-                                    bottom = 12.dp
-                                ),
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier.fillMaxSize()
+                    val effectiveBlurRadius = (16.dp * blurTransition)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(if (effectiveBlurRadius > 0.5.dp) Modifier.blur(effectiveBlurRadius) else Modifier)
+                    ) {
+                        if (isLoading) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                items(
-                                    items = displayedApps,
-                                    key = { it.componentKey },
-                                    contentType = { "app_item" }
-                                ) { app ->
-                                    AppItemView(
-                                        app = app,
-                                        onAppClick = onAppClick,
-                                        onAppLongClick = onAppLongClick,
-                                        iconLoader = iconLoader,
-                                        iconShape = iconShape,
-                                        dragDropState = dragDropState,
-                                        onDragDropResult = onDragDropResult,
-                                        activeScrubLetterProvider = scrubProvider
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        } else if (displayedApps.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (searchQuery.isNotBlank()) "No apps found for \"$searchQuery\"" else "No apps installed",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                val scrubProvider = rememberUpdatedState(activeScrubLetter)
+
+                                LazyVerticalGrid(
+                                    state = gridState,
+                                    columns = GridCells.Fixed(gridColumns),
+                                    contentPadding = PaddingValues(
+                                        start = horizontalPadding,
+                                        top = 8.dp,
+                                        end = horizontalPadding,
+                                        bottom = 12.dp
+                                    ),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    items(
+                                        items = displayedApps,
+                                        key = { it.componentKey },
+                                        contentType = { "app_item" }
+                                    ) { app ->
+                                        AppItemView(
+                                            app = app,
+                                            onAppClick = onAppClick,
+                                            onAppLongClick = onAppLongClick,
+                                            iconLoader = iconLoader,
+                                            iconShape = iconShape,
+                                            dragDropState = dragDropState,
+                                            onDragDropResult = onDragDropResult,
+                                            activeScrubLetterProvider = { scrubProvider.value }
+                                        )
+                                    }
+                                }
+
+                                var lastTargetIndex by remember { mutableIntStateOf(-1) }
+
+                                if (searchQuery.isBlank() && displayedApps.size > 8) {
+                                    AlphabetIndexBar(
+                                        onLetterScrolled = { letter ->
+                                            activeScrubLetter = letter
+                                            val targetIndex = letterIndexMap[letter] ?: 0
+                                            if (targetIndex != lastTargetIndex) {
+                                                lastTargetIndex = targetIndex
+                                                scrollJob?.cancel()
+                                                scrollJob = coroutineScope.launch {
+                                                    gridState.scrollToItem(targetIndex)
+                                                }
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            activeScrubLetter = null
+                                            lastTargetIndex = -1
+                                        },
+                                        modifier = Modifier.align(Alignment.CenterEnd)
                                     )
                                 }
                             }
+                        }
+                    }
 
-                            var lastTargetIndex by remember { mutableIntStateOf(-1) }
-
-                            if (searchQuery.isBlank() && displayedApps.size > 8) {
-                                AlphabetIndexBar(
-                                    onLetterScrolled = { letter ->
-                                        activeScrubLetter = letter
-                                        val targetIndex = letterIndexMap[letter] ?: 0
-                                        if (targetIndex != lastTargetIndex) {
-                                            lastTargetIndex = targetIndex
-                                            scrollJob?.cancel()
-                                            scrollJob = coroutineScope.launch {
-                                                gridState.scrollToItem(targetIndex)
-                                            }
-                                        }
-                                    },
-                                    onDragEnd = {
-                                        activeScrubLetter = null
-                                        lastTargetIndex = -1
-                                    },
-                                    modifier = Modifier.align(Alignment.CenterEnd)
+                    // Privacy Blur Frosted Glass Scrim: Seamlessly dissolves on tap or search
+                    if (blurTransition > 0f) {
+                        val frostedScrimBrush = remember(isDrawerDark) {
+                            if (isDrawerDark) {
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0x33141218),
+                                        Color(0x591E1B24),
+                                        Color(0x40141218)
+                                    )
+                                )
+                            } else {
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0x40FFFFFF),
+                                        Color(0x66F3F4F6),
+                                        Color(0x4DFFFFFF)
+                                    )
                                 )
                             }
                         }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = blurTransition }
+                                .background(frostedScrimBrush)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    isAppListBlurred = false
+                                }
+                        )
                     }
                 }
 
-                // Frequent Unassigned Apps Row: Shown stably above search bar without animated grid relayout jank
+                // 2. Suggested Apps Row (NOT blurred, always visible, interactive, and aligned below app grid)
                 if (frequentApps.isNotEmpty() && searchQuery.isBlank() && activeScrubLetter == null) {
                     FrequentAppsRow(
                         frequentApps = frequentApps,
                         horizontalPadding = horizontalPadding,
+                        gridColumns = gridColumns,
                         onAppClick = onAppClick,
                         onAppLongClick = onAppLongClick,
                         iconLoader = iconLoader,
@@ -581,6 +695,7 @@ private fun SearchBarHeader(
 private fun FrequentAppsRow(
     frequentApps: List<AppInfo>,
     horizontalPadding: androidx.compose.ui.unit.Dp,
+    gridColumns: Int,
     onAppClick: (AppInfo) -> Unit,
     onAppLongClick: (AppInfo) -> Unit,
     iconLoader: suspend (AppInfo) -> Drawable?,
@@ -594,21 +709,22 @@ private fun FrequentAppsRow(
 
     val configuration = LocalConfiguration.current
     val isSmallScreen = configuration.screenWidthDp < 360
-    val iconSize = if (isSmallScreen) 42.dp else 46.dp
-    val itemSpacing = if (isSmallScreen) 3.dp else 4.dp
-    val sidePadding = if (isSmallScreen) 8.dp else (horizontalPadding - 4.dp).coerceAtLeast(8.dp)
+    val iconSize = if (isSmallScreen) 36.dp else 40.dp
+    val effectiveHorizontalPadding = if (isSmallScreen) 8.dp else horizontalPadding.coerceAtLeast(12.dp)
 
-    // ponytail: 6-item recently used apps row with adaptive compact icon sizing (46dp/42dp) and 4dp spacing ensures all 6 apps fit comfortably without clipping; ceiling: fixed single-row 6 apps; upgrade path: multi-row chip layout.
+    // ponytail: 6 suggested apps row with proper padding and equal weight per slot, always visible and unblurred; ceiling: single row 6 apps; upgrade path: continuous responsive row.
     Row(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentWidth(Alignment.CenterHorizontally)
             .widthIn(max = 760.dp)
             .padding(
-                horizontal = sidePadding,
-                vertical = 4.dp
+                start = effectiveHorizontalPadding,
+                end = effectiveHorizontalPadding,
+                top = 4.dp,
+                bottom = 6.dp
             ),
-        horizontalArrangement = Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         for (app in itemsToShow) {

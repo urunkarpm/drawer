@@ -61,6 +61,7 @@ class SettingsViewModelTest {
     private val showDuoStatusWidgetFlow = MutableStateFlow(true)
     private val enableCameraMirrorFlow = MutableStateFlow(true)
     private val autoOpenKeyboardInDrawerFlow = MutableStateFlow(false)
+    private val blurAppListOnOpenFlow = MutableStateFlow(false)
     private val categoryAlignmentFlow = MutableStateFlow("TOP")
     private val enableWidgetsPageFlow = MutableStateFlow(false)
     private val headerFontFamilyFlow = MutableStateFlow("GOOGLE_SANS")
@@ -122,6 +123,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.twoDrawersSideBySide } returns twoDrawersSideBySideFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.autoOpenKeyboardInDrawer } returns autoOpenKeyboardInDrawerFlow
+        every { preferencesDataSource.blurAppListOnOpen } returns blurAppListOnOpenFlow
         every { preferencesDataSource.categoryAlignment } returns categoryAlignmentFlow
         every { preferencesDataSource.enableWidgetsPage } returns enableWidgetsPageFlow
         every { preferencesDataSource.showDuoStatusWidget } returns showDuoStatusWidgetFlow
@@ -364,6 +366,13 @@ class SettingsViewModelTest {
         viewModel.setHideDrawerIcons(true)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setHideDrawerIcons(true) }
+    }
+
+    @Test
+    fun setBlurAppListOnOpen_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setBlurAppListOnOpen(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setBlurAppListOnOpen(true) }
     }
 
     @Test
