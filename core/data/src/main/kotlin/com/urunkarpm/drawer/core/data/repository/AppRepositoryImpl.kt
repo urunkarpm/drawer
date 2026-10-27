@@ -199,6 +199,7 @@ class AppRepositoryImpl @Inject constructor(
             preferencesDataSource?.let { prefs ->
                 scope.launch {
                     prefs.recordAppLaunch(app.componentKey)
+                    prefs.recordAppLaunchWithContext(app.componentKey)
                 }
             }
         }

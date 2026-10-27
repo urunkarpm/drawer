@@ -86,6 +86,7 @@ class SettingsViewModelTest {
     private val enableOnDeviceAiFlow = MutableStateFlow(false)
     private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
+    private val showDrawerSuggestionsFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -150,6 +151,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.enableOnDeviceAi } returns enableOnDeviceAiFlow
         every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
+        every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -195,6 +197,7 @@ class SettingsViewModelTest {
             assertEquals("LOW", state.stealthContrastLevel)
             assertFalse(state.stealthLimitBrightness)
             assertTrue(state.autoCategorizeNewApps)
+            assertTrue(state.showDrawerSuggestions)
             assertEquals(8, state.dockExpandedMaxApps)
             cancelAndIgnoreRemainingEvents()
         }
@@ -427,5 +430,12 @@ class SettingsViewModelTest {
         viewModel.setCinematicPalette("MARIANA_ABYSS")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setCinematicPalette("MARIANA_ABYSS") }
+    }
+
+    @Test
+    fun setShowDrawerSuggestions_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setShowDrawerSuggestions(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setShowDrawerSuggestions(false) }
     }
 }

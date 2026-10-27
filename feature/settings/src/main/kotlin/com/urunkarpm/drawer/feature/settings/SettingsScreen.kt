@@ -328,6 +328,15 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.setBlurAppListOnOpen(it) }
                     )
 
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Show Suggested Apps",
+                        subtitle = "Surface relevant apps based on your routine and context",
+                        checked = uiState.showDrawerSuggestions,
+                        onCheckedChange = { viewModel.setShowDrawerSuggestions(it) }
+                    )
+
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
 

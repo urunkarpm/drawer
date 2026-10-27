@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -60,7 +61,8 @@ fun AppActionBottomSheet(
     modifier: Modifier = Modifier,
     shortcuts: List<AppShortcutInfo> = emptyList(),
     onLaunchShortcut: (String) -> Unit = {},
-    shortcutIconLoader: suspend (String) -> Drawable? = { null }
+    shortcutIconLoader: suspend (String) -> Drawable? = { null },
+    onHideFromSuggestions: (() -> Unit)? = null
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -199,6 +201,19 @@ fun AppActionBottomSheet(
                 onClick = onAddToGroup,
                 colors = NavigationDrawerItemDefaults.colors()
             )
+
+            if (onHideFromSuggestions != null) {
+                NavigationDrawerItem(
+                    label = { Text("Don't suggest this app") },
+                    icon = { Icon(Icons.Outlined.VisibilityOff, contentDescription = "Don't suggest this app") },
+                    selected = false,
+                    onClick = {
+                        onHideFromSuggestions()
+                        onDismissRequest()
+                    },
+                    colors = NavigationDrawerItemDefaults.colors()
+                )
+            }
 
             NavigationDrawerItem(
                 label = { Text("App info") },

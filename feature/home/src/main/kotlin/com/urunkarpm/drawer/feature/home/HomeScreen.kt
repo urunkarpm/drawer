@@ -1933,7 +1933,8 @@ fun HomeScreen(
                 iconLoader = { viewModel.getAppIcon(selectedApp) },
                 shortcuts = uiState.shortcuts,
                 onLaunchShortcut = { shortcutId -> viewModel.launchShortcut(selectedApp, shortcutId) },
-                shortcutIconLoader = { shortcutId -> viewModel.getShortcutIcon(selectedApp, shortcutId) }
+                shortcutIconLoader = { shortcutId -> viewModel.getShortcutIcon(selectedApp, shortcutId) },
+                onHideFromSuggestions = { viewModel.hideFromSuggestions(selectedApp.packageName) }
             )
         }
 

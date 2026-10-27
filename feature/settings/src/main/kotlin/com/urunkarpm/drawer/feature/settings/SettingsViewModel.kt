@@ -33,7 +33,8 @@ data class ThemeSettings(
     val autoOpenKeyboardInDrawer: Boolean = false,
     val blurAppListOnOpen: Boolean = false,
     val categoryAlignment: String = "BOTTOM",
-    val enableWidgetsPage: Boolean = true
+    val enableWidgetsPage: Boolean = true,
+    val showDrawerSuggestions: Boolean = true
 )
 
 data class WallpaperSettings(
@@ -160,6 +161,7 @@ data class SettingsUiState(
     val autoOpenKeyboardInDrawer: Boolean = false,
     val blurAppListOnOpen: Boolean = false,
     val enableWidgetsPage: Boolean = true,
+    val showDrawerSuggestions: Boolean = true,
     val surfaceThemeStyle: String = "LIQUID_GLASS",
     val surfaceOpacity: Float = 0.65f,
     val surfaceBlurRadius: Float = 25f,
@@ -230,7 +232,8 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.autoOpenKeyboardInDrawer,
         preferencesDataSource.blurAppListOnOpen,
         preferencesDataSource.categoryAlignment,
-        preferencesDataSource.enableWidgetsPage
+        preferencesDataSource.enableWidgetsPage,
+        preferencesDataSource.showDrawerSuggestions
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         ThemeSettings(
@@ -243,7 +246,8 @@ class SettingsViewModel @Inject constructor(
             autoOpenKeyboardInDrawer = values[6] as Boolean,
             blurAppListOnOpen = values[7] as Boolean,
             categoryAlignment = values[8] as String,
-            enableWidgetsPage = values[9] as Boolean
+            enableWidgetsPage = values[9] as Boolean,
+            showDrawerSuggestions = values[10] as Boolean
         )
     }
 
@@ -433,6 +437,7 @@ class SettingsViewModel @Inject constructor(
             autoOpenKeyboardInDrawer = theme.autoOpenKeyboardInDrawer,
             blurAppListOnOpen = theme.blurAppListOnOpen,
             enableWidgetsPage = theme.enableWidgetsPage,
+            showDrawerSuggestions = theme.showDrawerSuggestions,
             surfaceThemeStyle = surface.surfaceThemeStyle,
             surfaceOpacity = surface.surfaceOpacity,
             surfaceBlurRadius = surface.surfaceBlurRadius,
@@ -805,6 +810,12 @@ class SettingsViewModel @Inject constructor(
     fun setBlurAppListOnOpen(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setBlurAppListOnOpen(enabled)
+        }
+    }
+
+    fun setShowDrawerSuggestions(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setShowDrawerSuggestions(enabled)
         }
     }
 
