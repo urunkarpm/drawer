@@ -25,6 +25,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -84,6 +85,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -143,7 +145,7 @@ fun AllAppsDrawer(
     drawerThemeMode: String = "SYSTEM",
     surfaceCornerRadiusDp: Float = 24f,
     autoOpenKeyboard: Boolean = false,
-    blurAppListOnOpen: Boolean = false,
+    blurAppListOnOpen: Boolean = true,
     onOpenSettings: (() -> Unit)? = null,
     frequentApps: List<AppInfo> = emptyList(),
     suggestedAction: LauncherAction? = null,
@@ -194,17 +196,15 @@ fun AllAppsDrawer(
                 }
             }
 
-            var isAppListBlurred by remember(visible) { mutableStateOf(visible && blurAppListOnOpen) }
-            LaunchedEffect(searchQuery) {
-                if (searchQuery.isNotBlank()) {
-                    isAppListBlurred = false
+            var isAppListBlurred by remember { mutableStateOf(blurAppListOnOpen) }
+            val blurCurtainTranslationY = remember { Animatable(0f) }
+
+            LaunchedEffect(visible, blurAppListOnOpen) {
+                if (visible) {
+                    isAppListBlurred = blurAppListOnOpen
+                    blurCurtainTranslationY.snapTo(0f)
                 }
             }
-            val blurTransition by animateFloatAsState(
-                targetValue = if (isAppListBlurred) 1f else 0f,
-                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
-                label = "blurTransition"
-            )
 
             // Apps are already filtered in HomeViewModel; use directly to prevent double-allocation jank
             val displayedApps = apps
@@ -250,7 +250,7 @@ fun AllAppsDrawer(
             val handleVelocityTracker = remember { VelocityTracker() }
 
             LaunchedEffect(visible) {
-                if (!visible) {
+                if (visible) {
                     drawerTranslationY.snapTo(0f)
                     rawDragDistanceY = 0f
                 }
@@ -414,13 +414,33 @@ fun AllAppsDrawer(
                     )
                 }
 
-                // 1. App List Grid Area with privacy blur support
-                Box(
+                // 1. App List Grid Area with continuous fluid frosted glass blur curtain
+                BoxWithConstraints(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
+                        .clipToBounds()
                 ) {
-                    val effectiveBlurRadius = (16.dp * blurTransition)
+                    val containerHeightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
+
+                    LaunchedEffect(searchQuery) {
+                        if (searchQuery.isNotBlank() && isAppListBlurred) {
+                            coroutineScope.launch {
+                                blurCurtainTranslationY.animateTo(
+                                    targetValue = containerHeightPx,
+                                    animationSpec = FluidSpringPhysics.fluidSpring()
+                                )
+                                isAppListBlurred = false
+                            }
+                        }
+                    }
+
+                    val curtainProgress = (blurCurtainTranslationY.value / containerHeightPx).coerceIn(0f, 1f)
+                    val effectiveBlurRadius = if (isAppListBlurred && curtainProgress < 0.99f) {
+                        (28.dp * (1f - curtainProgress))
+                    } else {
+                        0.dp
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -510,23 +530,23 @@ fun AllAppsDrawer(
                         }
                     }
 
-                    // Privacy Blur Frosted Glass Scrim: Seamlessly dissolves on tap or search
-                    if (blurTransition > 0f) {
-                        val frostedScrimBrush = remember(isDrawerDark) {
+                    // Frosted Glass Blur Curtain: slides down continuously on upward swipe or dismisses drawer on downward swipe
+                    if (isAppListBlurred && curtainProgress < 1f) {
+                        val frostedCurtainBrush = remember(isDrawerDark) {
                             if (isDrawerDark) {
                                 Brush.verticalGradient(
                                     listOf(
-                                        Color(0x33141218),
-                                        Color(0x591E1B24),
-                                        Color(0x40141218)
+                                        Color(0xE6141218),
+                                        Color(0xF21E1B24),
+                                        Color(0xEA141218)
                                     )
                                 )
                             } else {
                                 Brush.verticalGradient(
                                     listOf(
-                                        Color(0x40FFFFFF),
-                                        Color(0x66F3F4F6),
-                                        Color(0x4DFFFFFF)
+                                        Color(0xE6FFFFFF),
+                                        Color(0xF2F3F4F6),
+                                        Color(0xEAFFFFFF)
                                     )
                                 )
                             }
@@ -534,15 +554,113 @@ fun AllAppsDrawer(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .graphicsLayer { alpha = blurTransition }
-                                .background(frostedScrimBrush)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {
-                                    isAppListBlurred = false
+                                .graphicsLayer {
+                                    translationY = blurCurtainTranslationY.value
+                                    alpha = (1f - curtainProgress * 0.4f).coerceIn(0f, 1f)
                                 }
-                        )
+                                .background(frostedCurtainBrush)
+                                .pointerInput(isAppListBlurred) {
+                                    if (!isAppListBlurred) return@pointerInput
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        val curtainVelocityTracker = VelocityTracker()
+                                        curtainVelocityTracker.addPosition(down.uptimeMillis, down.position)
+                                        var isDraggingDown = false
+                                        var isDraggingUp = false
+                                        var totalDragY = 0f
+
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull() ?: break
+                                            if (change.changedToUp()) {
+                                                val velocityY = curtainVelocityTracker.calculateVelocity().y
+                                                if (isDraggingDown) {
+                                                    val shouldClose = rawDragDistanceY > 60f || velocityY > 250f
+                                                    if (shouldClose) {
+                                                        onClose()
+                                                    } else {
+                                                        coroutineScope.launch {
+                                                            drawerTranslationY.animateTo(
+                                                                targetValue = 0f,
+                                                                animationSpec = FluidSpringPhysics.fluidSpring(),
+                                                                initialVelocity = velocityY
+                                                            )
+                                                            rawDragDistanceY = 0f
+                                                        }
+                                                    }
+                                                } else if (isDraggingUp) {
+                                                    val shouldClear = blurCurtainTranslationY.value > containerHeightPx * 0.25f || velocityY < -250f
+                                                    coroutineScope.launch {
+                                                        if (shouldClear) {
+                                                            blurCurtainTranslationY.animateTo(
+                                                                targetValue = containerHeightPx,
+                                                                animationSpec = FluidSpringPhysics.fluidSpring(),
+                                                                initialVelocity = -velocityY
+                                                            )
+                                                            isAppListBlurred = false
+                                                        } else {
+                                                            blurCurtainTranslationY.animateTo(
+                                                                targetValue = 0f,
+                                                                animationSpec = FluidSpringPhysics.fluidSpring(),
+                                                                initialVelocity = -velocityY
+                                                            )
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Tap: smoothly slide curtain down and clear blur
+                                                    coroutineScope.launch {
+                                                        blurCurtainTranslationY.animateTo(
+                                                            targetValue = containerHeightPx,
+                                                            animationSpec = FluidSpringPhysics.fluidSpring()
+                                                        )
+                                                        isAppListBlurred = false
+                                                    }
+                                                }
+                                                break
+                                            }
+
+                                            val dragDeltaY = change.position.y - change.previousPosition.y
+                                            curtainVelocityTracker.addPosition(change.uptimeMillis, change.position)
+                                            totalDragY += dragDeltaY
+
+                                            if (!isDraggingDown && !isDraggingUp) {
+                                                if (totalDragY > 12f) {
+                                                    isDraggingDown = true
+                                                } else if (totalDragY < -12f) {
+                                                    isDraggingUp = true
+                                                }
+                                            }
+
+                                            if (isDraggingDown) {
+                                                change.consume()
+                                                rawDragDistanceY = (rawDragDistanceY + dragDeltaY).coerceAtLeast(0f)
+                                                val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
+                                                coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                                            } else if (isDraggingUp) {
+                                                change.consume()
+                                                val newCurtainY = (blurCurtainTranslationY.value - dragDeltaY).coerceIn(0f, containerHeightPx)
+                                                coroutineScope.launch { blurCurtainTranslationY.snapTo(newCurtainY) }
+                                            }
+                                        }
+                                    }
+                                }
+                        ) {
+                            // Luminous specular rim across the top of the frosted glass sheet
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(2.dp)
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                Color.Transparent,
+                                                if (isDrawerDark) Color(0x66FFFFFF) else Color(0x40000000),
+                                                Color.Transparent
+                                            )
+                                        )
+                                    )
+                            )
+                        }
                     }
                 }
 
