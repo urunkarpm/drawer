@@ -105,6 +105,6 @@ class AppRepositoryImplTest {
         assertTrue(launched)
         testScheduler.advanceUntilIdle()
 
-        coVerify { prefs.recordAppLaunch(app.componentKey) }
+        coVerify { prefs.recordAppLaunchWithContext(app.componentKey, any()) }
     }
 }

@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -41,6 +42,14 @@ open class DrawerAppWidgetHost(
     context: Context,
     hostId: Int
 ) : AppWidgetHost(context, hostId) {
+    override fun allocateAppWidgetId(): Int {
+        return super.allocateAppWidgetId()
+    }
+
+    override fun deleteAppWidgetId(appWidgetId: Int) {
+        super.deleteAppWidgetId(appWidgetId)
+    }
+
     override fun onCreateView(
         context: Context,
         appWidgetId: Int,
@@ -60,7 +69,7 @@ class DrawerAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
 }
 
 @Singleton
-class DrawerWidgetHostManager @Inject constructor(
+open class DrawerWidgetHostManager @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
     val appWidgetManager: AppWidgetManager = AppWidgetManager.getInstance(context)
@@ -88,15 +97,106 @@ class DrawerWidgetHostManager @Inject constructor(
         } catch (_: Exception) {}
     }
 
-    fun allocateAppWidgetId(): Int {
+    open fun allocateAppWidgetId(): Int {
         return appWidgetHost.allocateAppWidgetId()
     }
 
-    fun deleteAppWidgetId(appWidgetId: Int) {
+    open fun deleteAppWidgetId(appWidgetId: Int) {
         viewCache.remove(appWidgetId)
         try {
             appWidgetHost.deleteAppWidgetId(appWidgetId)
         } catch (_: Exception) {}
+    }
+
+    fun clearViewCache() {
+        viewCache.clear()
+    }
+
+    // ponytail: re-binds restored or dangling widget entities to live AppWidgetHost allocations so widgets survive cross-device backups and re-installs.
+    fun rebindOrRestoreWidget(
+        packageName: String,
+        providerClassName: String,
+        existingAppWidgetId: Int,
+        spanX: Int = 4,
+        heightDp: Int = 180
+    ): Int {
+        val targetComponent = ComponentName(packageName, providerClassName)
+
+        // 1. Check if existingAppWidgetId is currently valid and still bound to this provider
+        val existingInfo = try {
+            appWidgetManager.getAppWidgetInfo(existingAppWidgetId)
+        } catch (_: Exception) {
+            null
+        }
+        if (existingInfo != null &&
+            (existingInfo.provider == targetComponent ||
+             (existingInfo.provider?.packageName == packageName && existingInfo.provider?.className == providerClassName))
+        ) {
+            triggerWidgetUpdate(existingAppWidgetId)
+            return existingAppWidgetId
+        }
+
+        // 2. Discover matching provider installed on this device
+        val allProviders = try {
+            val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+            val profileProviders = userManager?.userProfiles?.flatMap { profile ->
+                try {
+                    appWidgetManager.getInstalledProvidersForProfile(profile) ?: emptyList()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }?.distinctBy { it.provider }
+
+            if (!profileProviders.isNullOrEmpty()) {
+                profileProviders
+            } else {
+                appWidgetManager.installedProviders
+            }
+        } catch (_: Exception) {
+            try {
+                appWidgetManager.installedProviders
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+
+        val matchedProvider = allProviders.find {
+            it.provider.packageName == packageName && it.provider.className == providerClassName
+        } ?: allProviders.find {
+            it.provider.packageName == packageName
+        }
+
+        if (matchedProvider == null) {
+            return existingAppWidgetId
+        }
+
+        // 3. Allocate a fresh host ID for this session
+        val newAppWidgetId = try {
+            allocateAppWidgetId()
+        } catch (_: Exception) {
+            return existingAppWidgetId
+        }
+
+        // 4. Configure layout options bundle
+        val widthDp = if (spanX <= 2) 160 else 340
+        val options = createWidgetOptionsBundle(widthDp, heightDp)
+
+        // 5. Attempt automatic binding
+        val bound = try {
+            appWidgetManager.bindAppWidgetIdIfAllowed(newAppWidgetId, matchedProvider.provider, options)
+        } catch (_: Exception) {
+            false
+        }
+
+        if (bound) {
+            triggerWidgetUpdate(newAppWidgetId)
+            return newAppWidgetId
+        } else {
+            try {
+                deleteAppWidgetId(newAppWidgetId)
+            } catch (_: Exception) {}
+            return existingAppWidgetId
+        }
     }
 
     // ponytail: builds a production-grade sizing bundle with responsive SizeF constraints for Android 12+ and min/max bounds for older APIs.

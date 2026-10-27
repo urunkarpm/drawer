@@ -621,14 +621,30 @@ private fun StandaloneWidgetCardItem(
                 AndroidView(
                     factory = { ctx ->
                         try {
-                            val providerInfo = widgetHostManager.appWidgetManager.getAppWidgetInfo(widget.appWidgetId)
+                            var providerInfo = widgetHostManager.appWidgetManager.getAppWidgetInfo(widget.appWidgetId)
+                            var targetWidgetId = widget.appWidgetId
+                            if (providerInfo == null) {
+                                val reboundId = widgetHostManager.rebindOrRestoreWidget(
+                                    packageName = widget.packageName,
+                                    providerClassName = widget.providerClassName,
+                                    existingAppWidgetId = widget.appWidgetId,
+                                    spanX = widget.spanX,
+                                    heightDp = widget.heightDp
+                                )
+                                if (reboundId != widget.appWidgetId) {
+                                    providerInfo = widgetHostManager.appWidgetManager.getAppWidgetInfo(reboundId)
+                                    if (providerInfo != null) {
+                                        targetWidgetId = reboundId
+                                    }
+                                }
+                            }
                             if (providerInfo == null) {
                                 android.widget.TextView(ctx).apply {
                                     text = "Widget unavailable (${widget.packageName})"
                                     setPadding(32, 32, 32, 32)
                                 }
                             } else {
-                                val hostView = widgetHostManager.getOrCreateView(ctx, widget.appWidgetId)
+                                val hostView = widgetHostManager.getOrCreateView(ctx, targetWidgetId)
                                 hostView.layoutParams = android.view.ViewGroup.LayoutParams(
                                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                                     android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -659,7 +675,7 @@ private fun StandaloneWidgetCardItem(
                                 view.updateAppWidgetSize(bundle, widthDp, heightDp, widthDp, heightDp)
                             }
                             if (view.childCount == 0) {
-                                widgetHostManager.triggerWidgetUpdate(widget.appWidgetId)
+                                widgetHostManager.triggerWidgetUpdate(view.appWidgetId)
                             }
                         }
                     },

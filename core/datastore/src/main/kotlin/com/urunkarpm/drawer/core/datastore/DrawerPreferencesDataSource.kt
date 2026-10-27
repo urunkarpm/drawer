@@ -121,11 +121,44 @@ class DrawerPreferencesDataSource @Inject constructor(
     }
 
     val appUsageProfiles: Flow<Map<String, AppUsageProfile>> = dataStore.data.map { prefs ->
-        val json = prefs[PreferencesKeys.APP_USAGE_PROFILES] ?: return@map emptyMap()
-        try {
-            Json.decodeFromString<Map<String, AppUsageProfile>>(json)
-        } catch (_: Throwable) {
-            emptyMap()
+        val json = prefs[PreferencesKeys.APP_USAGE_PROFILES]
+        if (json != null) {
+            try {
+                Json.decodeFromString<Map<String, AppUsageProfile>>(json)
+            } catch (_: Throwable) {
+                emptyMap()
+            }
+        } else {
+            // Cold-start legacy migration from APP_LAUNCH_COUNTS and APP_LAST_LAUNCHED_TIMES
+            val legacyCountsJson = prefs[PreferencesKeys.APP_LAUNCH_COUNTS]
+            if (legacyCountsJson != null) {
+                try {
+                    val counts = Json.decodeFromString<Map<String, Int>>(legacyCountsJson)
+                    val times = prefs[PreferencesKeys.APP_LAST_LAUNCHED_TIMES]?.let {
+                        try { Json.decodeFromString<Map<String, Long>>(it) } catch (_: Throwable) { emptyMap() }
+                    } ?: emptyMap()
+                    val now = System.currentTimeMillis()
+                    counts.mapValues { (key, count) ->
+                        val lastTime = times[key] ?: 0L
+                        val ageDays = if (lastTime > 0L) {
+                            (now - lastTime).coerceAtLeast(0L) / (1000.0 * 60.0 * 60.0 * 24.0)
+                        } else 0.0
+                        val capped = count.coerceAtMost(50)
+                        val decayed = (capped * Math.pow(0.5, ageDays / 7.0)).toFloat()
+                        val slotShare = (count / 4).coerceAtLeast(0)
+                        AppUsageProfile(
+                            totalScore = decayed,
+                            lastLaunchTime = lastTime,
+                            weekdaySlots = listOf(slotShare, slotShare, slotShare, slotShare),
+                            weekendSlots = listOf(slotShare, slotShare, slotShare, slotShare)
+                        )
+                    }
+                } catch (_: Throwable) {
+                    emptyMap()
+                }
+            } else {
+                emptyMap()
+            }
         }
     }
 

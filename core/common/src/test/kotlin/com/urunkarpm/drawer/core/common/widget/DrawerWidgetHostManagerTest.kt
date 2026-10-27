@@ -1,12 +1,15 @@
 package com.urunkarpm.drawer.core.common.widget
 
 import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
+import android.content.ComponentName
 import android.content.Context
 import android.os.Looper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
+import io.mockk.spyk
 import io.mockk.unmockkAll
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -79,5 +82,52 @@ class DrawerWidgetHostManagerTest {
         assertEquals(2, info.spanY)
         assertEquals("Google Pay Scan QR", info.label)
         assertEquals("Quick UPI QR scanner", info.description)
+    }
+
+    private class TestWidgetProviderInfo(component: ComponentName) : AppWidgetProviderInfo() {
+        init {
+            provider = component
+        }
+    }
+
+    @Test
+    fun rebindOrRestoreWidget_whenExistingIdStillValid_returnsExistingId() {
+        val manager = DrawerWidgetHostManager(context)
+        val providerComponent = mockk<ComponentName> {
+            every { packageName } returns "com.test.app"
+            every { className } returns "com.test.app.MyWidget"
+        }
+        val mockInfo = TestWidgetProviderInfo(providerComponent)
+        every { appWidgetManager.getAppWidgetInfo(99) } returns mockInfo
+
+        val resultId = manager.rebindOrRestoreWidget(
+            packageName = "com.test.app",
+            providerClassName = "com.test.app.MyWidget",
+            existingAppWidgetId = 99
+        )
+
+        assertEquals(99, resultId)
+    }
+
+    @Test
+    fun rebindOrRestoreWidget_whenExistingIdInvalid_allocatesAndBindsNewId() {
+        every { anyConstructed<DrawerAppWidgetHost>().allocateAppWidgetId() } returns 105
+        val manager = DrawerWidgetHostManager(context)
+        val providerComponent = mockk<ComponentName> {
+            every { packageName } returns "com.test.app"
+            every { className } returns "com.test.app.MyWidget"
+        }
+        val mockInfo = TestWidgetProviderInfo(providerComponent)
+        every { appWidgetManager.getAppWidgetInfo(99) } returns null
+        every { appWidgetManager.installedProviders } returns listOf(mockInfo)
+        every { appWidgetManager.bindAppWidgetIdIfAllowed(105, providerComponent, any()) } returns true
+
+        val resultId = manager.rebindOrRestoreWidget(
+            packageName = "com.test.app",
+            providerClassName = "com.test.app.MyWidget",
+            existingAppWidgetId = 99
+        )
+
+        assertEquals(105, resultId)
     }
 }

@@ -1,5 +1,6 @@
 package com.urunkarpm.drawer.core.data.repository
 
+import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.database.dao.AppGroupDao
 import com.urunkarpm.drawer.core.database.dao.DockDao
 import com.urunkarpm.drawer.core.database.dao.IconPackOverrideDao
@@ -25,6 +26,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -45,6 +47,7 @@ class BackupRepositoryImplTest {
     private val iconPackOverrideDao: IconPackOverrideDao = mockk(relaxed = true)
     private val widgetDao: WidgetDao = mockk(relaxed = true)
     private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
+    private val widgetHostManager: DrawerWidgetHostManager = mockk(relaxed = true)
 
     private val groupsFlow = MutableStateFlow<List<AppGroupEntity>>(emptyList())
     private val groupItemsFlow = MutableStateFlow<List<AppGroupItemEntity>>(emptyList())
@@ -83,7 +86,8 @@ class BackupRepositoryImplTest {
             iconPackOverrideDao = iconPackOverrideDao,
             widgetDao = widgetDao,
             preferencesDataSource = preferencesDataSource,
-            ioDispatcher = testDispatcher
+            ioDispatcher = testDispatcher,
+            widgetHostManager = widgetHostManager
         )
     }
 
@@ -189,10 +193,13 @@ class BackupRepositoryImplTest {
             )
         )
 
+        every { widgetHostManager.rebindOrRestoreWidget(any(), any(), any(), any(), any()) } returns 777
         val jsonString = Json.encodeToString(LauncherBackup.serializer(), backup)
         val result = repository.restoreBackupJson(jsonString)
 
         assertTrue(result.isSuccess)
+        verify { widgetHostManager.clearViewCache() }
+        verify { widgetHostManager.rebindOrRestoreWidget("com.stocks", "StockWidget", 42, 4, 180) }
         coVerify { appGroupDao.replaceAllGroups(match { it.size == 1 && it[0].id == "g_social" }, match { it.size == 1 && it[0].packageName == "com.chat" }) }
         coVerify { dockDao.replaceDock(match { it.size == 1 && it[0].packageName == "com.browser" }) }
         coVerify { mutedAppDao.clearAllRules() }
@@ -200,7 +207,7 @@ class BackupRepositoryImplTest {
         coVerify { widgetDao.clearAll() }
         coVerify { widgetDao.clearAllDrawers() }
         coVerify { widgetDao.insertDrawer(match { it.id == "wd_fin" && it.title == "Finance Widgets" }) }
-        coVerify { widgetDao.insertWidget(match { it.id == "w_stock" && it.packageName == "com.stocks" && it.drawerId == "wd_fin" }) }
+        coVerify { widgetDao.insertWidget(match { it.id == "w_stock" && it.packageName == "com.stocks" && it.drawerId == "wd_fin" && it.appWidgetId == 777 }) }
         coVerify { preferencesDataSource.restorePreferences(match { it.themeMode == "AMOLED" && it.dockBackground == "SOLID" }) }
     }
 

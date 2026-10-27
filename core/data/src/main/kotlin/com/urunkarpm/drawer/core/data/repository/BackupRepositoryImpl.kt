@@ -2,6 +2,7 @@ package com.urunkarpm.drawer.core.data.repository
 
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
+import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.database.dao.AppGroupDao
 import com.urunkarpm.drawer.core.database.dao.DockDao
 import com.urunkarpm.drawer.core.database.dao.IconPackOverrideDao
@@ -33,7 +34,8 @@ class BackupRepositoryImpl @Inject constructor(
     private val iconPackOverrideDao: IconPackOverrideDao,
     private val widgetDao: WidgetDao,
     private val preferencesDataSource: DrawerPreferencesDataSource,
-    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
+    @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
+    private val widgetHostManager: DrawerWidgetHostManager? = null
 ) : BackupRepository {
 
     private val json = Json {
@@ -112,6 +114,7 @@ class BackupRepositoryImpl @Inject constructor(
 
             // 5. Restore Widgets and Widget Drawers
             // ponytail: merge flat widgets list and drawer-nested widgets to guarantee no widgets or drawers are lost across backup versions.
+            widgetHostManager?.clearViewCache()
             widgetDao.clearAll()
             widgetDao.clearAllDrawers()
             if (backup.widgetDrawers.isNotEmpty()) {
@@ -123,7 +126,14 @@ class BackupRepositoryImpl @Inject constructor(
                 .distinctBy { it.id }
             if (allWidgets.isNotEmpty()) {
                 allWidgets.forEach { widget ->
-                    widgetDao.insertWidget(WidgetItemEntity.fromDomain(widget))
+                    val resolvedId = widgetHostManager?.rebindOrRestoreWidget(
+                        packageName = widget.packageName,
+                        providerClassName = widget.providerClassName,
+                        existingAppWidgetId = widget.appWidgetId,
+                        spanX = widget.spanX,
+                        heightDp = widget.heightDp
+                    ) ?: widget.appWidgetId
+                    widgetDao.insertWidget(WidgetItemEntity.fromDomain(widget.copy(appWidgetId = resolvedId)))
                 }
             }
 

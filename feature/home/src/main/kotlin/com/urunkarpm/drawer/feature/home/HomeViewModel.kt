@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.DockRepository
 import com.urunkarpm.drawer.core.data.repository.WeatherRepository
@@ -154,7 +155,8 @@ class HomeViewModel @Inject constructor(
     private val needleEngine: NeedleEngine,
     private val needleActionDispatcher: NeedleActionDispatcher,
     private val appPredictor: AppPredictor = AppPredictor(),
-    @ApplicationContext private val context: Context? = null
+    @ApplicationContext private val context: Context? = null,
+    private val widgetHostManager: DrawerWidgetHostManager? = null
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -422,6 +424,31 @@ class HomeViewModel @Inject constructor(
     init {
         collapseAllWidgetDrawers()
         refreshWeather()
+        // ponytail: self-heals dangling widget IDs (e.g. from restored backups or system process death) by checking AppWidgetManager and rebinding live providers.
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val existingWidgets = widgetRepository.getAllWidgets().first()
+                existingWidgets.forEach { widget ->
+                    val info = try {
+                        widgetHostManager?.appWidgetManager?.getAppWidgetInfo(widget.appWidgetId)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (info == null && widgetHostManager != null) {
+                        val resolvedId = widgetHostManager.rebindOrRestoreWidget(
+                            packageName = widget.packageName,
+                            providerClassName = widget.providerClassName,
+                            existingAppWidgetId = widget.appWidgetId,
+                            spanX = widget.spanX,
+                            heightDp = widget.heightDp
+                        )
+                        if (resolvedId != widget.appWidgetId) {
+                            widgetRepository.updateWidget(widget.copy(appWidgetId = resolvedId))
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
         viewModelScope.launch(Dispatchers.Unconfined) {
             preferencesDataSource.appUsageProfiles.collect {
                 currentProfiles = it
@@ -659,6 +686,9 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private var lastLaunchedPackage: String? = null
+    private var lastLaunchTimestamp: Long = 0L
+
     fun onSearchQueryChange(query: String) = onSearchQueryChanged(query)
 
     fun refreshSuggestions(
@@ -666,13 +696,16 @@ class HomeViewModel @Inject constructor(
         activeNotificationPackages: Set<String> = emptySet()
     ) {
         val installed = currentInstalledApps.ifEmpty { uiState.value.installedApps }
+        val now = System.currentTimeMillis()
+        val recentExited = if (now - lastLaunchTimestamp <= 60_000L) lastLaunchedPackage else null
         _suggestedApps.value = appPredictor.predictTopApps(
             installedApps = installed,
             usageProfiles = currentProfiles,
             dockedPackages = dockedPackages,
             blacklistedPackages = currentBlacklist,
             activeNotificationPackages = activeNotificationPackages,
-            currentTimeMs = System.currentTimeMillis()
+            lastExitedPackage = recentExited,
+            currentTimeMs = now
         )
     }
 
@@ -682,9 +715,11 @@ class HomeViewModel @Inject constructor(
     ) = refreshSuggestions(dockedPackages, activeNotificationPackages)
 
     fun hideFromSuggestions(packageName: String) {
+        currentBlacklist = currentBlacklist + packageName
         _suggestedApps.value = _suggestedApps.value.filter { it.packageName != packageName }
         viewModelScope.launch {
             preferencesDataSource.hideAppFromSuggestions(packageName)
+            refreshSuggestions()
         }
     }
 
@@ -712,8 +747,12 @@ class HomeViewModel @Inject constructor(
 
     fun onAppClicked(app: AppInfo): Boolean {
         val launched = appRepository.launchApp(app)
-        if (launched && _isAllAppsOpen.value) {
-            closeAllApps()
+        if (launched) {
+            lastLaunchedPackage = app.packageName
+            lastLaunchTimestamp = System.currentTimeMillis()
+            if (_isAllAppsOpen.value) {
+                closeAllApps()
+            }
         }
         return launched
     }
