@@ -33,21 +33,6 @@ class AppPredictor @Inject constructor() {
             else -> 3
         }
 
-        fun isIgnoredSystemPackage(pkgName: String): Boolean {
-            val pkg = pkgName.lowercase()
-            return pkg.startsWith("com.google.android.gms") ||
-                    pkg.startsWith("com.google.android.webview") ||
-                    pkg.startsWith("com.android.webview") ||
-                    pkg.startsWith("com.google.android.tts") ||
-                    pkg.startsWith("com.android.carrierconfig") ||
-                    pkg.startsWith("com.google.android.overlay") ||
-                    pkg.startsWith("com.google.android.ext") ||
-                    pkg.startsWith("com.android.stk") ||
-                    pkg.startsWith("com.google.android.marvin.talkback") ||
-                    pkg.startsWith("com.google.android.as") ||
-                    pkg.startsWith("com.google.android.feedback")
-        }
-
         fun scoreApp(app: AppInfo): Float {
             if (app.packageName in dockedPackages ||
                 app.packageName in blacklistedPackages ||
@@ -59,7 +44,10 @@ class AppPredictor @Inject constructor() {
             val profile = usageProfiles[app.componentKey] ?: usageProfiles[app.packageName] ?: return 0f
             if (profile.totalScore <= 0f && profile.lastLaunchTime <= 0L) return 0f
 
-            val elapsedDays = (currentTimeMs - profile.lastLaunchTime).coerceAtLeast(0L) / (1000.0 * 60.0 * 60.0 * 24.0)
+            val elapsedDays = if (profile.lastLaunchTime > 0L) {
+                (currentTimeMs - profile.lastLaunchTime).coerceAtLeast(0L) / (1000.0 * 60.0 * 60.0 * 24.0)
+            } else 0.0
+
             val decayedScore = (profile.totalScore * Math.pow(0.5, elapsedDays / 7.0)).toFloat()
             if (decayedScore <= 0f) return 0f
 
@@ -102,18 +90,11 @@ class AppPredictor @Inject constructor() {
             // Cold-start fallback avoiding dock & blacklisted apps
             val pickedPackages = scoredApps.map { it.packageName }.toSet()
             val fallbackCandidates = eligibleApps.filter { it.packageName !in pickedPackages }
-            val priorityKeywords = listOf(
-                "dialer", "phone", "contact",
-                "message", "sms", "chat", "whatsapp", "telegram",
-                "chrome", "browser", "firefox",
-                "camera", "gallery", "photos",
-                "vending", "playstore", "store"
-            )
             val sortedFallbacks = fallbackCandidates.sortedWith(
                 compareByDescending<AppInfo> { app ->
                     val pkg = app.packageName.lowercase()
                     val label = app.label.lowercase()
-                    if (priorityKeywords.any { pkg.contains(it) || label.contains(it) }) 1 else 0
+                    if (DEFAULT_PRIORITY_KEYWORDS.any { pkg.contains(it) || label.contains(it) }) 1 else 0
                 }.thenByDescending { it.installTimeMillis }
             )
             (scoredApps + sortedFallbacks).take(maxSuggestions)
@@ -125,5 +106,34 @@ class AppPredictor @Inject constructor() {
         val candidate = candidatePkg.lowercase()
         return (prev.contains("camera") && (candidate.contains("gallery") || candidate.contains("photos"))) ||
                 (prev.contains("bank") && candidate.contains("auth"))
+    }
+
+    companion object {
+        private val DEFAULT_PRIORITY_KEYWORDS = listOf(
+            "dialer", "phone", "contact",
+            "message", "sms", "chat", "whatsapp", "telegram",
+            "chrome", "browser", "firefox",
+            "camera", "gallery", "photos",
+            "vending", "playstore", "store"
+        )
+
+        private val IGNORED_SYSTEM_PREFIXES = listOf(
+            "com.google.android.gms",
+            "com.google.android.webview",
+            "com.android.webview",
+            "com.google.android.tts",
+            "com.android.carrierconfig",
+            "com.google.android.overlay",
+            "com.google.android.ext",
+            "com.android.stk",
+            "com.google.android.marvin.talkback",
+            "com.google.android.as",
+            "com.google.android.feedback"
+        )
+
+        private fun isIgnoredSystemPackage(pkgName: String): Boolean {
+            val pkg = pkgName.lowercase()
+            return IGNORED_SYSTEM_PREFIXES.any { pkg.startsWith(it) }
+        }
     }
 }

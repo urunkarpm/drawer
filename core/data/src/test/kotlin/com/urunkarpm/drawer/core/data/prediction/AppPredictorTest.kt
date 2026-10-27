@@ -12,11 +12,16 @@ import java.util.Calendar
 class AppPredictorTest {
     private lateinit var predictor: AppPredictor
 
-    private fun createApp(packageName: String, label: String): AppInfo {
+    private fun createApp(
+        packageName: String,
+        label: String,
+        installTimeMillis: Long = 0L
+    ): AppInfo {
         return AppInfo(
             packageName = packageName,
             activityName = "MainActivity",
-            label = label
+            label = label,
+            installTimeMillis = installTimeMillis
         )
     }
 
@@ -27,14 +32,15 @@ class AppPredictorTest {
 
     @Test
     fun predictTopApps_excludesDockedApps() {
+        val now = System.currentTimeMillis()
         val app1 = createApp("com.example.phone", "Phone")
         val app2 = createApp("com.example.browser", "Browser")
         val app3 = createApp("com.example.notes", "Notes")
 
         val profiles = mapOf(
-            app1.componentKey to AppUsageProfile(totalScore = 10f),
-            app2.componentKey to AppUsageProfile(totalScore = 8f),
-            app3.componentKey to AppUsageProfile(totalScore = 5f)
+            app1.componentKey to AppUsageProfile(totalScore = 10f, lastLaunchTime = now),
+            app2.componentKey to AppUsageProfile(totalScore = 8f, lastLaunchTime = now),
+            app3.componentKey to AppUsageProfile(totalScore = 5f, lastLaunchTime = now)
         )
 
         val result = predictor.predictTopApps(
@@ -42,7 +48,8 @@ class AppPredictorTest {
             usageProfiles = profiles,
             dockedPackages = setOf("com.example.phone"),
             blacklistedPackages = emptySet(),
-            activeNotificationPackages = emptySet()
+            activeNotificationPackages = emptySet(),
+            currentTimeMs = now
         )
 
         assertFalse(result.any { it.packageName == "com.example.phone" })
@@ -51,21 +58,24 @@ class AppPredictorTest {
 
     @Test
     fun predictTopApps_boostsActiveNotifications() {
+        val now = System.currentTimeMillis()
         val app1 = createApp("com.example.chat", "Chat")
         val app2 = createApp("com.example.game", "Game")
 
-        // Chat has slightly lower base score, but active notification boosts it over Game
+        // Chat has slightly lower base score, but active notification (1.3x) boosts it over Game
+        // sqrt(5) * 10 * 1.30 = 29.07 > sqrt(6) * 10 = 24.49
         val profiles = mapOf(
-            app1.componentKey to AppUsageProfile(totalScore = 5f),
-            app2.componentKey to AppUsageProfile(totalScore = 6f)
+            app1.componentKey to AppUsageProfile(totalScore = 5f, lastLaunchTime = now),
+            app2.componentKey to AppUsageProfile(totalScore = 6f, lastLaunchTime = now)
         )
 
         val result = predictor.predictTopApps(
-            installedApps = listOf(app1, app2),
+            installedApps = listOf(app2, app1), // Pass app2 first to verify score ordering over insertion order
             usageProfiles = profiles,
             dockedPackages = emptySet(),
             blacklistedPackages = emptySet(),
-            activeNotificationPackages = setOf("com.example.chat")
+            activeNotificationPackages = setOf("com.example.chat"),
+            currentTimeMs = now
         )
 
         assertEquals("com.example.chat", result.first().packageName)
@@ -73,6 +83,12 @@ class AppPredictorTest {
 
     @Test
     fun predictTopApps_favorsWeekdayMorningHabits() {
+        // Tuesday 09:00 AM
+        val cal = Calendar.getInstance().apply {
+            set(2026, Calendar.OCTOBER, 27, 9, 0, 0)
+        }
+        val targetTimeMs = cal.timeInMillis
+
         val workApp = createApp("com.work.slack", "Slack")
         val leisureApp = createApp("com.fun.netflix", "Netflix")
 
@@ -81,28 +97,97 @@ class AppPredictorTest {
         val profiles = mapOf(
             workApp.componentKey to AppUsageProfile(
                 totalScore = 10f,
+                lastLaunchTime = targetTimeMs,
                 weekdaySlots = listOf(20, 0, 0, 0)
             ),
             leisureApp.componentKey to AppUsageProfile(
                 totalScore = 10f,
+                lastLaunchTime = targetTimeMs,
                 weekendSlots = listOf(0, 0, 20, 0)
             )
         )
 
-        // Tuesday 09:00 AM
-        val cal = Calendar.getInstance().apply {
-            set(2026, Calendar.OCTOBER, 27, 9, 0, 0)
-        }
-
         val result = predictor.predictTopApps(
-            installedApps = listOf(workApp, leisureApp),
+            installedApps = listOf(leisureApp, workApp), // leisureApp first to prove score ordering wins
             usageProfiles = profiles,
             dockedPackages = emptySet(),
             blacklistedPackages = emptySet(),
             activeNotificationPackages = emptySet(),
-            currentTimeMs = cal.timeInMillis
+            currentTimeMs = targetTimeMs
         )
 
         assertEquals("com.work.slack", result.first().packageName)
+    }
+
+    @Test
+    fun predictTopApps_respectsBlacklist() {
+        val now = System.currentTimeMillis()
+        val secretApp = createApp("com.example.secret", "Secret")
+        val notesApp = createApp("com.example.notes", "Notes")
+
+        val profiles = mapOf(
+            secretApp.componentKey to AppUsageProfile(totalScore = 20f, lastLaunchTime = now),
+            notesApp.componentKey to AppUsageProfile(totalScore = 5f, lastLaunchTime = now)
+        )
+
+        val result = predictor.predictTopApps(
+            installedApps = listOf(secretApp, notesApp),
+            usageProfiles = profiles,
+            dockedPackages = emptySet(),
+            blacklistedPackages = setOf("com.example.secret"),
+            activeNotificationPackages = emptySet(),
+            currentTimeMs = now
+        )
+
+        assertFalse(result.any { it.packageName == "com.example.secret" })
+        assertTrue(result.any { it.packageName == "com.example.notes" })
+    }
+
+    @Test
+    fun predictTopApps_fallsBackGracefully() {
+        val dockedDialer = createApp("com.android.dialer", "Phone", installTimeMillis = 1000L)
+        val browser = createApp("com.android.chrome", "Chrome", installTimeMillis = 2000L)
+        val notes = createApp("com.example.notes", "Notes", installTimeMillis = 3000L)
+
+        val result = predictor.predictTopApps(
+            installedApps = listOf(dockedDialer, notes, browser),
+            usageProfiles = emptyMap(),
+            dockedPackages = setOf("com.android.dialer"),
+            blacklistedPackages = emptySet(),
+            activeNotificationPackages = emptySet(),
+            maxSuggestions = 2
+        )
+
+        // Excludes docked dialer
+        assertFalse(result.any { it.packageName == "com.android.dialer" })
+        // Chrome has priority keyword 'chrome'/'browser', so ranked ahead of notes
+        assertEquals("com.android.chrome", result.first().packageName)
+        assertEquals(2, result.size)
+    }
+
+    @Test
+    fun predictTopApps_boostsCompanionSequence() {
+        val now = System.currentTimeMillis()
+        val galleryApp = createApp("com.example.gallery", "Gallery")
+        val gameApp = createApp("com.example.game", "Game")
+
+        // Game has slightly higher base score (11f vs 10f)
+        // sqrt(10) * 10 * 1.25 companion boost = 39.52 > sqrt(11) * 10 = 33.17
+        val profiles = mapOf(
+            galleryApp.componentKey to AppUsageProfile(totalScore = 10f, lastLaunchTime = now),
+            gameApp.componentKey to AppUsageProfile(totalScore = 11f, lastLaunchTime = now)
+        )
+
+        val result = predictor.predictTopApps(
+            installedApps = listOf(gameApp, galleryApp), // Pass gameApp first to prove boost overrides order
+            usageProfiles = profiles,
+            dockedPackages = emptySet(),
+            blacklistedPackages = emptySet(),
+            activeNotificationPackages = emptySet(),
+            lastExitedPackage = "com.android.camera",
+            currentTimeMs = now
+        )
+
+        assertEquals("com.example.gallery", result.first().packageName)
     }
 }
