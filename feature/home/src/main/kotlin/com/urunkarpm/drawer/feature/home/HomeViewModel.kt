@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.DockRepository
 import com.urunkarpm.drawer.core.data.repository.WeatherRepository
+import com.urunkarpm.drawer.core.data.prediction.AppPredictor
+import com.urunkarpm.drawer.core.model.AppUsageProfile
 import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppInfo
@@ -68,7 +70,7 @@ data class GlancePrefs(
     val dockMesmerizingGlow: Boolean = true,
     val enableOnDeviceAi: Boolean = false,
     val drawerTitleAnimation: String = "ACCENT_POP",
-    val blurAppListOnOpen: Boolean = false
+    val blurAppListOnOpen: Boolean = true
 )
 
 data class HomeDialogsState(
@@ -130,7 +132,7 @@ data class HomeUiState(
     val dockMesmerizingGlow: Boolean = true,
     val enableOnDeviceAi: Boolean = false,
     val drawerTitleAnimation: String = "ACCENT_POP",
-    val blurAppListOnOpen: Boolean = false
+    val blurAppListOnOpen: Boolean = true
 )
 
 data class SurfaceThemePrefs(
@@ -151,16 +153,29 @@ class HomeViewModel @Inject constructor(
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository,
     private val needleEngine: NeedleEngine,
     private val needleActionDispatcher: NeedleActionDispatcher,
+    private val appPredictor: AppPredictor = AppPredictor(),
     @ApplicationContext private val context: Context? = null
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
     private val _isAllAppsOpen = MutableStateFlow(false)
+    val isAllAppsOpen: StateFlow<Boolean> = _isAllAppsOpen.asStateFlow()
     private val _selectedAppForMenu = MutableStateFlow<AppInfo?>(null)
     private val _shortcuts = MutableStateFlow<List<AppShortcutInfo>>(emptyList())
     private val _userMessage = MutableStateFlow<String?>(null)
     private val _suggestedAction = MutableStateFlow<LauncherAction?>(null)
     val suggestedAction: StateFlow<LauncherAction?> = _suggestedAction.asStateFlow()
+
+    private val _suggestedApps = MutableStateFlow<List<AppInfo>>(emptyList())
+    val suggestedApps: StateFlow<List<AppInfo>> = _suggestedApps.asStateFlow()
+
+    val showDrawerSuggestions: StateFlow<Boolean> = preferencesDataSource.showDrawerSuggestions
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    private var currentProfiles: Map<String, AppUsageProfile> = emptyMap()
+    private var currentBlacklist: Set<String> = emptySet()
+    private var currentDockedPackages: Set<String> = emptySet()
+    private var currentInstalledApps: List<AppInfo> = emptyList()
 
     private var searchJob: Job? = null
 
@@ -407,6 +422,26 @@ class HomeViewModel @Inject constructor(
     init {
         collapseAllWidgetDrawers()
         refreshWeather()
+        viewModelScope.launch(Dispatchers.Unconfined) {
+            preferencesDataSource.appUsageProfiles.collect {
+                currentProfiles = it
+            }
+        }
+        viewModelScope.launch(Dispatchers.Unconfined) {
+            preferencesDataSource.suggestionBlacklist.collect {
+                currentBlacklist = it
+            }
+        }
+        viewModelScope.launch(Dispatchers.Unconfined) {
+            dockRepository.dockItems.collect { dockItems ->
+                currentDockedPackages = dockItems.map { it.packageName }.toSet()
+            }
+        }
+        viewModelScope.launch(Dispatchers.Unconfined) {
+            appRepository.installedApps.collect { apps ->
+                currentInstalledApps = apps
+            }
+        }
         viewModelScope.launch(Dispatchers.IO) {
             dockRepository.dockItems.collect { dockItems ->
                 val apps = appRepository.installedApps.first()
@@ -626,7 +661,37 @@ class HomeViewModel @Inject constructor(
 
     fun onSearchQueryChange(query: String) = onSearchQueryChanged(query)
 
-    fun openAllApps() {
+    fun refreshSuggestions(
+        dockedPackages: Set<String> = currentDockedPackages,
+        activeNotificationPackages: Set<String> = emptySet()
+    ) {
+        val installed = currentInstalledApps.ifEmpty { uiState.value.installedApps }
+        _suggestedApps.value = appPredictor.predictTopApps(
+            installedApps = installed,
+            usageProfiles = currentProfiles,
+            dockedPackages = dockedPackages,
+            blacklistedPackages = currentBlacklist,
+            activeNotificationPackages = activeNotificationPackages,
+            currentTimeMs = System.currentTimeMillis()
+        )
+    }
+
+    fun freezeSuggestionsForDrawerOpen(
+        dockedPackages: Set<String> = currentDockedPackages,
+        activeNotificationPackages: Set<String> = emptySet()
+    ) = refreshSuggestions(dockedPackages, activeNotificationPackages)
+
+    fun hideFromSuggestions(packageName: String) {
+        _suggestedApps.value = _suggestedApps.value.filter { it.packageName != packageName }
+        viewModelScope.launch {
+            preferencesDataSource.hideAppFromSuggestions(packageName)
+        }
+    }
+
+    fun hideAppFromSuggestions(packageName: String) = hideFromSuggestions(packageName)
+
+    fun openAllApps(activeNotificationPackages: Set<String> = emptySet()) {
+        refreshSuggestions(activeNotificationPackages = activeNotificationPackages)
         _isAllAppsOpen.value = true
     }
 
@@ -637,11 +702,11 @@ class HomeViewModel @Inject constructor(
         searchJob?.cancel()
     }
 
-    fun toggleAllApps() {
+    fun toggleAllApps(activeNotificationPackages: Set<String> = emptySet()) {
         if (_isAllAppsOpen.value) {
             closeAllApps()
         } else {
-            openAllApps()
+            openAllApps(activeNotificationPackages)
         }
     }
 

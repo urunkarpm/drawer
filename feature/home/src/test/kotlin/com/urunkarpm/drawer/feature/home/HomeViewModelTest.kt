@@ -88,6 +88,9 @@ class HomeViewModelTest {
     private val lockLayoutFlow = MutableStateFlow(false)
     private val appLaunchCountsFlow = MutableStateFlow<Map<String, Int>>(emptyMap())
     private val appLastLaunchedTimesFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
+    private val appUsageProfilesFlow = MutableStateFlow<Map<String, com.urunkarpm.drawer.core.model.AppUsageProfile>>(emptyMap())
+    private val suggestionBlacklistFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val showDrawerSuggestionsFlow = MutableStateFlow(true)
 
     private val sampleApps = listOf(
         AppInfo(
@@ -165,6 +168,9 @@ class HomeViewModelTest {
         every { preferencesDataSource.cinematicPalette } returns cinematicPaletteFlow
         every { preferencesDataSource.appLaunchCounts } returns appLaunchCountsFlow
         every { preferencesDataSource.appLastLaunchedTimes } returns appLastLaunchedTimesFlow
+        every { preferencesDataSource.appUsageProfiles } returns appUsageProfilesFlow
+        every { preferencesDataSource.suggestionBlacklist } returns suggestionBlacklistFlow
+        every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow
         every { widgetRepository.getAllDrawers() } returns drawersFlow
 
@@ -290,6 +296,21 @@ class HomeViewModelTest {
             assertFalse(state.isAllAppsOpen)
             assertEquals("", state.searchQuery)
         }
+    }
+
+    @Test
+    fun testOpenAllApps_freezesPredictedSuggestions() = runTest {
+        // When drawer opens, suggestedApps snapshot is taken
+        viewModel.openAllApps()
+        assertTrue(viewModel.isAllAppsOpen.value)
+        val initialSuggestions = viewModel.suggestedApps.value
+        assertEquals(3, initialSuggestions.size)
+
+        // Hiding an app from suggestions immediately filters snapshot and updates preferences
+        viewModel.hideFromSuggestions("com.android.chrome")
+        testScheduler.advanceUntilIdle()
+        assertFalse(viewModel.suggestedApps.value.any { it.packageName == "com.android.chrome" })
+        coVerify { preferencesDataSource.hideAppFromSuggestions("com.android.chrome") }
     }
 
     @Test

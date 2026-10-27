@@ -176,8 +176,8 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val groupsUiState by groupsViewModel.uiState.collectAsStateWithLifecycle()
     val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
-    val launchCounts by viewModel.appLaunchCounts.collectAsStateWithLifecycle()
-    val launchTimes by viewModel.appLastLaunchedTimes.collectAsStateWithLifecycle()
+    val suggestedApps by viewModel.suggestedApps.collectAsStateWithLifecycle()
+    val showDrawerSuggestions by viewModel.showDrawerSuggestions.collectAsStateWithLifecycle()
     val suggestedAction by viewModel.suggestedAction.collectAsStateWithLifecycle()
     val modelProcessingState by viewModel.modelProcessingState.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -185,112 +185,8 @@ fun HomeScreen(
     val screenWidthDp = configuration.screenWidthDp
     val screenHeightDp = configuration.screenHeightDp
     val isSmallScreen = screenWidthDp < 360
-    val maxSuggestions = 6
-
-    // ponytail: Smart Continuous Frecency algorithm combining exponential half-life recency decay, sublinear frequency weighting, and time-of-day affinity with clean user app cold-start fallback; ceiling is local heuristic ranking without deep neural network; upgrade path is on-device AppSearch / ML suggestion engine.
-    val suggestedApps = remember(uiState.installedApps, launchCounts, launchTimes, maxSuggestions) {
-        if (uiState.installedApps.isEmpty()) return@remember emptyList()
-
-        val now = System.currentTimeMillis()
-        val currentCalendar = java.util.Calendar.getInstance()
-        val currentHour = currentCalendar.get(java.util.Calendar.HOUR_OF_DAY)
-        val appCalendar = java.util.Calendar.getInstance()
-
-        // Fast O(1) package-level aggregated lookups
-        val countsByPackage = HashMap<String, Int>(launchCounts.size)
-        for ((key, count) in launchCounts) {
-            val pkg = key.substringBefore('/').substringBefore('#')
-            countsByPackage[pkg] = (countsByPackage[pkg] ?: 0) + count
-        }
-        val timesByPackage = HashMap<String, Long>(launchTimes.size)
-        for ((key, time) in launchTimes) {
-            val pkg = key.substringBefore('/').substringBefore('#')
-            val existing = timesByPackage[pkg] ?: 0L
-            if (time > existing) timesByPackage[pkg] = time
-        }
-
-        fun scoreApp(app: AppInfo): Float {
-            val count = launchCounts[app.componentKey] ?: countsByPackage[app.packageName] ?: 0
-            val lastLaunch = launchTimes[app.componentKey] ?: timesByPackage[app.packageName] ?: 0L
-
-            if (count <= 0 && lastLaunch <= 0L) {
-                return 0f
-            }
-
-            val diffMs = (now - lastLaunch).coerceAtLeast(0L)
-            val diffHours = diffMs / (1000.0 * 60.0 * 60.0)
-            // Continuous exponential decay with 48-hour half-life ensures recency fades smoothly without sudden cliff drops
-            val recencyWeight = 0.5.pow(diffHours / 48.0).toFloat()
-            // Damped frequency weight ensures active daily apps beat stale apps while preventing 500-launch apps from dominating forever
-            val frequencyWeight = kotlin.math.sqrt(count.toDouble()).toFloat() * 10f + 2f
-            var appScore = frequencyWeight * recencyWeight
-
-            // Time-of-day affinity: boost apps usually launched around this hour of day
-            if (lastLaunch > 0L) {
-                appCalendar.timeInMillis = lastLaunch
-                val lastHour = appCalendar.get(java.util.Calendar.HOUR_OF_DAY)
-                val hourDiff = kotlin.math.abs(currentHour - lastHour)
-                val circularDiff = kotlin.math.min(hourDiff, 24 - hourDiff)
-                if (circularDiff <= 2) {
-                    appScore *= 1.20f
-                } else if (circularDiff <= 4) {
-                    appScore *= 1.08f
-                }
-            }
-            return appScore
-        }
-
-        fun isIgnoredSystemPackage(pkgName: String): Boolean {
-            val pkg = pkgName.lowercase()
-            return pkg.startsWith("com.google.android.gms") ||
-                    pkg.startsWith("com.google.android.webview") ||
-                    pkg.startsWith("com.android.webview") ||
-                    pkg.startsWith("com.google.android.tts") ||
-                    pkg.startsWith("com.android.carrierconfig") ||
-                    pkg.startsWith("com.google.android.overlay") ||
-                    pkg.startsWith("com.google.android.ext") ||
-                    pkg.startsWith("com.android.stk") ||
-                    pkg.startsWith("com.google.android.marvin.talkback") ||
-                    pkg.startsWith("com.google.android.as") ||
-                    pkg.startsWith("com.google.android.feedback")
-        }
-
-        val eligibleApps = uiState.installedApps
-            .filter { app ->
-                app.packageName != context.packageName &&
-                app.label.isNotBlank() &&
-                !isIgnoredSystemPackage(app.packageName)
-            }
-            .distinctBy { it.packageName }
-
-        val scoredLaunchedApps = eligibleApps
-            .map { app -> app to scoreApp(app) }
-            .filter { it.second > 0f }
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        if (scoredLaunchedApps.size >= maxSuggestions) {
-            scoredLaunchedApps.take(maxSuggestions)
-        } else {
-            // Cold-start fallback: only suggest clean essential user-facing apps (dialer, messages, browser, camera, play store)
-            val pickedPackages = scoredLaunchedApps.map { it.packageName }.toSet()
-            val fallbackCandidates = eligibleApps.filter { it.packageName !in pickedPackages }
-            val priorityKeywords = listOf(
-                "dialer", "phone", "contact",
-                "message", "sms", "chat", "whatsapp", "telegram",
-                "chrome", "browser", "firefox",
-                "camera", "gallery", "photos",
-                "vending", "playstore", "store"
-            )
-            val sortedFallbacks = fallbackCandidates.sortedWith(
-                compareByDescending<AppInfo> { app ->
-                    val pkg = app.packageName.lowercase()
-                    val label = app.label.lowercase()
-                    if (priorityKeywords.any { pkg.contains(it) || label.contains(it) }) 1 else 0
-                }.thenByDescending { it.installTimeMillis }
-            )
-            (scoredLaunchedApps + sortedFallbacks).take(maxSuggestions)
-        }
+    val activeNotificationPkgs = remember(notificationsUiState.activeNotifications) {
+        notificationsUiState.activeNotifications.map { it.packageName }.toSet()
     }
     val isFoldableOrTablet = screenWidthDp >= 600
     val isLargeTablet = screenWidthDp >= 840
@@ -1062,7 +958,7 @@ fun HomeScreen(
                                            trimmed.startsWith("find ", ignoreCase = true)
                     if (isExplicitSearch) {
                         val query = trimmed.replaceFirst(Regex("^(?:search|find)\\s+", RegexOption.IGNORE_CASE), "").trim()
-                        viewModel.openAllApps()
+                        viewModel.openAllApps(activeNotificationPkgs)
                         viewModel.onSearchQueryChanged(query)
                         viewModel.notifyCommandProcessed("Searching for \"$query\"")
                     } else {
@@ -1105,7 +1001,7 @@ fun HomeScreen(
                 val fallbackIntent = Intent(Intent.ACTION_VOICE_COMMAND)
                 context.startActivity(fallbackIntent)
             } catch (_: Exception) {
-                viewModel.openAllApps()
+                viewModel.openAllApps(activeNotificationPkgs)
             }
         }
     }
@@ -1459,7 +1355,7 @@ fun HomeScreen(
                     if (!uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
                         // Sane resistance threshold: requires deliberate upward pull (~180f accumulated)
                         if (scrollUpAccumulator < -180f) {
-                            viewModel.openAllApps()
+                            viewModel.openAllApps(activeNotificationPkgs)
                             scrollUpAccumulator = 0f
                             actionTriggeredInScroll = true
                             return Offset(0f, available.y)
@@ -1476,7 +1372,7 @@ fun HomeScreen(
                 if (!actionTriggeredInScroll && !uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
                     // Velocity handoff: quick upward flick directly triggers drawer opening
                     if (available.y < -750f) {
-                        viewModel.openAllApps()
+                        viewModel.openAllApps(activeNotificationPkgs)
                         actionTriggeredInScroll = true
                         scrollUpAccumulator = 0f
                         return available
@@ -1816,7 +1712,7 @@ fun HomeScreen(
                                         if (isNotificationExpanded) {
                                             isNotificationExpanded = false
                                         } else {
-                                            viewModel.openAllApps()
+                                            viewModel.openAllApps(activeNotificationPkgs)
                                         }
                                         actionTriggered = true
                                     } else if (!uiState.isAllAppsOpen && dockDrag > 50f) {
@@ -1993,7 +1889,7 @@ fun HomeScreen(
         AllAppsDrawer(
             visible = uiState.isAllAppsOpen,
             apps = uiState.filteredApps,
-            frequentApps = suggestedApps,
+            frequentApps = if (showDrawerSuggestions) suggestedApps else emptyList(),
             searchQuery = uiState.searchQuery,
             isLoading = uiState.isLoading,
             iconShape = drawerIconShape,
