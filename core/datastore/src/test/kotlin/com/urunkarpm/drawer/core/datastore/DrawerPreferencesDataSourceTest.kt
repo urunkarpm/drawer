@@ -1,6 +1,7 @@
 package com.urunkarpm.drawer.core.datastore
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.urunkarpm.drawer.core.model.AppUsageProfile
 import com.urunkarpm.drawer.core.model.LauncherPreferencesBackup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -9,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -16,6 +18,23 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DrawerPreferencesDataSourceTest {
+
+    companion object {
+        @JvmStatic
+        @org.junit.BeforeClass
+        fun setupClass() {
+            try {
+                val field = android.os.Build.VERSION::class.java.getField("SDK_INT")
+                val unsafeField = sun.misc.Unsafe::class.java.getDeclaredField("theUnsafe")
+                unsafeField.isAccessible = true
+                val unsafe = unsafeField.get(null) as sun.misc.Unsafe
+                val staticFieldBase = unsafe.staticFieldBase(field)
+                val staticFieldOffset = unsafe.staticFieldOffset(field)
+                unsafe.putInt(staticFieldBase, staticFieldOffset, 34)
+            } catch (_: Throwable) {
+            }
+        }
+    }
 
     @get:Rule
     val tmpFolder = TemporaryFolder()
@@ -335,5 +354,50 @@ class DrawerPreferencesDataSourceTest {
         val dataSource = createDataSource(backgroundScope)
         dataSource.setBlurAppListOnOpen(true)
         assertEquals(true, dataSource.blurAppListOnOpen.first())
+    }
+
+    @Test
+    fun testRecordAppLaunchWithContext_updatesTimeSlotAndDecaysScore() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        val key = "com.example.app/MainActivity"
+        // Tuesday 09:00 AM (Weekday, Morning slot 0)
+        val cal = java.util.Calendar.getInstance().apply {
+            set(2026, java.util.Calendar.OCTOBER, 27, 9, 0, 0)
+        }
+        val tuesdayMorning = cal.timeInMillis
+
+        dataSource.recordAppLaunchWithContext(key, tuesdayMorning)
+        val profiles = dataSource.appUsageProfiles.first()
+        val profile = profiles[key]
+        assertNotNull(profile)
+        assertEquals(1.0f, profile!!.totalScore, 0.01f)
+        assertEquals(1, profile.weekdaySlots[0]) // Morning slot 0
+        assertEquals(0, profile.weekdaySlots[1])
+        assertEquals(0, profile.weekendSlots[0])
+
+        // Launch again 7 days later (half-life decay test: 1.0 * 0.5 + 1.0 = 1.5)
+        val nextWeek = tuesdayMorning + (7L * 24 * 60 * 60 * 1000)
+        dataSource.recordAppLaunchWithContext(key, nextWeek)
+        val updatedProfiles = dataSource.appUsageProfiles.first()
+        val updatedProfile = updatedProfiles[key]
+        assertNotNull(updatedProfile)
+        assertEquals(1.5f, updatedProfile!!.totalScore, 0.05f)
+        assertEquals(2, updatedProfile.weekdaySlots[0])
+    }
+
+    @Test
+    fun testHideAppFromSuggestions_addsToBlacklist() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.hideAppFromSuggestions("com.distracting.app")
+        val blacklist = dataSource.suggestionBlacklist.first()
+        assertTrue(blacklist.contains("com.distracting.app"))
+    }
+
+    @Test
+    fun testShowDrawerSuggestionsDefaultAndPersistence() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(true, dataSource.showDrawerSuggestions.first())
+        dataSource.setShowDrawerSuggestions(false)
+        assertEquals(false, dataSource.showDrawerSuggestions.first())
     }
 }

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.urunkarpm.drawer.core.model.AppUsageProfile
 import com.urunkarpm.drawer.core.model.LauncherPreferencesBackup
 import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import com.urunkarpm.drawer.core.model.WeatherInfo
@@ -96,6 +97,9 @@ class DrawerPreferencesDataSource @Inject constructor(
         val AI_FORCE_WORK_PROFILE = booleanPreferencesKey("ai_force_work_profile")
         val ENABLE_ON_DEVICE_AI = booleanPreferencesKey("enable_on_device_ai")
         val DRAWER_TITLE_ANIMATION = stringPreferencesKey("drawer_title_animation")
+        val APP_USAGE_PROFILES = stringPreferencesKey("app_usage_profiles")
+        val SUGGESTION_BLACKLIST = stringPreferencesKey("suggestion_blacklist")
+        val SHOW_DRAWER_SUGGESTIONS = booleanPreferencesKey("show_drawer_suggestions")
     }
 
     val appLaunchCounts: Flow<Map<String, Int>> = dataStore.data.map { prefs ->
@@ -114,6 +118,28 @@ class DrawerPreferencesDataSource @Inject constructor(
         } catch (_: Throwable) {
             emptyMap()
         }
+    }
+
+    val appUsageProfiles: Flow<Map<String, AppUsageProfile>> = dataStore.data.map { prefs ->
+        val json = prefs[PreferencesKeys.APP_USAGE_PROFILES] ?: return@map emptyMap()
+        try {
+            Json.decodeFromString<Map<String, AppUsageProfile>>(json)
+        } catch (_: Throwable) {
+            emptyMap()
+        }
+    }
+
+    val suggestionBlacklist: Flow<Set<String>> = dataStore.data.map { prefs ->
+        val json = prefs[PreferencesKeys.SUGGESTION_BLACKLIST] ?: return@map emptySet()
+        try {
+            Json.decodeFromString<Set<String>>(json)
+        } catch (_: Throwable) {
+            emptySet()
+        }
+    }
+
+    val showDrawerSuggestions: Flow<Boolean> = dataStore.data.map {
+        it[PreferencesKeys.SHOW_DRAWER_SUGGESTIONS] ?: true
     }
 
     val dynamicWallpaperEnabled: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_WALLPAPER_ENABLED] ?: false }
@@ -535,6 +561,103 @@ class DrawerPreferencesDataSource @Inject constructor(
                 updatedTimes
             }
             prefs[PreferencesKeys.APP_LAST_LAUNCHED_TIMES] = Json.encodeToString(prunedTimes)
+        }
+    }
+
+    suspend fun recordAppLaunchWithContext(
+        componentKey: String,
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        dataStore.edit { prefs ->
+            val currentJson = prefs[PreferencesKeys.APP_USAGE_PROFILES]
+            val currentMap = currentJson?.let {
+                try { Json.decodeFromString<Map<String, AppUsageProfile>>(it) } catch (_: Throwable) { emptyMap() }
+            } ?: emptyMap()
+
+            val existing = currentMap[componentKey] ?: AppUsageProfile()
+            val elapsedDays = if (existing.lastLaunchTime > 0L) {
+                (timestamp - existing.lastLaunchTime).coerceAtLeast(0L) / (1000.0 * 60.0 * 60.0 * 24.0)
+            } else 0.0
+
+            // 7-day half-life decay on existing score + 1.0 for new launch
+            val decayedScore = (existing.totalScore * Math.pow(0.5, elapsedDays / 7.0)).toFloat() + 1.0f
+
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+            val dayOfWeek = cal.get(java.util.Calendar.DAY_OF_WEEK)
+            val isWeekend = dayOfWeek == java.util.Calendar.SATURDAY || dayOfWeek == java.util.Calendar.SUNDAY
+            val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+            val slot = when {
+                hour in 6..11 -> 0
+                hour in 12..16 -> 1
+                hour in 17..21 -> 2
+                else -> 3
+            }
+
+            val updatedWeekdaySlots = existing.weekdaySlots.toMutableList()
+            val updatedWeekendSlots = existing.weekendSlots.toMutableList()
+            if (isWeekend) {
+                updatedWeekendSlots[slot] = updatedWeekendSlots[slot] + 1
+            } else {
+                updatedWeekdaySlots[slot] = updatedWeekdaySlots[slot] + 1
+            }
+
+            val updatedProfile = existing.copy(
+                totalScore = decayedScore,
+                lastLaunchTime = timestamp,
+                weekdaySlots = updatedWeekdaySlots,
+                weekendSlots = updatedWeekendSlots
+            )
+
+            val updatedMap = currentMap.toMutableMap()
+            updatedMap[componentKey] = updatedProfile
+
+            val pruned = if (updatedMap.size > 150) {
+                updatedMap.entries.sortedByDescending { it.value.totalScore }.take(100).associate { it.key to it.value }
+            } else updatedMap
+
+            prefs[PreferencesKeys.APP_USAGE_PROFILES] = Json.encodeToString(pruned)
+
+            // Also update legacy launch counts for backwards compatibility atomically in single transaction
+            val currentLaunchJson = prefs[PreferencesKeys.APP_LAUNCH_COUNTS]
+            val currentLaunchMap = currentLaunchJson?.let {
+                try { Json.decodeFromString<Map<String, Int>>(it) } catch (_: Throwable) { emptyMap() }
+            } ?: emptyMap()
+            val updatedLaunchMap = currentLaunchMap.toMutableMap()
+            updatedLaunchMap[componentKey] = (updatedLaunchMap[componentKey] ?: 0) + 1
+            val prunedLaunchMap = if (updatedLaunchMap.size > 150) {
+                updatedLaunchMap.entries.sortedByDescending { it.value }.take(100).associate { it.key to it.value }
+            } else {
+                updatedLaunchMap
+            }
+            prefs[PreferencesKeys.APP_LAUNCH_COUNTS] = Json.encodeToString(prunedLaunchMap)
+
+            val currentTimesJson = prefs[PreferencesKeys.APP_LAST_LAUNCHED_TIMES]
+            val currentTimesMap = currentTimesJson?.let {
+                try { Json.decodeFromString<Map<String, Long>>(it) } catch (_: Throwable) { emptyMap() }
+            } ?: emptyMap()
+            val updatedTimes = currentTimesMap.toMutableMap()
+            updatedTimes[componentKey] = timestamp
+            val prunedTimes = if (updatedTimes.size > 150) {
+                updatedTimes.entries.sortedByDescending { it.value }.take(100).associate { it.key to it.value }
+            } else {
+                updatedTimes
+            }
+            prefs[PreferencesKeys.APP_LAST_LAUNCHED_TIMES] = Json.encodeToString(prunedTimes)
+        }
+    }
+
+    suspend fun hideAppFromSuggestions(packageName: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[PreferencesKeys.SUGGESTION_BLACKLIST]?.let {
+                try { Json.decodeFromString<Set<String>>(it) } catch (_: Throwable) { emptySet() }
+            } ?: emptySet()
+            prefs[PreferencesKeys.SUGGESTION_BLACKLIST] = Json.encodeToString(current + packageName)
+        }
+    }
+
+    suspend fun setShowDrawerSuggestions(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.SHOW_DRAWER_SUGGESTIONS] = enabled
         }
     }
 
