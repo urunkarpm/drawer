@@ -17,6 +17,7 @@ captures/
 keystore.properties
 
 .agents/
+skills-lock.json
 .agentsroom/
 .mcp.json
 /*.png

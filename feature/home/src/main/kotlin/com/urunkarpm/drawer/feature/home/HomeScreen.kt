@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.Animatable
+import com.urunkarpm.drawer.core.designsystem.animation.FluidSpringPhysics
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -171,7 +172,8 @@ fun HomeScreen(
     groupsViewModel: GroupsViewModel = hiltViewModel(),
     notificationsViewModel: com.urunkarpm.drawer.feature.notifications.NotificationsViewModel = hiltViewModel(),
     widgetHostManager: DrawerWidgetHostManager? = null,
-    onDoubleTapLock: () -> Unit = {}
+    onDoubleTapLock: () -> Unit = {},
+    homeResetTrigger: Long = 0L
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val groupsUiState by groupsViewModel.uiState.collectAsStateWithLifecycle()
@@ -1071,6 +1073,66 @@ fun HomeScreen(
         pageCount = { 2 }
     )
 
+    val homeScale = remember { Animatable(1f) }
+    val homeAlpha = remember { Animatable(1f) }
+
+    LaunchedEffect(uiState.isAllAppsOpen, isSettingsOpen) {
+        val isOverlayOpen = uiState.isAllAppsOpen || isSettingsOpen
+        if (isOverlayOpen) {
+            launch {
+                homeScale.animateTo(
+                    targetValue = 0.94f,
+                    animationSpec = FluidSpringPhysics.fluidSpring()
+                )
+            }
+            launch {
+                homeAlpha.animateTo(
+                    targetValue = 0.75f,
+                    animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 500f)
+                )
+            }
+        } else {
+            launch {
+                homeScale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = FluidSpringPhysics.fluidSpring()
+                )
+            }
+            launch {
+                homeAlpha.animateTo(
+                    targetValue = 1f,
+                    animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 500f)
+                )
+            }
+        }
+    }
+
+    // ponytail: Android Home gesture/button returns to clean home page by collapsing all open sheets/drawers and returning to main page with an elastic rebound; ceiling is uniform spring physics; upgrade path is gesture-velocity-driven handoff.
+    LaunchedEffect(homeResetTrigger) {
+        if (homeResetTrigger > 0L) {
+            homeScale.snapTo(0.93f)
+            launch {
+                homeScale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = FluidSpringPhysics.fluidSpring()
+                )
+            }
+            isSettingsOpen = false
+            viewModel.closeAllApps()
+            isCameraOpen = false
+            isDuoStatusExpanded = false
+            showHomeMenu = false
+            appForCategorySelection = null
+            viewModel.dismissAppMenu()
+            isNotificationExpanded = false
+            showManualWalkthrough = false
+            groupsViewModel.collapseAllGroups()
+            if (uiState.enableWidgetsPage && pagerState.currentPage != 1) {
+                pagerState.animateScrollToPage(1)
+            }
+        }
+    }
+
     fun completeWidgetAdd(appWidgetId: Int) {
         val info = widgetHostManager.appWidgetManager.getAppWidgetInfo(appWidgetId)
         if (info != null) {
@@ -1429,6 +1491,11 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = homeScale.value
+                            scaleY = homeScale.value
+                            alpha = homeAlpha.value
+                        }
                         .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                         .navigationBarsPadding(),
                     contentAlignment = Alignment.TopCenter

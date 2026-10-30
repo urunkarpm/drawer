@@ -14,6 +14,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -122,6 +123,9 @@ import com.urunkarpm.drawer.feature.home.dragdrop.AppDragDropState
 import com.urunkarpm.drawer.feature.home.dragdrop.DragDropResult
 import com.urunkarpm.drawer.feature.home.dragdrop.appDragSource
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.key
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
@@ -181,6 +185,9 @@ fun AllAppsDrawer(
                 animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
             ) + fadeOut(
                 animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
+            ) + scaleOut(
+                targetScale = 0.92f,
+                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
             ),
             modifier = modifier
         ) {
@@ -208,6 +215,33 @@ fun AllAppsDrawer(
 
             // Apps are already filtered in HomeViewModel; use directly to prevent double-allocation jank
             val displayedApps = apps
+
+            val appPositions = remember { mutableMapOf<String, Offset>() }
+            val dustState = rememberDustParticleState()
+            var previousApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+            val particleColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+            LaunchedEffect(displayedApps, searchQuery) {
+                if (searchQuery.isNotBlank() && previousApps.isNotEmpty() && displayedApps.size < previousApps.size) {
+                    val currentKeys = displayedApps.map { it.componentKey }.toSet()
+                    val removed = previousApps.filter { it.componentKey !in currentKeys }
+                    for (app in removed) {
+                        val pos = appPositions[app.componentKey]
+                        if (pos != null) {
+                            dustState.spawnPuff(pos, particleColor)
+                            appPositions.remove(app.componentKey)
+                        }
+                    }
+                }
+                previousApps = displayedApps
+            }
+
+            LaunchedEffect(visible) {
+                if (!visible) {
+                    appPositions.clear()
+                    previousApps = emptyList()
+                }
+            }
 
             val configuration = LocalConfiguration.current
             val screenWidth = configuration.screenWidthDp
@@ -414,12 +448,15 @@ fun AllAppsDrawer(
                     )
                 }
 
+                val containerCoordinates = remember { mutableStateOf<LayoutCoordinates?>(null) }
+
                 // 1. App List Grid Area with continuous fluid frosted glass blur curtain
                 BoxWithConstraints(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .clipToBounds()
+                        .onGloballyPositioned { containerCoordinates.value = it }
                 ) {
                     val containerHeightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
 
@@ -469,6 +506,56 @@ fun AllAppsDrawer(
                                     textAlign = TextAlign.Center
                                 )
                             }
+                        } else if (searchQuery.isNotBlank() && displayedApps.size in 1..3) {
+                            // Centered Thumb Row: 1-3 matching apps anchored right above the keyboard/search bar
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = horizontalPadding, vertical = 16.dp),
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                val thumbRowProgress = remember { Animatable(0f) }
+                                LaunchedEffect(displayedApps.size) {
+                                    thumbRowProgress.snapTo(0f)
+                                    thumbRowProgress.animateTo(1f, animationSpec = FluidSpringPhysics.fluidSpring())
+                                }
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .wrapContentWidth()
+                                        .graphicsLayer {
+                                            alpha = thumbRowProgress.value
+                                            translationY = (1f - thumbRowProgress.value) * 40f
+                                        }
+                                ) {
+                                        for (app in displayedApps) {
+                                            key(app.componentKey) {
+                                                AppItemView(
+                                                    app = app,
+                                                    onAppClick = onAppClick,
+                                                    onAppLongClick = onAppLongClick,
+                                                    iconLoader = iconLoader,
+                                                    iconShape = iconShape,
+                                                    dragDropState = dragDropState,
+                                                    onDragDropResult = onDragDropResult,
+                                                    modifier = Modifier
+                                                        .width(76.dp)
+                                                        .onGloballyPositioned { coords ->
+                                                            val container = containerCoordinates.value
+                                                            if (container != null && container.isAttached && coords.isAttached) {
+                                                                appPositions[app.componentKey] = container.localPositionOf(
+                                                                    coords,
+                                                                    Offset(coords.size.width / 2f, coords.size.height / 2f)
+                                                                )
+                                                            }
+                                                        }
+                                                )
+                                            }
+                                        }
+                                    }
+                            }
                         } else {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 val scrubProvider = rememberUpdatedState(activeScrubLetter)
@@ -499,7 +586,16 @@ fun AllAppsDrawer(
                                             iconShape = iconShape,
                                             dragDropState = dragDropState,
                                             onDragDropResult = onDragDropResult,
-                                            activeScrubLetterProvider = { scrubProvider.value }
+                                            activeScrubLetterProvider = { scrubProvider.value },
+                                            modifier = Modifier.onGloballyPositioned { coords ->
+                                                val container = containerCoordinates.value
+                                                if (container != null && container.isAttached && coords.isAttached) {
+                                                    appPositions[app.componentKey] = container.localPositionOf(
+                                                        coords,
+                                                        Offset(coords.size.width / 2f, coords.size.height / 2f)
+                                                    )
+                                                }
+                                            }
                                         )
                                     }
                                 }
@@ -662,6 +758,11 @@ fun AllAppsDrawer(
                             )
                         }
                     }
+
+                    DustParticleOverlay(
+                        state = dustState,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 // 2. Suggested Apps Row (NOT blurred, always visible, interactive, and aligned below app grid)

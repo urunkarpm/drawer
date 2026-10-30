@@ -2,6 +2,7 @@ package com.urunkarpm.drawer
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,6 +11,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,6 +32,16 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var widgetHostManager: DrawerWidgetHostManager
+
+    private var homeResetTrigger by mutableLongStateOf(0L)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // ponytail: Android Home gesture triggers onNewIntent with ACTION_MAIN or CATEGORY_HOME; resets UI to clean home; ceiling is custom multi-instance task affinities; upgrade path is intent action dispatch routing.
+        if (intent.action == Intent.ACTION_MAIN || intent.hasCategory(Intent.CATEGORY_HOME)) {
+            homeResetTrigger = SystemClock.uptimeMillis()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +85,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 HomeScreen(
                     widgetHostManager = widgetHostManager,
+                    homeResetTrigger = homeResetTrigger,
                     onDoubleTapLock = {
                         val locked = DrawerAccessibilityService.lockScreen()
                         if (!locked) {

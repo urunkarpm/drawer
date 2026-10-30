@@ -148,14 +148,35 @@ fun GroupsAccordion(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val hasExpandedGroup = uiState.groups.any { it.group.isExpanded }
+    var lastInteractionTime by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(hasExpandedGroup, lastInteractionTime) {
+        if (hasExpandedGroup) {
+            delay(3000L)
+            viewModel.collapseAllGroups()
+        }
+    }
 
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
     val isCompactEffective = twoDrawersSideBySide && screenWidthDp < 600
 
-    // ponytail: Drawers remain open until user explicitly collapses them, taps outside, or launches an app; ceiling: manual dismiss; upgrade path: optional user-configured timeout in settings.
+    // ponytail: Auto-collapse category app drawers after 3 seconds of inactivity; resets countdown on any touch interaction; ceiling: fixed 3s delay; upgrade path: customizable timeout in Settings.
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .pointerInput(hasExpandedGroup) {
+                if (!hasExpandedGroup) return@pointerInput
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        val now = android.os.SystemClock.uptimeMillis()
+                        if (now - lastInteractionTime > 200L) {
+                            lastInteractionTime = now
+                        }
+                    }
+                }
+            },
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (uiState.groups.isEmpty()) {
