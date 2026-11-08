@@ -4,11 +4,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.SportsEsports
@@ -18,43 +22,72 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 object GroupIcons {
+    // ponytail: unique 1:1 icon registry without duplicate alias keys in the picker; ceiling: fixed curated list of Material vectors; upgrade path: custom icon pack picker.
     val availableIcons: Map<String, ImageVector> = mapOf(
         "folder" to Icons.Default.Folder,
         "work" to Icons.Default.Work,
         "chat" to Icons.AutoMirrored.Filled.Chat,
         "account_balance" to Icons.Default.AccountBalance,
-        "credit_card" to Icons.Default.AccountBalance,
         "play_circle" to Icons.Default.PlayCircle,
+        "camera" to Icons.Default.CameraAlt,
+        "email" to Icons.Default.Email,
+        "phone" to Icons.Default.Phone,
         "build" to Icons.Default.Build,
-        "gamepad" to Icons.Default.SportsEsports,
         "sports_esports" to Icons.Default.SportsEsports,
         "shopping" to Icons.Default.ShoppingCart,
-        "shopping_bag" to Icons.Default.ShoppingCart,
         "fitness" to Icons.Default.FitnessCenter,
-        "fitness_center" to Icons.Default.FitnessCenter,
+        "palette" to Icons.Default.Palette,
         "star" to Icons.Default.Star,
         "bookmark" to Icons.Default.Bookmark,
         "music" to Icons.Default.MusicNote,
         "code" to Icons.Default.Code
     )
 
-    fun getIcon(name: String): ImageVector =
-        availableIcons[name] ?: Icons.Default.Folder
+    fun getIcon(name: String): ImageVector {
+        availableIcons[name]?.let { return it }
+        // Handle legacy alias names gracefully without showing duplicate icons in picker
+        return when (name.lowercase().trim()) {
+            "credit_card" -> Icons.Default.AccountBalance
+            "gamepad" -> Icons.Default.SportsEsports
+            "shopping_bag" -> Icons.Default.ShoppingCart
+            "fitness_center" -> Icons.Default.FitnessCenter
+            else -> Icons.Default.Folder
+        }
+    }
 
+    // High-contrast, fresh and vibrant category palette (zero dull grays / mud)
     val availableColors: List<String> = listOf(
-        "#1E3A8A", // Executive Navy
-        "#0F766E", // Deep Corporate Teal
-        "#065F46", // Financial Forest Green
-        "#334155", // Slate / Charcoal
-        "#475569", // Titanium Gray
-        "#64748B", // Steel Blue
-        "#831843", // Deep Bordeaux Wine
-        "#92400E", // Warm Bronze / Amber
-        "#3730A3", // Enterprise Indigo
-        "#1E293B"  // Midnight Obsidian
+        "#3B82F6", // Electric Blue
+        "#10B981", // Fresh Emerald Green
+        "#F43F5E", // Radiant Rose / Coral
+        "#F59E0B", // Solar Amber
+        "#8B5CF6", // Electric Violet
+        "#06B6D4", // Fresh Cyan
+        "#F97316", // Vibrant Tangerine
+        "#D946EF", // Vibrant Fuchsia
+        "#6366F1", // Vivid Indigo
+        "#14B8A6"  // Luminous Teal
     )
 
-    fun parseColor(hex: String?, fallback: Color = Color(0xFF334155)): Color {
+    fun isDullOrGrey(hex: String?): Boolean {
+        if (hex.isNullOrBlank()) return true
+        val clean = hex.trim().let { if (it.startsWith("#")) it else "#$it" }
+        val dullSet = setOf(
+            "#334155", "#475569", "#64748B", "#1E293B", "#1E3A8A", "#065F46", "#831843", "#92400E", "#6750A4"
+        )
+        if (dullSet.any { it.equals(clean, ignoreCase = true) }) return true
+        return try {
+            val colorInt = android.graphics.Color.parseColor(clean)
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(colorInt, hsv)
+            // Saturation < 35% is grayish/washed out, value < 25% is dark mud
+            hsv[1] < 0.35f || hsv[2] < 0.25f
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun parseColor(hex: String?, fallback: Color = Color(0xFF3B82F6)): Color {
         if (hex.isNullOrBlank()) return fallback
         return try {
             val formatted = hex.trim().let { if (it.startsWith("#")) it else "#$it" }
@@ -64,20 +97,30 @@ object GroupIcons {
         }
     }
 
+    fun resolveGroupColor(colorHex: String?, name: String, id: String = ""): Color {
+        return if (colorHex.isNullOrBlank() || isDullOrGrey(colorHex)) {
+            resolveCategoryColor(name, id)
+        } else {
+            parseColor(colorHex, fallback = resolveCategoryColor(name, id))
+        }
+    }
+
     fun resolveCategoryColor(name: String, id: String = ""): Color {
         val lower = name.lowercase().trim()
         val hex = when {
-            lower.contains("finance") || lower.contains("bank") || lower.contains("money") || lower.contains("pay") -> "#065F46" // Financial Forest Green
-            lower.contains("media") || lower.contains("music") || lower.contains("audio") || lower.contains("song") -> "#831843" // Deep Bordeaux
-            lower.contains("video") || lower.contains("stream") || lower.contains("movie") || lower.contains("tv") -> "#9F1239" // Refined Wine
-            lower.contains("chat") || lower.contains("social") || lower.contains("message") || lower.contains("talk") -> "#0F766E" // Deep Corporate Teal
-            lower.contains("work") || lower.contains("office") || lower.contains("business") || lower.contains("task") -> "#1E3A8A" // Executive Navy
-            lower.contains("tool") || lower.contains("util") || lower.contains("system") -> "#475569" // Titanium Gray
-            lower.contains("fit") || lower.contains("health") || lower.contains("gym") || lower.contains("run") -> "#0E7490" // Refined Petrol Cyan
-            lower.contains("star") || lower.contains("fav") -> "#92400E" // Warm Bronze
-            lower.contains("dev") || lower.contains("code") || lower.contains("git") -> "#3730A3" // Enterprise Indigo
-            lower.contains("shop") || lower.contains("cart") || lower.contains("store") -> "#78350F" // Amber Earth
-            lower.contains("game") || lower.contains("play") -> "#6D28D9" // Royal Amethyst
+            lower.contains("finance") || lower.contains("bank") || lower.contains("money") || lower.contains("pay") -> "#10B981" // Fresh Emerald
+            lower.contains("media") || lower.contains("music") || lower.contains("audio") || lower.contains("song") -> "#EC4899" // Vibrant Pink
+            lower.contains("video") || lower.contains("stream") || lower.contains("movie") || lower.contains("tv") -> "#F43F5E" // Vibrant Rose
+            lower.contains("chat") || lower.contains("social") || lower.contains("message") || lower.contains("talk") -> "#06B6D4" // Vibrant Cyan
+            lower.contains("work") || lower.contains("office") || lower.contains("business") || lower.contains("task") -> "#3B82F6" // Electric Blue
+            lower.contains("tool") || lower.contains("util") || lower.contains("system") -> "#8B5CF6" // Electric Violet
+            lower.contains("fit") || lower.contains("health") || lower.contains("gym") || lower.contains("run") -> "#14B8A6" // Luminous Teal
+            lower.contains("star") || lower.contains("fav") -> "#F59E0B" // Solar Amber
+            lower.contains("dev") || lower.contains("code") || lower.contains("git") -> "#6366F1" // Vivid Indigo
+            lower.contains("shop") || lower.contains("cart") || lower.contains("store") -> "#F97316" // Vibrant Tangerine
+            lower.contains("game") || lower.contains("play") -> "#D946EF" // Vibrant Fuchsia
+            lower.contains("photo") || lower.contains("camera") || lower.contains("image") -> "#EC4899" // Vibrant Pink
+            lower.contains("mail") || lower.contains("email") -> "#3B82F6" // Electric Blue
             else -> {
                 val colors = availableColors
                 val hash = if (id.isNotEmpty()) id.hashCode() else name.hashCode()

@@ -91,6 +91,7 @@ class HomeViewModelTest {
     private val appUsageProfilesFlow = MutableStateFlow<Map<String, com.urunkarpm.drawer.core.model.AppUsageProfile>>(emptyMap())
     private val suggestionBlacklistFlow = MutableStateFlow<Set<String>>(emptySet())
     private val showDrawerSuggestionsFlow = MutableStateFlow(true)
+    private val mindfulAppsFlow = MutableStateFlow<Set<String>>(emptySet())
 
     private val sampleApps = listOf(
         AppInfo(
@@ -171,6 +172,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.appUsageProfiles } returns appUsageProfilesFlow
         every { preferencesDataSource.suggestionBlacklist } returns suggestionBlacklistFlow
         every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow
+        every { preferencesDataSource.mindfulApps } returns mindfulAppsFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow
         every { widgetRepository.getAllDrawers() } returns drawersFlow
 
@@ -599,6 +601,75 @@ class HomeViewModelTest {
         val summary3 = viewModel.changeAppSetting("THEME_MODE", "DARK")
         assertEquals("Theme set to Dark", summary3)
         coVerify { preferencesDataSource.setThemeMode("DARK") }
+    }
+
+    @Test
+    fun onAppClicked_nonMindfulApp_launchesImmediately() = runTest {
+        val app = sampleApps.first()
+        every { appRepository.launchApp(app) } returns true
+
+        val launched = viewModel.onAppClicked(app)
+        assertTrue(launched)
+        verify { appRepository.launchApp(app) }
+        assertNull(viewModel.uiState.value.pendingMindfulApp)
+    }
+
+    @Test
+    fun onAppClicked_mindfulApp_interceptsAndSetsPendingMindfulApp() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+
+            val app = sampleApps.first()
+            mindfulAppsFlow.value = setOf(app.packageName)
+            testScheduler.advanceUntilIdle()
+            awaitItem()
+
+            every { appRepository.launchApp(app) } returns true
+
+            val launched = viewModel.onAppClicked(app)
+            assertFalse(launched)
+            verify(exactly = 0) { appRepository.launchApp(app) }
+            val stateWithPending = awaitItem()
+            assertEquals(app, stateWithPending.pendingMindfulApp)
+
+            // Confirming launch executes the pending app
+            viewModel.confirmMindfulLaunch()
+            verify(exactly = 1) { appRepository.launchApp(app) }
+            val stateAfterConfirm = awaitItem()
+            assertNull(stateAfterConfirm.pendingMindfulApp)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun cancelMindfulLaunch_clearsPendingWithoutLaunching() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+
+            val app = sampleApps.first()
+            mindfulAppsFlow.value = setOf(app.packageName)
+            testScheduler.advanceUntilIdle()
+            awaitItem()
+
+            viewModel.onAppClicked(app)
+            val stateWithPending = awaitItem()
+            assertEquals(app, stateWithPending.pendingMindfulApp)
+
+            viewModel.cancelMindfulLaunch()
+            val stateAfterCancel = awaitItem()
+            assertNull(stateAfterCancel.pendingMindfulApp)
+            verify(exactly = 0) { appRepository.launchApp(app) }
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun toggleMindfulApp_delegatesToPreferencesDataSource() = runTest {
+        viewModel.toggleMindfulApp("com.twitter.android")
+        testScheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.toggleMindfulApp("com.twitter.android") }
     }
 }
 

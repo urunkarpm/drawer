@@ -96,7 +96,8 @@ fun DockBar(
     modifier: Modifier = Modifier,
     iconShape: Shape = CircleShape,
     viewModel: DockViewModel = hiltViewModel(),
-    isDropTarget: Boolean = false
+    isDropTarget: Boolean = false,
+    onAppClick: ((AppInfo) -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -313,7 +314,7 @@ fun DockBar(
                                 if (uiState.isEditMode) {
                                     viewModel.setEditMode(false)
                                 } else {
-                                    viewModel.onAppClicked(dockItem, app)
+                                    if (app != null && onAppClick != null) { onAppClick(app) } else { viewModel.onAppClicked(dockItem, app) }
                                 }
                             },
                             onLongClick = {

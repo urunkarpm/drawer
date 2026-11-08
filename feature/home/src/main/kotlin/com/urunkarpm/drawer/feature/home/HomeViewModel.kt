@@ -79,7 +79,9 @@ data class HomeDialogsState(
     val isAllAppsOpen: Boolean = false,
     val selectedAppForMenu: AppInfo? = null,
     val shortcuts: List<AppShortcutInfo> = emptyList(),
-    val userMessage: String? = null
+    val userMessage: String? = null,
+    val pendingMindfulApp: AppInfo? = null,
+    val mindfulApps: Set<String> = emptySet()
 )
 
 data class HomeUiState(
@@ -133,7 +135,9 @@ data class HomeUiState(
     val dockMesmerizingGlow: Boolean = true,
     val enableOnDeviceAi: Boolean = false,
     val drawerTitleAnimation: String = "ACCENT_POP",
-    val blurAppListOnOpen: Boolean = true
+    val blurAppListOnOpen: Boolean = true,
+    val mindfulApps: Set<String> = emptySet(),
+    val pendingMindfulApp: AppInfo? = null
 )
 
 data class SurfaceThemePrefs(
@@ -165,6 +169,7 @@ class HomeViewModel @Inject constructor(
     private val _selectedAppForMenu = MutableStateFlow<AppInfo?>(null)
     private val _shortcuts = MutableStateFlow<List<AppShortcutInfo>>(emptyList())
     private val _userMessage = MutableStateFlow<String?>(null)
+    private val _pendingMindfulApp = MutableStateFlow<AppInfo?>(null)
     private val _suggestedAction = MutableStateFlow<LauncherAction?>(null)
     val suggestedAction: StateFlow<LauncherAction?> = _suggestedAction.asStateFlow()
 
@@ -176,6 +181,7 @@ class HomeViewModel @Inject constructor(
 
     private var currentProfiles: Map<String, AppUsageProfile> = emptyMap()
     private var currentBlacklist: Set<String> = emptySet()
+    private var currentMindfulApps: Set<String> = emptySet()
     private var currentDockedPackages: Set<String> = emptySet()
     private var currentInstalledApps: List<AppInfo> = emptyList()
 
@@ -289,9 +295,19 @@ class HomeViewModel @Inject constructor(
         _isAllAppsOpen,
         _selectedAppForMenu,
         _shortcuts,
-        _userMessage
-    ) { searchQuery, isAllAppsOpen, selectedApp, shortcuts, userMessage ->
-        HomeDialogsState(searchQuery, isAllAppsOpen, selectedApp, shortcuts, userMessage)
+        combine(_userMessage, _pendingMindfulApp, preferencesDataSource.mindfulApps) { msg, pending, mindful ->
+            Triple(msg, pending, mindful)
+        }
+    ) { searchQuery, isAllAppsOpen, selectedApp, shortcuts, (userMessage, pendingMindful, mindful) ->
+        HomeDialogsState(
+            searchQuery = searchQuery,
+            isAllAppsOpen = isAllAppsOpen,
+            selectedAppForMenu = selectedApp,
+            shortcuts = shortcuts,
+            userMessage = userMessage,
+            pendingMindfulApp = pendingMindful,
+            mindfulApps = mindful
+        )
     }
 
     private val surfacePrefsFlow = combine(
@@ -413,7 +429,9 @@ class HomeViewModel @Inject constructor(
             dockMesmerizingGlow = glancePrefs.dockMesmerizingGlow,
             enableOnDeviceAi = glancePrefs.enableOnDeviceAi,
             drawerTitleAnimation = glancePrefs.drawerTitleAnimation,
-            blurAppListOnOpen = glancePrefs.blurAppListOnOpen
+            blurAppListOnOpen = glancePrefs.blurAppListOnOpen,
+            mindfulApps = dialogs.mindfulApps,
+            pendingMindfulApp = dialogs.pendingMindfulApp
         )
     }.stateIn(
         scope = viewModelScope,
@@ -457,6 +475,11 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.Unconfined) {
             preferencesDataSource.suggestionBlacklist.collect {
                 currentBlacklist = it
+            }
+        }
+        viewModelScope.launch(Dispatchers.Unconfined) {
+            preferencesDataSource.mindfulApps.collect {
+                currentMindfulApps = it
             }
         }
         viewModelScope.launch(Dispatchers.Unconfined) {
@@ -745,7 +768,11 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun onAppClicked(app: AppInfo): Boolean {
+    fun onAppClicked(app: AppInfo, bypassMindful: Boolean = false): Boolean {
+        if (!bypassMindful && currentMindfulApps.contains(app.packageName)) {
+            _pendingMindfulApp.value = app
+            return false
+        }
         val launched = appRepository.launchApp(app)
         if (launched) {
             lastLaunchedPackage = app.packageName
@@ -755,6 +782,23 @@ class HomeViewModel @Inject constructor(
             }
         }
         return launched
+    }
+
+    fun confirmMindfulLaunch() {
+        val app = _pendingMindfulApp.value ?: return
+        _pendingMindfulApp.value = null
+        onAppClicked(app, bypassMindful = true)
+    }
+
+    fun cancelMindfulLaunch() {
+        _pendingMindfulApp.value = null
+    }
+
+    fun toggleMindfulApp(packageName: String) {
+        currentMindfulApps = if (currentMindfulApps.contains(packageName)) currentMindfulApps - packageName else currentMindfulApps + packageName
+        viewModelScope.launch {
+            preferencesDataSource.toggleMindfulApp(packageName)
+        }
     }
 
     fun onAppLongClicked(app: AppInfo) {

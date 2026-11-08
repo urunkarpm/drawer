@@ -88,6 +88,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.changedToUp
@@ -153,7 +154,9 @@ fun AllAppsDrawer(
     onOpenSettings: (() -> Unit)? = null,
     frequentApps: List<AppInfo> = emptyList(),
     suggestedAction: LauncherAction? = null,
-    onExecuteAction: (LauncherAction) -> Unit = {}
+    onExecuteAction: (LauncherAction) -> Unit = {},
+    drawerTranslationY: Animatable<Float, AnimationVector1D> = remember { Animatable(0f) },
+    screenHeightPx: Float = 2000f
 ) {
     val context = LocalContext.current
     val searchFocusRequester = remember { FocusRequester() }
@@ -171,26 +174,8 @@ fun AllAppsDrawer(
 
     // Wrap the entire app drawer with DrawerTheme so all typography, search bars, and app labels use correct theme contrast
     DrawerTheme(darkTheme = isDrawerDark) {
-        // iOS-grade fluid critically damped spring transition settling around 320ms without artificial cubic beziers
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInVertically(
-                initialOffsetY = { it },
-                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = FluidSpringPhysics.FLUID_STIFFNESS)
-            ) + fadeIn(
-                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 400f)
-            ),
-            exit = slideOutVertically(
-                targetOffsetY = { it },
-                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
-            ) + fadeOut(
-                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
-            ) + scaleOut(
-                targetScale = 0.92f,
-                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
-            ),
-            modifier = modifier
-        ) {
+        // ponytail: 1:1 direct-manipulation drawer physics with fluid momentum velocity handoff and 20% height snap threshold; ceiling: vertical Y translation only (no 2D tilt/morph); upgrade path: gesture-driven interactive back predictive navigation.
+        if (visible) {
             val gridState = rememberLazyGridState()
             val coroutineScope = rememberCoroutineScope()
             var activeScrubLetter by remember { mutableStateOf<String?>(null) }
@@ -279,15 +264,11 @@ fun AllAppsDrawer(
             }
 
             // iOS-grade fluid spring & rubber-banding drag state with velocity handoff
-            val drawerTranslationY = remember { Animatable(0f) }
             var rawDragDistanceY by remember { mutableFloatStateOf(0f) }
             val handleVelocityTracker = remember { VelocityTracker() }
 
             LaunchedEffect(visible) {
-                if (visible) {
-                    drawerTranslationY.snapTo(0f)
-                    rawDragDistanceY = 0f
-                }
+                rawDragDistanceY = 0f
             }
 
             val nestedScrollConnection = remember {
@@ -296,14 +277,12 @@ fun AllAppsDrawer(
                         // Immediately intercept downward pull from stroke 1 when at top of list
                         if (available.y > 0f && !gridState.canScrollBackward && source == NestedScrollSource.UserInput) {
                             rawDragDistanceY += available.y
-                            val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
-                            coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                            coroutineScope.launch { drawerTranslationY.snapTo(rawDragDistanceY.coerceIn(0f, screenHeightPx)) }
                             return available
                         } else if (available.y < 0f && rawDragDistanceY > 0f) {
-                            // User pushing back upward while rubber-banded downward
+                            // User pushing back upward while dragging downward
                             rawDragDistanceY = (rawDragDistanceY + available.y).coerceAtLeast(0f)
-                            val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
-                            coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                            coroutineScope.launch { drawerTranslationY.snapTo(rawDragDistanceY.coerceIn(0f, screenHeightPx)) }
                             return Offset(0f, available.y)
                         }
                         return Offset.Zero
@@ -311,8 +290,15 @@ fun AllAppsDrawer(
 
                     override suspend fun onPreFling(available: Velocity): Velocity {
                         // Downward flick anywhere near top closes immediately on 1 swipe
-                        if (!gridState.canScrollBackward && available.y > 250f) {
-                            onClose()
+                        if (!gridState.canScrollBackward && available.y > 400f) {
+                            coroutineScope.launch {
+                                drawerTranslationY.animateTo(
+                                    targetValue = screenHeightPx,
+                                    animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f),
+                                    initialVelocity = available.y
+                                )
+                                onClose()
+                            }
                             return available
                         }
                         return super.onPreFling(available)
@@ -321,9 +307,16 @@ fun AllAppsDrawer(
                     override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                         val vY = available.y
                         if (rawDragDistanceY > 0f) {
-                            val shouldClose = rawDragDistanceY > 60f || vY > 250f
+                            val shouldClose = rawDragDistanceY > 150f || vY > 400f
                             if (shouldClose) {
-                                onClose()
+                                coroutineScope.launch {
+                                    drawerTranslationY.animateTo(
+                                        targetValue = screenHeightPx,
+                                        animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f),
+                                        initialVelocity = vY
+                                    )
+                                    onClose()
+                                }
                             } else {
                                 coroutineScope.launch {
                                     drawerTranslationY.animateTo(
@@ -345,8 +338,7 @@ fun AllAppsDrawer(
                     ): Offset {
                         if (!gridState.canScrollBackward && available.y > 0f && source == NestedScrollSource.UserInput) {
                             rawDragDistanceY += available.y
-                            val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
-                            coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                            coroutineScope.launch { drawerTranslationY.snapTo(rawDragDistanceY.coerceIn(0f, screenHeightPx)) }
                             return Offset(0f, available.y)
                         }
                         return Offset.Zero
@@ -373,22 +365,23 @@ fun AllAppsDrawer(
                 )
             }
 
+            val progress = ((screenHeightPx - drawerTranslationY.value) / screenHeightPx).coerceIn(0f, 1f)
             Surface(
                 shape = drawerShape,
                 border = drawerBorder,
                 color = drawerBackgroundColor,
-                modifier = Modifier
+                modifier = modifier
                     .fillMaxSize()
                     .graphicsLayer {
+                        translationY = drawerTranslationY.value
+                        scaleX = 0.95f + 0.05f * progress
+                        scaleY = 0.95f + 0.05f * progress
                         alpha = animatedDrawerAlpha
                     }
             ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer {
-                        translationY = drawerTranslationY.value
-                    }
                     .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                     .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                     .nestedScroll(nestedScrollConnection)
@@ -410,9 +403,16 @@ fun AllAppsDrawer(
                                     if (change.changedToUp()) {
                                         if (isDragging) {
                                             val vY = handleVelocityTracker.calculateVelocity().y
-                                            val shouldClose = rawDragDistanceY > 60f || vY > 250f
+                                            val shouldClose = rawDragDistanceY > 150f || vY > 400f
                                             if (shouldClose) {
-                                                onClose()
+                                                coroutineScope.launch {
+                                                    drawerTranslationY.animateTo(
+                                                        targetValue = screenHeightPx,
+                                                        animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f),
+                                                        initialVelocity = vY
+                                                    )
+                                                    onClose()
+                                                }
                                             } else {
                                                 coroutineScope.launch {
                                                     drawerTranslationY.animateTo(
@@ -432,8 +432,7 @@ fun AllAppsDrawer(
                                         isDragging = true
                                         rawDragDistanceY = (rawDragDistanceY + dragY).coerceAtLeast(0f)
                                         handleVelocityTracker.addPosition(change.uptimeMillis, change.position)
-                                        val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
-                                        coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                                        coroutineScope.launch { drawerTranslationY.snapTo(rawDragDistanceY.coerceIn(0f, screenHeightPx)) }
                                     }
                                 }
                             }
@@ -671,9 +670,16 @@ fun AllAppsDrawer(
                                             if (change.changedToUp()) {
                                                 val velocityY = curtainVelocityTracker.calculateVelocity().y
                                                 if (isDraggingDown) {
-                                                    val shouldClose = rawDragDistanceY > 60f || velocityY > 250f
+                                                    val shouldClose = rawDragDistanceY > 150f || velocityY > 400f
                                                     if (shouldClose) {
-                                                        onClose()
+                                                        coroutineScope.launch {
+                                                            drawerTranslationY.animateTo(
+                                                                targetValue = screenHeightPx,
+                                                                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f),
+                                                                initialVelocity = velocityY
+                                                            )
+                                                            onClose()
+                                                        }
                                                     } else {
                                                         coroutineScope.launch {
                                                             drawerTranslationY.animateTo(
@@ -730,8 +736,7 @@ fun AllAppsDrawer(
                                             if (isDraggingDown) {
                                                 change.consume()
                                                 rawDragDistanceY = (rawDragDistanceY + dragDeltaY).coerceAtLeast(0f)
-                                                val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
-                                                coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
+                                                coroutineScope.launch { drawerTranslationY.snapTo(rawDragDistanceY.coerceIn(0f, screenHeightPx)) }
                                             } else if (isDraggingUp) {
                                                 change.consume()
                                                 val newCurtainY = (blurCurtainTranslationY.value - dragDeltaY).coerceIn(0f, containerHeightPx)
@@ -810,7 +815,7 @@ fun AllAppsDrawer(
             }
         }
     }
-}
+    }
 }
 
 @Composable

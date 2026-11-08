@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.HourglassEmpty
+import androidx.compose.material.icons.outlined.HourglassFull
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
@@ -62,7 +64,9 @@ fun AppActionBottomSheet(
     shortcuts: List<AppShortcutInfo> = emptyList(),
     onLaunchShortcut: (String) -> Unit = {},
     shortcutIconLoader: suspend (String) -> Drawable? = { null },
-    onHideFromSuggestions: (() -> Unit)? = null
+    onHideFromSuggestions: (() -> Unit)? = null,
+    isMindful: Boolean = false,
+    onToggleMindful: (() -> Unit)? = null
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -201,6 +205,24 @@ fun AppActionBottomSheet(
                 onClick = onAddToGroup,
                 colors = NavigationDrawerItemDefaults.colors()
             )
+
+            if (onToggleMindful != null) {
+                NavigationDrawerItem(
+                    label = { Text(if (isMindful) "Remove mindful pause" else "Mindful pause before opening") },
+                    icon = {
+                        Icon(
+                            if (isMindful) Icons.Outlined.HourglassFull else Icons.Outlined.HourglassEmpty,
+                            contentDescription = "Mindful pause"
+                        )
+                    },
+                    selected = isMindful,
+                    onClick = {
+                        onToggleMindful()
+                        onDismissRequest()
+                    },
+                    colors = NavigationDrawerItemDefaults.colors()
+                )
+            }
 
             if (onHideFromSuggestions != null) {
                 NavigationDrawerItem(

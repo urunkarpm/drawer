@@ -45,6 +45,7 @@ class GroupsViewModelTest {
     private val lockLayoutFlow = MutableStateFlow(false)
     private val drawerNotificationGlowFlow = MutableStateFlow(true)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
+    private val mindfulAppsFlow = MutableStateFlow<Set<String>>(emptySet())
 
     private lateinit var viewModel: GroupsViewModel
 
@@ -76,6 +77,7 @@ class GroupsViewModelTest {
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.drawerNotificationGlow } returns drawerNotificationGlowFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
+        every { preferencesDataSource.mindfulApps } returns mindfulAppsFlow
 
         groupsFlow.value = listOf(sampleGroup)
         installedAppsFlow.value = listOf(appZ, appA)
@@ -303,5 +305,12 @@ class GroupsViewModelTest {
         viewModel.dismissAiSuggestions()
         assertFalse(viewModel.isAiModelReady.value)
         assertNull(viewModel.aiSuggestions.value)
+    }
+
+    @Test
+    fun toggleMindfulApp_delegatesToPreferencesDataSource() = runTest {
+        viewModel.toggleMindfulApp("com.instagram.android")
+        testScheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.toggleMindfulApp("com.instagram.android") }
     }
 }

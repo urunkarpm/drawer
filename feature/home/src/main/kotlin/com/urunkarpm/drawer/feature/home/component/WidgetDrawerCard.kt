@@ -127,7 +127,7 @@ fun WidgetDrawerCard(
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     val drawerColor = remember(drawer.colorHex, drawer.title, drawer.id) {
-        GroupIcons.parseColor(drawer.colorHex, fallback = resolveWidgetDrawerColor(drawer.title, drawer.id))
+        GroupIcons.resolveGroupColor(drawer.colorHex, drawer.title, drawer.id)
     }
     val drawerIcon = remember(drawer.iconName, drawer.title) {
         if (drawer.iconName.isNotBlank() && drawer.iconName != "folder") {
@@ -549,22 +549,5 @@ private fun resolveWidgetDrawerIcon(title: String): ImageVector {
 }
 
 private fun resolveWidgetDrawerColor(title: String, drawerId: String): Color {
-    val lower = title.lowercase()
-    val hex = when {
-        lower.contains("finance") || lower.contains("bank") || lower.contains("money") -> "#065F46" // Financial Forest Green
-        lower.contains("media") || lower.contains("music") -> "#831843" // Deep Bordeaux
-        lower.contains("video") || lower.contains("stream") -> "#9F1239" // Refined Wine
-        lower.contains("chat") || lower.contains("social") -> "#0F766E" // Deep Corporate Teal
-        lower.contains("work") || lower.contains("office") -> "#1E3A8A" // Executive Navy
-        lower.contains("tool") || lower.contains("util") -> "#475569" // Titanium Gray
-        lower.contains("fit") || lower.contains("health") -> "#0E7490" // Refined Petrol Cyan
-        lower.contains("star") || lower.contains("fav") -> "#92400E" // Warm Bronze
-        lower.contains("dev") || lower.contains("code") -> "#3730A3" // Enterprise Indigo
-        else -> {
-            val colors = GroupIcons.availableColors
-            val index = kotlin.math.abs(drawerId.hashCode() % colors.size)
-            colors[index]
-        }
-    }
-    return GroupIcons.parseColor(hex)
+    return GroupIcons.resolveCategoryColor(title, drawerId)
 }

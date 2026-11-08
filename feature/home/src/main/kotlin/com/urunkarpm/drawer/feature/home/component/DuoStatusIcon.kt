@@ -15,6 +15,7 @@ import android.os.Build
 import android.provider.Settings
 import android.telephony.PhoneStateListener
 import android.telephony.SignalStrength
+import android.telephony.SubscriptionManager
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyDisplayInfo
 import android.telephony.TelephonyManager
@@ -623,6 +624,20 @@ internal fun resolveNetworkTypeLabel(networkType: Int, overrideType: Int): Strin
         TelephonyManager.NETWORK_TYPE_GSM -> "2G"
         else -> null
     }
+}
+
+// ponytail: Multi-RAT cellular signal strength extractor resolving 5G NR, LTE CA, and legacy bins with multi-SIM fallback; ceiling: raw dBm/RSRP mapping without CarrierConfig overrides; upgrade path: CarrierConfigManager signal threshold parsing.
+internal fun extractSignalLevel(signalStrength: SignalStrength?): Int {
+    if (signalStrength == null) return 0
+    return runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val cellLevels = signalStrength.cellSignalStrengths.map { it.level }.filter { it in 0..4 }
+            val maxCell = cellLevels.maxOrNull() ?: 0
+            maxOf(signalStrength.level.coerceIn(0, 4), maxCell)
+        } else {
+            signalStrength.level.coerceIn(0, 4)
+        }
+    }.getOrDefault(signalStrength.level.coerceIn(0, 4))
 }
 
 /**
@@ -1367,6 +1382,49 @@ fun DuoStatusIcon(
 @Composable
 fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    val cm = remember(context) { context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager }
+    val wm = remember(context) { context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager }
+    val tm = remember(context) { context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager }
+
+    // Resolve primary TelephonyManager instance pinned to active data/default SIM for multi-SIM / Dual-SIM
+    val activeTm = remember(context, tm) {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && tm != null) {
+                val dataSubId = SubscriptionManager.getDefaultDataSubscriptionId()
+                if (dataSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                    tm.createForSubscriptionId(dataSubId)
+                } else {
+                    val defaultSubId = SubscriptionManager.getDefaultSubscriptionId()
+                    if (defaultSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                        tm.createForSubscriptionId(defaultSubId)
+                    } else tm
+                }
+            } else tm
+        }.getOrNull() ?: tm
+    }
+
+    val initialSignal = remember(activeTm, tm) {
+        runCatching {
+            val s1 = activeTm?.signalStrength
+            val s2 = if (activeTm != tm) tm?.signalStrength else null
+            maxOf(extractSignalLevel(s1), extractSignalLevel(s2))
+        }.getOrDefault(0)
+    }
+
+    val initialCellularConnected = remember(context, activeTm, tm, cm, initialSignal) {
+        runCatching {
+            val isAirplane = Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) != 0
+            if (isAirplane) false
+            else {
+                initialSignal > 0 ||
+                activeTm?.simState == TelephonyManager.SIM_STATE_READY ||
+                tm?.simState == TelephonyManager.SIM_STATE_READY ||
+                cm?.getNetworkCapabilities(cm.activeNetwork)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+            }
+        }.getOrDefault(false)
+    }
+
     var batteryPercent by remember { mutableIntStateOf(100) }
     var isCharging by remember { mutableStateOf(false) }
     var chargingWatts by remember { mutableStateOf<Float?>(null) }
@@ -1375,18 +1433,74 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     var batteryTempCelsius by remember { mutableStateOf<Float?>(null) }
     var isWifiConnected by remember { mutableStateOf(false) }
     var wifiLevel by remember { mutableIntStateOf(0) }
-    var isCellularConnected by remember { mutableStateOf(false) }
-    var cellularLevel by remember { mutableIntStateOf(0) }
+    var isCellularConnected by remember { mutableStateOf(initialCellularConnected) }
+    var cellularLevel by remember { mutableIntStateOf(initialSignal) }
     var networkType by remember { mutableStateOf<String?>(null) }
 
-    DisposableEffect(lifecycleOwner, context) {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-        val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+    fun refreshCellularConnected() {
+        runCatching {
+            val isAirplane = Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) != 0
+            if (isAirplane) {
+                isCellularConnected = false
+                return
+            }
 
+            val hasCell = cm?.getNetworkCapabilities(cm.activeNetwork)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+            val isSimReady = activeTm?.simState == TelephonyManager.SIM_STATE_READY ||
+                    tm?.simState == TelephonyManager.SIM_STATE_READY
+            val hasOperator = !activeTm?.networkOperatorName.isNullOrBlank() || !tm?.networkOperatorName.isNullOrBlank()
+
+            isCellularConnected = hasCell || cellularLevel > 0 || !networkType.isNullOrBlank() || (isSimReady && hasOperator)
+        }
+    }
+
+    fun updateFromSignal(signalStrength: SignalStrength?) {
+        val level = extractSignalLevel(signalStrength)
+        cellularLevel = level
+        refreshCellularConnected()
+    }
+
+    fun queryCellularSignal() {
+        runCatching {
+            val s1 = activeTm?.signalStrength
+            val s2 = if (activeTm != tm) tm?.signalStrength else null
+            val bestSignal = when {
+                s1 == null -> s2
+                s2 == null -> s1
+                else -> {
+                    val l1 = extractSignalLevel(s1)
+                    val l2 = extractSignalLevel(s2)
+                    if (l2 > l1) s2 else s1
+                }
+            }
+            updateFromSignal(bestSignal)
+        }
+    }
+
+    fun updateFromDisplayInfo(telephonyDisplayInfo: TelephonyDisplayInfo) {
+        val resolved = resolveNetworkTypeLabel(
+            telephonyDisplayInfo.networkType,
+            telephonyDisplayInfo.overrideNetworkType
+        )
+        networkType = resolved
+        refreshCellularConnected()
+    }
+
+    // Periodic telemetry sync loop preventing stale/unresponsive cellular icons when stationary
+    LaunchedEffect(lifecycleOwner, activeTm, tm) {
+        while (true) {
+            delay(5000L)
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+                queryCellularSignal()
+            }
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, context, activeTm) {
         var batteryReceiver: BroadcastReceiver? = null
         var networkCallback: ConnectivityManager.NetworkCallback? = null
-        var telephonyCallback: Any? = null
+        var signalCallback: Any? = null
+        var displayCallback: Any? = null
         var phoneStateListener: Any? = null
 
         fun updateBattery(intent: Intent) {
@@ -1426,25 +1540,7 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
                     wifiLevel = 0
                 }
 
-                val hasCell = caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
-                isCellularConnected = hasCell || isCellularConnected
-            }
-        }
-
-        fun updateFromSignal(signalStrength: SignalStrength?) {
-            val level = signalStrength?.level?.coerceIn(0, 4) ?: 0
-            cellularLevel = level
-            if (level > 0) isCellularConnected = true
-        }
-
-        fun updateFromDisplayInfo(telephonyDisplayInfo: TelephonyDisplayInfo) {
-            val resolved = resolveNetworkTypeLabel(
-                telephonyDisplayInfo.networkType,
-                telephonyDisplayInfo.overrideNetworkType
-            )
-            networkType = resolved
-            if (!resolved.isNullOrBlank()) {
-                isCellularConnected = true
+                refreshCellularConnected()
             }
         }
 
@@ -1478,36 +1574,52 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
                 queryWifi()
             }
 
+            queryCellularSignal()
+            refreshCellularConnected()
+
             runCatching {
                 val initialType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    tm?.dataNetworkType ?: TelephonyManager.NETWORK_TYPE_UNKNOWN
+                    activeTm?.dataNetworkType?.takeIf { it != TelephonyManager.NETWORK_TYPE_UNKNOWN }
+                        ?: tm?.dataNetworkType ?: TelephonyManager.NETWORK_TYPE_UNKNOWN
                 } else {
                     @Suppress("DEPRECATION")
-                    tm?.networkType ?: TelephonyManager.NETWORK_TYPE_UNKNOWN
+                    activeTm?.networkType?.takeIf { it != TelephonyManager.NETWORK_TYPE_UNKNOWN }
+                        ?: tm?.networkType ?: TelephonyManager.NETWORK_TYPE_UNKNOWN
                 }
                 val resolved = resolveNetworkTypeLabel(initialType, 0)
                 if (!resolved.isNullOrBlank()) {
                     networkType = resolved
+                    refreshCellularConnected()
                 }
             }
 
-            runCatching {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val callback = object : TelephonyCallback(),
-                        TelephonyCallback.SignalStrengthsListener,
-                        TelephonyCallback.DisplayInfoListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // 1. Signal strength listener (Does NOT require READ_PHONE_STATE)
+                runCatching {
+                    val callback = object : TelephonyCallback(), TelephonyCallback.SignalStrengthsListener {
                         override fun onSignalStrengthsChanged(signalStrength: SignalStrength) {
                             updateFromSignal(signalStrength)
                         }
+                    }
+                    signalCallback = callback
+                    activeTm?.registerTelephonyCallback(context.mainExecutor, callback)
+                    if (activeTm != tm) {
+                        tm?.registerTelephonyCallback(context.mainExecutor, callback)
+                    }
+                }
 
+                // 2. Display info listener (isolated in case READ_PHONE_STATE is missing on strict OEMs)
+                runCatching {
+                    val callback = object : TelephonyCallback(), TelephonyCallback.DisplayInfoListener {
                         override fun onDisplayInfoChanged(telephonyDisplayInfo: TelephonyDisplayInfo) {
                             updateFromDisplayInfo(telephonyDisplayInfo)
                         }
                     }
-                    telephonyCallback = callback
-                    tm?.registerTelephonyCallback(context.mainExecutor, callback)
-                    updateFromSignal(tm?.signalStrength)
-                } else {
+                    displayCallback = callback
+                    activeTm?.registerTelephonyCallback(context.mainExecutor, callback)
+                }
+            } else {
+                runCatching {
                     val listener = object : PhoneStateListener() {
                         @Deprecated("Deprecated in Java")
                         override fun onSignalStrengthsChanged(signalStrength: SignalStrength?) {
@@ -1516,9 +1628,10 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
                     }
                     phoneStateListener = listener
                     @Suppress("DEPRECATION")
-                    tm?.listen(listener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        updateFromSignal(tm?.signalStrength)
+                    activeTm?.listen(listener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
+                    if (activeTm != tm) {
+                        @Suppress("DEPRECATION")
+                        tm?.listen(listener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
                     }
                 }
             }
@@ -1535,11 +1648,24 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             }
             runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    (telephonyCallback as? TelephonyCallback)?.let { tm?.unregisterTelephonyCallback(it) }
-                    telephonyCallback = null
+                    (signalCallback as? TelephonyCallback)?.let {
+                        activeTm?.unregisterTelephonyCallback(it)
+                        if (activeTm != tm) tm?.unregisterTelephonyCallback(it)
+                    }
+                    signalCallback = null
+                    (displayCallback as? TelephonyCallback)?.let {
+                        activeTm?.unregisterTelephonyCallback(it)
+                    }
+                    displayCallback = null
                 } else {
-                    @Suppress("DEPRECATION")
-                    (phoneStateListener as? PhoneStateListener)?.let { tm?.listen(it, PhoneStateListener.LISTEN_NONE) }
+                    (phoneStateListener as? PhoneStateListener)?.let {
+                        @Suppress("DEPRECATION")
+                        activeTm?.listen(it, PhoneStateListener.LISTEN_NONE)
+                        if (activeTm != tm) {
+                            @Suppress("DEPRECATION")
+                            tm?.listen(it, PhoneStateListener.LISTEN_NONE)
+                        }
+                    }
                     phoneStateListener = null
                 }
             }

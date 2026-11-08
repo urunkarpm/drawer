@@ -12,6 +12,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.snap
@@ -21,6 +22,8 @@ import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import kotlinx.coroutines.launch
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -143,7 +146,8 @@ fun GroupsAccordion(
     surfaceOpacity: Float = 0.65f,
     surfaceStrokeOpacity: Float = 0.40f,
     cinematicPaletteId: String = "DEFAULT",
-    onToggleExpand: ((String) -> Unit)? = null
+    onToggleExpand: ((String) -> Unit)? = null,
+    onAppClick: ((AppInfo) -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val actionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -160,6 +164,7 @@ fun GroupsAccordion(
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
     val isCompactEffective = twoDrawersSideBySide && screenWidthDp < 600
+    val handleAppClick: (AppInfo) -> Unit = onAppClick ?: { app -> viewModel.launchApp(app) }
 
     // ponytail: Auto-collapse category app drawers after 3 seconds of inactivity; resets countdown on any touch interaction; ceiling: fixed 3s delay; upgrade path: customizable timeout in Settings.
     Column(
@@ -261,7 +266,7 @@ fun GroupsAccordion(
                                 onMoveUp = { viewModel.moveGroupUp(index) },
                                 onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
                                 onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
-                                onAppClick = { app -> viewModel.launchApp(app) },
+                                onAppClick = handleAppClick,
                                 onAppLongClick = { app -> viewModel.selectAppForAction(app, group.group) },
                                 iconLoader = { app -> viewModel.getAppIcon(app) },
                                 iconShape = iconShape,
@@ -306,7 +311,7 @@ fun GroupsAccordion(
                                 onMoveUp = { viewModel.moveGroupUp(index) },
                                 onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
                                 onDeleteGroup = { viewModel.deleteGroup(group.group.id) },
-                                onAppClick = { app -> viewModel.launchApp(app) },
+                                onAppClick = handleAppClick,
                                 onAppLongClick = { app -> viewModel.selectAppForAction(app, group.group) },
                                 iconLoader = { app -> viewModel.getAppIcon(app) },
                                 iconShape = iconShape,
@@ -349,9 +354,7 @@ fun GroupsAccordion(
                         onMoveUp = { viewModel.moveGroupUp(index) },
                         onMoveDown = { viewModel.moveGroupDown(index, uiState.groups.size) },
                         onDeleteGroup = { viewModel.deleteGroup(resolvedGroup.group.id) },
-                        onAppClick = { app ->
-                            viewModel.launchApp(app)
-                        },
+                        onAppClick = handleAppClick,
                         onAppLongClick = { app ->
                             viewModel.selectAppForAction(app, resolvedGroup.group)
                         },
@@ -379,6 +382,7 @@ fun GroupsAccordion(
         EditGroupDialog(
             group = null,
             allApps = uiState.allApps,
+            iconLoader = { app -> viewModel.getAppIcon(app) },
             twoDrawersSideBySide = twoDrawersSideBySide,
             onDismissRequest = { viewModel.setShowCreateDialog(false) },
             onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder, selectedApps ->
@@ -392,6 +396,7 @@ fun GroupsAccordion(
         EditGroupDialog(
             group = groupToEdit,
             allApps = uiState.allApps,
+            iconLoader = { app -> viewModel.getAppIcon(app) },
             twoDrawersSideBySide = twoDrawersSideBySide,
             onDismissRequest = { viewModel.dismissEditGroup() },
             onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder, selectedApps ->
@@ -420,7 +425,7 @@ fun GroupsAccordion(
             onDismissRequest = { viewModel.dismissAppAction() },
             onLaunchApp = {
                 viewModel.dismissAppAction()
-                viewModel.launchApp(app)
+                handleAppClick(app)
             },
             onMoveEarlier = if (uiState.lockLayout) null else {
                 { viewModel.moveAppEarlier(group.id, app) }
@@ -452,7 +457,9 @@ fun GroupsAccordion(
                 viewModel.dismissAppAction()
                 viewModel.uninstallApp(app.packageName)
             },
-            iconLoader = { viewModel.getAppIcon(app) }
+            iconLoader = { viewModel.getAppIcon(app) },
+            isMindful = app.packageName in uiState.mindfulApps,
+            onToggleMindful = { viewModel.toggleMindfulApp(app.packageName) }
         )
     }
 }
@@ -497,11 +504,7 @@ private fun GroupCard(
     val isExpanded = group.isExpanded
     val haptic = LocalHapticFeedback.current
     val groupColor = remember(group.colorHex, group.name, group.id) {
-        if (!group.colorHex.isNullOrBlank() && group.colorHex != "#6750A4") {
-            GroupIcons.parseColor(group.colorHex, fallback = GroupIcons.resolveCategoryColor(group.name, group.id))
-        } else {
-            GroupIcons.resolveCategoryColor(group.name, group.id)
-        }
+        GroupIcons.resolveGroupColor(group.colorHex, group.name, group.id)
     }
     val groupIcon = GroupIcons.getIcon(group.iconName)
 
@@ -549,6 +552,66 @@ private fun GroupCard(
     }
     // ponytail: in-memory drawer notification acknowledgment state; ceiling: resets across process restarts; upgrade path: persist in Room/DataStore.
     var acknowledgedPkgs by remember(group.id) { mutableStateOf<Set<String>>(emptySet()) }
+
+    var slotMachineApp by remember { mutableStateOf<AppInfo?>(null) }
+    var slotMachineStep by remember { mutableIntStateOf(0) }
+    var slotReelProgress by remember { mutableFloatStateOf(0f) }
+    val slotRecoilScale = remember { Animatable(1f) }
+    val slotRecoilOffsetY = remember { Animatable(0f) }
+
+    // ponytail: casino slot machine app icon shuffle when drawer opens; ceiling: 1D vertical reel roll; upgrade path: multi-reel 3D cylinder transform.
+    LaunchedEffect(isExpanded) {
+        if (isExpanded && resolvedGroup.apps.isNotEmpty()) {
+            val apps = resolvedGroup.apps
+            val totalTicks = (apps.size * 3).coerceIn(12, 18)
+
+            for (step in 0 until totalTicks) {
+                slotMachineStep = step
+                slotMachineApp = apps[step % apps.size]
+                slotReelProgress = step.toFloat() / totalTicks
+
+                if (step % 2 == 0 || step >= totalTicks - 4) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+
+                val delayMs = when {
+                    step < totalTicks - 6 -> 10L      // 10ms casino slot spin
+                    step < totalTicks - 4 -> 22L      // Deceleration phase 1
+                    step < totalTicks - 2 -> 45L      // Deceleration phase 2
+                    step < totalTicks - 1 -> 75L      // Deceleration phase 3
+                    else -> 110L                     // Final mechanical settling roll
+                }
+                delay(delayMs)
+            }
+
+            // Lock into category drawer icon set by user
+            slotMachineApp = null
+            slotReelProgress = 0f
+
+            // Mechanical lock recoil: tactile click + spring recoil
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            launch {
+                slotRecoilOffsetY.snapTo(-7f)
+                slotRecoilOffsetY.animateTo(
+                    targetValue = 0f,
+                    animationSpec = spring(dampingRatio = 0.52f, stiffness = 650f)
+                )
+            }
+            launch {
+                slotRecoilScale.snapTo(1.32f)
+                slotRecoilScale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = spring(dampingRatio = 0.58f, stiffness = 550f)
+                )
+            }
+        } else {
+            slotMachineApp = null
+            slotMachineStep = 0
+            slotReelProgress = 0f
+            slotRecoilScale.snapTo(1f)
+            slotRecoilOffsetY.snapTo(0f)
+        }
+    }
 
     LaunchedEffect(notifyingPkgs) {
         if (notifyingPkgs.isEmpty()) {
@@ -749,35 +812,57 @@ private fun GroupCard(
                                                 )
                                             }
                                     )
+                                    if (slotMachineApp == null) {
+                                        Icon(
+                                            imageVector = groupIcon,
+                                            contentDescription = null,
+                                            tint = groupColor,
+                                            modifier = Modifier
+                                                .size(if (isCompact) 16.dp else 18.dp)
+                                                .graphicsLayer {
+                                                    scaleX = pulseScale
+                                                    scaleY = pulseScale
+                                                    alpha = pulseAlpha * 0.85f
+                                                    ambientShadowColor = groupColor
+                                                    spotShadowColor = groupColor
+                                                    shadowElevation = 8.dp.toPx()
+                                                }
+                                        )
+                                    }
+                                }
+                                if (slotMachineApp != null) {
+                                    val currentSlotApp = slotMachineApp!!
+                                    AppIconImage(
+                                        key = currentSlotApp.componentKey,
+                                        size = if (isCompact) 18.dp else 22.dp,
+                                        label = currentSlotApp.label,
+                                        isWorkProfile = currentSlotApp.isWorkProfile,
+                                        iconShape = iconShape,
+                                        iconLoader = { iconLoader(currentSlotApp) },
+                                        modifier = Modifier.graphicsLayer {
+                                            val isHighSpeed = slotReelProgress < 0.70f
+                                            scaleX = if (isHighSpeed) 0.88f else 1.0f
+                                            scaleY = if (isHighSpeed) 1.18f else 1.0f
+                                            translationY = if (isHighSpeed) {
+                                                if (slotMachineStep % 2 == 0) -2.5f else 2.5f
+                                            } else 0f
+                                        }
+                                    )
+                                } else {
                                     Icon(
                                         imageVector = groupIcon,
-                                        contentDescription = null,
+                                        contentDescription = group.name,
                                         tint = groupColor,
                                         modifier = Modifier
                                             .size(if (isCompact) 16.dp else 18.dp)
                                             .graphicsLayer {
-                                                scaleX = pulseScale
-                                                scaleY = pulseScale
-                                                alpha = pulseAlpha * 0.85f
-                                                ambientShadowColor = groupColor
-                                                spotShadowColor = groupColor
-                                                shadowElevation = 8.dp.toPx()
+                                                val baseScale = if (isGlowing) (1f + 0.08f * (pulseScale - 1f) / 0.15f) else 1f
+                                                scaleX = slotRecoilScale.value * baseScale
+                                                scaleY = slotRecoilScale.value * baseScale
+                                                translationY = slotRecoilOffsetY.value
                                             }
                                     )
                                 }
-                                Icon(
-                                    imageVector = groupIcon,
-                                    contentDescription = group.name,
-                                    tint = groupColor,
-                                    modifier = Modifier
-                                        .size(if (isCompact) 16.dp else 18.dp)
-                                        .graphicsLayer {
-                                            if (isGlowing) {
-                                                scaleX = 1f + 0.08f * (pulseScale - 1f) / 0.15f
-                                                scaleY = 1f + 0.08f * (pulseScale - 1f) / 0.15f
-                                            }
-                                        }
-                                )
                                 // ponytail: Notification indicator dot displays only when drawer glowing is disabled to avoid visual clutter and duplicate indicator states; ceiling: static dot; upgrade path: numeric count badge.
                                 if (hasNotification && !drawerNotificationGlow) {
                                     Box(

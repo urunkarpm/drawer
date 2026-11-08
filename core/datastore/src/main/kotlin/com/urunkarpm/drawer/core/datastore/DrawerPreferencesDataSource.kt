@@ -100,6 +100,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val APP_USAGE_PROFILES = stringPreferencesKey("app_usage_profiles")
         val SUGGESTION_BLACKLIST = stringPreferencesKey("suggestion_blacklist")
         val SHOW_DRAWER_SUGGESTIONS = booleanPreferencesKey("show_drawer_suggestions")
+        val MINDFUL_APPS = stringPreferencesKey("mindful_apps")
     }
 
     val appLaunchCounts: Flow<Map<String, Int>> = dataStore.data.map { prefs ->
@@ -173,6 +174,17 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     val showDrawerSuggestions: Flow<Boolean> = dataStore.data.map {
         it[PreferencesKeys.SHOW_DRAWER_SUGGESTIONS] ?: true
+    }
+
+    // ponytail: stores mindful pause app package names as a JSON set in DataStore.
+    // Ceiling: Package-name level only (not activity/shortcut level). Upgrade path: store ComponentName strings if deep-links need individual pauses.
+    val mindfulApps: Flow<Set<String>> = dataStore.data.map { prefs ->
+        val json = prefs[PreferencesKeys.MINDFUL_APPS] ?: return@map emptySet()
+        try {
+            Json.decodeFromString<Set<String>>(json)
+        } catch (_: Throwable) {
+            emptySet()
+        }
     }
 
     val dynamicWallpaperEnabled: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_WALLPAPER_ENABLED] ?: false }
@@ -694,6 +706,26 @@ class DrawerPreferencesDataSource @Inject constructor(
         }
     }
 
+    suspend fun toggleMindfulApp(packageName: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[PreferencesKeys.MINDFUL_APPS]?.let {
+                try { Json.decodeFromString<Set<String>>(it) } catch (_: Throwable) { emptySet() }
+            } ?: emptySet()
+            val updated = if (packageName in current) current - packageName else current + packageName
+            prefs[PreferencesKeys.MINDFUL_APPS] = Json.encodeToString(updated)
+        }
+    }
+
+    suspend fun setMindfulApp(packageName: String, isMindful: Boolean) {
+        dataStore.edit { prefs ->
+            val current = prefs[PreferencesKeys.MINDFUL_APPS]?.let {
+                try { Json.decodeFromString<Set<String>>(it) } catch (_: Throwable) { emptySet() }
+            } ?: emptySet()
+            val updated = if (isMindful) current + packageName else current - packageName
+            prefs[PreferencesKeys.MINDFUL_APPS] = Json.encodeToString(updated)
+        }
+    }
+
     // ponytail: reads all preferences in a single DataStore transaction rather than launching 40+ separate flows.
     suspend fun getPreferencesBackup(): LauncherPreferencesBackup {
         val p = dataStore.data.first()
@@ -703,6 +735,9 @@ class DrawerPreferencesDataSource @Inject constructor(
         val launchTimes = p[PreferencesKeys.APP_LAST_LAUNCHED_TIMES]?.let {
             try { Json.decodeFromString<Map<String, Long>>(it) } catch (_: Throwable) { emptyMap() }
         } ?: emptyMap()
+        val mindful = p[PreferencesKeys.MINDFUL_APPS]?.let {
+            try { Json.decodeFromString<Set<String>>(it) } catch (_: Throwable) { emptySet() }
+        } ?: emptySet()
 
         return LauncherPreferencesBackup(
             themeMode = p[PreferencesKeys.THEME_MODE] ?: "SYSTEM",
@@ -765,7 +800,8 @@ class DrawerPreferencesDataSource @Inject constructor(
             aiForceWorkProfile = p[PreferencesKeys.AI_FORCE_WORK_PROFILE] ?: true,
             enableOnDeviceAi = p[PreferencesKeys.ENABLE_ON_DEVICE_AI] ?: false,
             appLaunchCounts = launchCounts,
-            appLastLaunchedTimes = launchTimes
+            appLastLaunchedTimes = launchTimes,
+            mindfulApps = mindful
         )
     }
 
@@ -846,6 +882,9 @@ class DrawerPreferencesDataSource @Inject constructor(
             }
             if (prefs.appLastLaunchedTimes.isNotEmpty()) {
                 p[PreferencesKeys.APP_LAST_LAUNCHED_TIMES] = Json.encodeToString(prefs.appLastLaunchedTimes)
+            }
+            if (prefs.mindfulApps.isNotEmpty()) {
+                p[PreferencesKeys.MINDFUL_APPS] = Json.encodeToString(prefs.mindfulApps)
             }
         }
     }

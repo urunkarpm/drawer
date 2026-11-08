@@ -14,13 +14,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,7 +45,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.graphics.drawable.Drawable
+import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.GroupSortOrder
 import com.urunkarpm.drawer.core.model.GroupViewType
@@ -54,6 +60,7 @@ import com.urunkarpm.drawer.core.model.AppInfo
 fun EditGroupDialog(
     group: AppGroup?,
     allApps: List<AppInfo> = emptyList(),
+    iconLoader: (suspend (AppInfo) -> Drawable?)? = null,
     onDismissRequest: () -> Unit,
     onSave: (name: String, iconName: String, colorHex: String, viewType: GroupViewType, columnCount: Int, sortOrder: GroupSortOrder, selectedApps: List<AppInfo>) -> Unit,
     onDelete: (() -> Unit)? = null,
@@ -61,7 +68,12 @@ fun EditGroupDialog(
 ) {
     var name by remember { mutableStateOf(group?.name ?: "") }
     var selectedIcon by remember { mutableStateOf(group?.iconName ?: "folder") }
-    var selectedColor by remember { mutableStateOf(group?.colorHex ?: "#1E88E5") }
+    var selectedColor by remember {
+        mutableStateOf(
+            if (GroupIcons.isDullOrGrey(group?.colorHex)) GroupIcons.availableColors.first()
+            else group?.colorHex ?: GroupIcons.availableColors.first()
+        )
+    }
     var selectedViewType by remember {
         mutableStateOf(group?.viewType ?: if (twoDrawersSideBySide) GroupViewType.LIST else GroupViewType.GRID)
     }
@@ -252,38 +264,99 @@ fun EditGroupDialog(
                     )
                 }
 
-                // ponytail: dirty inline app list for bulk add. ceiling: 100-300 apps rendered in a column can drop frames. upgrade path: LazyColumn inside dialog or separate screen.
+                // ponytail: inline app selector with live icon rendering and instant search filter for bulk drawer assignment.
                 if (allApps.isNotEmpty()) {
-                    Text(
-                        text = "Select Apps",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Column(
+                    var appSearchQuery by remember { mutableStateOf("") }
+                    val filteredApps = remember(allApps, appSearchQuery) {
+                        if (appSearchQuery.isBlank()) allApps
+                        else allApps.filter { it.label.contains(appSearchQuery.trim(), ignoreCase = true) }
+                    }
+
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        allApps.forEach { app ->
-                            val key = "${app.packageName}/${app.activityName}"
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedApps = if (key in selectedApps) {
-                                            selectedApps - key
-                                        } else {
-                                            selectedApps + key
-                                        }
-                                    }
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        Text(
+                            text = "Select Apps (${selectedApps.size} selected)",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (selectedApps.isNotEmpty()) {
+                            TextButton(
+                                onClick = { selectedApps = emptySet() }
                             ) {
-                                androidx.compose.material3.Checkbox(
-                                    checked = key in selectedApps,
-                                    onCheckedChange = null
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(text = app.label, style = MaterialTheme.typography.bodyMedium)
+                                Text("Clear", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = appSearchQuery,
+                        onValueChange = { appSearchQuery = it },
+                        placeholder = { Text("Filter apps...") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(18.dp))
+                        },
+                        trailingIcon = {
+                            if (appSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { appSearchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            filteredApps.forEach { app ->
+                                val key = "${app.packageName}/${app.activityName}"
+                                val isSelected = key in selectedApps
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            selectedApps = if (isSelected) {
+                                                selectedApps - key
+                                            } else {
+                                                selectedApps + key
+                                            }
+                                        }
+                                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = null
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    AppIconImage(
+                                        key = app.componentKey,
+                                        size = 36.dp,
+                                        label = app.label,
+                                        isWorkProfile = app.isWorkProfile,
+                                        iconLoader = { iconLoader?.invoke(app) }
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = app.label,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }

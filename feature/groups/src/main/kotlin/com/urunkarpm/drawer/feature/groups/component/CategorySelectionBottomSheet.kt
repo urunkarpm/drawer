@@ -75,11 +75,7 @@ fun CategorySelectionBottomSheet(
             ) {
                 items(groups, key = { it.id }) { group ->
                     val groupColor = remember(group.colorHex, group.name, group.id) {
-                        if (!group.colorHex.isNullOrBlank() && group.colorHex != "#6750A4") {
-                            GroupIcons.parseColor(group.colorHex, fallback = GroupIcons.resolveCategoryColor(group.name, group.id))
-                        } else {
-                            GroupIcons.resolveCategoryColor(group.name, group.id)
-                        }
+                        GroupIcons.resolveGroupColor(group.colorHex, group.name, group.id)
                     }
                     val icon = GroupIcons.getIcon(group.iconName)
                     NavigationDrawerItem(

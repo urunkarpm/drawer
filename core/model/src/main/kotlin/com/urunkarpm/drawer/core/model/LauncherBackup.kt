@@ -64,7 +64,8 @@ data class LauncherPreferencesBackup(
     val aiForceWorkProfile: Boolean = true,
     val enableOnDeviceAi: Boolean = false,
     val appLaunchCounts: Map<String, Int> = emptyMap(),
-    val appLastLaunchedTimes: Map<String, Long> = emptyMap()
+    val appLastLaunchedTimes: Map<String, Long> = emptyMap(),
+    val mindfulApps: Set<String> = emptySet()
 )
 
 @Serializable

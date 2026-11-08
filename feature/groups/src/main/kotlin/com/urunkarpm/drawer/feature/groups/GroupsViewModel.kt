@@ -49,7 +49,8 @@ data class GroupsUiState(
     val isAiCategorizing: Boolean = false,
     val aiSuggestions: List<CategorizationSuggestion>? = null,
     val isAiModelReady: Boolean = false,
-    val installSuggestion: Pair<AppInfo, AppGroup>? = null
+    val installSuggestion: Pair<AppInfo, AppGroup>? = null,
+    val mindfulApps: Set<String> = emptySet()
 )
 
 @HiltViewModel
@@ -95,16 +96,18 @@ class GroupsViewModel @Inject constructor(
         val multiGroup: Boolean,
         val lockLayout: Boolean,
         val drawerGlow: Boolean,
-        val drawerTitleAnimation: String
+        val drawerTitleAnimation: String,
+        val mindfulApps: Set<String>
     )
 
     private val groupPrefsFlow = combine(
         preferencesDataSource.multiGroupApps,
         preferencesDataSource.lockLayout,
         preferencesDataSource.drawerNotificationGlow,
-        preferencesDataSource.drawerTitleAnimation
-    ) { multiGroup, lockLayout, drawerGlow, titleAnim ->
-        GroupPrefs(multiGroup, lockLayout, drawerGlow, titleAnim)
+        preferencesDataSource.drawerTitleAnimation,
+        preferencesDataSource.mindfulApps
+    ) { multiGroup, lockLayout, drawerGlow, titleAnim, mindful ->
+        GroupPrefs(multiGroup, lockLayout, drawerGlow, titleAnim, mindful)
     }
 
     val uiState: StateFlow<GroupsUiState> = combine(
@@ -143,7 +146,8 @@ class GroupsViewModel @Inject constructor(
             isAiCategorizing = isCategorizing,
             aiSuggestions = suggestions,
             isAiModelReady = modelReady,
-            installSuggestion = dialogs.installSuggestion
+            installSuggestion = dialogs.installSuggestion,
+            mindfulApps = groupPrefs.mindfulApps
         )
     }.stateIn(
         scope = viewModelScope,
@@ -441,6 +445,12 @@ class GroupsViewModel @Inject constructor(
     fun openAppDetails(packageName: String) = appRepository.openAppDetails(packageName)
 
     fun uninstallApp(packageName: String) = appRepository.uninstallApp(packageName)
+
+    fun toggleMindfulApp(packageName: String) {
+        viewModelScope.launch {
+            preferencesDataSource.toggleMindfulApp(packageName)
+        }
+    }
 
     suspend fun getAppIcon(app: AppInfo): Drawable? = appRepository.getAppIcon(app)
 }

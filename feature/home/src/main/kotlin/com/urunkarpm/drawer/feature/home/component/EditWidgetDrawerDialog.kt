@@ -55,7 +55,12 @@ fun EditWidgetDrawerDialog(
 
     var title by remember { mutableStateOf(drawer?.title ?: "") }
     var selectedIcon by remember { mutableStateOf(drawer?.iconName ?: "folder") }
-    var selectedColor by remember { mutableStateOf(drawer?.colorHex ?: GroupIcons.availableColors.first()) }
+    var selectedColor by remember {
+        mutableStateOf(
+            if (GroupIcons.isDullOrGrey(drawer?.colorHex)) GroupIcons.availableColors.first()
+            else drawer?.colorHex ?: GroupIcons.availableColors.first()
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismissRequest,

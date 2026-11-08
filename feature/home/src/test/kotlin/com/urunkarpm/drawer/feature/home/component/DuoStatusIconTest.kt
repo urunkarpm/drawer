@@ -78,4 +78,16 @@ class DuoStatusIconTest {
         val updated = status.copy(networkType = "5G")
         assertEquals("5G", updated.networkType)
     }
+
+    @Test
+    fun extractSignalLevel_null_returnsZero() {
+        assertEquals(0, extractSignalLevel(null))
+    }
+
+    @Test
+    fun extractSignalLevel_mockedSignalStrength() {
+        val mockSignal = io.mockk.mockk<android.telephony.SignalStrength>()
+        io.mockk.every { mockSignal.level } returns 4
+        assertEquals(4, extractSignalLevel(mockSignal))
+    }
 }
