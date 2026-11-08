@@ -189,36 +189,6 @@ fun HomeScreen(
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
     val screenHeightDp = configuration.screenHeightDp
-    val density = LocalDensity.current
-    val screenHeightPx = with(density) { screenHeightDp.dp.toPx() }
-    val drawerTranslationY = remember { Animatable(screenHeightPx) }
-    var isInteractiveDragging by remember { mutableStateOf(false) }
-
-    LaunchedEffect(screenHeightPx) {
-        if (!uiState.isAllAppsOpen && !isInteractiveDragging && drawerTranslationY.value > 0f) {
-            drawerTranslationY.snapTo(screenHeightPx)
-        }
-    }
-
-    LaunchedEffect(uiState.isAllAppsOpen, screenHeightPx) {
-        if (!isInteractiveDragging) {
-            if (uiState.isAllAppsOpen) {
-                if (drawerTranslationY.value > 0f) {
-                    drawerTranslationY.animateTo(
-                        targetValue = 0f,
-                        animationSpec = FluidSpringPhysics.fluidSpring()
-                    )
-                }
-            } else {
-                if (drawerTranslationY.value < screenHeightPx) {
-                    drawerTranslationY.animateTo(
-                        targetValue = screenHeightPx,
-                        animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
-                    )
-                }
-            }
-        }
-    }
     val isSmallScreen = screenWidthDp < 360
     val activeNotificationPkgs = remember(notificationsUiState.activeNotifications) {
         notificationsUiState.activeNotifications.map { it.packageName }.toSet()
@@ -1109,12 +1079,13 @@ fun HomeScreen(
     val homeScale = remember { Animatable(1f) }
     val homeAlpha = remember { Animatable(1f) }
 
-    LaunchedEffect(isSettingsOpen) {
-        if (isSettingsOpen) {
+    LaunchedEffect(uiState.isAllAppsOpen, isSettingsOpen) {
+        val isOverlayOpen = uiState.isAllAppsOpen || isSettingsOpen
+        if (isOverlayOpen) {
             launch {
                 homeScale.animateTo(
                     targetValue = 0.94f,
-                    animationSpec = FluidSpringPhysics.fluidSpring()
+                    animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 500f)
                 )
             }
             launch {
@@ -1133,7 +1104,7 @@ fun HomeScreen(
             launch {
                 homeAlpha.animateTo(
                     targetValue = 1f,
-                    animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 500f)
+                    animationSpec = FluidSpringPhysics.fluidSpring()
                 )
             }
         }
@@ -1149,8 +1120,6 @@ fun HomeScreen(
                     animationSpec = FluidSpringPhysics.fluidSpring()
                 )
             }
-            drawerTranslationY.snapTo(screenHeightPx)
-            isInteractiveDragging = false
             isSettingsOpen = false
             viewModel.closeAllApps()
             isCameraOpen = false
@@ -1406,37 +1375,20 @@ fun HomeScreen(
         }
     }
 
-    // ponytail: 1:1 direct finger-proportional drag opens all apps from home screen and dock with velocity release physics; ceiling: vertical Y translation only; upgrade path: AnchoredDraggableState.
-    val homeNestedScrollConnection = remember(
-        hasNotifications,
-        isNotificationExpanded,
-        areOtherDrawersOpen,
-        dragDropState.isDragging,
-        uiState.openDrawerFromDockOnly,
-        uiState.isAllAppsOpen,
-        screenHeightPx
-    ) {
+    // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
+    val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, areOtherDrawersOpen, dragDropState.isDragging, uiState.openDrawerFromDockOnly) {
         object : NestedScrollConnection {
             private var scrollDownAccumulator = 0f
-            private var homeDragAccumulator = 0f
-            private var isHomeDragging = false
+            private var scrollUpAccumulator = 0f
+            private var actionTriggeredInScroll = false
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (dragDropState.isDragging || uiState.isAllAppsOpen) return Offset.Zero
-
-                // If user is actively dragging the drawer up/down, consume all vertical delta to track 1:1
-                if (isHomeDragging && source == NestedScrollSource.UserInput) {
-                    homeDragAccumulator += available.y
-                    val targetY = (screenHeightPx + homeDragAccumulator).coerceIn(0f, screenHeightPx)
-                    coroutineScope.launch {
-                        drawerTranslationY.snapTo(targetY)
+                if (actionTriggeredInScroll) {
+                    if (available.y > 0f && scrollUpAccumulator < 0f) {
+                        actionTriggeredInScroll = false
+                    } else if (available.y < 0f && scrollDownAccumulator > 0f) {
+                        actionTriggeredInScroll = false
                     }
-                    if (homeDragAccumulator >= 0f) {
-                        isHomeDragging = false
-                        isInteractiveDragging = false
-                        homeDragAccumulator = 0f
-                    }
-                    return Offset(0f, available.y)
                 }
                 return Offset.Zero
             }
@@ -1446,8 +1398,10 @@ fun HomeScreen(
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
-                if (dragDropState.isDragging || uiState.isAllAppsOpen) return Offset.Zero
+                if (dragDropState.isDragging) return Offset.Zero
+                if (actionTriggeredInScroll) return Offset.Zero
 
+                // ponytail: nested scroll gestures only active on empty home screen when no category drawers are open; ceiling: fixed 60f scroll accumulator; upgrade path: velocity-aware gesture router.
                 if (!areOtherDrawersOpen && hasNotifications && !isNotificationExpanded && available.y > 0f) {
                     scrollDownAccumulator += available.y
                     if (scrollDownAccumulator > 60f) {
@@ -1456,72 +1410,49 @@ fun HomeScreen(
                             groupsViewModel.collapseAllGroups()
                         }
                         scrollDownAccumulator = 0f
+                        actionTriggeredInScroll = true
                         return Offset(0f, available.y)
                     }
-                } else if (!areOtherDrawersOpen && !isNotificationExpanded && !uiState.openDrawerFromDockOnly && available.y < 0f && source == NestedScrollSource.UserInput) {
+                } else if (!areOtherDrawersOpen && !isNotificationExpanded && available.y < 0f) {
                     scrollDownAccumulator = 0f
-                    homeDragAccumulator += available.y
-                    // 12px deadband to prevent micro-wobbles from starting drag
-                    if (homeDragAccumulator < -12f) {
-                        isHomeDragging = true
-                        isInteractiveDragging = true
-                        val targetY = (screenHeightPx + homeDragAccumulator).coerceIn(0f, screenHeightPx)
-                        coroutineScope.launch {
-                            drawerTranslationY.snapTo(targetY)
+                    // Apply resistance to upward drag so normal scrolling does not unintentionally trigger app drawer
+                    scrollUpAccumulator += available.y * 0.55f
+                    if (!uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
+                        // Sane resistance threshold: requires deliberate upward pull (~180f accumulated)
+                        if (scrollUpAccumulator < -180f) {
+                            viewModel.openAllApps(activeNotificationPkgs)
+                            scrollUpAccumulator = 0f
+                            actionTriggeredInScroll = true
+                            return Offset(0f, available.y)
                         }
-                        return Offset(0f, available.y)
                     }
                 } else {
                     scrollDownAccumulator = 0f
+                    scrollUpAccumulator = 0f
                 }
                 return Offset.Zero
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (isHomeDragging) {
-                    val vY = available.y
-                    val shouldOpen = vY < -500f || (drawerTranslationY.value < screenHeightPx * 0.80f && vY < 250f)
-                    coroutineScope.launch {
-                        if (shouldOpen) {
-                            drawerTranslationY.animateTo(
-                                targetValue = 0f,
-                                animationSpec = FluidSpringPhysics.fluidSpring(),
-                                initialVelocity = vY
-                            )
-                            viewModel.openAllApps(activeNotificationPkgs)
-                        } else {
-                            drawerTranslationY.animateTo(
-                                targetValue = screenHeightPx,
-                                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f),
-                                initialVelocity = vY
-                            )
-                        }
-                        isInteractiveDragging = false
-                    }
-                    isHomeDragging = false
-                    homeDragAccumulator = 0f
-                    return available
-                } else if (!uiState.openDrawerFromDockOnly && !areOtherDrawersOpen && !isNotificationExpanded && !uiState.isAllAppsOpen && available.y < -750f) {
-                    coroutineScope.launch {
-                        drawerTranslationY.animateTo(
-                            targetValue = 0f,
-                            animationSpec = FluidSpringPhysics.fluidSpring(),
-                            initialVelocity = available.y
-                        )
+                if (!actionTriggeredInScroll && !uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
+                    // Velocity handoff: quick upward flick directly triggers drawer opening
+                    if (available.y < -750f) {
                         viewModel.openAllApps(activeNotificationPkgs)
+                        actionTriggeredInScroll = true
+                        scrollUpAccumulator = 0f
+                        return available
                     }
-                    return available
                 }
                 scrollDownAccumulator = 0f
-                homeDragAccumulator = 0f
-                isHomeDragging = false
+                scrollUpAccumulator = 0f
+                actionTriggeredInScroll = false
                 return Velocity.Zero
             }
 
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 scrollDownAccumulator = 0f
-                homeDragAccumulator = 0f
-                isHomeDragging = false
+                scrollUpAccumulator = 0f
+                actionTriggeredInScroll = false
                 return Velocity.Zero
             }
         }
@@ -1564,14 +1495,9 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            val drawerProgress = if (screenHeightPx > 0f) {
-                                ((screenHeightPx - drawerTranslationY.value) / screenHeightPx).coerceIn(0f, 1f)
-                            } else 0f
-                            val effectiveScale = (homeScale.value - (0.06f * drawerProgress)).coerceIn(0.90f, 1.05f)
-                            val effectiveAlpha = (homeAlpha.value - (0.25f * drawerProgress)).coerceIn(0f, 1f)
-                            scaleX = effectiveScale
-                            scaleY = effectiveScale
-                            alpha = effectiveAlpha
+                            scaleX = homeScale.value
+                            scaleY = homeScale.value
+                            alpha = homeAlpha.value
                         }
                         .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                         .navigationBarsPadding(),
@@ -1842,93 +1768,36 @@ fun HomeScreen(
                         .onGloballyPositioned { coords ->
                             dragDropState.dockBounds = coords.boundsInRoot()
                         }
-                        .pointerInput(screenHeightPx, hasNotifications, isNotificationExpanded, uiState.isAllAppsOpen) {
-                            val dockVelocityTracker = VelocityTracker()
-                            var accumulatedDockDrag = 0f
-                            var isDraggingDrawer = false
-                            var notificationTriggered = false
-
+                        .pointerInput(uiState.isAllAppsOpen, hasNotifications, isNotificationExpanded) {
+                            var dockDrag = 0f
+                            var actionTriggered = false
                             detectVerticalDragGestures(
-                                onDragStart = {
-                                    accumulatedDockDrag = 0f
-                                    isDraggingDrawer = false
-                                    notificationTriggered = false
-                                    dockVelocityTracker.resetTracking()
+                                onDragStart = { 
+                                    dockDrag = 0f 
+                                    actionTriggered = false
                                 },
-                                onVerticalDrag = { change, dragAmount ->
-                                    dockVelocityTracker.addPosition(change.uptimeMillis, change.position)
-                                    accumulatedDockDrag += dragAmount
-
-                                    if (!uiState.isAllAppsOpen) {
-                                        if (accumulatedDockDrag < 0f) {
-                                            // Upward drag: track drawer 1:1
-                                            if (isNotificationExpanded) {
-                                                isNotificationExpanded = false
-                                            }
-                                            isDraggingDrawer = true
-                                            isInteractiveDragging = true
-                                            change.consume()
-                                            val targetY = (screenHeightPx + accumulatedDockDrag).coerceIn(0f, screenHeightPx)
-                                            coroutineScope.launch {
-                                                drawerTranslationY.snapTo(targetY)
-                                            }
-                                        } else if (accumulatedDockDrag > 0f && !isDraggingDrawer) {
-                                            // Downward drag on dock: pull down notifications
-                                            if (accumulatedDockDrag > 50f && hasNotifications && !isNotificationExpanded && !notificationTriggered) {
-                                                isNotificationExpanded = true
-                                                if (!effectiveTwoDrawersSideBySide) {
-                                                    groupsViewModel.collapseAllGroups()
-                                                }
-                                                notificationTriggered = true
-                                            }
-                                        } else if (isDraggingDrawer) {
-                                            // Pushing back down towards closed
-                                            change.consume()
-                                            val targetY = (screenHeightPx + accumulatedDockDrag).coerceIn(0f, screenHeightPx)
-                                            coroutineScope.launch {
-                                                drawerTranslationY.snapTo(targetY)
+                                onVerticalDrag = { _, dragAmount ->
+                                    if (actionTriggered) return@detectVerticalDragGestures
+                                    dockDrag += dragAmount
+                                    if (!uiState.isAllAppsOpen && dockDrag < -55f) {
+                                        if (isNotificationExpanded) {
+                                            isNotificationExpanded = false
+                                        } else {
+                                            viewModel.openAllApps(activeNotificationPkgs)
+                                        }
+                                        actionTriggered = true
+                                    } else if (!uiState.isAllAppsOpen && dockDrag > 50f) {
+                                        if (hasNotifications && !isNotificationExpanded) {
+                                            isNotificationExpanded = true
+                                            if (!effectiveTwoDrawersSideBySide) {
+                                                groupsViewModel.collapseAllGroups()
                                             }
                                         }
+                                        actionTriggered = true
                                     }
                                 },
-                                onDragEnd = {
-                                    if (isDraggingDrawer) {
-                                        val vY = dockVelocityTracker.calculateVelocity().y
-                                        val shouldOpen = vY < -500f || (drawerTranslationY.value < screenHeightPx * 0.80f && vY < 250f)
-                                        coroutineScope.launch {
-                                            if (shouldOpen) {
-                                                drawerTranslationY.animateTo(
-                                                    targetValue = 0f,
-                                                    animationSpec = FluidSpringPhysics.fluidSpring(),
-                                                    initialVelocity = vY
-                                                )
-                                                viewModel.openAllApps(activeNotificationPkgs)
-                                            } else {
-                                                drawerTranslationY.animateTo(
-                                                    targetValue = screenHeightPx,
-                                                    animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f),
-                                                    initialVelocity = vY
-                                                )
-                                            }
-                                            isInteractiveDragging = false
-                                        }
-                                    }
-                                    accumulatedDockDrag = 0f
-                                    isDraggingDrawer = false
-                                },
-                                onDragCancel = {
-                                    if (isDraggingDrawer) {
-                                        coroutineScope.launch {
-                                            drawerTranslationY.animateTo(
-                                                targetValue = screenHeightPx,
-                                                animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 450f)
-                                            )
-                                            isInteractiveDragging = false
-                                        }
-                                    }
-                                    accumulatedDockDrag = 0f
-                                    isDraggingDrawer = false
-                                }
+                                onDragEnd = { dockDrag = 0f },
+                                onDragCancel = { dockDrag = 0f }
                             )
                         },
                     contentAlignment = Alignment.Center
@@ -2089,10 +1958,8 @@ fun HomeScreen(
         }
         val onDrawerOpenSettings = remember { { isSettingsOpen = true } }
 
-        val isDrawerVisible = uiState.isAllAppsOpen || isInteractiveDragging || drawerTranslationY.value < screenHeightPx
-
         AllAppsDrawer(
-            visible = isDrawerVisible,
+            visible = uiState.isAllAppsOpen,
             apps = uiState.filteredApps,
             frequentApps = if (showDrawerSuggestions) suggestedApps else emptyList(),
             searchQuery = uiState.searchQuery,
@@ -2107,7 +1974,7 @@ fun HomeScreen(
             iconLoader = onDrawerIconLoader,
             drawerThemeMode = uiState.drawerThemeMode,
             surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
-            autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer && uiState.isAllAppsOpen && !isInteractiveDragging,
+            autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer,
             blurAppListOnOpen = uiState.blurAppListOnOpen,
             onOpenSettings = onDrawerOpenSettings,
             suggestedAction = suggestedAction,
@@ -2117,9 +1984,7 @@ fun HomeScreen(
                     context.startActivity(action.intent)
                 } catch (_: Exception) {}
                 viewModel.closeAllApps()
-            },
-            drawerTranslationY = drawerTranslationY,
-            screenHeightPx = screenHeightPx
+            }
         )
 
         // ── App Long-Press Action Sheet ────────────────────────────────────────
