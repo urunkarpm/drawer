@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.urunkarpm.drawer.core.needle.action.LauncherAction
+import com.urunkarpm.drawer.core.model.LauncherAction
 
 @Composable
 fun ActionSuggestionChip(

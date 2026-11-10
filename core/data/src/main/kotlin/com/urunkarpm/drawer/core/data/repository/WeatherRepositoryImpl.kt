@@ -16,10 +16,6 @@ import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.WeatherInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
-import io.ktor.client.request.parameter
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +29,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.net.HttpURLConnection
+import java.net.URI
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -57,11 +56,11 @@ data class OpenMeteoCurrent(
 @Singleton
 class WeatherRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val httpClient: HttpClient,
     private val preferencesDataSource: DrawerPreferencesDataSource,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
 ) : WeatherRepository {
 
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val _weatherInfo = MutableStateFlow<WeatherInfo?>(null)
     override val weatherInfo: Flow<WeatherInfo?> = _weatherInfo.asStateFlow()
 
@@ -103,11 +102,16 @@ class WeatherRepositoryImpl @Inject constructor(
                 fetchLocationTriple()
             }
 
-            val response: OpenMeteoResponse = httpClient.get("https://api.open-meteo.com/v1/forecast") {
-                parameter("latitude", lat)
-                parameter("longitude", lon)
-                parameter("current", "temperature_2m,weather_code")
-            }.body()
+            // ponytail: platform HttpURLConnection for single Open-Meteo weather forecast endpoint; ceiling: standard GET without retry interceptors; upgrade path: WorkManager exponential backoff or OkHttp client.
+            val url = URI("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code").toURL()
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("User-Agent", "Drawer-Launcher-Android")
+            }
+            val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
+            val response: OpenMeteoResponse = json.decodeFromString(jsonString)
 
             val current = response.current ?: throw IllegalStateException("Empty weather data returned")
             val (conditionDesc, _) = mapWmoCode(current.weatherCode)

@@ -7,8 +7,6 @@ import com.urunkarpm.drawer.core.data.repository.WeatherRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.WeatherInfo
-import com.urunkarpm.drawer.core.needle.NeedleEngine
-import com.urunkarpm.drawer.core.needle.action.NeedleActionDispatcher
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -38,8 +36,6 @@ class HomeViewModelTest {
     private val weatherRepository: WeatherRepository = mockk(relaxed = true)
     private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository = mockk(relaxed = true)
-    private val needleEngine: NeedleEngine = mockk(relaxed = true)
-    private val needleActionDispatcher: NeedleActionDispatcher = mockk(relaxed = true)
 
     private val appsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
     private val weatherFlow = MutableStateFlow<WeatherInfo?>(null)
@@ -184,9 +180,7 @@ class HomeViewModelTest {
             dockRepository,
             weatherRepository,
             preferencesDataSource,
-            widgetRepository,
-            needleEngine,
-            needleActionDispatcher
+            widgetRepository
         )
     }
 

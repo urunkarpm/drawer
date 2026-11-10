@@ -4,12 +4,7 @@ import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.DockRepository
 import com.urunkarpm.drawer.core.data.repository.WeatherRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
-import com.urunkarpm.drawer.core.needle.NeedleEngine
-import com.urunkarpm.drawer.core.needle.action.NeedleActionDispatcher
-import com.urunkarpm.drawer.core.needle.action.StandardTools
-import com.urunkarpm.drawer.core.needle.model.ModelStatus
-import com.urunkarpm.drawer.core.needle.model.ToolCallResult
-import io.mockk.coEvery
+import com.urunkarpm.drawer.feature.home.action.LauncherActionRouter
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -21,8 +16,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -39,8 +32,6 @@ class HomeViewModelActionTest {
     private val weatherRepository: WeatherRepository = mockk(relaxed = true)
     private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository = mockk(relaxed = true)
-    private val needleEngine: NeedleEngine = mockk(relaxed = true)
-    private val needleActionDispatcher: NeedleActionDispatcher = NeedleActionDispatcher()
 
     @Before
     fun setup() {
@@ -90,7 +81,6 @@ class HomeViewModelActionTest {
         every { preferencesDataSource.showDrawerSuggestions } returns MutableStateFlow(true)
         every { widgetRepository.getAllWidgets() } returns MutableStateFlow(emptyList())
         every { widgetRepository.getAllDrawers() } returns MutableStateFlow(emptyList())
-        every { needleEngine.modelStatus } returns MutableStateFlow(ModelStatus.Ready("/path", 10f))
     }
 
     @After
@@ -100,31 +90,19 @@ class HomeViewModelActionTest {
 
     @Test
     fun testQueryPredictsAction() = runTest {
-        coEvery { needleEngine.predictToolCall("timer 5m", any()) } returns listOf(
-            ToolCallResult("set_timer", buildJsonObject { put("seconds", 300) })
-        )
-
-        val action = needleActionDispatcher.dispatch(
-            ToolCallResult("set_timer", buildJsonObject { put("seconds", 300) })
-        )
+        val action = LauncherActionRouter.parseAction("timer 5m")
         assertNotNull(action)
         assertEquals("Set timer for 5 min", action?.title)
     }
 
     @Test
     fun testHomeViewModelSearchQueryResolvesAction() = runTest {
-        coEvery { needleEngine.predictToolCall("timer 5m", StandardTools.allTools) } returns listOf(
-            ToolCallResult("set_timer", buildJsonObject { put("seconds", 300) })
-        )
-
         val viewModel = HomeViewModel(
             appRepository,
             dockRepository,
             weatherRepository,
             preferencesDataSource,
-            widgetRepository,
-            needleEngine,
-            needleActionDispatcher
+            widgetRepository
         )
 
         assertNull(viewModel.suggestedAction.value)

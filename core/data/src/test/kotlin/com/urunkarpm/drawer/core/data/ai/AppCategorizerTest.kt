@@ -3,12 +3,6 @@ package com.urunkarpm.drawer.core.data.ai
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppGroupItem
 import com.urunkarpm.drawer.core.model.AppInfo
-import com.urunkarpm.drawer.core.needle.NeedleEngine
-import com.urunkarpm.drawer.core.needle.model.ModelStatus
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,16 +13,9 @@ import org.junit.Test
 
 class AppCategorizerTest {
 
-    private val needleEngine: NeedleEngine = mockk(relaxed = true)
-
-    @Before
-    fun setUp() {
-        every { needleEngine.modelStatus } returns MutableStateFlow(ModelStatus.NotDownloaded)
-    }
-
     @Test
     fun categorizeApps_mapsFinanceAndSocialCorrectly() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         val groups = listOf(
             AppGroup(id = "finance_group", name = "Finance", orderIndex = 0),
@@ -53,7 +40,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_mapsProductivityAndMediaCorrectly() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         val groups = listOf(
             AppGroup(id = "group_work", name = "Work", orderIndex = 0),
@@ -84,7 +71,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_respectsUnassignedOnlyFlag() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         val groups = listOf(
             AppGroup(
@@ -127,7 +114,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_workProfileApp_assignedToProductivity() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         val groups = listOf(
             AppGroup(id = "group_work", name = "Productivity", orderIndex = 0)
@@ -149,27 +136,8 @@ class AppCategorizerTest {
     }
 
     @Test
-    fun categorizeApps_neverQueriesNeedleEngine_pureOfflineRuleEngine() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
-
-        val groups = listOf(
-            AppGroup(id = "group_media", name = "Media", orderIndex = 0)
-        )
-
-        val apps = listOf(
-            AppInfo(packageName = "com.spotify.music", activityName = ".Main", label = "Spotify")
-        )
-
-        val suggestions = categorizer.categorizeApps(apps, groups)
-        assertNotNull(suggestions.firstOrNull { it.group.id == "group_media" })
-
-        // Verify that NeedleEngine is never called for categorization
-        coVerify(exactly = 0) { needleEngine.predictToolCall(any(), any()) }
-    }
-
-    @Test
     fun categorizeApps_whenTargetDrawerMissing_dynamicallyCreatesAdditionalDrawer() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         // User only has a single "Work" drawer
         val existingGroups = listOf(
@@ -215,7 +183,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_bulletProofHandlingOfEdgeCaseApps() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         val apps = listOf(
             AppInfo(packageName = "com.empty.label", activityName = ".Act", label = ""),
@@ -231,7 +199,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_mapsExpandedIndianAndGlobalAppEcosystem() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         val apps = listOf(
             // Finance: UPI & Neobanks & Investing
@@ -287,7 +255,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_mapsUtilitiesGamesHealthShoppingAndFuzzyGroups() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         val groups = listOf(
             AppGroup(id = "group_money", name = "Money", orderIndex = 0),
@@ -342,7 +310,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_whenExistingGroupsIsEmpty_usesDefaultSuggestedGroups() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
 
         val apps = listOf(
             AppInfo(packageName = "com.splitwise.app", activityName = ".Main", label = "Splitwise"),
@@ -410,13 +378,13 @@ class AppCategorizerTest {
 
     @Test
     fun isModelReady_alwaysTrue() {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
         assertTrue(categorizer.isModelReady)
     }
 
     @Test
     fun categorizeApps_withStrictnessStrict_ignoresLooseTokenMatches() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
         val groups = listOf(AppGroup(id = "group_finance", name = "Finance", orderIndex = 0))
 
         // App with token 'pay' in non-standard context or loose token
@@ -434,7 +402,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_withStrictnessAggressive_categorizesUnmatchedSystemApps() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
         val groups = listOf(AppGroup(id = "group_utilities", name = "Utilities", orderIndex = 0))
 
         val app = AppInfo(packageName = "com.android.custom.daemon", activityName = ".Main", label = "OEM Daemon")
@@ -451,7 +419,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_withForceWorkProfileFalse_categorizesBasedOnContent() = runTest {
-        val categorizer = AppCategorizerImpl(needleEngine)
+        val categorizer = AppCategorizerImpl()
         val groups = listOf(
             AppGroup(id = "group_work", name = "Productivity", orderIndex = 0),
             AppGroup(id = "group_media", name = "Media", orderIndex = 1)

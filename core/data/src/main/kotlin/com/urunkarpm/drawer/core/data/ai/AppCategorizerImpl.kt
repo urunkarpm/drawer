@@ -2,7 +2,6 @@ package com.urunkarpm.drawer.core.data.ai
 
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppInfo
-import com.urunkarpm.drawer.core.needle.NeedleEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -80,9 +79,7 @@ enum class TargetCategory(
 }
 
 @Singleton
-class AppCategorizerImpl @Inject constructor(
-    private val needleEngine: NeedleEngine
-) : AppCategorizer {
+class AppCategorizerImpl @Inject constructor() : AppCategorizer {
 
     // ponytail: instant, deterministic, 100% offline rule and metadata engine is always ready without waiting on model downloads or LLM inference.
     override val isModelReady: Boolean

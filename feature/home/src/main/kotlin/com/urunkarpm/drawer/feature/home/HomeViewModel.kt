@@ -20,12 +20,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.urunkarpm.drawer.core.designsystem.component.AppIconCache
 import com.urunkarpm.drawer.core.designsystem.component.toImageBitmapSafe
-import com.urunkarpm.drawer.core.needle.NeedleEngine
-import com.urunkarpm.drawer.core.needle.action.LauncherAction
-import com.urunkarpm.drawer.core.needle.action.NeedleActionDispatcher
-import com.urunkarpm.drawer.core.needle.action.StandardTools
-import com.urunkarpm.drawer.core.needle.model.ModelProcessingState
-import com.urunkarpm.drawer.core.needle.model.ToolCallResult
+import com.urunkarpm.drawer.core.model.LauncherAction
+import com.urunkarpm.drawer.feature.home.action.LauncherActionRouter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -156,8 +152,6 @@ class HomeViewModel @Inject constructor(
     private val weatherRepository: WeatherRepository,
     private val preferencesDataSource: DrawerPreferencesDataSource,
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository,
-    private val needleEngine: NeedleEngine,
-    private val needleActionDispatcher: NeedleActionDispatcher,
     private val appPredictor: AppPredictor = AppPredictor(),
     @ApplicationContext private val context: Context? = null,
     private val widgetHostManager: DrawerWidgetHostManager? = null
@@ -568,27 +562,11 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    val modelProcessingState: StateFlow<ModelProcessingState> = needleEngine.processingState
+    fun notifyCommandProcessed(summary: String) {}
 
-    suspend fun predictVoiceTools(text: String): List<ToolCallResult> {
-        return needleEngine.predictToolCall(text, StandardTools.allTools)
-    }
+    fun notifyCommandFailed(summary: String) {}
 
-    fun dispatchToolCall(toolCall: ToolCallResult): LauncherAction? {
-        return needleActionDispatcher.dispatch(toolCall)
-    }
-
-    fun notifyCommandProcessed(summary: String) {
-        needleEngine.updateProcessingSuccess(summary)
-    }
-
-    fun notifyCommandFailed(summary: String) {
-        needleEngine.updateProcessingError(summary)
-    }
-
-    fun resetCommandProcessingState() {
-        needleEngine.resetProcessingState()
-    }
+    fun resetCommandProcessingState() {}
 
     suspend fun changeAppSetting(setting: String, value: String?): String {
         val currentUiState = uiState.value
@@ -698,13 +676,7 @@ class HomeViewModel @Inject constructor(
         } else {
             searchJob = viewModelScope.launch {
                 delay(150)
-                val calls = needleEngine.predictToolCall(newQuery, StandardTools.allTools)
-                val firstCall = calls.firstOrNull()
-                _suggestedAction.value = if (firstCall != null) {
-                    needleActionDispatcher.dispatch(firstCall)
-                } else {
-                    null
-                }
+                _suggestedAction.value = LauncherActionRouter.parseAction(newQuery)
             }
         }
     }

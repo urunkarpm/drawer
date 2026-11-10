@@ -69,9 +69,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.util.Log
-import com.urunkarpm.drawer.core.needle.action.LauncherAction
-import com.urunkarpm.drawer.core.needle.model.ToolCallResult
-import com.urunkarpm.drawer.core.needle.util.SpokenTextNormalizer
+import com.urunkarpm.drawer.core.model.LauncherAction
+import com.urunkarpm.drawer.feature.home.action.VoiceAction
+import com.urunkarpm.drawer.feature.home.action.VoiceActionParser
+import com.urunkarpm.drawer.feature.home.action.SpokenTextNormalizer
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
@@ -185,7 +186,6 @@ fun HomeScreen(
     val suggestedApps by viewModel.suggestedApps.collectAsStateWithLifecycle()
     val showDrawerSuggestions by viewModel.showDrawerSuggestions.collectAsStateWithLifecycle()
     val suggestedAction by viewModel.suggestedAction.collectAsStateWithLifecycle()
-    val modelProcessingState by viewModel.modelProcessingState.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
@@ -311,40 +311,26 @@ fun HomeScreen(
 
             // 1. Check candidates to see if any matches high-confidence tool actions
             var selectedText = primary
-            var resolvedToolCalls: List<ToolCallResult> = emptyList()
+            var voiceAction: VoiceAction? = null
 
             for (cand in spokenCandidates) {
-                val norm = SpokenTextNormalizer.normalize(cand.trim())
-                val calls = viewModel.predictVoiceTools(norm)
-                if (calls.isNotEmpty()) {
-                    selectedText = norm
-                    resolvedToolCalls = calls
+                val parsed = VoiceActionParser.parse(cand.trim())
+                if (parsed != null) {
+                    selectedText = cand.trim()
+                    voiceAction = parsed
                     break
                 }
             }
 
-            if (resolvedToolCalls.isEmpty()) {
-                selectedText = SpokenTextNormalizer.normalize(primary)
-                resolvedToolCalls = viewModel.predictVoiceTools(selectedText)
+            if (voiceAction == null) {
+                voiceAction = VoiceActionParser.parse(primary.trim())
             }
 
             val trimmed = selectedText.trim()
             val lower = trimmed.lowercase()
 
-            val toolCalls = resolvedToolCalls
-            val drawerOrDockTools = setOf(
-                "add_app_to_drawer",
-                "remove_app_from_drawer",
-                "move_app_between_drawers",
-                "add_app_to_dock",
-                "remove_app_from_dock",
-                "create_drawer",
-                "delete_drawer",
-                "rename_drawer",
-                "calculate"
-            )
-
-            if (toolCalls.any { it.toolName in drawerOrDockTools }) {
+            val parsedVoiceAction = voiceAction
+            if (parsedVoiceAction != null) {
                 fun resolveApp(name: String): AppInfo? {
                     val rawClean = name.trim()
                         .trim('"', '\'', '`', '“', '”')
@@ -356,206 +342,115 @@ fun HomeScreen(
 
                     val candidateApps = (uiState.installedApps + groupsUiState.groups.flatMap { it.apps }).distinctBy { it.componentKey }
 
-                    // 1. Exact match (case insensitive)
                     candidateApps.firstOrNull { it.label.equals(clean, ignoreCase = true) }?.let { return it }
-
-                    // 2. Alphanumeric match (ignoring spaces, hyphens, e.g. "chat gpt" == "ChatGPT", "whats app" == "WhatsApp")
                     if (cleanNoSpaces.isNotEmpty()) {
                         candidateApps.firstOrNull {
                             it.label.lowercase().replace(Regex("[^a-zA-Z0-9]"), "") == cleanNoSpaces
                         }?.let { return it }
                     }
-
-                    // 3. Substring match
                     candidateApps.firstOrNull { it.label.lowercase().contains(clean) }?.let { return it }
-
-                    // 4. Package name match
                     if (cleanNoSpaces.length >= 3) {
                         candidateApps.firstOrNull {
                             it.packageName.lowercase().replace(Regex("[^a-zA-Z0-9]"), "").contains(cleanNoSpaces)
                         }?.let { return it }
                     }
-
-                    // 5. Prefix match
                     if (clean.length >= 3) {
                         candidateApps.firstOrNull { it.label.startsWith(clean, ignoreCase = true) }?.let { return it }
                     }
-
                     return null
                 }
 
                 val successSummaries = mutableListOf<String>()
-                val undoActions = mutableListOf<suspend () -> Unit>()
 
-                for (call in toolCalls) {
-                    when (call.toolName) {
-                        "add_app_to_drawer" -> {
-                            val appName = call.getString("app") ?: ""
-                            val drawerName = call.getString("drawer") ?: ""
-                            val app = resolveApp(appName)
-                            if (app != null && drawerName.isNotBlank()) {
-                                val targetGroup = groupsViewModel.getOrCreateGroupByName(drawerName)
-                                val prevGroups = groupsUiState.groups.filter { g -> g.apps.any { a -> a.componentKey == app.componentKey } }
-                                groupsViewModel.assignAppToGroupDirectly(targetGroup.id, app)
-                                successSummaries.add("Added ${app.label} to ${targetGroup.name}")
-                                undoActions.add {
+                when (val action = parsedVoiceAction) {
+                    is VoiceAction.AddAppToDrawer -> {
+                        val app = resolveApp(action.app)
+                        if (app != null && action.drawer.isNotBlank()) {
+                            val targetGroup = groupsViewModel.getOrCreateGroupByName(action.drawer)
+                            groupsViewModel.assignAppToGroupDirectly(targetGroup.id, app)
+                            successSummaries.add("Added ${app.label} to ${targetGroup.name}")
+                        } else if (app == null) {
+                            successSummaries.add("Could not find app \"${action.app}\"")
+                        }
+                    }
+                    is VoiceAction.RemoveAppFromDrawer -> {
+                        val app = resolveApp(action.app)
+                        if (app != null) {
+                            val targetGroup = if (action.drawer.isNotBlank()) groupsViewModel.findGroupByName(action.drawer) else null
+                            if (targetGroup != null) {
+                                val isAppInGroup = groupsUiState.groups
+                                    .find { it.group.id == targetGroup.id }
+                                    ?.apps
+                                    ?.any { it.componentKey == app.componentKey || it.packageName == app.packageName } == true
+
+                                if (isAppInGroup) {
                                     groupsViewModel.removeAppFromGroupDirectly(targetGroup.id, app.packageName, app.activityName)
-                                    for (pg in prevGroups) {
-                                        groupsViewModel.assignAppToGroupDirectly(pg.group.id, app)
-                                    }
-                                }
-                            } else if (app == null) {
-                                successSummaries.add("Could not find app \"$appName\"")
-                            }
-                        }
-                        "remove_app_from_drawer" -> {
-                            val appName = call.getString("app") ?: ""
-                            val drawerName = call.getString("drawer")
-                            val app = resolveApp(appName)
-                            if (app != null) {
-                                val targetGroup = if (!drawerName.isNullOrBlank()) {
-                                    groupsViewModel.findGroupByName(drawerName)
-                                } else null
-
-                                if (targetGroup != null) {
-                                    val isAppInGroup = groupsUiState.groups
-                                        .find { it.group.id == targetGroup.id }
-                                        ?.apps
-                                        ?.any { it.componentKey == app.componentKey || it.packageName == app.packageName } == true
-
-                                    if (isAppInGroup) {
-                                        groupsViewModel.removeAppFromGroupDirectly(targetGroup.id, app.packageName, app.activityName)
-                                        successSummaries.add("Removed ${app.label} from ${targetGroup.name}")
-                                        undoActions.add {
-                                            groupsViewModel.assignAppToGroupDirectly(targetGroup.id, app)
-                                        }
-                                    } else {
-                                        successSummaries.add("${app.label} is not in ${targetGroup.name} folder")
-                                    }
+                                    successSummaries.add("Removed ${app.label} from ${targetGroup.name}")
                                 } else {
-                                    val groupsToRemoveFrom = groupsUiState.groups
-                                        .filter { it.apps.any { a -> a.componentKey == app.componentKey || a.packageName == app.packageName } }
-                                        .map { it.group }
-
-                                    if (groupsToRemoveFrom.isNotEmpty()) {
-                                        for (g in groupsToRemoveFrom) {
-                                            groupsViewModel.removeAppFromGroupDirectly(g.id, app.packageName, app.activityName)
-                                            successSummaries.add("Removed ${app.label} from ${g.name}")
-                                            undoActions.add {
-                                                groupsViewModel.assignAppToGroupDirectly(g.id, app)
-                                            }
-                                        }
-                                    } else {
-                                        successSummaries.add("${app.label} is not in any folder")
-                                    }
+                                    successSummaries.add("${app.label} is not in ${targetGroup.name} folder")
                                 }
-                            } else {
-                                val fromText = if (!drawerName.isNullOrBlank()) " from $drawerName" else ""
-                                successSummaries.add("Could not find app \"$appName\"$fromText")
-                            }
-                        }
-                        "move_app_between_drawers" -> {
-                            val appName = call.getString("app") ?: ""
-                            val fromDrawer = call.getString("from_drawer") ?: ""
-                            val toDrawer = call.getString("to_drawer") ?: ""
-                            val app = resolveApp(appName)
-                            if (app != null && toDrawer.isNotBlank()) {
-                                val sourceGroup = if (fromDrawer.isNotBlank()) groupsViewModel.findGroupByName(fromDrawer) else null
-                                val targetGroup = groupsViewModel.getOrCreateGroupByName(toDrawer)
-                                val sourceGroupId = sourceGroup?.id
-                                    ?: groupsUiState.groups.firstOrNull { it.apps.any { a -> a.componentKey == app.componentKey || a.packageName == app.packageName } }?.group?.id
-
-                                if (sourceGroupId != null && sourceGroupId != targetGroup.id) {
-                                    groupsViewModel.moveAppBetweenGroupsDirectly(sourceGroupId, targetGroup.id, app)
-                                    successSummaries.add("Moved ${app.label} from ${sourceGroup?.name ?: "folder"} to ${targetGroup.name}")
-                                    undoActions.add {
-                                        groupsViewModel.moveAppBetweenGroupsDirectly(targetGroup.id, sourceGroupId, app)
-                                    }
-                                } else {
-                                    groupsViewModel.assignAppToGroupDirectly(targetGroup.id, app)
-                                    successSummaries.add("Added ${app.label} to ${targetGroup.name}")
-                                    undoActions.add {
-                                        groupsViewModel.removeAppFromGroupDirectly(targetGroup.id, app.packageName, app.activityName)
-                                    }
-                                }
-                            } else if (app == null) {
-                                successSummaries.add("Could not find app \"$appName\"")
-                            }
-                        }
-                        "add_app_to_dock" -> {
-                            val appName = call.getString("app") ?: ""
-                            val app = resolveApp(appName)
-                            if (app != null) {
-                                val added = viewModel.addAppToDock(app)
-                                if (added) {
-                                    successSummaries.add("Added ${app.label} to dock")
-                                    undoActions.add {
-                                        viewModel.removeAppFromDock(app)
-                                    }
-                                }
-                            }
-                        }
-                        "remove_app_from_dock" -> {
-                            val appName = call.getString("app") ?: ""
-                            val app = resolveApp(appName)
-                            if (app != null) {
-                                val removed = viewModel.removeAppFromDock(app)
-                                if (removed) {
-                                    successSummaries.add("Removed ${app.label} from dock")
-                                    undoActions.add {
-                                        viewModel.addAppToDock(app)
-                                    }
-                                }
-                            }
-                        }
-                        "create_drawer" -> {
-                            val drawerName = call.getString("drawer") ?: ""
-                            if (drawerName.isNotBlank()) {
-                                val targetGroup = groupsViewModel.getOrCreateGroupByName(drawerName)
-                                successSummaries.add("Created folder ${targetGroup.name}")
-                                undoActions.add {
-                                    groupsViewModel.deleteGroupDirectly(targetGroup.id)
-                                }
-                            }
-                        }
-                        "delete_drawer" -> {
-                            val drawerName = call.getString("drawer") ?: ""
-                            if (drawerName.isNotBlank()) {
-                                val targetGroup = groupsViewModel.findGroupByName(drawerName)
-                                if (targetGroup != null) {
-                                    val groupApps = groupsUiState.groups.find { it.group.id == targetGroup.id }?.apps ?: emptyList()
-                                    groupsViewModel.deleteGroupDirectly(targetGroup.id)
-                                    successSummaries.add("Deleted folder ${targetGroup.name}")
-                                    undoActions.add {
-                                        groupsViewModel.restoreGroupWithApps(targetGroup, groupApps)
-                                    }
-                                }
-                            }
-                        }
-                        "rename_drawer" -> {
-                            val fromName = call.getString("from_name") ?: ""
-                            val toName = call.getString("to_name") ?: ""
-                            if (fromName.isNotBlank() && toName.isNotBlank()) {
-                                val targetGroup = groupsViewModel.findGroupByName(fromName)
-                                if (targetGroup != null) {
-                                    val oldName = targetGroup.name
-                                    groupsViewModel.renameGroupDirectly(targetGroup.id, toName)
-                                    successSummaries.add("Renamed folder $oldName to $toName")
-                                    undoActions.add {
-                                        groupsViewModel.renameGroupDirectly(targetGroup.id, oldName)
-                                    }
-                                }
-                            }
-                        }
-                        "calculate" -> {
-                            val expression = call.getString("expression") ?: ""
-                            val result = call.getString("result") ?: ""
-                            val summary = if (expression.isNotBlank() && result.isNotBlank()) "$expression = $result" else result
-                            if (summary.isNotBlank()) {
-                                successSummaries.add(summary)
                             }
                         }
                     }
+                    is VoiceAction.MoveAppBetweenDrawers -> {
+                        val app = resolveApp(action.app)
+                        if (app != null && action.targetDrawer.isNotBlank()) {
+                            val sourceGroup = if (action.sourceDrawer.isNotBlank()) groupsViewModel.findGroupByName(action.sourceDrawer) else null
+                            val targetGroup = groupsViewModel.getOrCreateGroupByName(action.targetDrawer)
+                            val sourceGroupId = sourceGroup?.id
+                                ?: groupsUiState.groups.firstOrNull { it.apps.any { a -> a.componentKey == app.componentKey || a.packageName == app.packageName } }?.group?.id
+
+                            if (sourceGroupId != null && sourceGroupId != targetGroup.id) {
+                                groupsViewModel.moveAppBetweenGroupsDirectly(sourceGroupId, targetGroup.id, app)
+                                successSummaries.add("Moved ${app.label} from ${sourceGroup?.name ?: "folder"} to ${targetGroup.name}")
+                            } else {
+                                groupsViewModel.assignAppToGroupDirectly(targetGroup.id, app)
+                                successSummaries.add("Added ${app.label} to ${targetGroup.name}")
+                            }
+                        } else if (app == null) {
+                            successSummaries.add("Could not find app \"${action.app}\"")
+                        }
+                    }
+                    is VoiceAction.AddAppToDock -> {
+                        val app = resolveApp(action.app)
+                        if (app != null) {
+                            val added = viewModel.addAppToDock(app)
+                            if (added) successSummaries.add("Added ${app.label} to dock")
+                        }
+                    }
+                    is VoiceAction.RemoveAppFromDock -> {
+                        val app = resolveApp(action.app)
+                        if (app != null) {
+                            val removed = viewModel.removeAppFromDock(app)
+                            if (removed) successSummaries.add("Removed ${app.label} from dock")
+                        }
+                    }
+                    is VoiceAction.CreateDrawer -> {
+                        if (action.name.isNotBlank()) {
+                            val targetGroup = groupsViewModel.getOrCreateGroupByName(action.name)
+                            successSummaries.add("Created folder ${targetGroup.name}")
+                        }
+                    }
+                    is VoiceAction.DeleteDrawer -> {
+                        if (action.name.isNotBlank()) {
+                            val targetGroup = groupsViewModel.findGroupByName(action.name)
+                            if (targetGroup != null) {
+                                groupsViewModel.deleteGroupDirectly(targetGroup.id)
+                                successSummaries.add("Deleted folder ${targetGroup.name}")
+                            }
+                        }
+                    }
+                    is VoiceAction.RenameDrawer -> {
+                        if (action.oldName.isNotBlank() && action.newName.isNotBlank()) {
+                            val targetGroup = groupsViewModel.findGroupByName(action.oldName)
+                            if (targetGroup != null) {
+                                val oldName = targetGroup.name
+                                groupsViewModel.renameGroupDirectly(targetGroup.id, action.newName)
+                                successSummaries.add("Renamed folder $oldName to ${action.newName}")
+                            }
+                        }
+                    }
+                    else -> Unit
                 }
 
                 if (successSummaries.isNotEmpty()) {
@@ -565,182 +460,16 @@ fun HomeScreen(
                 }
             }
 
-            // Direct launcher settings controls
-            for (call in toolCalls.filter { it.toolName == "change_app_setting" }) {
-                val setting = call.getString("setting") ?: ""
-                val value = call.getString("value")
-                val summary = viewModel.changeAppSetting(setting, value)
-                viewModel.notifyCommandProcessed(summary)
-                return@launch
-            }
-
-            // Direct brightness controls
-            for (call in toolCalls.filter { it.toolName == "set_brightness" }) {
-                val pct = call.getInt("percent")
-                val action = call.getString("action") ?: "set"
-                val canWrite = Settings.System.canWrite(context)
-                if (!canWrite) {
-                    val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    try {
-                        context.startActivity(intent)
-                    } catch (_: Exception) {}
-                    viewModel.notifyCommandProcessed("Please allow 'Modify system settings' permission to let the assistant adjust brightness directly")
-                    return@launch
-                }
-
-                val currentVal = try {
-                    Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
-                } catch (_: Exception) { 128 }
-
-                val targetVal = when {
-                    pct != null -> (pct / 100f * 255).roundToInt().coerceIn(1, 255)
-                    action == "max" -> 255
-                    action == "min" -> 10
-                    action == "increase" -> (currentVal + 51).coerceIn(1, 255)
-                    action == "decrease" -> (currentVal - 51).coerceIn(1, 255)
-                    else -> currentVal
-                }
-
-                try {
-                    Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
-                    Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, targetVal)
-                    (context as? Activity)?.window?.let { w ->
-                        val lp = w.attributes
-                        lp.screenBrightness = targetVal / 255f
-                        w.attributes = lp
-                    }
-                    val resultPct = (targetVal / 255f * 100).roundToInt()
-                    viewModel.notifyCommandProcessed("Brightness set to $resultPct%")
-                } catch (e: Exception) {
-                    viewModel.notifyCommandFailed("Could not change brightness: ${e.message}")
-                }
-                return@launch
-            }
-
-            // Direct volume controls
-            for (call in toolCalls.filter { it.toolName == "set_volume" }) {
-                val streamStr = call.getString("stream") ?: "MEDIA"
-                val pct = call.getInt("percent")
-                val action = call.getString("action") ?: "set"
-                val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as? AudioManager
-                if (audioManager == null) {
-                    viewModel.notifyCommandFailed("Audio service unavailable")
-                    return@launch
-                }
-
-                val stream = when (streamStr.uppercase()) {
-                    "RING" -> AudioManager.STREAM_RING
-                    "ALARM" -> AudioManager.STREAM_ALARM
-                    "NOTIFICATION" -> AudioManager.STREAM_NOTIFICATION
-                    else -> AudioManager.STREAM_MUSIC
-                }
-
-                val maxVolume = audioManager.getStreamMaxVolume(stream)
-                val currentVolume = audioManager.getStreamVolume(stream)
-
-                when (action) {
-                    "mute" -> {
-                        audioManager.setStreamVolume(stream, 0, AudioManager.FLAG_SHOW_UI)
-                        viewModel.notifyCommandProcessed("Volume muted")
-                    }
-                    "unmute" -> {
-                        val target = (maxVolume * 0.5f).roundToInt().coerceAtLeast(1)
-                        audioManager.setStreamVolume(stream, target, AudioManager.FLAG_SHOW_UI)
-                        viewModel.notifyCommandProcessed("Volume unmuted")
-                    }
-                    "increase" -> {
-                        val target = (currentVolume + (maxVolume * 0.15f).roundToInt().coerceAtLeast(1)).coerceAtMost(maxVolume)
-                        audioManager.setStreamVolume(stream, target, AudioManager.FLAG_SHOW_UI)
-                        val targetPct = (target.toFloat() / maxVolume * 100).roundToInt()
-                        viewModel.notifyCommandProcessed("Volume raised to $targetPct%")
-                    }
-                    "decrease" -> {
-                        val target = (currentVolume - (maxVolume * 0.15f).roundToInt().coerceAtLeast(1)).coerceAtLeast(0)
-                        audioManager.setStreamVolume(stream, target, AudioManager.FLAG_SHOW_UI)
-                        val targetPct = (target.toFloat() / maxVolume * 100).roundToInt()
-                        viewModel.notifyCommandProcessed("Volume lowered to $targetPct%")
-                    }
-                    else -> {
-                        if (pct != null) {
-                            val target = (pct / 100f * maxVolume).roundToInt().coerceIn(0, maxVolume)
-                            audioManager.setStreamVolume(stream, target, AudioManager.FLAG_SHOW_UI)
-                            viewModel.notifyCommandProcessed("Volume set to $pct%")
-                        } else {
-                            viewModel.notifyCommandProcessed("Current volume is ${(currentVolume.toFloat() / maxVolume * 100).roundToInt()}%")
-                        }
-                    }
-                }
-                return@launch
-            }
-
-            // Direct custom/private DNS controls
-            for (call in toolCalls.filter { it.toolName == "set_dns" }) {
-                val host = call.getString("host")
-                val mode = call.getString("mode") ?: if (host != null) "hostname" else "off"
-
-                var secureWriteSuccess = false
-                try {
-                    if (mode == "off") {
-                        Settings.Global.putString(context.contentResolver, "private_dns_mode", "off")
-                        Settings.Global.putString(context.contentResolver, "private_dns_specifier", "")
-                        secureWriteSuccess = true
-                        viewModel.notifyCommandProcessed("Private DNS turned off")
-                    } else if (!host.isNullOrBlank()) {
-                        Settings.Global.putString(context.contentResolver, "private_dns_mode", "hostname")
-                        Settings.Global.putString(context.contentResolver, "private_dns_specifier", host)
-                        secureWriteSuccess = true
-                        viewModel.notifyCommandProcessed("Private DNS set to $host")
-                    }
-                } catch (_: SecurityException) {
-                    secureWriteSuccess = false
-                } catch (_: Throwable) {
-                    secureWriteSuccess = false
-                }
-
-                if (!secureWriteSuccess) {
-                    if (!host.isNullOrBlank()) {
-                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Private DNS", host))
-                    }
-                    val intent = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    try {
-                        context.startActivity(intent)
-                    } catch (_: Exception) {}
-
-                    val msg = if (!host.isNullOrBlank()) {
-                        "Copied $host to clipboard and opened Network Settings. Grant ADB permission ('adb shell pm grant com.urunkarpm.drawer android.permission.WRITE_SECURE_SETTINGS') for zero-tap DNS changes."
-                    } else {
-                        "Opened Network Settings. Grant ADB permission ('adb shell pm grant com.urunkarpm.drawer android.permission.WRITE_SECURE_SETTINGS') to manage Private DNS directly."
-                    }
-                    viewModel.notifyCommandProcessed(msg)
-                }
-                return@launch
-            }
-
-            // 2. Intent-based tool calls (Timer, Alarm, Settings, Camera, etc.) predicted by Needle
-            for (call in toolCalls) {
-                val action = viewModel.dispatchToolCall(call)
-                if (action != null) {
-                    val executed = executeLauncherAction(
-                        context = context,
-                        action = action,
-                        toolCall = call,
-                        onSuccess = { summary ->
-                            viewModel.notifyCommandProcessed(summary)
-                        },
-                        onError = { error ->
-                            viewModel.notifyCommandFailed("Failed: ${action.title}")
-                        }
-                    )
-                    if (executed) {
-                        return@launch
-                    }
-                }
+            // Direct launcher action matching (Timer, Alarm, Settings, Camera, etc.)
+            val directAction = com.urunkarpm.drawer.feature.home.action.LauncherActionRouter.parseAction(trimmed)
+            if (directAction != null) {
+                val executed = executeLauncherAction(
+                    context = context,
+                    action = directAction,
+                    onSuccess = { summary -> viewModel.notifyCommandProcessed(summary) },
+                    onError = { error -> viewModel.notifyCommandFailed("Failed: ${directAction.title}") }
+                )
+                if (executed) return@launch
             }
 
             val timerPattern = java.util.regex.Pattern.compile("(?i)(?:(?:set|start|create)\\s+(?:a\\s+)?)?timer\\s+(?:for\\s+)?(\\d+)\\s*(m|min|minute|minutes|s|sec|second|seconds)?")
@@ -2335,14 +2064,13 @@ private fun toggleTorch(context: android.content.Context, enable: Boolean? = nul
 private fun executeLauncherAction(
     context: android.content.Context,
     action: LauncherAction,
-    toolCall: ToolCallResult?,
-    onSuccess: (String) -> Unit,
-    onError: (String) -> Unit
+    onSuccess: (String) -> Unit = {},
+    onError: (String) -> Unit = {}
 ): Boolean {
     // 1. Timer specialized execution with OEM fallbacks
-    if (toolCall?.toolName == "set_timer") {
-        val seconds = toolCall.getInt("seconds") ?: 60
-        val label = toolCall.getString("label")
+    if (action.intent.action == AlarmClock.ACTION_SET_TIMER) {
+        val seconds = action.intent.getIntExtra(AlarmClock.EXTRA_LENGTH, 60)
+        val label = action.intent.getStringExtra(AlarmClock.EXTRA_MESSAGE)
         val success = launchTimerWithFallbacks(context, seconds, label)
         return if (success) {
             onSuccess(action.title)
@@ -2354,10 +2082,10 @@ private fun executeLauncherAction(
     }
 
     // 2. Alarm specialized execution with OEM fallbacks
-    if (toolCall?.toolName == "set_alarm") {
-        val hour = toolCall.getInt("hour") ?: 7
-        val minute = toolCall.getInt("minute") ?: 0
-        val message = toolCall.getString("message")
+    if (action.intent.action == AlarmClock.ACTION_SET_ALARM) {
+        val hour = action.intent.getIntExtra(AlarmClock.EXTRA_HOUR, 7)
+        val minute = action.intent.getIntExtra(AlarmClock.EXTRA_MINUTES, 0)
+        val message = action.intent.getStringExtra(AlarmClock.EXTRA_MESSAGE)
         val success = launchAlarmWithFallbacks(context, hour, minute, message)
         return if (success) {
             onSuccess(action.title)

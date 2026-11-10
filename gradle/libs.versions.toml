@@ -13,10 +13,8 @@ room = "2.8.5"
 datastore = "1.2.1"
 work = "2.12.0"
 coil = "3.6.3"
-ktor = "3.6.0"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"
-detekt = "1.21.0"
 junit = "4.13.2"
 mockk = "1.14.0"
 turbine = "1.2.0"
@@ -64,10 +62,6 @@ work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 
-ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }
-ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
-ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
-
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
@@ -90,4 +84,3 @@ compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 room = { id = "androidx.room", version.ref = "room" }
-detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

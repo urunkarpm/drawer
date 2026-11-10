@@ -3,14 +3,13 @@ package com.urunkarpm.drawer.core.data.repository
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
 import com.urunkarpm.drawer.core.model.AppUpdateInfo
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
-import io.ktor.client.request.header
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.net.HttpURLConnection
+import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,16 +39,24 @@ private data class GitHubAssetDto(
 
 @Singleton
 class UpdateRepositoryImpl @Inject constructor(
-    private val httpClient: HttpClient,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher
 ) : UpdateRepository {
 
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    // ponytail: platform HttpURLConnection for single GitHub release JSON fetch; ceiling: no connection pooling or HTTP/2; upgrade path: OkHttp or Ktor if authenticated API/streaming downloads needed.
     override suspend fun checkForUpdates(currentVersionName: String): Result<AppUpdateInfo> = withContext(ioDispatcher) {
         runCatching {
-            val response: GitHubReleaseDto = httpClient.get("https://api.github.com/repos/urunkarpm/drawer/releases/latest") {
-                header("Accept", "application/vnd.github.v3+json")
-                header("User-Agent", "Drawer-Launcher-Android")
-            }.body()
+            val url = URI("https://api.github.com/repos/urunkarpm/drawer/releases/latest").toURL()
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("Accept", "application/vnd.github.v3+json")
+                setRequestProperty("User-Agent", "Drawer-Launcher-Android")
+            }
+            val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
+            val response = json.decodeFromString<GitHubReleaseDto>(jsonString)
 
             val latestTag = response.tagName.trim()
             val cleanLatest = latestTag.removePrefix("v").removePrefix("V").trim()

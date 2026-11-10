@@ -7,7 +7,7 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import android.view.WindowManager
 import android.widget.Toast
-import com.urunkarpm.drawer.feature.notifications.extraction.NotificationExtractor
+import com.urunkarpm.drawer.feature.notifications.extraction.extractOtp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -1112,7 +1112,7 @@ private fun EndlessNotificationCard(
 
                         if (!privacyMode) {
                             val otp = remember(item.title, item.text) {
-                                NotificationExtractor().extractOtp("${item.title} ${item.text}")
+                                extractOtp("${item.title} ${item.text}")
                             }
                             if (otp != null) {
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -1450,7 +1450,7 @@ private fun DismissibleNotificationRow(
 
                         if (!privacyMode) {
                             val otp = remember(item.title, item.text) {
-                                NotificationExtractor().extractOtp("${item.title} ${item.text}")
+                                extractOtp("${item.title} ${item.text}")
                             }
                             if (otp != null) {
                                 Spacer(modifier = Modifier.height(8.dp))

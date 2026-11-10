@@ -115,7 +115,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.urunkarpm.drawer.core.needle.action.LauncherAction
+import com.urunkarpm.drawer.core.model.LauncherAction
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage

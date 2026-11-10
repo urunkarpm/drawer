@@ -23,11 +23,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
-    implementation(project(":core:needle"))
 
-    implementation(libs.ktor.client.android)
-    implementation(libs.ktor.client.content.negotiation)
-    implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.work.runtime.ktx)
     implementation(libs.coil.compose)
     implementation(libs.kotlinx.serialization.json)

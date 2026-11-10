@@ -33,8 +33,7 @@ Everything you need to get things done is reachable in under a second; everythin
 
 ## 🌟 What's New in v2.0.0
 
-* **🪡 Needle — 100% On-Device AI & Voice Assistant:** Experience private, local intelligence directly on your home screen. Execute voice or text commands to trigger system toggles (Flashlight, Wi-Fi, Bluetooth, Volume, Camera), launch apps, set timers & alarms, organize categories, and compute quick calculations—with zero cloud latency, zero telemetry, and zero data leaving your phone.
-* **🧠 Semantic App Categorization:** Let Needle organize your entire app collection into context-driven drawers with on-device semantic understanding.
+* **🎙️ Voice & Action Assistant (100% Offline):** Experience fast, private intelligence directly on your home screen. Execute voice or text commands to trigger system toggles (Flashlight, Wi-Fi, Bluetooth, Volume, Camera), launch apps, set timers & alarms, organize categories, and compute quick calculations—with zero cloud latency, zero telemetry, and zero data leaving your phone.
 * **⚡ 120Hz Zero-Jank App Drawer:** Completely rebuilt the all-apps drawer list pipeline. Removed redundant allocations, eliminated expensive real-time background GPU blurs, and stabilized the search header for ultra-smooth 120fps flings.
 * **🛡️ Smart Viewport & Mutual Exclusion:** Opening any category drawer automatically collapses the assistant drawer, and expanding the assistant drawer closes category drawers—eliminating viewport obstructions so all drawers and touch targets remain accessible.
 * **🔕 Distraction-Free Toggle & Dev Notes:** On-device AI is disabled by default to maintain minimalist purity; enabling it presents a detailed capability guide.
@@ -56,12 +55,12 @@ Everything you need to get things done is reachable in under a second; everythin
                                            └──────────────────────┘
 ```
 
-### 1. 🪡 Needle — 100% Offline On-Device AI Assistant
+### 1. 🎙️ Voice & Action Assistant — 100% Offline
 Experience natural language speed without compromising your privacy:
 * **Voice & Text Quick Actions:** Tap the microphone on the glance header to control your phone at the speed of thought.
-* **Deterministic Fast Paths:** Instant execution for timers, alarms, system toggles (Flashlight, Wi-Fi, Bluetooth, Audio), and math calculations without model inference wait times.
-* **Intelligent Drawer Management:** Ask Needle to move apps into drawers (*"Move WhatsApp to Social"*, *"Group my finance apps"*) or run semantic categorization across all installed apps.
-* **100% Offline & Zero Telemetry:** Built with native on-device inference (`core/needle`). No cloud servers, no account logins, and no data harvesting.
+* **Deterministic Fast Paths:** Instant execution for timers, alarms, system toggles (Flashlight, Wi-Fi, Bluetooth, Audio), and math calculations with zero network latency.
+* **Intelligent Drawer Management:** Move apps into drawers (*"Move WhatsApp to Social"*, *"Group my finance apps"*) or manage folders via voice.
+* **100% Offline & Zero Telemetry:** Pure deterministic on-device action router. No cloud servers, no account logins, and no data harvesting.
 
 ### 2. 🗂️ Accordion Drawers — Context-Driven Organization
 Instead of spreading 80+ apps across 5 sprawling home screen pages, group your tools by your mental workflow:
@@ -114,7 +113,7 @@ Notifications are the single biggest killer of deep work and flow state. Drawer 
 | **Distraction Defense** | Badges & push alerts | Basic badge toggles | **Home Screen Quick Mute & Privacy Mask** |
 | **Widget Handling** | Screen hogging | Static placement | **Collapsible Widget Drawers & Cover Flow** |
 | **Wallpapers & Fonts** | Fixed system defaults | Limited fonts | **Pantone Studio & Typography Packs** |
-| **On-Device AI Assistant** | Cloud Gemini/Siri/Copilot (data harvesting) | ❌ None | **🪡 Needle (100% Offline & Private)** |
+| **Voice & Quick Actions** | Cloud Gemini/Siri/Copilot (data harvesting) | ❌ None | **🎙️ Instant & 100% Offline** |
 | **Privacy & Telemetry** | Cloud sync & ad analytics | Often tracks crash analytics | **100% Offline & Zero Telemetry** |
 | **Setup Time** | Cluttered by default | 30+ minutes configuring | **Productive in under 60 seconds** |
 
@@ -180,11 +179,10 @@ For engineers and contributors, Drawer is engineered according to Google's offic
 ├── app/                  # Main application module, navigation & initialization
 ├── core/
 │   ├── common/           # Coroutine dispatchers, DrawerWidgetHostManager, utilities
-│   ├── model/            # Pure domain models (AppDrawer, WidgetItem, DockItem)
+│   ├── model/            # Pure domain models (AppDrawer, WidgetItem, DockItem, LauncherAction)
 │   ├── designsystem/     # Glassmorphic components, Pantone wallpaper, typography
 │   ├── database/         # Room database, DAOs, and persistence entities
 │   ├── datastore/        # Jetpack Preferences DataStore for user preferences
-│   ├── needle/           # On-device AI engine, native Cactus bridge, tool dispatcher
 │   └── data/             # Repositories reconciling DB, installed apps & frecency state
 └── feature/
     ├── home/             # Main screen orchestrator, DuoStatusIcon, speed test & walkthrough
