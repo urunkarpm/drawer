@@ -63,7 +63,6 @@ data class GlancePrefs(
     val wallpaperGradientPalette: String = "FULL_SPECTRUM",
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
-    val enableOnDeviceAi: Boolean = false,
     val drawerTitleAnimation: String = "ACCENT_POP",
     val blurAppListOnOpen: Boolean = true
 )
@@ -127,7 +126,6 @@ data class HomeUiState(
     val wallpaperGradientPalette: String = "FULL_SPECTRUM",
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
-    val enableOnDeviceAi: Boolean = false,
     val drawerTitleAnimation: String = "ACCENT_POP",
     val blurAppListOnOpen: Boolean = true,
     val mindfulApps: Set<String> = emptySet(),
@@ -204,7 +202,6 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.wallpaperGradientPalette,
         preferencesDataSource.wallpaperGradientAngle,
         preferencesDataSource.dockMesmerizingGlow,
-        preferencesDataSource.enableOnDeviceAi,
         preferencesDataSource.drawerTitleAnimation,
         preferencesDataSource.blurAppListOnOpen
     ) { values ->
@@ -238,9 +235,8 @@ class HomeViewModel @Inject constructor(
         val wallpaperGradientPalette = values[26] as String
         val wallpaperGradientAngle = values[27] as String
         val dockMesmerizingGlow = values[28] as Boolean
-        val enableOnDeviceAi = values[29] as Boolean
-        val drawerTitleAnimation = values[30] as String
-        val blurAppListOnOpen = values[31] as Boolean
+        val drawerTitleAnimation = values[29] as String
+        val blurAppListOnOpen = values[30] as Boolean
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -271,7 +267,6 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientPalette,
             wallpaperGradientAngle,
             dockMesmerizingGlow,
-            enableOnDeviceAi,
             drawerTitleAnimation,
             blurAppListOnOpen
         )
@@ -414,7 +409,6 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientPalette = glancePrefs.wallpaperGradientPalette,
             wallpaperGradientAngle = glancePrefs.wallpaperGradientAngle,
             dockMesmerizingGlow = glancePrefs.dockMesmerizingGlow,
-            enableOnDeviceAi = glancePrefs.enableOnDeviceAi,
             drawerTitleAnimation = glancePrefs.drawerTitleAnimation,
             blurAppListOnOpen = glancePrefs.blurAppListOnOpen,
             mindfulApps = dialogs.mindfulApps,
@@ -612,11 +606,6 @@ class HomeViewModel @Inject constructor(
                 val next = resolveBoolean(currentUiState.showDuoStatusWidget)
                 preferencesDataSource.setShowDuoStatusWidget(next)
                 if (next) "Status widget shown" else "Status widget hidden"
-            }
-            "ON_DEVICE_AI" -> {
-                val next = resolveBoolean(currentUiState.enableOnDeviceAi)
-                preferencesDataSource.setEnableOnDeviceAi(next)
-                if (next) "On-device AI enabled" else "On-device AI disabled"
             }
             "THEME_MODE" -> {
                 val mode = when (value?.uppercase()?.trim()) {

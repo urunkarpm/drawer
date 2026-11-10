@@ -6,13 +6,11 @@ composeBom = "2026.09.00"
 androidxCore = "1.15.0"
 androidxLifecycle = "2.11.0"
 androidxActivity = "1.10.1"
-androidxNavigation = "2.10.2"
 androidxHiltNavigationCompose = "1.4.0"
 hilt = "2.60.1"
 room = "2.8.5"
 datastore = "1.2.1"
 work = "2.12.0"
-coil = "3.6.3"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"
 junit = "4.13.2"
@@ -45,7 +43,6 @@ compose-material-icons-extended = { group = "androidx.compose.material", name = 
 compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 compose-animation = { group = "androidx.compose.animation", name = "animation" }
 
-androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "androidxNavigation" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHiltNavigationCompose" }
 
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
@@ -58,9 +55,6 @@ room-compiler = { group = "androidx.room", name = "room-compiler", version.ref =
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
 work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
-
-coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
-coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }

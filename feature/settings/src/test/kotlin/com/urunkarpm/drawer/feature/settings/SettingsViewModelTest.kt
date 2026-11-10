@@ -83,7 +83,6 @@ class SettingsViewModelTest {
     private val aiCategorizationStrictnessFlow = MutableStateFlow("BALANCED")
     private val aiCategorizeAllAppsFlow = MutableStateFlow(false)
     private val aiForceWorkProfileFlow = MutableStateFlow(true)
-    private val enableOnDeviceAiFlow = MutableStateFlow(false)
     private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
     private val showDrawerSuggestionsFlow = MutableStateFlow(true)
@@ -148,7 +147,6 @@ class SettingsViewModelTest {
         every { preferencesDataSource.aiCategorizationStrictness } returns aiCategorizationStrictnessFlow
         every { preferencesDataSource.aiCategorizeAllApps } returns aiCategorizeAllAppsFlow
         every { preferencesDataSource.aiForceWorkProfile } returns aiForceWorkProfileFlow
-        every { preferencesDataSource.enableOnDeviceAi } returns enableOnDeviceAiFlow
         every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow

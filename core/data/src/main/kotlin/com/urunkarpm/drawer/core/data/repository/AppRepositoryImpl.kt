@@ -116,7 +116,8 @@ class AppRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshApps() = withContext(ioDispatcher) {
-
+        // ponytail: clear activityInfoCache on refresh so uninstalled or updated package infos are pruned cleanly
+        activityInfoCache.clear()
         val myUserHandle = try { Process.myUserHandle() } catch (_: Throwable) { null }
         val profiles = userManager.userProfiles
         val appsList = mutableListOf<AppInfo>()

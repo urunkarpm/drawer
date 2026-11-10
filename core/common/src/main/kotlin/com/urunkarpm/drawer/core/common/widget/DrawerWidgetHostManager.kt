@@ -228,11 +228,16 @@ open class DrawerWidgetHostManager @Inject constructor(
         } catch (_: Exception) {}
     }
 
-    // ponytail: caches views in memory with strict MATCH_PARENT layout parameters and re-bound provider metadata so child RemoteViews never measure to 0x0.
+    // ponytail: caches views in memory with strict MATCH_PARENT layout parameters and re-bound provider metadata so child RemoteViews never measure to 0x0. If context changes (e.g. Activity recreation), replaces stale host views to prevent Activity memory leaks.
     fun getOrCreateView(context: Context, appWidgetId: Int): AppWidgetHostView {
         val info = appWidgetManager.getAppWidgetInfo(appWidgetId)
-        val hostView = viewCache.getOrPut(appWidgetId) {
-            appWidgetHost.createView(context, appWidgetId, info)
+        val cached = viewCache[appWidgetId]
+        val hostView = if (cached != null && cached.context === context) {
+            cached
+        } else {
+            val fresh = appWidgetHost.createView(context, appWidgetId, info)
+            viewCache[appWidgetId] = fresh
+            fresh
         }
         (hostView.parent as? ViewGroup)?.removeView(hostView)
         hostView.layoutParams = ViewGroup.LayoutParams(

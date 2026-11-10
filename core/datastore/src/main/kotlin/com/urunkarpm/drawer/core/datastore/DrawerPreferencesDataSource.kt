@@ -95,7 +95,6 @@ class DrawerPreferencesDataSource @Inject constructor(
         val AI_CATEGORIZATION_STRICTNESS = stringPreferencesKey("ai_categorization_strictness")
         val AI_CATEGORIZE_ALL_APPS = booleanPreferencesKey("ai_categorize_all_apps")
         val AI_FORCE_WORK_PROFILE = booleanPreferencesKey("ai_force_work_profile")
-        val ENABLE_ON_DEVICE_AI = booleanPreferencesKey("enable_on_device_ai")
         val DRAWER_TITLE_ANIMATION = stringPreferencesKey("drawer_title_animation")
         val APP_USAGE_PROFILES = stringPreferencesKey("app_usage_profiles")
         val SUGGESTION_BLACKLIST = stringPreferencesKey("suggestion_blacklist")
@@ -300,11 +299,6 @@ class DrawerPreferencesDataSource @Inject constructor(
     val aiCategorizationStrictness: Flow<String> = dataStore.data.map { it[PreferencesKeys.AI_CATEGORIZATION_STRICTNESS] ?: "BALANCED" }
     val aiCategorizeAllApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AI_CATEGORIZE_ALL_APPS] ?: false }
     val aiForceWorkProfile: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AI_FORCE_WORK_PROFILE] ?: true }
-    val enableOnDeviceAi: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.ENABLE_ON_DEVICE_AI] ?: false }
-
-    suspend fun setEnableOnDeviceAi(enabled: Boolean) {
-        dataStore.edit { it[PreferencesKeys.ENABLE_ON_DEVICE_AI] = enabled }
-    }
 
     suspend fun setAutoArrangeApps(enabled: Boolean) {
         dataStore.edit { it[PreferencesKeys.AUTO_ARRANGE_APPS] = enabled }
@@ -798,7 +792,6 @@ class DrawerPreferencesDataSource @Inject constructor(
             aiCategorizationStrictness = p[PreferencesKeys.AI_CATEGORIZATION_STRICTNESS] ?: "BALANCED",
             aiCategorizeAllApps = p[PreferencesKeys.AI_CATEGORIZE_ALL_APPS] ?: false,
             aiForceWorkProfile = p[PreferencesKeys.AI_FORCE_WORK_PROFILE] ?: true,
-            enableOnDeviceAi = p[PreferencesKeys.ENABLE_ON_DEVICE_AI] ?: false,
             appLaunchCounts = launchCounts,
             appLastLaunchedTimes = launchTimes,
             mindfulApps = mindful
@@ -875,7 +868,6 @@ class DrawerPreferencesDataSource @Inject constructor(
             p[PreferencesKeys.AI_CATEGORIZATION_STRICTNESS] = prefs.aiCategorizationStrictness
             p[PreferencesKeys.AI_CATEGORIZE_ALL_APPS] = prefs.aiCategorizeAllApps
             p[PreferencesKeys.AI_FORCE_WORK_PROFILE] = prefs.aiForceWorkProfile
-            p[PreferencesKeys.ENABLE_ON_DEVICE_AI] = prefs.enableOnDeviceAi
 
             if (prefs.appLaunchCounts.isNotEmpty()) {
                 p[PreferencesKeys.APP_LAUNCH_COUNTS] = Json.encodeToString(prefs.appLaunchCounts)

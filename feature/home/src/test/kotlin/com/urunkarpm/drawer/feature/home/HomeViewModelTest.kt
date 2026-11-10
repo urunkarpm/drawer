@@ -76,7 +76,6 @@ class HomeViewModelTest {
     private val wallpaperGradientPaletteFlow = MutableStateFlow("FULL_SPECTRUM")
     private val wallpaperGradientAngleFlow = MutableStateFlow("DIAGONAL")
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
-    private val enableOnDeviceAiFlow = MutableStateFlow(false)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
     private val blurAppListOnOpenFlow = MutableStateFlow(false)
     private val dockIconSizeFlow = MutableStateFlow(56f)
@@ -151,7 +150,6 @@ class HomeViewModelTest {
         every { preferencesDataSource.wallpaperGradientPalette } returns wallpaperGradientPaletteFlow
         every { preferencesDataSource.wallpaperGradientAngle } returns wallpaperGradientAngleFlow
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
-        every { preferencesDataSource.enableOnDeviceAi } returns enableOnDeviceAiFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.blurAppListOnOpen } returns blurAppListOnOpenFlow
         every { preferencesDataSource.dockIconSize } returns dockIconSizeFlow

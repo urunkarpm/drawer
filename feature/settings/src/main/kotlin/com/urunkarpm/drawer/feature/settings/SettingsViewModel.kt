@@ -91,7 +91,6 @@ data class MiscSettings(
     val aiCategorizationStrictness: String = "BALANCED",
     val aiCategorizeAllApps: Boolean = false,
     val aiForceWorkProfile: Boolean = true,
-    val enableOnDeviceAi: Boolean = false,
     val drawerTitleAnimation: String = "ACCENT_POP"
 )
 
@@ -131,7 +130,6 @@ private data class MiscPart4(
     val aiCategorizationStrictness: String,
     val aiCategorizeAllApps: Boolean,
     val aiForceWorkProfile: Boolean,
-    val enableOnDeviceAi: Boolean,
     val drawerTitleAnimation: String
 )
 
@@ -197,7 +195,6 @@ data class SettingsUiState(
     val aiCategorizationStrictness: String = "BALANCED",
     val aiCategorizeAllApps: Boolean = false,
     val aiForceWorkProfile: Boolean = true,
-    val enableOnDeviceAi: Boolean = false,
     val dynamicWallpaperEnabled: Boolean = false,
     val wallpaperGradientSpeedSeconds: Int = 3,
     val wallpaperGradientBlurPercent: Int = 40,
@@ -340,10 +337,9 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.aiCategorizationStrictness,
         preferencesDataSource.aiCategorizeAllApps,
         preferencesDataSource.aiForceWorkProfile,
-        preferencesDataSource.enableOnDeviceAi,
         preferencesDataSource.drawerTitleAnimation
-    ) { strictness, categorizeAll, forceWorkProfile, enableAi, titleAnim ->
-        MiscPart4(strictness, categorizeAll, forceWorkProfile, enableAi, titleAnim)
+    ) { strictness, categorizeAll, forceWorkProfile, titleAnim ->
+        MiscPart4(strictness, categorizeAll, forceWorkProfile, titleAnim)
     }
 
     private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3, miscFlowPart4) { p1, p2, p3, p4 ->
@@ -366,7 +362,6 @@ class SettingsViewModel @Inject constructor(
             aiCategorizationStrictness = p4.aiCategorizationStrictness,
             aiCategorizeAllApps = p4.aiCategorizeAllApps,
             aiForceWorkProfile = p4.aiForceWorkProfile,
-            enableOnDeviceAi = p4.enableOnDeviceAi,
             drawerTitleAnimation = p4.drawerTitleAnimation
         )
     }
@@ -473,7 +468,6 @@ class SettingsViewModel @Inject constructor(
             aiCategorizationStrictness = misc.aiCategorizationStrictness,
             aiCategorizeAllApps = misc.aiCategorizeAllApps,
             aiForceWorkProfile = misc.aiForceWorkProfile,
-            enableOnDeviceAi = misc.enableOnDeviceAi,
             dynamicWallpaperEnabled = wallpaper.dynamicWallpaperEnabled,
             wallpaperGradientSpeedSeconds = wallpaper.wallpaperGradientSpeedSeconds,
             wallpaperGradientBlurPercent = wallpaper.wallpaperGradientBlurPercent,
@@ -503,12 +497,6 @@ class SettingsViewModel @Inject constructor(
     fun setAiForceWorkProfile(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setAiForceWorkProfile(enabled)
-        }
-    }
-
-    fun setEnableOnDeviceAi(enabled: Boolean) {
-        viewModelScope.launch(ioDispatcher) {
-            preferencesDataSource.setEnableOnDeviceAi(enabled)
         }
     }
 

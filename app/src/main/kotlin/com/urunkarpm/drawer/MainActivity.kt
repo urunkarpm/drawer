@@ -204,4 +204,9 @@ class MainActivity : ComponentActivity() {
             }
         } catch (_: Exception) {}
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        widgetHostManager.clearViewCache()
+    }
 }

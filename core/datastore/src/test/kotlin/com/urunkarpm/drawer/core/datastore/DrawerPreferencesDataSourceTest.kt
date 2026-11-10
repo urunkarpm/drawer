@@ -264,7 +264,6 @@ class DrawerPreferencesDataSourceTest {
             wallpaperGradientSpeedSeconds = 5,
             autoCategorizeNewApps = false,
             aiCategorizationStrictness = "STRICT",
-            enableOnDeviceAi = true,
             cinematicPalette = "TEAL_AMBER"
         )
 
@@ -287,7 +286,6 @@ class DrawerPreferencesDataSourceTest {
         assertEquals(5, restoredBackup.wallpaperGradientSpeedSeconds)
         assertEquals(false, restoredBackup.autoCategorizeNewApps)
         assertEquals("STRICT", restoredBackup.aiCategorizationStrictness)
-        assertEquals(true, restoredBackup.enableOnDeviceAi)
         assertEquals("TEAL_AMBER", restoredBackup.cinematicPalette)
     }
 

@@ -25,7 +25,6 @@ dependencies {
     implementation(project(":core:datastore"))
 
     implementation(libs.work.runtime.ktx)
-    implementation(libs.coil.compose)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)

@@ -10,6 +10,5 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(libs.compose.material.icons.extended)
-    implementation(libs.coil.compose)
     testImplementation(libs.junit)
 }
