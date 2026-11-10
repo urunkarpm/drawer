@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 and below (API 26-30) Auto Backup policy.
+  Backs up user launcher state (groups, layout, dock, preferences).
+-->
+<full-backup-content>
+    <include domain="database" path="." />
+    <include domain="file" path="datastore/" />
+    <include domain="sharedpref" path="." />
+</full-backup-content>

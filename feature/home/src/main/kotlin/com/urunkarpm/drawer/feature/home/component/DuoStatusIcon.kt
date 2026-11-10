@@ -626,7 +626,7 @@ internal fun resolveNetworkTypeLabel(networkType: Int, overrideType: Int): Strin
     }
 }
 
-// ponytail: Multi-RAT cellular signal strength extractor resolving 5G NR, LTE CA, and legacy bins with multi-SIM fallback; ceiling: raw dBm/RSRP mapping without CarrierConfig overrides; upgrade path: CarrierConfigManager signal threshold parsing.
+// ponytail: Multi-RAT cellular signal strength extractor resolving 5G NR, LTE CA on Q+, single level on P+, and safe 0 fallback on API 26-27 where getLevel() is absent; ceiling: no raw dBm extraction on Oreo; upgrade path: CarrierConfigManager signal threshold parsing.
 internal fun extractSignalLevel(signalStrength: SignalStrength?): Int {
     if (signalStrength == null) return 0
     return runCatching {
@@ -634,10 +634,12 @@ internal fun extractSignalLevel(signalStrength: SignalStrength?): Int {
             val cellLevels = signalStrength.cellSignalStrengths.map { it.level }.filter { it in 0..4 }
             val maxCell = cellLevels.maxOrNull() ?: 0
             maxOf(signalStrength.level.coerceIn(0, 4), maxCell)
-        } else {
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P || Build.VERSION.SDK_INT == 0) {
             signalStrength.level.coerceIn(0, 4)
+        } else {
+            0
         }
-    }.getOrDefault(signalStrength.level.coerceIn(0, 4))
+    }.getOrDefault(0)
 }
 
 /**
@@ -1406,9 +1408,14 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
 
     val initialSignal = remember(activeTm, tm) {
         runCatching {
-            val s1 = activeTm?.signalStrength
-            val s2 = if (activeTm != tm) tm?.signalStrength else null
-            maxOf(extractSignalLevel(s1), extractSignalLevel(s2))
+            // TelephonyManager.getSignalStrength is API 28+; minSdk is 26.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+                0
+            } else {
+                val s1 = activeTm?.signalStrength
+                val s2 = if (activeTm != tm) tm?.signalStrength else null
+                maxOf(extractSignalLevel(s1), extractSignalLevel(s2))
+            }
         }.getOrDefault(0)
     }
 
@@ -1462,6 +1469,8 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
 
     fun queryCellularSignal() {
         runCatching {
+            // TelephonyManager.getSignalStrength is API 28+; minSdk is 26.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
             val s1 = activeTm?.signalStrength
             val s2 = if (activeTm != tm) tm?.signalStrength else null
             val bestSignal = when {
@@ -1478,6 +1487,9 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     }
 
     fun updateFromDisplayInfo(telephonyDisplayInfo: TelephonyDisplayInfo) {
+        // TelephonyDisplayInfo accessors are API 30+; the listener that calls this is
+        // registered behind a Build.VERSION_CODES.S check, but guard here too.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val resolved = resolveNetworkTypeLabel(
             telephonyDisplayInfo.networkType,
             telephonyDisplayInfo.overrideNetworkType

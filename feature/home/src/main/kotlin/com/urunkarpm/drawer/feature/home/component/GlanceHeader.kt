@@ -83,8 +83,10 @@ fun rememberWallpaperContrastColors(): WallpaperContrastColors {
                     val wm = WallpaperManager.getInstance(context)
                     val colors = wm.getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
                     if (colors != null) {
-                        val hints = colors.colorHints
-                        val supportsDarkText = (hints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+                        // WallpaperColors.getColorHints is API 31+; below that, fall through
+                        // to the luminance heuristic so API 27-30 devices do not crash.
+                        val supportsDarkText = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                            (colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
                         if (supportsDarkText) {
                             true
                         } else {
@@ -129,8 +131,10 @@ fun rememberWallpaperContrastColors(): WallpaperContrastColors {
             val wm = runCatching { WallpaperManager.getInstance(context) }.getOrNull()
             val listener = WallpaperManager.OnColorsChangedListener { colors, which ->
                 if ((which and WallpaperManager.FLAG_SYSTEM) != 0 && colors != null) {
-                    val hints = colors.colorHints
-                    val supportsDarkText = (hints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+                    // WallpaperColors.getColorHints is API 31+; below that, fall through
+                    // to the luminance heuristic so API 27-30 devices do not crash.
+                    val supportsDarkText = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                        (colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
                     isLightWallpaper = if (supportsDarkText) {
                         true
                     } else {

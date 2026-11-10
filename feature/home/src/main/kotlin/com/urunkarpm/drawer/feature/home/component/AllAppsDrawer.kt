@@ -384,6 +384,7 @@ fun AllAppsDrawer(
                 )
             }
 
+            // ponytail: translationY on the outer Surface moves the entire drawer background card together with content on pull-to-dismiss; ceiling: 1D vertical displacement without 2D tilt; upgrade path: AnchoredDraggableState.
             Surface(
                 shape = drawerShape,
                 border = drawerBorder,
@@ -391,15 +392,13 @@ fun AllAppsDrawer(
                 modifier = modifier
                     .fillMaxSize()
                     .graphicsLayer {
+                        translationY = drawerTranslationY.value
                         alpha = animatedDrawerAlpha
                     }
             ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer {
-                        translationY = drawerTranslationY.value
-                    }
                     .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                     .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                     .nestedScroll(nestedScrollConnection)

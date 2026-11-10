@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+      Base theme, safe on API 26 (minSdk).
+      android:windowLightNavigationBar is API 27+, so it is NOT set here; it is added
+      in values-v27. Setting it here would be ignored on API 26 at best, and trips
+      lint's NewApi check because the attribute is unknown to the platform.
+    -->
     <style name="Theme.Drawer" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowShowWallpaper">true</item>

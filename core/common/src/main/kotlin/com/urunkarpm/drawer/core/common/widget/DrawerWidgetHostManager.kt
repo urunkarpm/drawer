@@ -17,6 +17,7 @@ import android.util.SizeF
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import com.urunkarpm.drawer.core.common.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -62,7 +63,7 @@ open class DrawerAppWidgetHost(
 class DrawerAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
     override fun getErrorView(): View {
         return TextView(context).apply {
-            text = "Widget error"
+            text = context.getString(R.string.widget_error)
             setPadding(24, 24, 24, 24)
         }
     }

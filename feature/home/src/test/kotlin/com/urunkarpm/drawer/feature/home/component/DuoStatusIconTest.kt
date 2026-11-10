@@ -90,4 +90,11 @@ class DuoStatusIconTest {
         io.mockk.every { mockSignal.level } returns 4
         assertEquals(4, extractSignalLevel(mockSignal))
     }
+
+    @Test
+    fun extractSignalLevel_noSuchMethodError_returnsZero() {
+        val mockSignal = io.mockk.mockk<android.telephony.SignalStrength>()
+        io.mockk.every { mockSignal.level } throws NoSuchMethodError("getLevel")
+        assertEquals(0, extractSignalLevel(mockSignal))
+    }
 }

@@ -23,13 +23,19 @@ android {
             FileInputStream(keystorePropsFile).use { load(it) }
         }
     }
+    // ponytail: default credentials fallback allows immediate out-of-the-box debug builds on clean clones without manual keystore.properties setup; ceiling: shared repo test key; upgrade path: strict CI-only release signing.
+    fun signingSecret(key: String, envVar: String, default: String): String =
+        keystoreProps.getProperty(key)?.takeIf { it.isNotBlank() }
+            ?: System.getenv(envVar)?.takeIf { it.isNotBlank() }
+            ?: default
+
     signingConfigs {
         if (keystoreFile.exists()) {
             create("release") {
                 storeFile = keystoreFile
-                storePassword = keystoreProps.getProperty("storePassword") ?: "wiwss2350"
-                keyAlias = keystoreProps.getProperty("keyAlias") ?: "drawer"
-                keyPassword = keystoreProps.getProperty("keyPassword") ?: "wiwss2350"
+                storePassword = signingSecret("storePassword", "DRAWER_STORE_PASSWORD", "wiwss2350")
+                keyAlias = signingSecret("keyAlias", "DRAWER_KEY_ALIAS", "drawer")
+                keyPassword = signingSecret("keyPassword", "DRAWER_KEY_PASSWORD", "wiwss2350")
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true

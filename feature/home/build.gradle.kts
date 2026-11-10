@@ -4,6 +4,16 @@ plugins {
 
 android {
     namespace = "com.urunkarpm.drawer.feature.home"
+
+    lint {
+        // The baseline freezes the issues that existed before this cleanup so that new
+        // ones fail the build. The errors it covers are MissingPermission false positives:
+        // DuoStatusIcon reads telephony/connectivity state inside runCatching blocks with
+        // permission-aware fallbacks, so a denied permission degrades the icon instead of
+        // crashing. Lint cannot follow that pattern.
+        // NewApi is deliberately NOT baselined: those are real crash risks, fixed in code.
+        baseline = file("lint-baseline.xml")
+    }
 }
 
 dependencies {

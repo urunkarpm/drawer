@@ -69,10 +69,7 @@ fun EditGroupDialog(
     var name by remember { mutableStateOf(group?.name ?: "") }
     var selectedIcon by remember { mutableStateOf(group?.iconName ?: "folder") }
     var selectedColor by remember {
-        mutableStateOf(
-            if (GroupIcons.isDullOrGrey(group?.colorHex)) GroupIcons.availableColors.first()
-            else group?.colorHex ?: GroupIcons.availableColors.first()
-        )
+        mutableStateOf(group?.colorHex ?: GroupIcons.availableColors.first())
     }
     var selectedViewType by remember {
         mutableStateOf(group?.viewType ?: if (twoDrawersSideBySide) GroupViewType.LIST else GroupViewType.GRID)
@@ -310,17 +307,12 @@ fun EditGroupDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 280.dp)
-                            .verticalScroll(rememberScrollState())
+                    // ponytail: inline app selector rendered directly inside dialog scroll column to prevent nested scroll traps; ceiling: 100-300 apps rendered without lazy recycling; upgrade path: LazyColumn in a full-screen sheet.
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            filteredApps.forEach { app ->
+                        filteredApps.forEach { app ->
                                 val key = "${app.packageName}/${app.activityName}"
                                 val isSelected = key in selectedApps
                                 Row(
@@ -361,7 +353,6 @@ fun EditGroupDialog(
                         }
                     }
                 }
-            }
         },
         confirmButton = {
             Button(

@@ -122,6 +122,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -202,9 +203,8 @@ fun HomeScreen(
         else -> 16.dp
     }
     val hasNotifications = notificationsUiState.activeNotifications.isNotEmpty()
-    val activeNotificationPackages = remember(notificationsUiState.activeNotifications) {
-        notificationsUiState.activeNotifications.map { it.packageName }.toSet()
-    }
+    val activeNotificationPackages = activeNotificationPkgs
+    val currentActiveNotificationPkgs by rememberUpdatedState(activeNotificationPkgs)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val categorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val homeMenuSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -963,7 +963,7 @@ fun HomeScreen(
                                            trimmed.startsWith("find ", ignoreCase = true)
                     if (isExplicitSearch) {
                         val query = trimmed.replaceFirst(Regex("^(?:search|find)\\s+", RegexOption.IGNORE_CASE), "").trim()
-                        viewModel.openAllApps(activeNotificationPkgs)
+                        viewModel.openAllApps(currentActiveNotificationPkgs)
                         viewModel.onSearchQueryChanged(query)
                         viewModel.notifyCommandProcessed("Searching for \"$query\"")
                     } else {
@@ -1006,7 +1006,7 @@ fun HomeScreen(
                 val fallbackIntent = Intent(Intent.ACTION_VOICE_COMMAND)
                 context.startActivity(fallbackIntent)
             } catch (_: Exception) {
-                viewModel.openAllApps(activeNotificationPkgs)
+                viewModel.openAllApps(currentActiveNotificationPkgs)
             }
         }
     }
@@ -1375,8 +1375,8 @@ fun HomeScreen(
         }
     }
 
-    // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
-    val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, areOtherDrawersOpen, dragDropState.isDragging, uiState.openDrawerFromDockOnly) {
+    // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; auto-collapses open category accordions on upward pull; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
+    val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, dragDropState.isDragging, uiState.openDrawerFromDockOnly, uiState.isAllAppsOpen) {
         object : NestedScrollConnection {
             private var scrollDownAccumulator = 0f
             private var scrollUpAccumulator = 0f
@@ -1401,8 +1401,10 @@ fun HomeScreen(
                 if (dragDropState.isDragging) return Offset.Zero
                 if (actionTriggeredInScroll) return Offset.Zero
 
-                // ponytail: nested scroll gestures only active on empty home screen when no category drawers are open; ceiling: fixed 60f scroll accumulator; upgrade path: velocity-aware gesture router.
-                if (!areOtherDrawersOpen && hasNotifications && !isNotificationExpanded && available.y > 0f) {
+                val anyCategoryExpanded = groupsUiState.groups.any { it.group.isExpanded }
+
+                // ponytail: downward pull expands notifications when at top and no category accordions are open
+                if (!anyCategoryExpanded && hasNotifications && !isNotificationExpanded && available.y > 0f) {
                     scrollDownAccumulator += available.y
                     if (scrollDownAccumulator > 60f) {
                         isNotificationExpanded = true
@@ -1413,14 +1415,17 @@ fun HomeScreen(
                         actionTriggeredInScroll = true
                         return Offset(0f, available.y)
                     }
-                } else if (!areOtherDrawersOpen && !isNotificationExpanded && available.y < 0f) {
+                } else if (!uiState.isAllAppsOpen && !isNotificationExpanded && available.y < 0f) {
                     scrollDownAccumulator = 0f
                     // Apply resistance to upward drag so normal scrolling does not unintentionally trigger app drawer
                     scrollUpAccumulator += available.y * 0.55f
-                    if (!uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
+                    if (!uiState.openDrawerFromDockOnly) {
                         // Sane resistance threshold: requires deliberate upward pull (~180f accumulated)
                         if (scrollUpAccumulator < -180f) {
-                            viewModel.openAllApps(activeNotificationPkgs)
+                            if (anyCategoryExpanded) {
+                                groupsViewModel.collapseAllGroups()
+                            }
+                            viewModel.openAllApps(currentActiveNotificationPkgs)
                             scrollUpAccumulator = 0f
                             actionTriggeredInScroll = true
                             return Offset(0f, available.y)
@@ -1437,7 +1442,10 @@ fun HomeScreen(
                 if (!actionTriggeredInScroll && !uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
                     // Velocity handoff: quick upward flick directly triggers drawer opening
                     if (available.y < -750f) {
-                        viewModel.openAllApps(activeNotificationPkgs)
+                        if (groupsUiState.groups.any { it.group.isExpanded }) {
+                            groupsViewModel.collapseAllGroups()
+                        }
+                        viewModel.openAllApps(currentActiveNotificationPkgs)
                         actionTriggeredInScroll = true
                         scrollUpAccumulator = 0f
                         return available
@@ -1783,7 +1791,7 @@ fun HomeScreen(
                                         if (isNotificationExpanded) {
                                             isNotificationExpanded = false
                                         } else {
-                                            viewModel.openAllApps(activeNotificationPkgs)
+                                            viewModel.openAllApps(currentActiveNotificationPkgs)
                                         }
                                         actionTriggered = true
                                     } else if (!uiState.isAllAppsOpen && dockDrag > 50f) {

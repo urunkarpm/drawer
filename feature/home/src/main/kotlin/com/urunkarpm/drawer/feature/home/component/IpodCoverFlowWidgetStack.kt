@@ -65,6 +65,7 @@ import androidx.compose.ui.zIndex
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.model.WidgetItem
 import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.math.abs
 
 @Composable
@@ -282,7 +283,7 @@ fun IpodCoverFlowWidgetStack(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = String.format("%02d / %02d", pagerState.currentPage + 1, widgets.size),
+                    text = String.format(Locale.ROOT, "%02d / %02d", pagerState.currentPage + 1, widgets.size),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.5.sp),
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

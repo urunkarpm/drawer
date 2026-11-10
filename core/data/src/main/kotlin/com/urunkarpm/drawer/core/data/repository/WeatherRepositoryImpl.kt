@@ -1,6 +1,7 @@
 package com.urunkarpm.drawer.core.data.repository
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Geocoder
@@ -8,6 +9,7 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
@@ -159,6 +161,8 @@ class WeatherRepositoryImpl @Inject constructor(
                 )
                 for (provider in providers) {
                     try {
+                        // Guarded by hasLocationPermission above; lint cannot follow the boolean.
+                        @SuppressLint("MissingPermission")
                         val l = lm?.getLastKnownLocation(provider)
                         if (l != null && isValidCoordinate(l.latitude, l.longitude)) {
                             if (bestLocation == null || l.time > bestLocation.time) {
@@ -174,6 +178,8 @@ class WeatherRepositoryImpl @Inject constructor(
                 if ((bestLocation == null || System.currentTimeMillis() - bestLocation.time > 30 * 60 * 1000L) &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && lm != null
                 ) {
+                    // Guarded by hasLocationPermission above; lint cannot follow the boolean.
+                    @SuppressLint("MissingPermission")
                     val fresh = requestCurrentLocation(lm)
                     if (fresh != null && isValidCoordinate(fresh.latitude, fresh.longitude)) {
                         bestLocation = fresh
@@ -211,6 +217,7 @@ class WeatherRepositoryImpl @Inject constructor(
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
+    @RequiresPermission(anyOf = [Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION])
     private suspend fun requestCurrentLocation(lm: LocationManager): Location? = withTimeoutOrNull(3000L) {
         suspendCancellableCoroutine { continuation ->
             val signal = android.os.CancellationSignal()

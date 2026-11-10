@@ -7,6 +7,7 @@ import android.provider.Settings
 import com.urunkarpm.drawer.core.needle.model.ToolCallResult
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -45,7 +46,9 @@ class NeedleActionDispatcher @Inject constructor() {
                     }
                     putExtra(AlarmClock.EXTRA_SKIP_UI, false)
                 }
-                val timeFormat = String.format("%02d:%02d", hour, minute)
+                // Locale.ROOT: alarm times are digits, not locale-formatted text. Using the
+                // default locale can emit non-ASCII digits (e.g. Arabic-Indic) into the title.
+                val timeFormat = String.format(Locale.ROOT, "%02d:%02d", hour, minute)
                 LauncherAction(
                     id = "alarm_${System.currentTimeMillis()}",
                     title = "Set alarm for $timeFormat",

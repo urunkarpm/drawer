@@ -6,6 +6,16 @@ plugins {
 
 android {
     namespace = "com.urunkarpm.drawer.core.data"
+
+    lint {
+        // The baseline freezes the issues that existed before this cleanup so that new
+        // ones fail the build. The errors it covers are MissingPermission false positives:
+        // these call sites are guarded at runtime by explicit ContextCompat.checkSelfPermission
+        // checks (see WeatherRepositoryImpl fetchLocationTriple) and wrapped in runCatching.
+        // Lint cannot follow the boolean guard across function boundaries.
+        // NewApi is deliberately NOT baselined: those are real crash risks and are fixed in code.
+        baseline = file("lint-baseline.xml")
+    }
 }
 
 dependencies {

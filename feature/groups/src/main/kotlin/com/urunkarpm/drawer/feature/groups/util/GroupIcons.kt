@@ -69,23 +69,8 @@ object GroupIcons {
         "#14B8A6"  // Luminous Teal
     )
 
-    fun isDullOrGrey(hex: String?): Boolean {
-        if (hex.isNullOrBlank()) return true
-        val clean = hex.trim().let { if (it.startsWith("#")) it else "#$it" }
-        val dullSet = setOf(
-            "#334155", "#475569", "#64748B", "#1E293B", "#1E3A8A", "#065F46", "#831843", "#92400E", "#6750A4"
-        )
-        if (dullSet.any { it.equals(clean, ignoreCase = true) }) return true
-        return try {
-            val colorInt = android.graphics.Color.parseColor(clean)
-            val hsv = FloatArray(3)
-            android.graphics.Color.colorToHSV(colorInt, hsv)
-            // Saturation < 35% is grayish/washed out, value < 25% is dark mud
-            hsv[1] < 0.35f || hsv[2] < 0.25f
-        } catch (_: Exception) {
-            false
-        }
-    }
+    // ponytail: preserves user-selected color hex directly; only falls back to category-aware palette when unspecified; ceiling: hex string only; upgrade path: full Material ColorScheme integration.
+    fun isDullOrGrey(hex: String?): Boolean = hex.isNullOrBlank()
 
     fun parseColor(hex: String?, fallback: Color = Color(0xFF3B82F6)): Color {
         if (hex.isNullOrBlank()) return fallback
@@ -98,7 +83,7 @@ object GroupIcons {
     }
 
     fun resolveGroupColor(colorHex: String?, name: String, id: String = ""): Color {
-        return if (colorHex.isNullOrBlank() || isDullOrGrey(colorHex)) {
+        return if (colorHex.isNullOrBlank()) {
             resolveCategoryColor(name, id)
         } else {
             parseColor(colorHex, fallback = resolveCategoryColor(name, id))
