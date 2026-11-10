@@ -46,11 +46,15 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.urunkarpm.drawer.core.model.WeatherInfo
@@ -202,6 +206,11 @@ fun GlanceHeader(
     duoStatusPosition: String = "TEMP",
     isDuoStatusExpanded: Boolean = false,
     onToggleDuoStatusExpand: () -> Unit = {},
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    cinematicPaletteId: String = "DEFAULT",
+    surfaceOpacity: Float = 0.85f,
+    surfaceStrokeOpacity: Float = 0.60f,
+    isMesmerizingGlow: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -232,13 +241,27 @@ fun GlanceHeader(
         "--°"
     }
 
-    // ponytail: Display condition description only to eliminate text clipping on narrow screens; ceiling: condition description only; upgrade path: optional expandable forecast widget.
-    val weatherLocationText = weatherInfo?.conditionDescription?.trim()?.ifBlank { "Weather" } ?: "Tap to load"
-
     val wallpaperContrast = rememberWallpaperContrastColors()
     val displayColor = wallpaperContrast.primaryText
     val subtextColor = wallpaperContrast.secondaryText
     val textShadow = wallpaperContrast.textShadow
+
+    val isLight = displayColor.luminance() < 0.5f
+    val aqiColor = weatherInfo?.aqi?.let { getAqiSeverityColor(it, isLight) }
+
+    // ponytail: AnnotatedString colors AQI severity while preserving subtextColor for weather condition; ceiling: US AQI 6-color scale; upgrade path: customizable AQI warning thresholds in Settings.
+    val weatherAnnotatedText = remember(weatherInfo, aqiColor, subtextColor) {
+        when {
+            weatherInfo == null -> AnnotatedString("Tap to load")
+            weatherInfo.aqi != null && aqiColor != null -> buildAnnotatedString {
+                withStyle(SpanStyle(color = aqiColor, fontWeight = FontWeight.SemiBold)) {
+                    append("AQI ${weatherInfo.aqi}")
+                }
+                append(" • ${weatherInfo.conditionDescription.trim().ifBlank { "Weather" }}")
+            }
+            else -> AnnotatedString(weatherInfo.conditionDescription.trim().ifBlank { "Weather" })
+        }
+    }
 
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
@@ -376,7 +399,12 @@ fun GlanceHeader(
                     sizeDp = 37,
                     isExpanded = false,
                     onToggleExpand = onToggleDuoStatusExpand,
-                    duoStatusPosition = "CENTER"
+                    duoStatusPosition = "CENTER",
+                    surfaceThemeStyle = surfaceThemeStyle,
+                    cinematicPaletteId = cinematicPaletteId,
+                    surfaceOpacity = surfaceOpacity,
+                    surfaceStrokeOpacity = surfaceStrokeOpacity,
+                    isMesmerizingGlow = isMesmerizingGlow
                 )
 
                 if (isDuoStatusExpanded) {
@@ -394,7 +422,12 @@ fun GlanceHeader(
                             sizeDp = 37,
                             isExpanded = true,
                             onToggleExpand = onToggleDuoStatusExpand,
-                            duoStatusPosition = "CENTER"
+                            duoStatusPosition = "CENTER",
+                            surfaceThemeStyle = surfaceThemeStyle,
+                            cinematicPaletteId = cinematicPaletteId,
+                            surfaceOpacity = surfaceOpacity,
+                            surfaceStrokeOpacity = surfaceStrokeOpacity,
+                            isMesmerizingGlow = isMesmerizingGlow
                         )
                     }
                 }
@@ -464,7 +497,7 @@ fun GlanceHeader(
                     horizontalArrangement = Arrangement.End
                 ) {
                     Text(
-                        text = weatherLocationText,
+                        text = weatherAnnotatedText,
                         fontFamily = LocalHeaderFontFamily.current,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
@@ -515,5 +548,28 @@ private fun launchCalendar(context: Context) {
         context.startActivity(intent)
     } catch (_: Exception) {
         // Fallback: don't crash if no calendar app found
+    }
+}
+
+// ponytail: EPA standard 6-category AQI color mapping with contrast-aware shades; ceiling: US AQI standard cutoffs only; upgrade path: European CAQI / Indian CPCB threshold support.
+internal fun getAqiSeverityColor(aqi: Int, isLightWallpaper: Boolean = false): Color {
+    return if (isLightWallpaper) {
+        when {
+            aqi <= 50 -> Color(0xFF15803D)   // Good (Green 700)
+            aqi <= 100 -> Color(0xFFB45309)  // Moderate (Amber 700)
+            aqi <= 150 -> Color(0xFFC2410C)  // Sensitive (Orange 700)
+            aqi <= 200 -> Color(0xFFB91C1C)  // Unhealthy (Red 700)
+            aqi <= 300 -> Color(0xFF7E22CE)  // Very Unhealthy (Purple 700)
+            else -> Color(0xFF881337)        // Hazardous (Rose 900)
+        }
+    } else {
+        when {
+            aqi <= 50 -> Color(0xFF4ADE80)   // Good (Green 400)
+            aqi <= 100 -> Color(0xFFFBBF24)  // Moderate (Amber 400)
+            aqi <= 150 -> Color(0xFFFB923C)  // Sensitive (Orange 400)
+            aqi <= 200 -> Color(0xFFF87171)  // Unhealthy (Red 400)
+            aqi <= 300 -> Color(0xFFA78BFA)  // Very Unhealthy (Purple 400)
+            else -> Color(0xFFFB7185)        // Hazardous (Rose 400)
+        }
     }
 }

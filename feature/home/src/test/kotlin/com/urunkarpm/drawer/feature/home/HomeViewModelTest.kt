@@ -249,6 +249,25 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun getAqiSeverityColor_mapsAllCategoriesAccurately() {
+        // Dark wallpaper scale
+        assertEquals(androidx.compose.ui.graphics.Color(0xFF4ADE80), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(25, false))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFFBBF24), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(75, false))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFFB923C), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(125, false))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFF87171), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(175, false))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFA78BFA), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(242, false))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFFB7185), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(350, false))
+
+        // Light wallpaper scale
+        assertEquals(androidx.compose.ui.graphics.Color(0xFF15803D), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(25, true))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFB45309), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(75, true))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFC2410C), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(125, true))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFFB91C1C), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(175, true))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFF7E22CE), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(242, true))
+        assertEquals(androidx.compose.ui.graphics.Color(0xFF881337), com.urunkarpm.drawer.feature.home.component.getAqiSeverityColor(350, true))
+    }
+
+    @Test
     fun refreshWeather_delegatesToRepository() = runTest {
         viewModel.refreshWeather()
         testScheduler.advanceUntilIdle()

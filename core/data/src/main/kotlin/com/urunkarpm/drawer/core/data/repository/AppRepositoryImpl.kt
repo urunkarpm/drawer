@@ -49,6 +49,8 @@ class AppRepositoryImpl @Inject constructor(
     private val _newlyInstalledApp = MutableSharedFlow<AppInfo>(replay = 0, extraBufferCapacity = 8)
     override val newlyInstalledApp: SharedFlow<AppInfo> = _newlyInstalledApp.asSharedFlow()
 
+    private val iconCache = LruCache<String, Drawable>(500)
+    private val activityInfoCache = java.util.concurrent.ConcurrentHashMap<String, android.content.pm.LauncherActivityInfo>()
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
 
     init {
@@ -236,8 +238,6 @@ class AppRepositoryImpl @Inject constructor(
         }
     }
 
-    private val iconCache = LruCache<String, Drawable>(500)
-    private val activityInfoCache = java.util.concurrent.ConcurrentHashMap<String, android.content.pm.LauncherActivityInfo>()
 
     override fun clearIconCache() {
         iconCache.evictAll()

@@ -120,7 +120,9 @@ import com.urunkarpm.drawer.feature.groups.component.GroupItemActionBottomSheet
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import com.urunkarpm.drawer.core.designsystem.modifier.appDragSource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -553,65 +555,7 @@ private fun GroupCard(
     // ponytail: in-memory drawer notification acknowledgment state; ceiling: resets across process restarts; upgrade path: persist in Room/DataStore.
     var acknowledgedPkgs by remember(group.id) { mutableStateOf<Set<String>>(emptySet()) }
 
-    var slotMachineApp by remember { mutableStateOf<AppInfo?>(null) }
-    var slotMachineStep by remember { mutableIntStateOf(0) }
-    var slotReelProgress by remember { mutableFloatStateOf(0f) }
-    val slotRecoilScale = remember { Animatable(1f) }
-    val slotRecoilOffsetY = remember { Animatable(0f) }
 
-    // ponytail: casino slot machine app icon shuffle when drawer opens; ceiling: 1D vertical reel roll; upgrade path: multi-reel 3D cylinder transform.
-    LaunchedEffect(isExpanded) {
-        if (isExpanded && resolvedGroup.apps.isNotEmpty()) {
-            val apps = resolvedGroup.apps
-            val totalTicks = (apps.size * 3).coerceIn(12, 18)
-
-            for (step in 0 until totalTicks) {
-                slotMachineStep = step
-                slotMachineApp = apps[step % apps.size]
-                slotReelProgress = step.toFloat() / totalTicks
-
-                if (step % 2 == 0 || step >= totalTicks - 4) {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-
-                val delayMs = when {
-                    step < totalTicks - 6 -> 10L      // 10ms casino slot spin
-                    step < totalTicks - 4 -> 22L      // Deceleration phase 1
-                    step < totalTicks - 2 -> 45L      // Deceleration phase 2
-                    step < totalTicks - 1 -> 75L      // Deceleration phase 3
-                    else -> 110L                     // Final mechanical settling roll
-                }
-                delay(delayMs)
-            }
-
-            // Lock into category drawer icon set by user
-            slotMachineApp = null
-            slotReelProgress = 0f
-
-            // Mechanical lock recoil: tactile click + spring recoil
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            launch {
-                slotRecoilOffsetY.snapTo(-7f)
-                slotRecoilOffsetY.animateTo(
-                    targetValue = 0f,
-                    animationSpec = spring(dampingRatio = 0.52f, stiffness = 650f)
-                )
-            }
-            launch {
-                slotRecoilScale.snapTo(1.32f)
-                slotRecoilScale.animateTo(
-                    targetValue = 1f,
-                    animationSpec = spring(dampingRatio = 0.58f, stiffness = 550f)
-                )
-            }
-        } else {
-            slotMachineApp = null
-            slotMachineStep = 0
-            slotReelProgress = 0f
-            slotRecoilScale.snapTo(1f)
-            slotRecoilOffsetY.snapTo(0f)
-        }
-    }
 
     LaunchedEffect(notifyingPkgs) {
         if (notifyingPkgs.isEmpty()) {
@@ -793,76 +737,19 @@ private fun GroupCard(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
-                                // ponytail: inner drawer icon glowing pulse with category color; ceiling: ambient/spot shadow and radial halo; upgrade path: RenderEffect blur.
-                                if (isGlowing) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(if (isCompact) 28.dp else 32.dp)
-                                            .drawBehind {
-                                                drawCircle(
-                                                    brush = Brush.radialGradient(
-                                                        colors = listOf(
-                                                            groupColor.copy(alpha = pulseAlpha * 0.70f),
-                                                            groupColor.copy(alpha = pulseAlpha * 0.25f),
-                                                            Color.Transparent
-                                                        ),
-                                                        center = center,
-                                                        radius = size.minDimension / 1.1f
-                                                    )
-                                                )
-                                            }
-                                    )
-                                    if (slotMachineApp == null) {
-                                        Icon(
-                                            imageVector = groupIcon,
-                                            contentDescription = null,
-                                            tint = groupColor,
-                                            modifier = Modifier
-                                                .size(if (isCompact) 16.dp else 18.dp)
-                                                .graphicsLayer {
-                                                    scaleX = pulseScale
-                                                    scaleY = pulseScale
-                                                    alpha = pulseAlpha * 0.85f
-                                                    ambientShadowColor = groupColor
-                                                    spotShadowColor = groupColor
-                                                    shadowElevation = 8.dp.toPx()
-                                                }
-                                        )
-                                    }
-                                }
-                                if (slotMachineApp != null) {
-                                    val currentSlotApp = slotMachineApp!!
-                                    AppIconImage(
-                                        key = currentSlotApp.componentKey,
-                                        size = if (isCompact) 18.dp else 22.dp,
-                                        label = currentSlotApp.label,
-                                        isWorkProfile = currentSlotApp.isWorkProfile,
-                                        iconShape = iconShape,
-                                        iconLoader = { iconLoader(currentSlotApp) },
-                                        modifier = Modifier.graphicsLayer {
-                                            val isHighSpeed = slotReelProgress < 0.70f
-                                            scaleX = if (isHighSpeed) 0.88f else 1.0f
-                                            scaleY = if (isHighSpeed) 1.18f else 1.0f
-                                            translationY = if (isHighSpeed) {
-                                                if (slotMachineStep % 2 == 0) -2.5f else 2.5f
-                                            } else 0f
-                                        }
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = groupIcon,
-                                        contentDescription = group.name,
-                                        tint = groupColor,
-                                        modifier = Modifier
-                                            .size(if (isCompact) 16.dp else 18.dp)
-                                            .graphicsLayer {
-                                                val baseScale = if (isGlowing) (1f + 0.08f * (pulseScale - 1f) / 0.15f) else 1f
-                                                scaleX = slotRecoilScale.value * baseScale
-                                                scaleY = slotRecoilScale.value * baseScale
-                                                translationY = slotRecoilOffsetY.value
-                                            }
-                                    )
-                                }
+                                CategoryReelBadge(
+                                    groupIcon = groupIcon,
+                                    groupColor = groupColor,
+                                    groupName = group.name,
+                                    apps = resolvedGroup.apps,
+                                    isExpanded = isExpanded,
+                                    isGlowing = isGlowing,
+                                    pulseScale = pulseScale,
+                                    pulseAlpha = pulseAlpha,
+                                    isCompact = isCompact,
+                                    iconShape = iconShape,
+                                    iconLoader = iconLoader
+                                )
                                 // ponytail: Notification indicator dot displays only when drawer glowing is disabled to avoid visual clutter and duplicate indicator states; ceiling: static dot; upgrade path: numeric count badge.
                                 if (hasNotification && !drawerNotificationGlow) {
                                     Box(
@@ -1366,6 +1253,205 @@ private fun GroupListLayout(
                     )
                 }
             }
+        }
+    }
+}
+
+// ponytail: 3D mechanical cylinder slot drum roll when drawer opens; ceiling: 2-item vertical viewport with 3D projection; upgrade path: custom canvas shader / multi-column reel.
+@Composable
+private fun CategoryReelBadge(
+    groupIcon: ImageVector,
+    groupColor: Color,
+    groupName: String,
+    apps: List<AppInfo>,
+    isExpanded: Boolean,
+    isGlowing: Boolean,
+    pulseScale: Float,
+    pulseAlpha: Float,
+    isCompact: Boolean,
+    iconShape: Shape,
+    iconLoader: suspend (AppInfo) -> Drawable?,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current.density
+    val reelOffset = remember { Animatable(0f) }
+    val lockSettleY = remember { Animatable(0f) }
+    var isReelActive by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isExpanded) {
+        if (isExpanded && apps.isNotEmpty()) {
+            val spinCount = (apps.size * 2).coerceIn(6, 10)
+            val totalSteps = spinCount + 1
+            isReelActive = true
+            reelOffset.snapTo(0f)
+
+            var lastTick = 0
+            reelOffset.animateTo(
+                targetValue = totalSteps.toFloat(),
+                animationSpec = tween(
+                    durationMillis = 560,
+                    easing = CubicBezierEasing(0.12f, 0.78f, 0.22f, 1.0f)
+                )
+            ) {
+                val currentTick = value.toInt()
+                if (currentTick != lastTick) {
+                    lastTick = currentTick
+                    haptic.performHapticFeedback(
+                        if (currentTick >= totalSteps) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove
+                    )
+                }
+            }
+
+            isReelActive = false
+            launch {
+                lockSettleY.snapTo(-3.5f)
+                lockSettleY.animateTo(
+                    targetValue = 0f,
+                    animationSpec = spring(dampingRatio = 0.58f, stiffness = 850f)
+                )
+            }
+        } else {
+            isReelActive = false
+            reelOffset.snapTo(0f)
+            lockSettleY.snapTo(0f)
+        }
+    }
+
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isGlowing) {
+            Box(
+                modifier = Modifier
+                    .size(if (isCompact) 28.dp else 32.dp)
+                    .drawBehind {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    groupColor.copy(alpha = pulseAlpha * 0.70f),
+                                    groupColor.copy(alpha = pulseAlpha * 0.25f),
+                                    Color.Transparent
+                                ),
+                                center = center,
+                                radius = size.minDimension / 1.1f
+                            )
+                        )
+                    }
+            )
+        }
+
+        if (isReelActive) {
+            val currentOffset = reelOffset.value
+            val baseIndex = currentOffset.toInt()
+            val fraction = currentOffset - baseIndex
+            val slotHeightPx = with(LocalDensity.current) { (if (isCompact) 26.dp else 30.dp).toPx() }
+            val spinCount = (apps.size * 2).coerceIn(6, 10)
+            val totalSteps = spinCount + 1
+
+            fun getAppAt(idx: Int): AppInfo? = when {
+                idx <= 0 || idx >= totalSteps -> null
+                else -> apps[(idx - 1) % apps.size]
+            }
+
+            if (baseIndex <= totalSteps) {
+                ReelSlotItem(
+                    app = getAppAt(baseIndex),
+                    groupIcon = groupIcon,
+                    groupColor = groupColor,
+                    groupName = groupName,
+                    iconShape = iconShape,
+                    iconLoader = iconLoader,
+                    isCompact = isCompact,
+                    distance = -fraction,
+                    slotHeightPx = slotHeightPx,
+                    density = density
+                )
+            }
+
+            if (baseIndex + 1 <= totalSteps && fraction > 0.001f) {
+                ReelSlotItem(
+                    app = getAppAt(baseIndex + 1),
+                    groupIcon = groupIcon,
+                    groupColor = groupColor,
+                    groupName = groupName,
+                    iconShape = iconShape,
+                    iconLoader = iconLoader,
+                    isCompact = isCompact,
+                    distance = 1f - fraction,
+                    slotHeightPx = slotHeightPx,
+                    density = density
+                )
+            }
+        } else {
+            Icon(
+                imageVector = groupIcon,
+                contentDescription = groupName,
+                tint = groupColor,
+                modifier = Modifier
+                    .size(if (isCompact) 16.dp else 18.dp)
+                    .graphicsLayer {
+                        val baseScale = if (isGlowing) (1f + 0.08f * (pulseScale - 1f) / 0.15f) else 1f
+                        scaleX = baseScale
+                        scaleY = baseScale
+                        translationY = lockSettleY.value
+                    }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReelSlotItem(
+    app: AppInfo?,
+    groupIcon: ImageVector,
+    groupColor: Color,
+    groupName: String,
+    iconShape: Shape,
+    iconLoader: suspend (AppInfo) -> Drawable?,
+    isCompact: Boolean,
+    distance: Float,
+    slotHeightPx: Float,
+    density: Float,
+    modifier: Modifier = Modifier
+) {
+    val absD = kotlin.math.abs(distance)
+    val alpha = (1f - absD * absD).coerceIn(0f, 1f)
+    val scaleY = (1f - absD * 0.25f).coerceIn(0.6f, 1f)
+    val scaleX = (1f - absD * 0.15f).coerceIn(0.7f, 1f)
+    val rotX = (-distance * 55f).coerceIn(-75f, 75f)
+    val transY = distance * slotHeightPx
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                this.alpha = alpha
+                this.scaleX = scaleX
+                this.scaleY = scaleY
+                this.rotationX = rotX
+                this.translationY = transY
+                this.cameraDistance = 12f * density
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (app != null) {
+            AppIconImage(
+                key = app.componentKey,
+                size = if (isCompact) 18.dp else 22.dp,
+                label = app.label,
+                isWorkProfile = app.isWorkProfile,
+                iconShape = iconShape,
+                iconLoader = { iconLoader(app) }
+            )
+        } else {
+            Icon(
+                imageVector = groupIcon,
+                contentDescription = groupName,
+                tint = groupColor,
+                modifier = Modifier.size(if (isCompact) 16.dp else 18.dp)
+            )
         }
     }
 }

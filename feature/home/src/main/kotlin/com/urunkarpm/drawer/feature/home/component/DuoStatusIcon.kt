@@ -64,15 +64,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NetworkCell
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -94,20 +92,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
+import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.window.Dialog
 import android.os.SystemClock
+import java.io.File
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -655,7 +655,12 @@ fun DuoStatusIcon(
     sizeDp: Int = 46,
     isExpanded: Boolean = false,
     onToggleExpand: () -> Unit = {},
-    duoStatusPosition: String = "TEMP"
+    duoStatusPosition: String = "TEMP",
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    cinematicPaletteId: String = "DEFAULT",
+    surfaceOpacity: Float = 0.85f,
+    surfaceStrokeOpacity: Float = 0.60f,
+    isMesmerizingGlow: Boolean = true
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -809,10 +814,12 @@ fun DuoStatusIcon(
     val alertRed = Color(0xFFFF3B30)
 
     // Morph container dimensions seamlessly
-    val baseExpandedHeight = if (status.isCharging) 156.dp else 134.dp
-    val currentWidth = lerp(sizeDp.dp, 268.dp, expandProgress)
+    val configuration = LocalConfiguration.current
+    val maxTargetWidth = (configuration.screenWidthDp.dp - 32.dp).coerceIn(260.dp, 316.dp)
+    val baseExpandedHeight = if (status.isCharging) 218.dp else 196.dp
+    val currentWidth = lerp(sizeDp.dp, maxTargetWidth, expandProgress)
     val currentHeight = lerp(sizeDp.dp, baseExpandedHeight, expandProgress)
-    val currentCornerRadius = lerp((sizeDp / 2f).dp, 20.dp, expandProgress)
+    val currentCornerRadius = lerp((sizeDp / 2f).dp, 22.dp, expandProgress)
 
     Box(
         modifier = modifier
@@ -828,26 +835,10 @@ fun DuoStatusIcon(
                 }
             }
             .shadow(
-                elevation = 8.dp * expandProgress,
+                elevation = if (expandProgress > 0.05f) 12.dp * expandProgress else 0.dp,
                 shape = RoundedCornerShape(currentCornerRadius)
             )
             .clip(RoundedCornerShape(currentCornerRadius))
-            .background(
-                MaterialTheme.colorScheme.surface.copy(
-                    alpha = 0.94f * expandProgress
-                )
-            )
-            .then(
-                if (expandProgress > 0.05f) {
-                    Modifier.border(
-                        width = 1.dp,
-                        color = displayColor.copy(alpha = 0.16f * expandProgress),
-                        shape = RoundedCornerShape(currentCornerRadius)
-                    )
-                } else {
-                    Modifier
-                }
-            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -864,6 +855,19 @@ fun DuoStatusIcon(
             else -> Alignment.TopEnd
         }
     ) {
+        if (expandProgress > 0.05f) {
+            DrawerSurfaceBackground(
+                surfaceThemeStyle = surfaceThemeStyle,
+                shape = RoundedCornerShape(currentCornerRadius),
+                isExpanded = true,
+                accentColor = if (status.isCharging) chargingGreen else null,
+                isMesmerizingGlow = isMesmerizingGlow,
+                surfaceOpacity = surfaceOpacity,
+                surfaceStrokeOpacity = surfaceStrokeOpacity,
+                cinematicPaletteId = cinematicPaletteId,
+                modifier = Modifier.matchParentSize()
+            )
+        }
         // ── Layer 1: Collapsed Unified Circular Duo Status Icon ──
         if (expandProgress < 0.95f) {
             val iconAlpha = (1f - (expandProgress / 0.40f)).coerceIn(0f, 1f)
@@ -997,13 +1001,13 @@ fun DuoStatusIcon(
                         sweepAngleDegrees = 88f,
                         forceMoveTo = false
                     )
-                    wedgePath.quadraticBezierTo(
+                    wedgePath.quadraticTo(
                         x1 = wifiOriginX + 6.0f * s,
                         y1 = wifiOriginY + 2.0f * s,
                         x2 = wifiOriginX,
                         y2 = wifiOriginY + 7.5f * s
                     )
-                    wedgePath.quadraticBezierTo(
+                    wedgePath.quadraticTo(
                         x1 = wifiOriginX - 6.0f * s,
                         y1 = wifiOriginY + 2.0f * s,
                         x2 = pStartX,
@@ -1064,61 +1068,140 @@ fun DuoStatusIcon(
             }
         }
 
-        // ── Layer 2: Expanded Breakdown 4-Step Card with Rich Staggered Motion ──
+        // ── Layer 2: Expanded Breakdown Telemetry Card ──
         if (expandProgress > 0.05f) {
-            // ponytail: charging pulse and morph staggers run strictly in graphicsLayer; ceiling: simple alpha/translate lerp; upgrade path: vector path morphing.
+            // ponytail: Expanded status telemetry card uses DrawerSurfaceBackground and LocalHeaderFontFamily to match the launcher's glassmorphic design language; ceiling: fixed height telemetry card without expandable history logs; upgrade path: scrollable diagnostics / battery health sub-page.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
                     .graphicsLayer {
                         alpha = ((expandProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
                     },
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Step 1: BATTERY — Live status with unrolling progress bar and charging metrics
-                Column(
+                // Header: Title and tactile Close button
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer {
                             val ep = expandProgress
                             alpha = ((ep - 0.20f) / 0.60f).coerceIn(0f, 1f)
-                            translationY = (1f - ((ep - 0.20f) / 0.80f).coerceIn(0f, 1f)) * -10f
+                            translationY = (1f - ((ep - 0.20f) / 0.80f).coerceIn(0f, 1f)) * -8f
                         },
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (status.isCharging) chargingGreen else displayColor.copy(alpha = 0.85f))
+                        )
+                        Text(
+                            text = "Device Status",
+                            fontFamily = LocalHeaderFontFamily.current,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = displayColor.copy(alpha = 0.85f),
+                            letterSpacing = 0.4.sp
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(displayColor.copy(alpha = 0.08f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onToggleExpand()
+                                }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = displayColor.copy(alpha = 0.70f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+
+                // Section 1: Battery tile with charging metrics & live progress
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            val ep = expandProgress
+                            alpha = ((ep - 0.22f) / 0.60f).coerceIn(0f, 1f)
+                            translationY = (1f - ((ep - 0.22f) / 0.80f).coerceIn(0f, 1f)) * -6f
+                        }
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(displayColor.copy(alpha = 0.05f))
+                        .border(
+                            width = 0.8.dp,
+                            color = displayColor.copy(alpha = 0.10f),
+                            shape = RoundedCornerShape(13.dp)
+                        )
+                        .padding(horizontal = 11.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Battery",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = displayColor.copy(alpha = 0.65f),
-                            letterSpacing = 0.3.sp
-                        )
-                        val standardSuffix = if (status.isCharging) {
-                            val isFull = status.batteryPercent >= 100
-                            val label = liveStandard ?: status.chargingStandard
-                            when {
-                                isFull -> " • Fully Charged"
-                                !label.isNullOrBlank() -> " • $label"
-                                else -> " • Charging"
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (status.isCharging) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
+                                contentDescription = null,
+                                tint = if (status.isCharging) chargingGreen else displayColor,
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Text(
+                                text = "Battery",
+                                fontFamily = LocalHeaderFontFamily.current,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = displayColor
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (status.isCharging && liveTemp != null) {
+                                Text(
+                                    text = String.format(Locale.US, "%.1f°C", liveTemp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = displayColor.copy(alpha = 0.65f)
+                                )
                             }
-                        } else ""
-                        Text(
-                            text = "${status.batteryPercent}%$standardSuffix",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (status.isCharging) chargingGreen else displayColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                            Text(
+                                text = "${status.batteryPercent}%",
+                                fontFamily = LocalHeaderFontFamily.current,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (status.isCharging) chargingGreen else displayColor
+                            )
+                        }
                     }
 
-                    // Straight battery bar smoothly expanding and filling
+                    // Progress bar
                     val barProgress = animatedProgress * ((expandProgress - 0.25f) / 0.75f).coerceIn(0f, 1f)
                     Box(
                         modifier = Modifier
@@ -1146,199 +1229,257 @@ fun DuoStatusIcon(
 
                     if (status.isCharging) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 1.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val isFull = status.batteryPercent >= 100
+                            val label = liveStandard ?: status.chargingStandard
+                            val standardText = when {
+                                isFull -> "Fully Charged"
+                                !label.isNullOrBlank() -> label
+                                else -> "Charging"
+                            }
+                            Text(
+                                text = standardText,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = chargingGreen,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
                             val powerText = buildString {
-                                append("⚡ ")
                                 val currentW = liveWatts ?: status.chargingWatts
                                 if (isFull) {
-                                    append("Fully Charged")
+                                    append("Complete")
                                 } else if (currentW != null && currentW > 0.5f) {
-                                    append(String.format(Locale.US, "%.1f W", currentW))
+                                    append(String.format(Locale.US, "⚡ %.1f W", currentW))
                                 } else if (currentW != null && currentW > 0.05f) {
-                                    append(String.format(Locale.US, "%.1f W (Trickle)", currentW))
+                                    append(String.format(Locale.US, "⚡ %.1f W", currentW))
                                 } else {
                                     val fallbackW = liveMaxWatts ?: status.chargingMaxWatts
                                     if (fallbackW != null && fallbackW > 1.0f) {
-                                        append(String.format(Locale.US, "%.0f W", fallbackW))
+                                        append(String.format(Locale.US, "⚡ %.0f W", fallbackW))
                                     } else {
-                                        append("Charging")
+                                        append("⚡ Active")
                                     }
                                 }
                             }
                             Text(
                                 text = powerText,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = chargingGreen
                             )
-                            val tempText = liveTemp?.let { String.format(Locale.US, "%.1f°C", it) }
-                            if (tempText != null) {
-                                Text(
-                                    text = "🌡 $tempText",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = displayColor.copy(alpha = 0.75f)
-                                )
-                            }
                         }
                     }
                 }
 
-                // Step 2: WI-FI — Signal waves with live network wave pulse (tap to speed test)
+                // Section 2: Wi-Fi and Cellular side-by-side tiles
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer {
                             val ep = expandProgress
-                            alpha = ((ep - 0.28f) / 0.60f).coerceIn(0f, 1f)
-                            translationX = (1f - ((ep - 0.28f) / 0.68f).coerceIn(0f, 1f)) * 18f
-                        }
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { triggerSpeedTest() }
-                        ),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Wi-Fi",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = displayColor.copy(alpha = 0.65f),
-                        letterSpacing = 0.3.sp
-                    )
-
-                    Text(
-                        text = if (status.isWifiConnected) {
-                            when (status.wifiLevel) {
-                                4, 3 -> "Excellent"
-                                2 -> "Good"
-                                1 -> "Fair"
-                                else -> "Connected"
-                            }
-                        } else {
-                            "Disconnected"
+                            alpha = ((ep - 0.28f) / 0.58f).coerceIn(0f, 1f)
+                            translationY = (1f - ((ep - 0.28f) / 0.70f).coerceIn(0f, 1f)) * -4f
                         },
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (status.isWifiConnected) displayColor else alertRed
-                    )
-                }
-
-                // Step 3: CARRIER SIGNAL — 4 dots unfurling sequentially across horizontal meter
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            val ep = expandProgress
-                            alpha = ((ep - 0.36f) / 0.56f).coerceIn(0f, 1f)
-                            translationX = (1f - ((ep - 0.36f) / 0.56f).coerceIn(0f, 1f)) * 18f
-                        },
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val carrierSuffix = if (status.isCellularConnected && !status.networkType.isNullOrBlank()) {
-                        " • ${status.networkType}"
-                    } else ""
-                    Text(
-                        text = "Carrier$carrierSuffix",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = displayColor.copy(alpha = 0.65f),
-                        letterSpacing = 0.3.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // Wi-Fi Tile
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(displayColor.copy(alpha = 0.05f))
+                            .border(
+                                width = 0.8.dp,
+                                color = displayColor.copy(alpha = 0.10f),
+                                shape = RoundedCornerShape(13.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
                     ) {
-                        // 4 dots unfurl sequentially
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            for (i in 1..4) {
-                                val dotThreshold = 0.36f + (i * 0.06f)
-                                val isFilled = status.isCellularConnected && status.cellularLevel >= i
-                                val dotColor = if (!status.isCellularConnected) {
-                                    alertRed
-                                } else if (isFilled) {
-                                    activeColor
-                                } else {
-                                    inactiveColor
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(5.5.dp)
-                                        .graphicsLayer {
-                                            val ep = expandProgress
-                                            val dotAnimScale = ((ep - dotThreshold) / 0.28f).coerceIn(0f, 1f)
-                                            scaleX = 0.35f + 0.65f * dotAnimScale
-                                            scaleY = 0.35f + 0.65f * dotAnimScale
-                                            alpha = dotAnimScale
-                                        }
-                                        .clip(CircleShape)
-                                        .background(dotColor)
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (status.isWifiConnected) Icons.Default.Wifi else Icons.Default.WifiOff,
+                                    contentDescription = null,
+                                    tint = if (status.isWifiConnected) displayColor else alertRed,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = "Wi-Fi",
+                                    fontFamily = LocalHeaderFontFamily.current,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = displayColor.copy(alpha = 0.65f)
                                 )
                             }
-                        }
-
-                        Text(
-                            text = if (status.isCellularConnected) {
-                                when (status.cellularLevel) {
-                                    4 -> "Strong"
-                                    3 -> "Good"
-                                    2 -> "Fair"
-                                    1 -> "Poor"
+                            val wifiStatusText = if (status.isWifiConnected) {
+                                when (status.wifiLevel) {
+                                    4, 3 -> "Excellent"
+                                    2 -> "Good"
+                                    1 -> "Fair"
                                     else -> "Connected"
                                 }
                             } else {
-                                "No Service"
-                            },
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (status.isCellularConnected) displayColor else alertRed
-                        )
+                                "Disconnected"
+                            }
+                            Text(
+                                text = wifiStatusText,
+                                fontFamily = LocalHeaderFontFamily.current,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (status.isWifiConnected) displayColor else alertRed,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // Cellular Tile
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(displayColor.copy(alpha = 0.05f))
+                            .border(
+                                width = 0.8.dp,
+                                color = displayColor.copy(alpha = 0.10f),
+                                shape = RoundedCornerShape(13.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NetworkCell,
+                                    contentDescription = null,
+                                    tint = if (status.isCellularConnected) displayColor else alertRed,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                val carrierLabel = status.networkType ?: "Cellular"
+                                Text(
+                                    text = carrierLabel,
+                                    fontFamily = LocalHeaderFontFamily.current,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = displayColor.copy(alpha = 0.65f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val cellStatusText = if (status.isCellularConnected) {
+                                    when (status.cellularLevel) {
+                                        4 -> "Strong"
+                                        3 -> "Good"
+                                        2 -> "Fair"
+                                        1 -> "Poor"
+                                        else -> "Connected"
+                                    }
+                                } else {
+                                    "No Service"
+                                }
+                                Text(
+                                    text = cellStatusText,
+                                    fontFamily = LocalHeaderFontFamily.current,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (status.isCellularConnected) displayColor else alertRed,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    for (i in 1..4) {
+                                        val isFilled = status.isCellularConnected && status.cellularLevel >= i
+                                        val dotColor = if (!status.isCellularConnected) {
+                                            alertRed
+                                        } else if (isFilled) {
+                                            activeColor
+                                        } else {
+                                            inactiveColor
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .size(4.dp)
+                                                .clip(CircleShape)
+                                                .background(dotColor)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
-                // Step 4: SPEED TEST — Quick latency/bandwidth measurement from connected source
+                // Section 3: Speed test pill
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer {
                             val ep = expandProgress
-                            alpha = ((ep - 0.44f) / 0.56f).coerceIn(0f, 1f)
-                            translationX = (1f - ((ep - 0.44f) / 0.56f).coerceIn(0f, 1f)) * 18f
+                            alpha = ((ep - 0.35f) / 0.55f).coerceIn(0f, 1f)
+                            translationY = (1f - ((ep - 0.35f) / 0.65f).coerceIn(0f, 1f)) * -4f
                         }
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(
+                            if (isSpeedTesting) chargingGreen.copy(alpha = 0.12f)
+                            else displayColor.copy(alpha = 0.05f)
+                        )
+                        .border(
+                            width = 0.8.dp,
+                            color = if (isSpeedTesting) chargingGreen.copy(alpha = 0.35f)
+                            else displayColor.copy(alpha = 0.10f),
+                            shape = RoundedCornerShape(13.dp)
+                        )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = { triggerSpeedTest() }
-                        ),
+                        )
+                        .padding(horizontal = 11.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Speed",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = displayColor.copy(alpha = 0.65f),
-                        letterSpacing = 0.3.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = null,
+                            tint = if (isSpeedTesting) chargingGreen else displayColor.copy(alpha = 0.80f),
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = "Speed Test",
+                            fontFamily = LocalHeaderFontFamily.current,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = displayColor
+                        )
+                    }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         val speedText = when {
                             isSpeedTesting -> liveTestingSpeed ?: "Testing..."
@@ -1354,14 +1495,16 @@ fun DuoStatusIcon(
 
                         Text(
                             text = speedText,
+                            fontFamily = LocalHeaderFontFamily.current,
                             fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             color = speedColor
                         )
                         Text(
                             text = "↺",
-                            fontSize = 11.sp,
-                            color = if (isSpeedTesting) chargingGreen else displayColor.copy(alpha = 0.45f),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSpeedTesting) chargingGreen else displayColor.copy(alpha = 0.50f),
                             modifier = Modifier.graphicsLayer {
                                 if (isSpeedTesting) {
                                     rotationZ = retestRotation

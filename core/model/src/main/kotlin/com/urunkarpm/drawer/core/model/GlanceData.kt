@@ -8,5 +8,6 @@ data class WeatherInfo(
     val weatherCode: Int,
     val conditionDescription: String,
     val cityName: String,
-    val lastUpdatedMillis: Long
+    val lastUpdatedMillis: Long,
+    val aqi: Int? = null
 )

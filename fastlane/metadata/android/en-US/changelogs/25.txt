@@ -1,0 +1,6 @@
+• Redesigned Duo Status Telemetry: Polished glassmorphic telemetry card matching Drawer's design language, honoring surface themes (Liquid Glass, Frosted Acrylic, Solid) and font packs
+• Battery & Power Diagnostics: Real-time charging wattage, protocol detection (Super Fast / VOOC / Warp / Turbo), battery temperature, and live charging pulse bar
+• Dual Connectivity Meters: Side-by-side frosted tiles displaying Wi-Fi quality and Cellular signal bars with carrier generation tags (5G, 4G+)
+• Embedded Speed Test: Integrated latency and bandwidth speed test with live progress and spinning retest action
+• Live Air Quality Index (AQI): Color-coded EPA AQI severity integrated into Glance Header
+• Dock Curvature Polish: Dock curvature dynamically matches drawer corner radius preferences

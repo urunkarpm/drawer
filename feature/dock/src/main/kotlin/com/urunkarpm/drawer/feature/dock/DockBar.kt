@@ -123,8 +123,8 @@ fun DockBar(
         uiState.resolvedApps.take(maxCapacity)
     }
 
-    // ponytail: dock is 100% curved (pill/capsule) for sleek modern styling; ceiling: fixed capsule geometry; upgrade path: customizable dock corner slider in settings.
-    val shape = CircleShape
+    // Curvature matches drawer surface curvature (default 24dp, adjustable via Settings)
+    val shape = remember(uiState.cornerRadiusDp) { RoundedCornerShape(uiState.cornerRadiusDp.dp) }
 
     val animatedScale by animateFloatAsState(
         targetValue = if (isDropTarget) 1.04f else 1f,

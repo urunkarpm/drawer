@@ -901,6 +901,11 @@ fun HomeScreen(
                         duoStatusPosition = uiState.duoStatusPosition,
                         isDuoStatusExpanded = isDuoStatusExpanded,
                         onToggleDuoStatusExpand = { isDuoStatusExpanded = !isDuoStatusExpanded },
+                        surfaceThemeStyle = uiState.surfaceThemeStyle,
+                        cinematicPaletteId = uiState.cinematicPalette,
+                        surfaceOpacity = uiState.surfaceOpacity,
+                        surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                        isMesmerizingGlow = uiState.dockMesmerizingGlow,
                         modifier = Modifier
                             .fillMaxWidth()
                             .zIndex(100f)

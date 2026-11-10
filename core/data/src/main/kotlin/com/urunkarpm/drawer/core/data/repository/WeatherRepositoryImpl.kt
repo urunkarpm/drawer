@@ -18,6 +18,8 @@ import com.urunkarpm.drawer.core.model.WeatherInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +53,17 @@ data class OpenMeteoCurrent(
     val temperature2m: Double = 0.0,
     @SerialName("weather_code")
     val weatherCode: Int = 0
+)
+
+@Serializable
+data class OpenMeteoAirQualityResponse(
+    val current: OpenMeteoAirQualityCurrent? = null
+)
+
+@Serializable
+data class OpenMeteoAirQualityCurrent(
+    @SerialName("us_aqi")
+    val usAqi: Int? = null
 )
 
 @Singleton
@@ -102,18 +115,40 @@ class WeatherRepositoryImpl @Inject constructor(
                 fetchLocationTriple()
             }
 
-            // ponytail: platform HttpURLConnection for single Open-Meteo weather forecast endpoint; ceiling: standard GET without retry interceptors; upgrade path: WorkManager exponential backoff or OkHttp client.
-            val url = URI("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code").toURL()
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 8000
-                readTimeout = 8000
-                setRequestProperty("User-Agent", "Drawer-Launcher-Android")
-            }
-            val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
-            val response: OpenMeteoResponse = json.decodeFromString(jsonString)
+            // ponytail: Open-Meteo weather & air-quality fetched concurrently via HttpURLConnection; ceiling: non-retryable GETs without cache header validation; upgrade path: OkHttp client with WorkManager backoff.
+            val (weatherResponse, aqiValue) = coroutineScope {
+                val weatherDeferred = async {
+                    val url = URI("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code").toURL()
+                    val conn = (url.openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 8000
+                        readTimeout = 8000
+                        setRequestProperty("User-Agent", "Drawer-Launcher-Android")
+                    }
+                    val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
+                    json.decodeFromString<OpenMeteoResponse>(jsonString)
+                }
 
-            val current = response.current ?: throw IllegalStateException("Empty weather data returned")
+                val aqiDeferred = async {
+                    try {
+                        val url = URI("https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$lat&longitude=$lon&current=us_aqi").toURL()
+                        val conn = (url.openConnection() as HttpURLConnection).apply {
+                            requestMethod = "GET"
+                            connectTimeout = 6000
+                            readTimeout = 6000
+                            setRequestProperty("User-Agent", "Drawer-Launcher-Android")
+                        }
+                        val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
+                        json.decodeFromString<OpenMeteoAirQualityResponse>(jsonString).current?.usAqi
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+
+                Pair(weatherDeferred.await(), aqiDeferred.await())
+            }
+
+            val current = weatherResponse.current ?: throw IllegalStateException("Empty weather data returned")
             val (conditionDesc, _) = mapWmoCode(current.weatherCode)
 
             val info = WeatherInfo(
@@ -121,7 +156,8 @@ class WeatherRepositoryImpl @Inject constructor(
                 weatherCode = current.weatherCode,
                 conditionDescription = conditionDesc,
                 cityName = cityName,
-                lastUpdatedMillis = System.currentTimeMillis()
+                lastUpdatedMillis = System.currentTimeMillis(),
+                aqi = aqiValue
             )
 
             _weatherInfo.value = info

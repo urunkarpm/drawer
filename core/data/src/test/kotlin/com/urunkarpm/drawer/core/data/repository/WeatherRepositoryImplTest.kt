@@ -85,4 +85,34 @@ class WeatherRepositoryImplTest {
         assertFalse(WeatherRepositoryImpl.isValidCoordinate(40.0, 195.0))
         assertFalse(WeatherRepositoryImpl.isValidCoordinate(40.0, -185.0))
     }
+
+    @Test
+    fun airQualityResponse_decodesUsAqiCorrectly() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; isLenient = true }
+        val rawJson = """{"current":{"time":"2026-11-10T13:00","interval":3600,"us_aqi":42,"pm2_5":10.5}}"""
+        val response = json.decodeFromString<OpenMeteoAirQualityResponse>(rawJson)
+        assertEquals(42, response.current?.usAqi)
+    }
+
+    @Test
+    fun weatherInfo_supportsOptionalAqi() {
+        val infoWithAqi = com.urunkarpm.drawer.core.model.WeatherInfo(
+            temperatureCelsius = 20.0,
+            weatherCode = 0,
+            conditionDescription = "Clear sky",
+            cityName = "Delhi",
+            lastUpdatedMillis = 1000L,
+            aqi = 155
+        )
+        assertEquals(155, infoWithAqi.aqi)
+
+        val infoWithoutAqi = com.urunkarpm.drawer.core.model.WeatherInfo(
+            temperatureCelsius = 20.0,
+            weatherCode = 0,
+            conditionDescription = "Clear sky",
+            cityName = "Delhi",
+            lastUpdatedMillis = 1000L
+        )
+        org.junit.Assert.assertNull(infoWithoutAqi.aqi)
+    }
 }
