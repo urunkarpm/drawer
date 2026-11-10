@@ -20,8 +20,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.urunkarpm.drawer.core.designsystem.component.AppIconCache
 import com.urunkarpm.drawer.core.designsystem.component.toImageBitmapSafe
-import com.urunkarpm.drawer.core.model.LauncherAction
-import com.urunkarpm.drawer.feature.home.action.LauncherActionRouter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -164,9 +162,6 @@ class HomeViewModel @Inject constructor(
     private val _shortcuts = MutableStateFlow<List<AppShortcutInfo>>(emptyList())
     private val _userMessage = MutableStateFlow<String?>(null)
     private val _pendingMindfulApp = MutableStateFlow<AppInfo?>(null)
-    private val _suggestedAction = MutableStateFlow<LauncherAction?>(null)
-    val suggestedAction: StateFlow<LauncherAction?> = _suggestedAction.asStateFlow()
-
     private val _suggestedApps = MutableStateFlow<List<AppInfo>>(emptyList())
     val suggestedApps: StateFlow<List<AppInfo>> = _suggestedApps.asStateFlow()
 
@@ -178,8 +173,6 @@ class HomeViewModel @Inject constructor(
     private var currentMindfulApps: Set<String> = emptySet()
     private var currentDockedPackages: Set<String> = emptySet()
     private var currentInstalledApps: List<AppInfo> = emptyList()
-
-    private var searchJob: Job? = null
 
     private val glancePrefsFlow = combine<Any, GlancePrefs>(
         preferencesDataSource.is24Hour,
@@ -562,12 +555,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun notifyCommandProcessed(summary: String) {}
-
-    fun notifyCommandFailed(summary: String) {}
-
-    fun resetCommandProcessingState() {}
-
     suspend fun changeAppSetting(setting: String, value: String?): String {
         val currentUiState = uiState.value
         val upperSetting = setting.uppercase().trim()
@@ -670,15 +657,6 @@ class HomeViewModel @Inject constructor(
 
     fun onSearchQueryChanged(newQuery: String) {
         _searchQuery.value = newQuery
-        searchJob?.cancel()
-        if (newQuery.isBlank()) {
-            _suggestedAction.value = null
-        } else {
-            searchJob = viewModelScope.launch {
-                delay(150)
-                _suggestedAction.value = LauncherActionRouter.parseAction(newQuery)
-            }
-        }
     }
 
     private var lastLaunchedPackage: String? = null
@@ -728,8 +706,6 @@ class HomeViewModel @Inject constructor(
     fun closeAllApps() {
         _isAllAppsOpen.value = false
         _searchQuery.value = ""
-        _suggestedAction.value = null
-        searchJob?.cancel()
     }
 
     fun toggleAllApps(activeNotificationPackages: Set<String> = emptySet()) {
