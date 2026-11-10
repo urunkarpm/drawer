@@ -124,8 +124,6 @@ import com.urunkarpm.drawer.feature.home.dragdrop.DragDropResult
 import com.urunkarpm.drawer.feature.home.dragdrop.appDragSource
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.key
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
@@ -223,33 +221,6 @@ fun AllAppsDrawer(
 
             // Apps are already filtered in HomeViewModel; use directly to prevent double-allocation jank
             val displayedApps = apps
-
-            val appPositions = remember { mutableMapOf<String, Offset>() }
-            val dustState = rememberDustParticleState()
-            var previousApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
-            val particleColor = MaterialTheme.colorScheme.onSurfaceVariant
-
-            LaunchedEffect(displayedApps, searchQuery) {
-                if (searchQuery.isNotBlank() && previousApps.isNotEmpty() && displayedApps.size < previousApps.size) {
-                    val currentKeys = displayedApps.map { it.componentKey }.toSet()
-                    val removed = previousApps.filter { it.componentKey !in currentKeys }
-                    for (app in removed) {
-                        val pos = appPositions[app.componentKey]
-                        if (pos != null) {
-                            dustState.spawnPuff(pos, particleColor)
-                            appPositions.remove(app.componentKey)
-                        }
-                    }
-                }
-                previousApps = displayedApps
-            }
-
-            LaunchedEffect(visible) {
-                if (!visible) {
-                    appPositions.clear()
-                    previousApps = emptyList()
-                }
-            }
 
             val configuration = LocalConfiguration.current
             val screenWidth = configuration.screenWidthDp
@@ -455,21 +426,18 @@ fun AllAppsDrawer(
                     )
                 }
 
-                val containerCoordinates = remember { mutableStateOf<LayoutCoordinates?>(null) }
-
                 // 1. App List Grid Area with privacy blur support
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .clipToBounds()
-                        .onGloballyPositioned { containerCoordinates.value = it }
                 ) {
-                    val effectiveBlurRadius = (18.dp * blurTransition)
+                    // ponytail: static blur when privacy mode is active; crossfade alpha overlay instead of dynamic radius recalculation to eliminate GPU pipeline stalls and Box recompositions during drawer open.
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .then(if (effectiveBlurRadius > 0.5.dp) Modifier.blur(effectiveBlurRadius) else Modifier)
+                            .then(if (isAppListBlurred) Modifier.blur(18.dp) else Modifier)
                     ) {
                         if (isLoading) {
                             Box(
@@ -528,17 +496,7 @@ fun AllAppsDrawer(
                                                     iconShape = iconShape,
                                                     dragDropState = dragDropState,
                                                     onDragDropResult = onDragDropResult,
-                                                    modifier = Modifier
-                                                        .width(76.dp)
-                                                        .onGloballyPositioned { coords ->
-                                                            val container = containerCoordinates.value
-                                                            if (container != null && container.isAttached && coords.isAttached) {
-                                                                appPositions[app.componentKey] = container.localPositionOf(
-                                                                    coords,
-                                                                    Offset(coords.size.width / 2f, coords.size.height / 2f)
-                                                                )
-                                                            }
-                                                        }
+                                                    modifier = Modifier.width(76.dp)
                                                 )
                                             }
                                         }
@@ -574,16 +532,7 @@ fun AllAppsDrawer(
                                             iconShape = iconShape,
                                             dragDropState = dragDropState,
                                             onDragDropResult = onDragDropResult,
-                                            activeScrubLetterProvider = { scrubProvider.value },
-                                            modifier = Modifier.onGloballyPositioned { coords ->
-                                                val container = containerCoordinates.value
-                                                if (container != null && container.isAttached && coords.isAttached) {
-                                                    appPositions[app.componentKey] = container.localPositionOf(
-                                                        coords,
-                                                        Offset(coords.size.width / 2f, coords.size.height / 2f)
-                                                    )
-                                                }
-                                            }
+                                            activeScrubLetterProvider = { scrubProvider.value }
                                         )
                                     }
                                 }
@@ -661,11 +610,6 @@ fun AllAppsDrawer(
                             }
                         }
                     }
-
-                    DustParticleOverlay(
-                        state = dustState,
-                        modifier = Modifier.fillMaxSize()
-                    )
                 }
 
                 // 2. Suggested Apps Row (NOT blurred, always visible, interactive, and aligned below app grid)

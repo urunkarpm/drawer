@@ -780,6 +780,13 @@ fun HomeScreen(
                                 }
                         )
                     }
+                    val currentGroups by rememberUpdatedState(groupsUiState.groups)
+                    val currentIsNotificationExpanded by rememberUpdatedState(isNotificationExpanded)
+                    val currentIsDuoStatusExpanded by rememberUpdatedState(isDuoStatusExpanded)
+                    val currentIsAllAppsOpen by rememberUpdatedState(uiState.isAllAppsOpen)
+                    val currentIsSettingsOpen by rememberUpdatedState(isSettingsOpen)
+                    val currentIsCameraOpen by rememberUpdatedState(isCameraOpen)
+
                     Column(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -790,59 +797,61 @@ fun HomeScreen(
                                 rootColumnBounds = coords.boundsInRoot()
                             }
                             // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
-                            .pointerInput(uiState.isAllAppsOpen, isSettingsOpen, isCameraOpen, isNotificationExpanded, groupsUiState.groups, isDuoStatusExpanded) {
-                                if (!uiState.isAllAppsOpen && !isSettingsOpen && !isCameraOpen) {
-                                    detectTapGestures(
-                                        onTap = { offset ->
-                                            val colBounds = rootColumnBounds ?: Rect.Zero
-                                            val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                            val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                            val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                            val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                            val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            if (isDuoStatusExpanded) {
-                                                isDuoStatusExpanded = false
-                                            } else if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
-                                                if (isNotificationExpanded) {
-                                                    isNotificationExpanded = false
-                                                }
-                                                if (groupsUiState.groups.any { it.group.isExpanded }) {
-                                                    groupsViewModel.collapseAllGroups()
-                                                }
+                            // pointerInput(Unit) with rememberUpdatedState prevents gesture detector coroutine restarts and dropped touches on list/state changes.
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = { offset ->
+                                        if (currentIsAllAppsOpen || currentIsSettingsOpen || currentIsCameraOpen) return@detectTapGestures
+                                        val colBounds = rootColumnBounds ?: Rect.Zero
+                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                        if (currentIsDuoStatusExpanded) {
+                                            isDuoStatusExpanded = false
+                                        } else if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                            if (currentIsNotificationExpanded) {
+                                                isNotificationExpanded = false
                                             }
-                                        },
-                                        onDoubleTap = { offset ->
-                                            if (isDuoStatusExpanded) {
-                                                isDuoStatusExpanded = false
-                                                return@detectTapGestures
-                                            }
-                                            val colBounds = rootColumnBounds ?: Rect.Zero
-                                            val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                            val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                            val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                            val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                            val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
-                                                onDoubleTapLock()
-                                            }
-                                        },
-                                        onLongPress = { offset ->
-                                            if (isDuoStatusExpanded) {
-                                                isDuoStatusExpanded = false
-                                                return@detectTapGestures
-                                            }
-                                            val colBounds = rootColumnBounds ?: Rect.Zero
-                                            val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                            val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                            val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                            val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                            val isOverNotification = notificationBounds?.contains(rootPos) == true
-                                            if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
-                                                showHomeMenu = true
+                                            if (currentGroups.any { it.group.isExpanded }) {
+                                                groupsViewModel.collapseAllGroups()
                                             }
                                         }
-                                    )
-                                }
+                                    },
+                                    onDoubleTap = { offset ->
+                                        if (currentIsAllAppsOpen || currentIsSettingsOpen || currentIsCameraOpen) return@detectTapGestures
+                                        if (currentIsDuoStatusExpanded) {
+                                            isDuoStatusExpanded = false
+                                            return@detectTapGestures
+                                        }
+                                        val colBounds = rootColumnBounds ?: Rect.Zero
+                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                        if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                            onDoubleTapLock()
+                                        }
+                                    },
+                                    onLongPress = { offset ->
+                                        if (currentIsAllAppsOpen || currentIsSettingsOpen || currentIsCameraOpen) return@detectTapGestures
+                                        if (currentIsDuoStatusExpanded) {
+                                            isDuoStatusExpanded = false
+                                            return@detectTapGestures
+                                        }
+                                        val colBounds = rootColumnBounds ?: Rect.Zero
+                                        val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
+                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
+                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
+                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
+                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                        if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
+                                            showHomeMenu = true
+                                        }
+                                    }
+                                )
                             }
                             // ponytail: outside swipe listener collapses notification drawer on upward drag outside or swipe on other category drawers; ceiling: fixed 24f drag threshold; upgrade path: velocity tracker fling dismiss.
                             .pointerInput(isNotificationExpanded) {
@@ -1025,6 +1034,10 @@ fun HomeScreen(
                     }
                 }
 
+                val currentHasNotifications by rememberUpdatedState(hasNotifications)
+                val currentIsNotificationExpandedDock by rememberUpdatedState(isNotificationExpanded)
+                val currentIsAllAppsOpenDock by rememberUpdatedState(uiState.isAllAppsOpen)
+
                 // Bottom: Dock (swiping up from dock opens app drawer 1:1 with finger)
                 Box(
                     modifier = Modifier
@@ -1033,7 +1046,8 @@ fun HomeScreen(
                         .onGloballyPositioned { coords ->
                             dragDropState.dockBounds = coords.boundsInRoot()
                         }
-                        .pointerInput(uiState.isAllAppsOpen, hasNotifications, isNotificationExpanded) {
+                        // ponytail: stable drag gesture recognizer with rememberUpdatedState; won't restart/drop drags when notification badges update mid-drag.
+                        .pointerInput(Unit) {
                             var dockDrag = 0f
                             var actionTriggered = false
                             detectVerticalDragGestures(
@@ -1044,15 +1058,15 @@ fun HomeScreen(
                                 onVerticalDrag = { _, dragAmount ->
                                     if (actionTriggered) return@detectVerticalDragGestures
                                     dockDrag += dragAmount
-                                    if (!uiState.isAllAppsOpen && dockDrag < -55f) {
-                                        if (isNotificationExpanded) {
+                                    if (!currentIsAllAppsOpenDock && dockDrag < -55f) {
+                                        if (currentIsNotificationExpandedDock) {
                                             isNotificationExpanded = false
                                         } else {
                                             viewModel.openAllApps(currentActiveNotificationPkgs)
                                         }
                                         actionTriggered = true
-                                    } else if (!uiState.isAllAppsOpen && dockDrag > 50f) {
-                                        if (hasNotifications && !isNotificationExpanded) {
+                                    } else if (!currentIsAllAppsOpenDock && dockDrag > 50f) {
+                                        if (currentHasNotifications && !currentIsNotificationExpandedDock) {
                                             isNotificationExpanded = true
                                             if (!effectiveTwoDrawersSideBySide) {
                                                 groupsViewModel.collapseAllGroups()
