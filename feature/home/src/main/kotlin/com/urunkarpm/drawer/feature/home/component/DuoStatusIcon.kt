@@ -94,7 +94,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.luminance
 import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
+import com.urunkarpm.drawer.core.designsystem.theme.CinematicPalettes
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -813,6 +815,23 @@ fun DuoStatusIcon(
     val inactiveBatteryColor = if (isCharging) chargingGreen.copy(alpha = 0.20f) else inactiveColor
     val alertRed = Color(0xFFFF3B30)
 
+    // ponytail: Surface-aware contrast engine for expanded telemetry card; ceiling: two-tier dark/light token derivation; upgrade path: full Material 3 dynamic color scheme harmonizer.
+    val palette = remember(cinematicPaletteId) { CinematicPalettes.find(cinematicPaletteId) }
+    val isCinematic = palette.id != CinematicPalettes.ID_DEFAULT
+    val cardSurfaceBase = if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surface
+    val isDarkSurface = cardSurfaceBase.luminance() < 0.5f
+
+    // High-contrast content colors guaranteeing WCAG AAA readability against glass/solid card surfaces
+    val cardTitleColor = if (isDarkSurface) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val cardSubtextColor = if (isDarkSurface) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val cardTertiaryColor = if (isDarkSurface) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.45f)
+    val cardTileBackground = if (isDarkSurface) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
+    val cardTileBorder = if (isDarkSurface) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.12f)
+    val cardAccentColor = if (isCinematic) palette.primaryAccent else (if (isDarkSurface) Color(0xFF818CF8) else Color(0xFF4F46E5))
+    val cardChargingGreen = if (isDarkSurface) Color(0xFF34C759) else Color(0xFF16A34A)
+    val cardAlertRed = if (isDarkSurface) Color(0xFFFF453A) else Color(0xFFDC2626)
+    val cardInactiveTrack = if (isDarkSurface) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.14f)
+
     // Morph container dimensions seamlessly
     val configuration = LocalConfiguration.current
     val maxTargetWidth = (configuration.screenWidthDp.dp - 32.dp).coerceIn(260.dp, 316.dp)
@@ -856,11 +875,30 @@ fun DuoStatusIcon(
         }
     ) {
         if (expandProgress > 0.05f) {
+            // Ground glass finishes with a protective high-contrast backing scrim so light or patterned wallpapers never bleed through and degrade legibility
+            val backingAlpha = when (surfaceThemeStyle) {
+                "SOLID" -> 0f
+                "TRANSPARENT" -> 0.40f
+                else -> 0.45f // LIQUID_GLASS, BLUR
+            } * ((expandProgress - 0.05f) / 0.95f).coerceIn(0f, 1f)
+
+            if (backingAlpha > 0f) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(currentCornerRadius))
+                        .background(
+                            if (isDarkSurface) Color.Black.copy(alpha = backingAlpha)
+                            else Color.White.copy(alpha = backingAlpha)
+                        )
+                )
+            }
+
             DrawerSurfaceBackground(
                 surfaceThemeStyle = surfaceThemeStyle,
                 shape = RoundedCornerShape(currentCornerRadius),
                 isExpanded = true,
-                accentColor = if (status.isCharging) chargingGreen else null,
+                accentColor = if (status.isCharging) cardChargingGreen else null,
                 isMesmerizingGlow = isMesmerizingGlow,
                 surfaceOpacity = surfaceOpacity,
                 surfaceStrokeOpacity = surfaceStrokeOpacity,
@@ -1100,23 +1138,31 @@ fun DuoStatusIcon(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(if (status.isCharging) chargingGreen else displayColor.copy(alpha = 0.85f))
+                                .background(if (status.isCharging) cardChargingGreen else cardAccentColor)
                         )
                         Text(
                             text = "Device Status",
                             fontFamily = LocalHeaderFontFamily.current,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = displayColor.copy(alpha = 0.85f),
+                            color = cardTitleColor,
                             letterSpacing = 0.4.sp
                         )
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(22.dp)
+                            .size(24.dp)
                             .clip(CircleShape)
-                            .background(displayColor.copy(alpha = 0.08f))
+                            .background(
+                                if (isDarkSurface) Color.White.copy(alpha = 0.12f)
+                                else Color.Black.copy(alpha = 0.08f)
+                            )
+                            .border(
+                                width = 0.8.dp,
+                                color = cardTileBorder,
+                                shape = CircleShape
+                            )
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -1130,7 +1176,7 @@ fun DuoStatusIcon(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = displayColor.copy(alpha = 0.70f),
+                            tint = cardTitleColor,
                             modifier = Modifier.size(13.dp)
                         )
                     }
@@ -1146,10 +1192,10 @@ fun DuoStatusIcon(
                             translationY = (1f - ((ep - 0.22f) / 0.80f).coerceIn(0f, 1f)) * -6f
                         }
                         .clip(RoundedCornerShape(13.dp))
-                        .background(displayColor.copy(alpha = 0.05f))
+                        .background(cardTileBackground)
                         .border(
                             width = 0.8.dp,
-                            color = displayColor.copy(alpha = 0.10f),
+                            color = cardTileBorder,
                             shape = RoundedCornerShape(13.dp)
                         )
                         .padding(horizontal = 11.dp, vertical = 8.dp),
@@ -1167,7 +1213,7 @@ fun DuoStatusIcon(
                             Icon(
                                 imageVector = if (status.isCharging) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
                                 contentDescription = null,
-                                tint = if (status.isCharging) chargingGreen else displayColor,
+                                tint = if (status.isCharging) cardChargingGreen else cardTitleColor,
                                 modifier = Modifier.size(17.dp)
                             )
                             Text(
@@ -1175,7 +1221,7 @@ fun DuoStatusIcon(
                                 fontFamily = LocalHeaderFontFamily.current,
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = displayColor
+                                color = cardTitleColor
                             )
                         }
 
@@ -1188,7 +1234,7 @@ fun DuoStatusIcon(
                                     text = String.format(Locale.US, "%.1f°C", liveTemp),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = displayColor.copy(alpha = 0.65f)
+                                    color = cardSubtextColor
                                 )
                             }
                             Text(
@@ -1196,7 +1242,7 @@ fun DuoStatusIcon(
                                 fontFamily = LocalHeaderFontFamily.current,
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (status.isCharging) chargingGreen else displayColor
+                                color = if (status.isCharging) cardChargingGreen else cardTitleColor
                             )
                         }
                     }
@@ -1208,7 +1254,7 @@ fun DuoStatusIcon(
                             .fillMaxWidth()
                             .height(5.dp)
                             .clip(RoundedCornerShape(3.dp))
-                            .background(inactiveBatteryColor)
+                            .background(cardInactiveTrack)
                     ) {
                         Box(
                             modifier = Modifier
@@ -1216,7 +1262,7 @@ fun DuoStatusIcon(
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(3.dp))
                                 .background(
-                                    if (isCharging) chargingGreen else activeBatteryColor
+                                    if (isCharging) cardChargingGreen else cardAccentColor
                                 )
                                 .graphicsLayer {
                                     if (isCharging) {
@@ -1244,7 +1290,7 @@ fun DuoStatusIcon(
                                 text = standardText,
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = chargingGreen,
+                                color = cardChargingGreen,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1270,7 +1316,7 @@ fun DuoStatusIcon(
                                 text = powerText,
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = chargingGreen
+                                color = cardChargingGreen
                             )
                         }
                     }
@@ -1292,10 +1338,10 @@ fun DuoStatusIcon(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(13.dp))
-                            .background(displayColor.copy(alpha = 0.05f))
+                            .background(cardTileBackground)
                             .border(
                                 width = 0.8.dp,
-                                color = displayColor.copy(alpha = 0.10f),
+                                color = cardTileBorder,
                                 shape = RoundedCornerShape(13.dp)
                             )
                             .padding(horizontal = 10.dp, vertical = 7.dp)
@@ -1309,7 +1355,7 @@ fun DuoStatusIcon(
                                 Icon(
                                     imageVector = if (status.isWifiConnected) Icons.Default.Wifi else Icons.Default.WifiOff,
                                     contentDescription = null,
-                                    tint = if (status.isWifiConnected) displayColor else alertRed,
+                                    tint = if (status.isWifiConnected) cardTitleColor else cardAlertRed,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Text(
@@ -1317,7 +1363,7 @@ fun DuoStatusIcon(
                                     fontFamily = LocalHeaderFontFamily.current,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = displayColor.copy(alpha = 0.65f)
+                                    color = cardSubtextColor
                                 )
                             }
                             val wifiStatusText = if (status.isWifiConnected) {
@@ -1335,7 +1381,7 @@ fun DuoStatusIcon(
                                 fontFamily = LocalHeaderFontFamily.current,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (status.isWifiConnected) displayColor else alertRed,
+                                color = if (status.isWifiConnected) cardTitleColor else cardAlertRed,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1347,10 +1393,10 @@ fun DuoStatusIcon(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(13.dp))
-                            .background(displayColor.copy(alpha = 0.05f))
+                            .background(cardTileBackground)
                             .border(
                                 width = 0.8.dp,
-                                color = displayColor.copy(alpha = 0.10f),
+                                color = cardTileBorder,
                                 shape = RoundedCornerShape(13.dp)
                             )
                             .padding(horizontal = 10.dp, vertical = 7.dp)
@@ -1364,7 +1410,7 @@ fun DuoStatusIcon(
                                 Icon(
                                     imageVector = Icons.Default.NetworkCell,
                                     contentDescription = null,
-                                    tint = if (status.isCellularConnected) displayColor else alertRed,
+                                    tint = if (status.isCellularConnected) cardTitleColor else cardAlertRed,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 val carrierLabel = status.networkType ?: "Cellular"
@@ -1373,7 +1419,7 @@ fun DuoStatusIcon(
                                     fontFamily = LocalHeaderFontFamily.current,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = displayColor.copy(alpha = 0.65f),
+                                    color = cardSubtextColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -1399,7 +1445,7 @@ fun DuoStatusIcon(
                                     fontFamily = LocalHeaderFontFamily.current,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (status.isCellularConnected) displayColor else alertRed,
+                                    color = if (status.isCellularConnected) cardTitleColor else cardAlertRed,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -1410,11 +1456,11 @@ fun DuoStatusIcon(
                                     for (i in 1..4) {
                                         val isFilled = status.isCellularConnected && status.cellularLevel >= i
                                         val dotColor = if (!status.isCellularConnected) {
-                                            alertRed
+                                            cardAlertRed
                                         } else if (isFilled) {
-                                            activeColor
+                                            cardAccentColor
                                         } else {
-                                            inactiveColor
+                                            cardInactiveTrack
                                         }
                                         Box(
                                             modifier = Modifier
@@ -1440,13 +1486,13 @@ fun DuoStatusIcon(
                         }
                         .clip(RoundedCornerShape(13.dp))
                         .background(
-                            if (isSpeedTesting) chargingGreen.copy(alpha = 0.12f)
-                            else displayColor.copy(alpha = 0.05f)
+                            if (isSpeedTesting) cardChargingGreen.copy(alpha = 0.15f)
+                            else cardTileBackground
                         )
                         .border(
                             width = 0.8.dp,
-                            color = if (isSpeedTesting) chargingGreen.copy(alpha = 0.35f)
-                            else displayColor.copy(alpha = 0.10f),
+                            color = if (isSpeedTesting) cardChargingGreen.copy(alpha = 0.40f)
+                            else cardTileBorder,
                             shape = RoundedCornerShape(13.dp)
                         )
                         .clickable(
@@ -1465,7 +1511,7 @@ fun DuoStatusIcon(
                         Icon(
                             imageVector = Icons.Default.Speed,
                             contentDescription = null,
-                            tint = if (isSpeedTesting) chargingGreen else displayColor.copy(alpha = 0.80f),
+                            tint = if (isSpeedTesting) cardChargingGreen else cardTitleColor.copy(alpha = 0.85f),
                             modifier = Modifier.size(15.dp)
                         )
                         Text(
@@ -1473,7 +1519,7 @@ fun DuoStatusIcon(
                             fontFamily = LocalHeaderFontFamily.current,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = displayColor
+                            color = cardTitleColor
                         )
                     }
 
@@ -1488,9 +1534,9 @@ fun DuoStatusIcon(
                             else -> "Tap to test"
                         }
                         val speedColor = when {
-                            isSpeedTesting -> chargingGreen
-                            speedText == "Offline" || speedText == "Error" || speedText == "Unavailable" -> alertRed
-                            else -> displayColor
+                            isSpeedTesting -> cardChargingGreen
+                            speedText == "Offline" || speedText == "Error" || speedText == "Unavailable" -> cardAlertRed
+                            else -> cardTitleColor
                         }
 
                         Text(
@@ -1504,7 +1550,7 @@ fun DuoStatusIcon(
                             text = "↺",
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSpeedTesting) chargingGreen else displayColor.copy(alpha = 0.50f),
+                            color = if (isSpeedTesting) cardChargingGreen else cardTertiaryColor,
                             modifier = Modifier.graphicsLayer {
                                 if (isSpeedTesting) {
                                     rotationZ = retestRotation
