@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.5.0-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.6.1-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -31,12 +31,14 @@ Everything you need to get things done is reachable in under a second; everythin
 
 ---
 
-## 🌟 What's New in v2.0.0
+## 🌟 What's New in v2.6.1
 
-* **🎙️ Voice & Action Assistant (100% Offline):** Experience fast, private intelligence directly on your home screen. Execute voice or text commands to trigger system toggles (Flashlight, Wi-Fi, Bluetooth, Volume, Camera), launch apps, set timers & alarms, organize categories, and compute quick calculations—with zero cloud latency, zero telemetry, and zero data leaving your phone.
-* **⚡ 120Hz Zero-Jank App Drawer:** Completely rebuilt the all-apps drawer list pipeline. Removed redundant allocations, eliminated expensive real-time background GPU blurs, and stabilized the search header for ultra-smooth 120fps flings.
+* **🌊 Fluid 1:1 Swipe-Up Gestures & Natural Spring Physics:** Redesigned drawer pull gestures with true 1:1 finger tracking, velocity-matched release dynamics, restorative springs (`FluidSpringPhysics`), and smooth privacy blur scrim.
+* **🎙️ Instant Voice & Quick Actions (100% Offline):** Direct, native on-device command routing for timers, alarms, system toggles (Flashlight, Wi-Fi, Bluetooth, Audio), and app launching with zero network latency, zero telemetry, and zero bloat.
+* **⚡ 120Hz Zero-Jank App Drawer:** Completely rebuilt the all-apps drawer list pipeline. Removed redundant allocations, eliminated nested scroll traps and background GPU overdraw, and stabilized the search header for ultra-smooth 120fps flings.
+* **🎰 Casino Reel Shuffle & Vibrant Palettes:** Delightful icon shuffle animations, enhanced Pantone procedural wallpaper generator with duotones, and API 26+ backwards-compatible dynamic colors.
 * **🛡️ Smart Viewport & Mutual Exclusion:** Opening any category drawer automatically collapses the assistant drawer, and expanding the assistant drawer closes category drawers—eliminating viewport obstructions so all drawers and touch targets remain accessible.
-* **🔕 Distraction-Free Toggle & Dev Notes:** On-device AI is disabled by default to maintain minimalist purity; enabling it presents a detailed capability guide.
+* **🪶 Lean Platform Stack:** Streamlined dependencies by replacing external client stacks with Android platform capabilities (`HttpURLConnection`), eliminating thousands of lines of dead abstractions while keeping the APK featherlight.
 
 ---
 
@@ -195,9 +197,11 @@ For engineers and contributors, Drawer is engineered according to Google's offic
 
 * **UI Layer:** 100% Jetpack Compose with Material 3 design tokens.
 * **Asynchronous Streams:** Kotlin Coroutines and reactive `StateFlow` / `SharedFlow`.
+* **Action Router:** Deterministic, regex-powered on-device action dispatcher for instant voice and text intent handling with zero external runtime.
 * **Predictive Algorithm:** On-device Frecency ranking reconciling launch count and timestamps.
 * **Persistence:** AndroidX Room DB + Jetpack DataStore (zero raw SQLite/SharedPreferences).
 * **Performance:** Hardware-accelerated graphics with RenderEffect runtime blur shaders (Android 12+) and legacy-safe fallbacks.
+* **Network:** Standard platform `HttpURLConnection` for lightweight weather and update checks with zero third-party client bloat.
 
 ---
 
