@@ -15,8 +15,4 @@ object DispatchersModule {
     @Provides
     @Dispatcher(DrawerDispatchers.IO)
     fun providesIODispatcher(): CoroutineDispatcher = Dispatchers.IO
-
-    @Provides
-    @Dispatcher(DrawerDispatchers.Default)
-    fun providesDefaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
 }

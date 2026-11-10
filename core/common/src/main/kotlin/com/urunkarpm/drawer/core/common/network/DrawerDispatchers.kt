@@ -7,6 +7,5 @@ import javax.inject.Qualifier
 annotation class Dispatcher(val drawerDispatcher: DrawerDispatchers)
 
 enum class DrawerDispatchers {
-    Default,
     IO
 }
