@@ -1,0 +1,5 @@
+• Lean Architecture: Pruned heavy third-party dependencies and dead mocks, drastically reducing app footprint
+• 120Hz Zero-Hitch Scroll: Eliminated scroll hitches and recomposition stalls across app drawers
+• Zero-Leak Lifecycles: Fixed Activity cache leaks and hardened widget manager lifecycles
+• Theming & Inset Polish: Added API 26/27 light navigation theming and window inset fallbacks
+• Modern Backup Rules: Added Android 12+ backup and data extraction rules to protect user settings

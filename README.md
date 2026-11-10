@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.6.1-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.7.0-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -31,13 +31,13 @@ Everything you need to get things done is reachable in under a second; everythin
 
 ---
 
-## 🌟 What's New in v2.6.1
+## 🌟 What's New in v2.7.0
 
-* **🌊 Fluid 1:1 Swipe-Up Gestures & Natural Spring Physics:** Redesigned drawer pull gestures with true 1:1 finger tracking, velocity-matched release dynamics, restorative springs (`FluidSpringPhysics`), and smooth privacy blur scrim.
-* **⚡ 120Hz Zero-Jank App Drawer:** Completely rebuilt the all-apps drawer list pipeline. Removed redundant allocations, eliminated nested scroll traps and background GPU overdraw, and stabilized the search header for ultra-smooth 120fps flings.
-* **🎰 Casino Reel Shuffle & Vibrant Palettes:** Delightful icon shuffle animations, enhanced Pantone procedural wallpaper generator with duotones, and API 26+ backwards-compatible dynamic colors.
-* **🛡️ Smart Viewport & Mutual Exclusion:** Opening any category drawer automatically collapses other expanded drawers—eliminating viewport obstructions so all drawers and touch targets remain effortlessly accessible.
-* **🪶 Lean Platform Stack:** Streamlined dependencies by replacing external client stacks with Android platform capabilities (`HttpURLConnection`), eliminating thousands of lines of dead abstractions while keeping the APK featherlight.
+* **🪶 Lean Architecture & Pure Android Stack:** Completely pruned legacy heavy dependencies (Ktor, unused Coil & Jetpack Navigation libraries, unapplied Detekt, and dead AI assistant mocks), stripping over 4,000 lines of dead code to return Drawer to its fast, focused, and featherweight core.
+* **⚡ 120Hz Zero-Hitch Rendering & Scroll Polish:** Eliminated recomposition hitches, unnecessary particle overlays, and scroll stalls across all drawers. Hardware-accelerated blur scrim transitions run at butter-smooth 120 FPS.
+* **🛡️ Zero-Leak Lifecycle & Widget Reliability:** Resolved Activity cache leaks and hardened `DrawerWidgetHostManager` listener lifecycles, ensuring zero memory accumulation over long-term continuous uptime.
+* **🎨 Backwards-Compatible Theming & Inset Polish:** Added native Android 8.0/8.1 (API 26/27) window insets and light navigation bar theming fallbacks (`values-v27/themes.xml`), fixing wallpaper color sampling and contrast.
+* **🔒 Modern Backup & Data Protection:** Added scoped Android 12+ Cloud Backup and Device-to-Device data extraction rules (`data_extraction_rules.xml`, `backup_rules.xml`) to safeguard user layouts and preferences.
 
 ---
 
