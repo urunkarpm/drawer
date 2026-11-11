@@ -22,11 +22,20 @@ import com.urunkarpm.drawer.core.model.MuteRuleType
 import com.urunkarpm.drawer.core.model.MutedAppRule
 import com.urunkarpm.drawer.core.model.WidgetDrawer
 import com.urunkarpm.drawer.core.model.WidgetItem
+import com.urunkarpm.drawer.core.database.dao.TodoDao
+import com.urunkarpm.drawer.core.database.dao.SavedPlaceDao
+import com.urunkarpm.drawer.core.database.entity.TodoEntity
+import com.urunkarpm.drawer.core.database.entity.SavedPlaceEntity
+import com.urunkarpm.drawer.core.data.reconcile.TodoReconciler
+import com.urunkarpm.drawer.core.model.TodoItem
+import com.urunkarpm.drawer.core.model.SavedPlace
+import com.urunkarpm.drawer.core.model.TodoSettings
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import javax.inject.Provider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -48,6 +57,9 @@ class BackupRepositoryTest {
     private val widgetDao: WidgetDao = mockk(relaxed = true)
     private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
     private val widgetHostManager: DrawerWidgetHostManager = mockk(relaxed = true)
+    private val todoDao: TodoDao = mockk(relaxed = true)
+    private val savedPlaceDao: SavedPlaceDao = mockk(relaxed = true)
+    private val todoReconciler: TodoReconciler = mockk(relaxed = true)
 
     private val groupsFlow = MutableStateFlow<List<AppGroupEntity>>(emptyList())
     private val groupItemsFlow = MutableStateFlow<List<AppGroupItemEntity>>(emptyList())
@@ -56,6 +68,9 @@ class BackupRepositoryTest {
     private val overridesFlow = MutableStateFlow<List<IconPackOverrideEntity>>(emptyList())
     private val widgetDrawersFlow = MutableStateFlow<List<WidgetDrawerEntity>>(emptyList())
     private val widgetsFlow = MutableStateFlow<List<WidgetItemEntity>>(emptyList())
+    private val todosFlow = MutableStateFlow<List<TodoEntity>>(emptyList())
+    private val savedPlacesFlow = MutableStateFlow<List<SavedPlaceEntity>>(emptyList())
+    private val todoSettingsFlow = MutableStateFlow(TodoSettings())
 
     private lateinit var repository: BackupRepository
 
@@ -68,6 +83,9 @@ class BackupRepositoryTest {
         every { iconPackOverrideDao.getAllOverrides() } returns overridesFlow
         every { widgetDao.getAllDrawers() } returns widgetDrawersFlow
         every { widgetDao.getAllWidgets() } returns widgetsFlow
+        every { todoDao.getAllTodos() } returns todosFlow
+        every { savedPlaceDao.getAll() } returns savedPlacesFlow
+        every { preferencesDataSource.todoSettings } returns todoSettingsFlow
 
         coEvery { preferencesDataSource.getPreferencesBackup() } returns LauncherPreferencesBackup(
             themeMode = "DARK",
@@ -86,6 +104,9 @@ class BackupRepositoryTest {
             iconPackOverrideDao = iconPackOverrideDao,
             widgetDao = widgetDao,
             preferencesDataSource = preferencesDataSource,
+            todoDao = todoDao,
+            savedPlaceDao = savedPlaceDao,
+            todoReconciler = Provider { todoReconciler },
             ioDispatcher = testDispatcher,
             widgetHostManager = widgetHostManager
         )
@@ -247,5 +268,52 @@ class BackupRepositoryTest {
     fun restoreBackupJson_returnsFailureOnMalformedJson() = runTest(testDispatcher) {
         val result = repository.restoreBackupJson("invalid json content")
         assertTrue(result.isFailure)
+    }
+
+    @Test
+    fun createBackupJson_includesTodosAndSavedPlacesAndSettings() = runTest(testDispatcher) {
+        val todo = TodoEntity(id = 1L, title = "Buy Milk", priority = "HIGH")
+        val place = SavedPlaceEntity(id = 1L, name = "Grocery Store", latitude = 10.0, longitude = 20.0, radiusM = 300f)
+        todosFlow.value = listOf(todo)
+        savedPlacesFlow.value = listOf(place)
+        todoSettingsFlow.value = TodoSettings(locationFeaturesEnabled = false, quietHoursStart = "23:00")
+
+        val jsonString = repository.createBackupJson()
+        val backup = Json.decodeFromString(LauncherBackup.serializer(), jsonString)
+
+        assertEquals(1, backup.todos.size)
+        assertEquals("Buy Milk", backup.todos[0].title)
+        assertEquals(1, backup.savedPlaces.size)
+        assertEquals("Grocery Store", backup.savedPlaces[0].name)
+        assertEquals(false, backup.todoSettings.locationFeaturesEnabled)
+        assertEquals("23:00", backup.todoSettings.quietHoursStart)
+    }
+
+    @Test
+    fun restoreBackupJson_restoresTodosSavedPlacesAndReconciles() = runTest(testDispatcher) {
+        val todo = TodoItem(id = 10L, title = "Call Mom")
+        val place = SavedPlace(id = 5L, name = "Office", latitude = 12.34, longitude = 56.78)
+        val settings = TodoSettings(dailyCheckTime = "10:00")
+
+        val backup = LauncherBackup(
+            version = 4,
+            exportTimestampMillis = 3000L,
+            groups = emptyList(),
+            dockItems = emptyList(),
+            todos = listOf(todo),
+            savedPlaces = listOf(place),
+            todoSettings = settings
+        )
+
+        val jsonString = Json.encodeToString(LauncherBackup.serializer(), backup)
+        val result = repository.restoreBackupJson(jsonString)
+
+        assertTrue(result.isSuccess)
+        coVerify { todoDao.clearAll() }
+        coVerify { todoDao.insertAll(match { it.size == 1 && it[0].title == "Call Mom" }) }
+        coVerify { savedPlaceDao.clearAll() }
+        coVerify { savedPlaceDao.insertAll(match { it.size == 1 && it[0].name == "Office" }) }
+        coVerify { preferencesDataSource.updateTodoSettings(match { it.dailyCheckTime == "10:00" }) }
+        coVerify { todoReconciler.reconcile() }
     }
 }

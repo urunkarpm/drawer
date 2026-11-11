@@ -15,6 +15,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -62,11 +65,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import android.app.Activity
+import android.view.WindowManager
+import androidx.compose.runtime.snapshotFlow
+import kotlin.math.roundToInt
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
@@ -179,10 +186,12 @@ fun HomeScreen(
     val dockShowLabels by viewModel.dockShowLabels.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+    val accentColor by viewModel.accentColor.collectAsStateWithLifecycle()
     val dockIconSize by viewModel.dockIconSize.collectAsStateWithLifecycle()
     val multiGroupApps by viewModel.multiGroupApps.collectAsStateWithLifecycle()
     val lockLayout by viewModel.lockLayout.collectAsStateWithLifecycle()
     val autoCategorizeNewApps by viewModel.autoCategorizeNewApps.collectAsStateWithLifecycle()
+    val staleTodoCount by viewModel.staleTodoCount.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
@@ -339,9 +348,14 @@ fun HomeScreen(
     var pendingAppWidgetId by rememberSaveable { mutableStateOf<Int?>(null) }
     var targetDrawerIdForAdd by rememberSaveable { mutableStateOf<String?>(null) }
     var showWidgetPickerSheet by rememberSaveable { mutableStateOf(false) }
+
+    val homePageIndex = if (uiState.enableWidgetsPage) 1 else 0
+    val todoPageIndex = if (uiState.enableWidgetsPage) 2 else 1
+    val totalPages = if (uiState.enableWidgetsPage) 3 else 2
+
     val pagerState = rememberPagerState(
-        initialPage = 1,
-        pageCount = { 2 }
+        initialPage = if (uiState.enableWidgetsPage) 1 else 0,
+        pageCount = { totalPages }
     )
 
     val homeScale = remember { Animatable(1f) }
@@ -634,6 +648,43 @@ fun HomeScreen(
         }
     }
 
+    // ponytail: Dynamic 50% wallpaper blur when swiping to/from the To-Do page, active only when global wallpaper blur is OFF
+    LaunchedEffect(uiState.wallpaperBlur, todoPageIndex) {
+        if (!uiState.wallpaperBlur && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val activity = context as? android.app.Activity
+            val window = activity?.window ?: return@LaunchedEffect
+            var lastRadius = -1
+            snapshotFlow {
+                val rawOffset = (pagerState.currentPage - todoPageIndex) + pagerState.currentPageOffsetFraction
+                val p = (1f - kotlin.math.abs(rawOffset)).coerceIn(0f, 1f)
+                // Smoothstep easing: 3p^2 - 2p^3 provides seamless, jank-free 120fps acceleration & deceleration
+                p * p * (3f - 2f * p)
+            }.collect { progress ->
+                val targetBlur = (50f * progress).roundToInt()
+                if (targetBlur != lastRadius) {
+                    lastRadius = targetBlur
+                    try {
+                        if (targetBlur > 0) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                        }
+                        window.setBackgroundBlurRadius(targetBlur)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
+    DisposableEffect(uiState.wallpaperBlur) {
+        onDispose {
+            if (!uiState.wallpaperBlur && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                try {
+                    val activity = context as? android.app.Activity
+                    activity?.window?.setBackgroundBlurRadius(0)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     val areOtherDrawersOpen = uiState.isAllAppsOpen || groupsUiState.groups.any { it.group.isExpanded }
 
     var lastDrawerCollapseTime by remember { mutableLongStateOf(0L) }
@@ -771,9 +822,17 @@ fun HomeScreen(
                 .background(Color.Transparent)
         ) {
             if (uiState.dynamicWallpaperEnabled) {
+                val dynamicBlur = if (!uiState.wallpaperBlur) {
+                    val rawOffset = (pagerState.currentPage - todoPageIndex) + pagerState.currentPageOffsetFraction
+                    val p = (1f - kotlin.math.abs(rawOffset)).coerceIn(0f, 1f)
+                    val smooth = p * p * (3f - 2f * p)
+                    (uiState.wallpaperGradientBlurPercent + (50f * smooth).roundToInt()).coerceIn(0, 100)
+                } else {
+                    uiState.wallpaperGradientBlurPercent
+                }
                 com.urunkarpm.drawer.core.designsystem.component.DynamicPantoneWallpaper(
                     speedSeconds = uiState.wallpaperGradientSpeedSeconds,
-                    blurPercent = uiState.wallpaperGradientBlurPercent,
+                    blurPercent = dynamicBlur,
                     paletteId = uiState.wallpaperGradientPalette,
                     angleStyle = uiState.wallpaperGradientAngle,
                     modifier = Modifier.fillMaxSize()
@@ -951,6 +1010,52 @@ fun HomeScreen(
                             }
                     )
 
+                    if (staleTodoCount > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .clickable {
+                                    coroutineScope.launch {
+                                        pagerState.animateScrollToPage(todoPageIndex)
+                                    }
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WarningAmber,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "$staleTodoCount ${if (staleTodoCount == 1) "task" else "tasks"} open for more than a day",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "View",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // Middle: Notifications (always full width at top) + Category Drawers (side-by-side or stacked vertically)
@@ -1083,6 +1188,57 @@ fun HomeScreen(
                 val currentAnyCategoryExpandedDock by rememberUpdatedState(groupsUiState.groups.any { it.group.isExpanded })
                 val currentIsAllAppsOpenDock by rememberUpdatedState(uiState.isAllAppsOpen)
 
+                // Pager Indicator with red badge for stale tasks
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    for (pageIdx in 0 until totalPages) {
+                        val isSelected = pagerState.currentPage == pageIdx
+                        val isTodoPage = pageIdx == todoPageIndex
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 6.dp)
+                                .clickable {
+                                    coroutineScope.launch {
+                                        pagerState.animateScrollToPage(pageIdx)
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(if (isSelected) 8.dp else 6.dp)
+                                    .background(
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                        shape = CircleShape
+                                    )
+                            )
+                            if (isTodoPage && staleTodoCount > 0) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.error,
+                                    shape = CircleShape,
+                                    modifier = Modifier
+                                        .offset(x = 8.dp, y = (-8).dp)
+                                        .size(16.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = if (staleTodoCount > 9) "9+" else "$staleTodoCount",
+                                            color = MaterialTheme.colorScheme.onError,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Bottom: Dock (swiping up from dock opens app drawer 1:1 with finger)
                 Box(
                     modifier = Modifier
@@ -1142,20 +1298,20 @@ fun HomeScreen(
         }
     }
 
-    // ── Left Widgets Page and Home Page (only active when enabled in Settings) ──
-    // Resistance connection for WidgetsPage pull from Home (page 1 -> page 0)
-    // ponytail: initial pull gate absorbs accidental micro-swipes (<72px) without dampening swipe velocity so an intentional gesture opens the widget drawer in a single swipe; ceiling is fixed ~24dp deadband; upgrade path is user-configurable resistance threshold in Settings.
-    val widgetPageResistanceConnection = remember(pagerState) {
+    // ── Left Widgets Page, Center Home, and Right To-Do Page ──
+    // Resistance connection for WidgetsPage pull from Home
+    val widgetPageResistanceConnection = remember(pagerState, homePageIndex, todoPageIndex) {
         object : NestedScrollConnection {
             private var pullAccumulator = 0f
             private val resistanceGatePx = 72f
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // ponytail: rightward swipe on home screen (page 1) consumes edge overscroll immediately to prevent stretchy rubber-band effect; ceiling: full edge overscroll suppression; upgrade path: customizable edge bounce physics.
-                if (source == NestedScrollSource.UserInput && pagerState.currentPage == 1 && available.x < 0f) {
+                // Rightmost page edge overscroll suppression
+                if (source == NestedScrollSource.UserInput && pagerState.currentPage == todoPageIndex && available.x < 0f) {
                     return Offset(available.x, 0f)
                 }
-                if (source == NestedScrollSource.UserInput && pagerState.currentPage == 1 && available.x > 0f) {
+                // Resistance when pulling towards Widgets page from Home
+                if (source == NestedScrollSource.UserInput && uiState.enableWidgetsPage && pagerState.currentPage == homePageIndex && available.x > 0f) {
                     if (pullAccumulator < resistanceGatePx) {
                         val needed = resistanceGatePx - pullAccumulator
                         val consumed = available.x.coerceAtMost(needed)
@@ -1167,7 +1323,7 @@ fun HomeScreen(
             }
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (available.x < 0f && pagerState.currentPage == 1) {
+                if (available.x < 0f && pagerState.currentPage == homePageIndex) {
                     pullAccumulator = 0f
                 }
                 return Offset.Zero
@@ -1180,8 +1336,8 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(pagerState.currentPage, pagerState.targetPage) {
-        if (pagerState.currentPage == 1 && pagerState.targetPage == 1) {
+    LaunchedEffect(pagerState.currentPage, pagerState.targetPage, homePageIndex) {
+        if (pagerState.currentPage == homePageIndex && pagerState.targetPage == homePageIndex) {
             viewModel.collapseAllWidgetDrawers()
             if (isNotificationExpanded) isNotificationExpanded = false
             if (groupsUiState.groups.any { it.group.isExpanded }) {
@@ -1190,37 +1346,38 @@ fun HomeScreen(
         }
     }
 
-    // Back button: If user is on Widgets feed (page 0), pressing Back returns to main Home (page 1)
-    BackHandler(enabled = uiState.enableWidgetsPage && pagerState.currentPage == 0 && !isCameraOpen && !isSettingsOpen && !showHomeMenu && !uiState.isAllAppsOpen && uiState.selectedAppForMenu == null && appForCategorySelection == null && !isNotificationExpanded && !groupsUiState.groups.any { it.group.isExpanded }) {
+    // Back button: If user is on Widgets feed or To-Do feed, pressing Back returns to main Home
+    val isNonHomePage = (uiState.enableWidgetsPage && pagerState.currentPage == 0) || (pagerState.currentPage == todoPageIndex)
+    BackHandler(enabled = isNonHomePage && !isCameraOpen && !isSettingsOpen && !showHomeMenu && !uiState.isAllAppsOpen && uiState.selectedAppForMenu == null && appForCategorySelection == null && !isNotificationExpanded && !groupsUiState.groups.any { it.group.isExpanded }) {
         coroutineScope.launch {
-            pagerState.animateScrollToPage(1)
+            pagerState.animateScrollToPage(homePageIndex)
         }
     }
 
-    if (uiState.enableWidgetsPage) {
-        @OptIn(ExperimentalFoundationApi::class)
-        CompositionLocalProvider(
-            LocalOverscrollFactory provides null,
-            LocalOverscrollConfiguration provides null
-        ) {
-            HorizontalPager(
+    @OptIn(ExperimentalFoundationApi::class)
+    CompositionLocalProvider(
+        LocalOverscrollFactory provides null,
+        LocalOverscrollConfiguration provides null
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = !dragDropState.isDragging &&
+                !uiState.isAllAppsOpen &&
+                !isSettingsOpen &&
+                !isCameraOpen &&
+                !isNotificationExpanded &&
+                !groupsUiState.groups.any { it.group.isExpanded } &&
+                !uiState.widgetDrawers.any { it.isExpanded },
+            flingBehavior = PagerDefaults.flingBehavior(
                 state = pagerState,
-                userScrollEnabled = !dragDropState.isDragging &&
-                    !uiState.isAllAppsOpen &&
-                    !isSettingsOpen &&
-                    !isCameraOpen &&
-                    !isNotificationExpanded &&
-                    !groupsUiState.groups.any { it.group.isExpanded } &&
-                    !uiState.widgetDrawers.any { it.isExpanded },
-                flingBehavior = PagerDefaults.flingBehavior(
-                    state = pagerState,
-                    snapPositionalThreshold = 0.35f
-                ),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(widgetPageResistanceConnection)
-            ) { page ->
-                if (page == 0) {
+                snapPositionalThreshold = 0.35f
+            ),
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(widgetPageResistanceConnection)
+        ) { page ->
+            when {
+                uiState.enableWidgetsPage && page == 0 -> {
                     WidgetsPage(
                         drawers = uiState.widgetDrawers,
                         standaloneWidgets = uiState.standaloneWidgets,
@@ -1257,7 +1414,7 @@ fun HomeScreen(
                         surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                         onBackToHome = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(1)
+                                pagerState.animateScrollToPage(homePageIndex)
                             }
                         },
                         modifier = Modifier
@@ -1265,13 +1422,18 @@ fun HomeScreen(
                             .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                             .navigationBarsPadding()
                     )
-                } else {
+                }
+                page == homePageIndex -> {
                     homeContent()
+                }
+                else -> {
+                    com.urunkarpm.drawer.feature.todo.TodoScreen(
+                        isWallpaperBlurActive = uiState.wallpaperBlur,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         }
-    } else {
-        homeContent()
     }
 
         // ── All Apps Drawer Overlay (slides up from bottom) ───────────────────
@@ -1627,6 +1789,8 @@ fun HomeScreen(
                 onSetDrawerThemeMode = viewModel::setDrawerThemeMode,
                 dynamicColor = dynamicColor,
                 onSetDynamicColor = viewModel::setDynamicColor,
+                accentColor = accentColor,
+                onSetAccentColor = viewModel::setAccentColor,
                 cinematicPalette = uiState.cinematicPalette,
                 onSetCinematicPalette = viewModel::setCinematicPalette,
                 surfaceThemeStyle = uiState.surfaceThemeStyle,

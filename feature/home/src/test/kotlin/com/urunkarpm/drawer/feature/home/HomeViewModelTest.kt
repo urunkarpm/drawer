@@ -50,6 +50,7 @@ class HomeViewModelTest {
     private val wallpaperBlurFlow = MutableStateFlow(false)
     private val wallpaperBlurRadiusFlow = MutableStateFlow(25f)
     private val drawerThemeModeFlow = MutableStateFlow("SYSTEM")
+    private val accentColorFlow = MutableStateFlow("DYNAMIC")
     private val autoOpenKeyboardInDrawerFlow = MutableStateFlow(false)
     private val showDuoStatusWidgetFlow = MutableStateFlow(true)
     private val enableCameraMirrorFlow = MutableStateFlow(true)
@@ -130,6 +131,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.wallpaperBlur } returns wallpaperBlurFlow
         every { preferencesDataSource.wallpaperBlurRadius } returns wallpaperBlurRadiusFlow
         every { preferencesDataSource.drawerThemeMode } returns drawerThemeModeFlow
+        every { preferencesDataSource.accentColor } returns accentColorFlow
         every { preferencesDataSource.autoOpenKeyboardInDrawer } returns autoOpenKeyboardInDrawerFlow
         every { preferencesDataSource.showDuoStatusWidget } returns showDuoStatusWidgetFlow
         every { preferencesDataSource.enableCameraMirror } returns enableCameraMirrorFlow
@@ -681,6 +683,13 @@ class HomeViewModelTest {
         viewModel.toggleMindfulApp("com.twitter.android")
         testScheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.toggleMindfulApp("com.twitter.android") }
+    }
+
+    @Test
+    fun setAccentColor_delegatesToPreferencesDataSource() = runTest {
+        viewModel.setAccentColor("#10B981")
+        testScheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setAccentColor("#10B981") }
     }
 }
 

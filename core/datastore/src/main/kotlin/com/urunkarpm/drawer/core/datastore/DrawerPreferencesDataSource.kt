@@ -6,10 +6,13 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.urunkarpm.drawer.core.model.AppUsageProfile
 import com.urunkarpm.drawer.core.model.LauncherPreferencesBackup
 import com.urunkarpm.drawer.core.model.NotificationSwipeAction
+import com.urunkarpm.drawer.core.model.TodoSettings
 import com.urunkarpm.drawer.core.model.WeatherInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -100,6 +103,59 @@ class DrawerPreferencesDataSource @Inject constructor(
         val SUGGESTION_BLACKLIST = stringPreferencesKey("suggestion_blacklist")
         val SHOW_DRAWER_SUGGESTIONS = booleanPreferencesKey("show_drawer_suggestions")
         val MINDFUL_APPS = stringPreferencesKey("mindful_apps")
+        val ACCENT_COLOR = stringPreferencesKey("accent_color")
+
+        val TODO_LOCATION_ENABLED = booleanPreferencesKey("todo_location_enabled")
+        val TODO_QUIET_HOURS_START = stringPreferencesKey("todo_quiet_hours_start")
+        val TODO_QUIET_HOURS_END = stringPreferencesKey("todo_quiet_hours_end")
+        val TODO_DAILY_CHECK_TIME = stringPreferencesKey("todo_daily_check_time")
+        val TODO_STALE_ALERTS_ENABLED = booleanPreferencesKey("todo_stale_alerts_enabled")
+        val TODO_MAX_STALE_ALERTS_PER_DAY = intPreferencesKey("todo_max_stale_alerts_per_day")
+        val TODO_DONE_AUTO_DELETE_DAYS = intPreferencesKey("todo_done_auto_delete_days")
+        val TODO_HIDE_TASK_TEXT_LOCK_SCREEN = booleanPreferencesKey("todo_hide_task_text_lock_screen")
+        val TODO_LOCATION_ALERTS_SNOOZED_UNTIL = longPreferencesKey("todo_location_alerts_snoozed_until")
+    }
+
+    val todoSettings: Flow<TodoSettings> = dataStore.data.map { prefs ->
+        TodoSettings(
+            locationFeaturesEnabled = prefs[PreferencesKeys.TODO_LOCATION_ENABLED] ?: true,
+            quietHoursStart = prefs[PreferencesKeys.TODO_QUIET_HOURS_START] ?: "22:00",
+            quietHoursEnd = prefs[PreferencesKeys.TODO_QUIET_HOURS_END] ?: "07:00",
+            dailyCheckTime = prefs[PreferencesKeys.TODO_DAILY_CHECK_TIME] ?: "09:00",
+            staleAlertsEnabled = prefs[PreferencesKeys.TODO_STALE_ALERTS_ENABLED] ?: true,
+            maxStaleAlertsPerDay = prefs[PreferencesKeys.TODO_MAX_STALE_ALERTS_PER_DAY] ?: 3,
+            doneAutoDeleteDays = prefs[PreferencesKeys.TODO_DONE_AUTO_DELETE_DAYS] ?: 30,
+            hideTaskTextOnLockScreen = prefs[PreferencesKeys.TODO_HIDE_TASK_TEXT_LOCK_SCREEN] ?: false
+        )
+    }
+
+    val todoLocationAlertsSnoozedUntil: Flow<Long> = dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.TODO_LOCATION_ALERTS_SNOOZED_UNTIL] ?: 0L
+    }
+
+    suspend fun updateTodoSettings(settings: TodoSettings) {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.TODO_LOCATION_ENABLED] = settings.locationFeaturesEnabled
+            prefs[PreferencesKeys.TODO_QUIET_HOURS_START] = settings.quietHoursStart
+            prefs[PreferencesKeys.TODO_QUIET_HOURS_END] = settings.quietHoursEnd
+            prefs[PreferencesKeys.TODO_DAILY_CHECK_TIME] = settings.dailyCheckTime
+            prefs[PreferencesKeys.TODO_STALE_ALERTS_ENABLED] = settings.staleAlertsEnabled
+            prefs[PreferencesKeys.TODO_MAX_STALE_ALERTS_PER_DAY] = settings.maxStaleAlertsPerDay
+            prefs[PreferencesKeys.TODO_DONE_AUTO_DELETE_DAYS] = settings.doneAutoDeleteDays
+            prefs[PreferencesKeys.TODO_HIDE_TASK_TEXT_LOCK_SCREEN] = settings.hideTaskTextOnLockScreen
+        }
+    }
+
+    suspend fun setTodoLocationFeaturesEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.TODO_LOCATION_ENABLED] = enabled
+        }
+    }
+
+    suspend fun snoozeAllLocationAlerts(until: Long) {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.TODO_LOCATION_ALERTS_SNOOZED_UNTIL] = until
+        }
     }
 
     val appLaunchCounts: Flow<Map<String, Int>> = dataStore.data.map { prefs ->
@@ -220,6 +276,7 @@ class DrawerPreferencesDataSource @Inject constructor(
     val headerFontFamily: Flow<String> = dataStore.data.map { it[PreferencesKeys.HEADER_FONT_FAMILY] ?: "GOOGLE_SANS" }
     val appLabelScale: Flow<String> = dataStore.data.map { it[PreferencesKeys.APP_LABEL_SCALE] ?: "NORMAL" }
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_COLOR] ?: true }
+    val accentColor: Flow<String> = dataStore.data.map { it[PreferencesKeys.ACCENT_COLOR] ?: "DYNAMIC" }
     val hideStatusBar: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_STATUS_BAR] ?: true }
 
     val showWeather: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.SHOW_WEATHER] ?: true }
@@ -330,6 +387,10 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setDynamicColor(enabled: Boolean) {
         dataStore.edit { it[PreferencesKeys.DYNAMIC_COLOR] = enabled }
+    }
+
+    suspend fun setAccentColor(color: String) {
+        dataStore.edit { it[PreferencesKeys.ACCENT_COLOR] = color }
     }
 
     suspend fun setHideStatusBar(hide: Boolean) {
@@ -737,6 +798,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             themeMode = p[PreferencesKeys.THEME_MODE] ?: "SYSTEM",
             drawerThemeMode = p[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM",
             dynamicColor = p[PreferencesKeys.DYNAMIC_COLOR] ?: true,
+            accentColor = p[PreferencesKeys.ACCENT_COLOR] ?: "DYNAMIC",
             hideStatusBar = p[PreferencesKeys.HIDE_STATUS_BAR] ?: true,
             showWeather = p[PreferencesKeys.SHOW_WEATHER] ?: true,
             weatherUnit = p[PreferencesKeys.WEATHER_UNIT] ?: "CELSIUS",
@@ -804,6 +866,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             p[PreferencesKeys.THEME_MODE] = prefs.themeMode
             p[PreferencesKeys.DRAWER_THEME_MODE] = prefs.drawerThemeMode
             p[PreferencesKeys.DYNAMIC_COLOR] = prefs.dynamicColor
+            p[PreferencesKeys.ACCENT_COLOR] = prefs.accentColor
             p[PreferencesKeys.HIDE_STATUS_BAR] = prefs.hideStatusBar
             p[PreferencesKeys.SHOW_WEATHER] = prefs.showWeather
             p[PreferencesKeys.WEATHER_UNIT] = prefs.weatherUnit

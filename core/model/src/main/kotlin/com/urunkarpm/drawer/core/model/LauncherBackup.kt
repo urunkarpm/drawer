@@ -7,6 +7,7 @@ data class LauncherPreferencesBackup(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
     val dynamicColor: Boolean = true,
+    val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
@@ -77,5 +78,8 @@ data class LauncherBackup(
     val iconOverrides: List<IconOverride> = emptyList(),
     val preferences: LauncherPreferencesBackup = LauncherPreferencesBackup(),
     val widgetDrawers: List<WidgetDrawer> = emptyList(),
-    val widgets: List<WidgetItem> = emptyList()
+    val widgets: List<WidgetItem> = emptyList(),
+    val todos: List<TodoItem> = emptyList(),
+    val savedPlaces: List<SavedPlace> = emptyList(),
+    val todoSettings: TodoSettings = TodoSettings()
 )

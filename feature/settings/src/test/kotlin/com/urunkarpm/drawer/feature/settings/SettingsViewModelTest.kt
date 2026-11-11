@@ -32,6 +32,7 @@ class SettingsViewModelTest {
     private val themeModeFlow = MutableStateFlow("SYSTEM")
     private val drawerThemeModeFlow = MutableStateFlow("SYSTEM")
     private val dynamicColorFlow = MutableStateFlow(true)
+    private val accentColorFlow = MutableStateFlow("DYNAMIC")
     private val hideStatusBarFlow = MutableStateFlow(true)
     private val showWeatherFlow = MutableStateFlow(true)
     private val weatherUnitFlow = MutableStateFlow("CELSIUS")
@@ -96,6 +97,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.themeMode } returns themeModeFlow
         every { preferencesDataSource.drawerThemeMode } returns drawerThemeModeFlow
         every { preferencesDataSource.dynamicColor } returns dynamicColorFlow
+        every { preferencesDataSource.accentColor } returns accentColorFlow
         every { preferencesDataSource.hideStatusBar } returns hideStatusBarFlow
         every { preferencesDataSource.wallpaperBlur } returns wallpaperBlurFlow
         every { preferencesDataSource.wallpaperBlurRadius } returns wallpaperBlurRadiusFlow
@@ -241,6 +243,13 @@ class SettingsViewModelTest {
         viewModel.setThemeMode("AMOLED")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setThemeMode("AMOLED") }
+    }
+
+    @Test
+    fun setAccentColor_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setAccentColor("#3B82F6")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setAccentColor("#3B82F6") }
     }
 
     @Test

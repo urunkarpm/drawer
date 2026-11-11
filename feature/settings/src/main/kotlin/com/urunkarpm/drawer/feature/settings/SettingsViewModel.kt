@@ -25,6 +25,7 @@ data class ThemeSettings(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
     val dynamicColor: Boolean = true,
+    val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,
     val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
@@ -144,6 +145,7 @@ data class SettingsUiState(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
     val dynamicColor: Boolean = true,
+    val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,
     val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
@@ -220,6 +222,7 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.themeMode,
         preferencesDataSource.drawerThemeMode,
         preferencesDataSource.dynamicColor,
+        preferencesDataSource.accentColor,
         preferencesDataSource.hideStatusBar,
         preferencesDataSource.wallpaperBlur,
         preferencesDataSource.wallpaperBlurRadius,
@@ -234,14 +237,15 @@ class SettingsViewModel @Inject constructor(
             themeMode = values[0] as String,
             drawerThemeMode = values[1] as String,
             dynamicColor = values[2] as Boolean,
-            hideStatusBar = values[3] as Boolean,
-            wallpaperBlur = values[4] as Boolean,
-            wallpaperBlurRadius = values[5] as Float,
-            autoOpenKeyboardInDrawer = values[6] as Boolean,
-            blurAppListOnOpen = values[7] as Boolean,
-            categoryAlignment = values[8] as String,
-            enableWidgetsPage = values[9] as Boolean,
-            showDrawerSuggestions = values[10] as Boolean
+            accentColor = values[3] as String,
+            hideStatusBar = values[4] as Boolean,
+            wallpaperBlur = values[5] as Boolean,
+            wallpaperBlurRadius = values[6] as Float,
+            autoOpenKeyboardInDrawer = values[7] as Boolean,
+            blurAppListOnOpen = values[8] as Boolean,
+            categoryAlignment = values[9] as String,
+            enableWidgetsPage = values[10] as Boolean,
+            showDrawerSuggestions = values[11] as Boolean
         )
     }
 
@@ -416,6 +420,7 @@ class SettingsViewModel @Inject constructor(
             themeMode = theme.themeMode,
             drawerThemeMode = theme.drawerThemeMode,
             dynamicColor = theme.dynamicColor,
+            accentColor = theme.accentColor,
             hideStatusBar = theme.hideStatusBar,
             wallpaperBlur = theme.wallpaperBlur,
             wallpaperBlurRadius = theme.wallpaperBlurRadius,
@@ -563,6 +568,12 @@ class SettingsViewModel @Inject constructor(
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setDynamicColor(enabled)
+        }
+    }
+
+    fun setAccentColor(color: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAccentColor(color)
         }
     }
 

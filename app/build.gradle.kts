@@ -12,8 +12,8 @@ android {
 
     defaultConfig {
         applicationId = "com.urunkarpm.drawer"
-        versionCode = 27
-        versionName = "2.7.3"
+        versionCode = 28
+        versionName = "2.8.0"
     }
 
     val keystoreFile = rootProject.file("keystore/drawer-release.jks")
@@ -79,6 +79,7 @@ dependencies {
     implementation(project(":feature:notifications"))
     implementation(project(":feature:iconpacks"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:todo"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

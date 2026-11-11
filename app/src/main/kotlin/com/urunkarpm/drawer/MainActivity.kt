@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
         enableHighRefreshRate()
         setContent {
             val dynamicColor by preferencesDataSource.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
+            val accentColor by preferencesDataSource.accentColor.collectAsStateWithLifecycle(initialValue = "DYNAMIC")
             val hideStatusBar by preferencesDataSource.hideStatusBar.collectAsStateWithLifecycle(initialValue = true)
             val wallpaperBlur by preferencesDataSource.wallpaperBlur.collectAsStateWithLifecycle(initialValue = true)
             val wallpaperBlurRadius by preferencesDataSource.wallpaperBlurRadius.collectAsStateWithLifecycle(initialValue = 25f)
@@ -71,13 +72,9 @@ class MainActivity : ComponentActivity() {
                     try {
                         val radius = if (wallpaperBlur) wallpaperBlurRadius.toInt().coerceAtLeast(1) else 0
                         val params = window.attributes
-                        if (radius > 0) {
-                            window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                            params.blurBehindRadius = radius
-                        } else {
-                            window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                            params.blurBehindRadius = 0
-                        }
+                        // Keep FLAG_BLUR_BEHIND enabled on API 31+ so dynamic page transitions (such as To-Do page 20% blur) run at 120fps without relayout
+                        window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                        params.blurBehindRadius = radius
                         window.attributes = params
                         window.setBackgroundBlurRadius(radius)
                         android.util.Log.i("MainActivity", "Applied wallpaper blur radius=$radius, blurBehindRadius=${params.blurBehindRadius}")
@@ -93,7 +90,8 @@ class MainActivity : ComponentActivity() {
             DrawerTheme(
                 darkTheme = true,
                 isAmoled = false,
-                dynamicColor = dynamicColor
+                dynamicColor = dynamicColor,
+                accentColor = accentColor
             ) {
                 HomeScreen(
                     widgetHostManager = widgetHostManager,

@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -151,8 +152,20 @@ class HomeViewModel @Inject constructor(
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository,
     private val appPredictor: AppPredictor = AppPredictor(),
     @ApplicationContext private val context: Context? = null,
-    private val widgetHostManager: DrawerWidgetHostManager? = null
+    private val widgetHostManager: DrawerWidgetHostManager? = null,
+    private val todoRepository: com.urunkarpm.drawer.core.data.repository.TodoRepository? = null
 ) : ViewModel() {
+
+    val staleTodoCount: StateFlow<Int> = if (todoRepository != null) {
+        todoRepository.observeOpenTodos()
+            .map { todos ->
+                val now = System.currentTimeMillis()
+                todos.count { com.urunkarpm.drawer.core.common.util.TodoUtils.isStale(it, now) }
+            }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    } else {
+        MutableStateFlow(0)
+    }
 
     private val _searchQuery = MutableStateFlow("")
     private val _isAllAppsOpen = MutableStateFlow(false)
@@ -178,6 +191,9 @@ class HomeViewModel @Inject constructor(
 
     val dynamicColor: StateFlow<Boolean> = preferencesDataSource.dynamicColor
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val accentColor: StateFlow<String> = preferencesDataSource.accentColor
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "DYNAMIC")
 
     val dockIconSize: StateFlow<Float> = preferencesDataSource.dockIconSize
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 56f)
@@ -1163,6 +1179,7 @@ class HomeViewModel @Inject constructor(
 
     fun setThemeMode(mode: String) { viewModelScope.launch { preferencesDataSource.setThemeMode(mode) } }
     fun setDynamicColor(enabled: Boolean) { viewModelScope.launch { preferencesDataSource.setDynamicColor(enabled) } }
+    fun setAccentColor(color: String) { viewModelScope.launch { preferencesDataSource.setAccentColor(color) } }
     fun setSurfaceOpacity(opacity: Float) { viewModelScope.launch { preferencesDataSource.setSurfaceOpacity(opacity) } }
     fun setSurfaceBlurRadius(radius: Float) { viewModelScope.launch { preferencesDataSource.setSurfaceBlurRadius(radius) } }
     fun setSurfaceStrokeOpacity(opacity: Float) { viewModelScope.launch { preferencesDataSource.setSurfaceStrokeOpacity(opacity) } }

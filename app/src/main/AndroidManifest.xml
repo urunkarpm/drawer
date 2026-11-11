@@ -13,7 +13,13 @@
     <uses-permission android:name="android.permission.READ_BASIC_PHONE_STATE" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS"
@@ -76,6 +82,54 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <service
+            android:name="com.urunkarpm.drawer.core.data.location.LocationEngineService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <receiver
+            android:name="com.urunkarpm.drawer.core.data.reminder.DeadlineAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.urunkarpm.drawer.ACTION_DEADLINE_ALERT" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.urunkarpm.drawer.core.data.reminder.StaleAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.urunkarpm.drawer.ACTION_DAILY_STALE_CHECK" />
+                <action android:name="com.urunkarpm.drawer.ACTION_HIGH_PRIORITY_CHECK" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.urunkarpm.drawer.core.data.reminder.TodoActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.urunkarpm.drawer.ACTION_COMPLETE_TODO" />
+                <action android:name="com.urunkarpm.drawer.ACTION_SNOOZE_1H_TODO" />
+                <action android:name="com.urunkarpm.drawer.ACTION_TOMORROW_TODO" />
+                <action android:name="com.urunkarpm.drawer.ACTION_DELETE_TODO" />
+                <action android:name="com.urunkarpm.drawer.ACTION_NOT_NOW_PLACE" />
+                <action android:name="com.urunkarpm.drawer.ACTION_REDUCE_ALERTS_PLACE" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.urunkarpm.drawer.core.data.reconcile.TodoBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

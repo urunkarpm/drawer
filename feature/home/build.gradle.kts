@@ -25,6 +25,7 @@ dependencies {
     implementation(project(":feature:notifications"))
     implementation(project(":feature:iconpacks"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:todo"))
 
     implementation(libs.compose.material.icons.extended)
     testImplementation(libs.junit)

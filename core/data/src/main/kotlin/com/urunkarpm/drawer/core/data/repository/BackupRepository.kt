@@ -15,6 +15,11 @@ import com.urunkarpm.drawer.core.database.entity.IconPackOverrideEntity
 import com.urunkarpm.drawer.core.database.entity.MutedAppRuleEntity
 import com.urunkarpm.drawer.core.database.entity.WidgetDrawerEntity
 import com.urunkarpm.drawer.core.database.entity.WidgetItemEntity
+import com.urunkarpm.drawer.core.database.dao.TodoDao
+import com.urunkarpm.drawer.core.database.dao.SavedPlaceDao
+import com.urunkarpm.drawer.core.database.entity.TodoEntity
+import com.urunkarpm.drawer.core.database.entity.SavedPlaceEntity
+import com.urunkarpm.drawer.core.data.reconcile.TodoReconciler
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.LauncherBackup
@@ -24,6 +29,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
@@ -34,6 +40,9 @@ class BackupRepository @Inject constructor(
     private val iconPackOverrideDao: IconPackOverrideDao,
     private val widgetDao: WidgetDao,
     private val preferencesDataSource: DrawerPreferencesDataSource,
+    private val todoDao: TodoDao,
+    private val savedPlaceDao: SavedPlaceDao,
+    private val todoReconciler: Provider<TodoReconciler>,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
     private val widgetHostManager: DrawerWidgetHostManager? = null
 ) {
@@ -65,9 +74,12 @@ class BackupRepository @Inject constructor(
         }
 
         val preferencesBackup = preferencesDataSource.getPreferencesBackup()
+        val todos = todoDao.getAllTodos().first().map { it.toDomain() }
+        val savedPlaces = savedPlaceDao.getAll().first().map { it.toDomain() }
+        val todoSettings = preferencesDataSource.todoSettings.first()
 
         val backup = LauncherBackup(
-            version = 3,
+            version = 4,
             exportTimestampMillis = System.currentTimeMillis(),
             groups = groups,
             dockItems = dockItems,
@@ -75,7 +87,10 @@ class BackupRepository @Inject constructor(
             iconOverrides = iconOverrides,
             preferences = preferencesBackup,
             widgetDrawers = widgetDrawers,
-            widgets = rawWidgets
+            widgets = rawWidgets,
+            todos = todos,
+            savedPlaces = savedPlaces,
+            todoSettings = todoSettings
         )
 
         json.encodeToString(LauncherBackup.serializer(), backup)
@@ -139,6 +154,25 @@ class BackupRepository @Inject constructor(
 
             // 6. Restore Preferences
             preferencesDataSource.restorePreferences(backup.preferences)
+
+            // 7. Restore To-dos
+            if (backup.todos.isNotEmpty()) {
+                todoDao.clearAll()
+                todoDao.insertAll(backup.todos.map { TodoEntity.fromDomain(it) })
+            }
+
+            // 8. Restore Saved Places
+            if (backup.savedPlaces.isNotEmpty()) {
+                savedPlaceDao.clearAll()
+                savedPlaceDao.insertAll(backup.savedPlaces.map { SavedPlaceEntity.fromDomain(it) })
+            }
+
+            // 9. Restore Todo Settings
+            preferencesDataSource.updateTodoSettings(backup.todoSettings)
+
+            // 10. Reconcile alarms and tasks
+            todoReconciler.get().reconcile()
+            Unit
         }
     }
 }

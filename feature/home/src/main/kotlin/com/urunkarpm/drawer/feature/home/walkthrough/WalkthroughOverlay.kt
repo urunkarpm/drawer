@@ -80,6 +80,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -93,6 +94,7 @@ import com.urunkarpm.drawer.core.designsystem.component.DynamicPantoneWallpaper
 import com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString
 import com.urunkarpm.drawer.core.designsystem.theme.CinematicPalette
 import com.urunkarpm.drawer.core.designsystem.theme.CinematicPalettes
+import com.urunkarpm.drawer.core.designsystem.theme.VibrantAccentColors
 import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.WeatherInfo
@@ -138,6 +140,8 @@ fun WalkthroughOverlay(
     onSetDrawerThemeMode: (String) -> Unit = {},
     dynamicColor: Boolean = true,
     onSetDynamicColor: (Boolean) -> Unit = {},
+    accentColor: String = "DYNAMIC",
+    onSetAccentColor: (String) -> Unit = {},
     cinematicPalette: String = "DEFAULT",
     onSetCinematicPalette: (String) -> Unit = {},
     surfaceThemeStyle: String = "LIQUID_GLASS",
@@ -580,6 +584,79 @@ fun WalkthroughOverlay(
                                             checked = dynamicColor,
                                             onCheckedChange = onSetDynamicColor
                                         )
+
+                                        StudioHeader("Vibrant Accent Color", "Pick an energetic, non-muted accent hue or sync with wallpaper")
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            VibrantAccentColors.palettes.forEach { palette ->
+                                                val isSelected = accentColor.equals(palette.id, ignoreCase = true)
+                                                val isDynamic = palette.id.equals(VibrantAccentColors.ID_DYNAMIC, ignoreCase = true)
+
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier
+                                                        .clickable {
+                                                            onSetAccentColor(palette.id)
+                                                            if (isDynamic) {
+                                                                onSetDynamicColor(true)
+                                                            }
+                                                        }
+                                                        .padding(vertical = 4.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(42.dp)
+                                                            .clip(CircleShape)
+                                                            .then(
+                                                                if (isDynamic) {
+                                                                    Modifier.background(
+                                                                        Brush.sweepGradient(
+                                                                            listOf(
+                                                                                Color(0xFF3B82F6),
+                                                                                Color(0xFF10B981),
+                                                                                Color(0xFFF59E0B),
+                                                                                Color(0xFFEF4444),
+                                                                                Color(0xFF8B5CF6),
+                                                                                Color(0xFF3B82F6)
+                                                                            )
+                                                                        )
+                                                                    )
+                                                                } else {
+                                                                    Modifier.background(palette.color)
+                                                                }
+                                                            )
+                                                            .border(
+                                                                width = if (isSelected) 3.dp else 1.5.dp,
+                                                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.35f),
+                                                                shape = CircleShape
+                                                            ),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (isSelected) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Check,
+                                                                contentDescription = "Selected",
+                                                                tint = Color.White,
+                                                                modifier = Modifier.size(20.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = palette.name,
+                                                        fontSize = 10.sp,
+                                                        maxLines = 1,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                }
+                                            }
+                                        }
 
                                         StudioHeader("Cinematic Color Grading", "Signature Hollywood film-stocks applied to glass rims and category cards")
                                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

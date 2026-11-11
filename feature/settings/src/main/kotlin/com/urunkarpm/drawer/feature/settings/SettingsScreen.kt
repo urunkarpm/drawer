@@ -10,9 +10,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,18 +97,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
 import com.urunkarpm.drawer.core.designsystem.theme.GoogleSansFontFamily
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
+import com.urunkarpm.drawer.core.designsystem.theme.VibrantAccentColors
 import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
 import com.urunkarpm.drawer.core.designsystem.theme.labelScaleFromName
 import com.urunkarpm.drawer.feature.iconpacks.IconPackViewModel
@@ -309,6 +314,94 @@ fun SettingsScreen(
                         checked = uiState.dynamicColor,
                         onCheckedChange = { viewModel.setDynamicColor(it) }
                     )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    Text(
+                        text = "Vibrant Accent Color",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Energetic, punchy hues for highlights, sliders, and buttons",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        VibrantAccentColors.palettes.forEach { palette ->
+                            val isSelected = uiState.accentColor.equals(palette.id, ignoreCase = true)
+                            val isDynamic = palette.id.equals(VibrantAccentColors.ID_DYNAMIC, ignoreCase = true)
+
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clickable {
+                                        viewModel.setAccentColor(palette.id)
+                                        if (isDynamic) {
+                                            viewModel.setDynamicColor(true)
+                                        }
+                                    }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .then(
+                                            if (isDynamic) {
+                                                Modifier.background(
+                                                    Brush.sweepGradient(
+                                                        listOf(
+                                                            Color(0xFF3B82F6),
+                                                            Color(0xFF10B981),
+                                                            Color(0xFFF59E0B),
+                                                            Color(0xFFEF4444),
+                                                            Color(0xFF8B5CF6),
+                                                            Color(0xFF3B82F6)
+                                                        )
+                                                    )
+                                                )
+                                            } else {
+                                                Modifier.background(palette.color)
+                                            }
+                                        )
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.5.dp,
+                                            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.35f),
+                                            shape = CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = palette.name,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -1567,7 +1660,8 @@ fun SettingsScreen(
     DrawerTheme(
         darkTheme = isSettingsDark,
         isAmoled = isSettingsAmoled,
-        dynamicColor = uiState.dynamicColor
+        dynamicColor = uiState.dynamicColor,
+        accentColor = uiState.accentColor
     ) {
         // ponytail: Settings strictly enforces Google Sans font family regardless of user-selected launcher font
         CompositionLocalProvider(

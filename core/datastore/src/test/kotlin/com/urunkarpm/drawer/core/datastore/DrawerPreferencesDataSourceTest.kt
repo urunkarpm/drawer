@@ -398,4 +398,12 @@ class DrawerPreferencesDataSourceTest {
         dataSource.setShowDrawerSuggestions(false)
         assertEquals(false, dataSource.showDrawerSuggestions.first())
     }
+
+    @Test
+    fun testAccentColorDefaultAndPersistence() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals("DYNAMIC", dataSource.accentColor.first())
+        dataSource.setAccentColor("#3B82F6")
+        assertEquals("#3B82F6", dataSource.accentColor.first())
+    }
 }

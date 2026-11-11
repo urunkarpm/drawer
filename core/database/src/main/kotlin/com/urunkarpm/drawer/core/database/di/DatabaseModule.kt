@@ -3,10 +3,16 @@ package com.urunkarpm.drawer.core.database.di
 import android.content.Context
 import androidx.room.Room
 import com.urunkarpm.drawer.core.database.DrawerDatabase
+import com.urunkarpm.drawer.core.database.MIGRATION_4_5
 import com.urunkarpm.drawer.core.database.dao.AppGroupDao
 import com.urunkarpm.drawer.core.database.dao.DockDao
+import com.urunkarpm.drawer.core.database.dao.EventLogDao
 import com.urunkarpm.drawer.core.database.dao.IconPackOverrideDao
 import com.urunkarpm.drawer.core.database.dao.MutedAppDao
+import com.urunkarpm.drawer.core.database.dao.RecentSearchDao
+import com.urunkarpm.drawer.core.database.dao.SavedPlaceDao
+import com.urunkarpm.drawer.core.database.dao.TodoDao
+import com.urunkarpm.drawer.core.database.dao.WidgetDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,7 +33,10 @@ object DatabaseModule {
             context,
             DrawerDatabase::class.java,
             "drawer.db"
-        ).fallbackToDestructiveMigration().build()
+        )
+            .addMigrations(MIGRATION_4_5)
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides
@@ -43,5 +52,17 @@ object DatabaseModule {
     fun provideIconPackOverrideDao(db: DrawerDatabase): IconPackOverrideDao = db.iconPackOverrideDao()
 
     @Provides
-    fun provideWidgetDao(db: DrawerDatabase): com.urunkarpm.drawer.core.database.dao.WidgetDao = db.widgetDao()
+    fun provideWidgetDao(db: DrawerDatabase): WidgetDao = db.widgetDao()
+
+    @Provides
+    fun provideTodoDao(db: DrawerDatabase): TodoDao = db.todoDao()
+
+    @Provides
+    fun provideSavedPlaceDao(db: DrawerDatabase): SavedPlaceDao = db.savedPlaceDao()
+
+    @Provides
+    fun provideRecentSearchDao(db: DrawerDatabase): RecentSearchDao = db.recentSearchDao()
+
+    @Provides
+    fun provideEventLogDao(db: DrawerDatabase): EventLogDao = db.eventLogDao()
 }
