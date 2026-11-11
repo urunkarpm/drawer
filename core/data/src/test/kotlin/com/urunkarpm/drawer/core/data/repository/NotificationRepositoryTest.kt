@@ -22,7 +22,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class NotificationRepositoryImplTest {
+class NotificationRepositoryTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val context: Context = mockk(relaxed = true)
@@ -32,7 +32,7 @@ class NotificationRepositoryImplTest {
     private val notificationsFlow = MutableStateFlow<List<NotificationItem>>(emptyList())
     private val rulesFlow = MutableStateFlow<List<MutedAppRuleEntity>>(emptyList())
 
-    private lateinit var repository: NotificationRepositoryImpl
+    private lateinit var repository: NotificationRepository
 
     private val notification1 = NotificationItem(
         key = "key_1",
@@ -56,7 +56,7 @@ class NotificationRepositoryImplTest {
     fun setUp() {
         every { notificationBridge.notifications } returns notificationsFlow
         every { mutedAppDao.getAllRules() } returns rulesFlow
-        repository = NotificationRepositoryImpl(context, notificationBridge, mutedAppDao, testDispatcher)
+        repository = NotificationRepository(context, notificationBridge, mutedAppDao, testDispatcher)
     }
 
     @Test

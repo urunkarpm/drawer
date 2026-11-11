@@ -15,7 +15,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_mapsFinanceAndSocialCorrectly() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         val groups = listOf(
             AppGroup(id = "finance_group", name = "Finance", orderIndex = 0),
@@ -40,7 +40,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_mapsProductivityAndMediaCorrectly() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         val groups = listOf(
             AppGroup(id = "group_work", name = "Work", orderIndex = 0),
@@ -71,7 +71,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_respectsUnassignedOnlyFlag() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         val groups = listOf(
             AppGroup(
@@ -114,7 +114,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_workProfileApp_assignedToProductivity() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         val groups = listOf(
             AppGroup(id = "group_work", name = "Productivity", orderIndex = 0)
@@ -137,7 +137,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_whenTargetDrawerMissing_dynamicallyCreatesAdditionalDrawer() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         // User only has a single "Work" drawer
         val existingGroups = listOf(
@@ -183,7 +183,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_bulletProofHandlingOfEdgeCaseApps() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         val apps = listOf(
             AppInfo(packageName = "com.empty.label", activityName = ".Act", label = ""),
@@ -199,7 +199,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_mapsExpandedIndianAndGlobalAppEcosystem() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         val apps = listOf(
             // Finance: UPI & Neobanks & Investing
@@ -255,7 +255,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_mapsUtilitiesGamesHealthShoppingAndFuzzyGroups() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         val groups = listOf(
             AppGroup(id = "group_money", name = "Money", orderIndex = 0),
@@ -310,7 +310,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_whenExistingGroupsIsEmpty_usesDefaultSuggestedGroups() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
 
         val apps = listOf(
             AppInfo(packageName = "com.splitwise.app", activityName = ".Main", label = "Splitwise"),
@@ -377,14 +377,8 @@ class AppCategorizerTest {
     }
 
     @Test
-    fun isModelReady_alwaysTrue() {
-        val categorizer = AppCategorizerImpl()
-        assertTrue(categorizer.isModelReady)
-    }
-
-    @Test
     fun categorizeApps_withStrictnessStrict_ignoresLooseTokenMatches() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
         val groups = listOf(AppGroup(id = "group_finance", name = "Finance", orderIndex = 0))
 
         // App with token 'pay' in non-standard context or loose token
@@ -402,7 +396,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_withStrictnessAggressive_categorizesUnmatchedSystemApps() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
         val groups = listOf(AppGroup(id = "group_utilities", name = "Utilities", orderIndex = 0))
 
         val app = AppInfo(packageName = "com.android.custom.daemon", activityName = ".Main", label = "OEM Daemon")
@@ -419,7 +413,7 @@ class AppCategorizerTest {
 
     @Test
     fun categorizeApps_withForceWorkProfileFalse_categorizesBasedOnContent() = runTest {
-        val categorizer = AppCategorizerImpl()
+        val categorizer = AppCategorizer()
         val groups = listOf(
             AppGroup(id = "group_work", name = "Productivity", orderIndex = 0),
             AppGroup(id = "group_media", name = "Media", orderIndex = 1)

@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.content.Context
-import android.graphics.drawable.BitmapDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -66,7 +65,7 @@ private val LightColorScheme = lightColorScheme(
 /**
  * Extracts dominant primary wallpaper color from the system WallpaperManager.
  */
-// ponytail: extracts primary color via WallpaperColors on O_MR1+ with center-pixel bitmap sampling fallback for live wallpapers & API 26; ceiling: center-pixel approximation instead of full k-means palette clustering; upgrade path: Palette library generation.
+// ponytail: extracts primary color via WallpaperColors on O_MR1+ without blocking main thread with heavy synchronous bitmap decoding; returns null if wallpaper service is warming up, and OnColorsChangedListener updates asynchronously; upgrade path: Palette library generation on IO dispatcher.
 @SuppressLint("MissingPermission")
 fun extractWallpaperPrimaryColor(context: Context): Color? {
     val wm = runCatching { WallpaperManager.getInstance(context) }.getOrNull() ?: return null
@@ -74,13 +73,6 @@ fun extractWallpaperPrimaryColor(context: Context): Color? {
         val colors = runCatching { wm.getWallpaperColors(WallpaperManager.FLAG_SYSTEM) }.getOrNull()
         if (colors?.primaryColor != null) {
             return Color(colors.primaryColor.toArgb())
-        }
-    }
-    val drawable = runCatching { wm.drawable }.getOrNull()
-    if (drawable is BitmapDrawable) {
-        val bitmap = drawable.bitmap
-        if (bitmap != null && !bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0) {
-            return Color(bitmap.getPixel(bitmap.width / 2, bitmap.height / 2))
         }
     }
     return null

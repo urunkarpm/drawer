@@ -20,7 +20,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class IconPackRepositoryImplTest {
+class IconPackRepositoryTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val context: Context = mockk(relaxed = true)
@@ -31,7 +31,7 @@ class IconPackRepositoryImplTest {
     private val activeIconPackFlow = MutableStateFlow<String?>(null)
     private val overridesFlow = MutableStateFlow<List<IconPackOverrideEntity>>(emptyList())
 
-    private lateinit var repository: IconPackRepositoryImpl
+    private lateinit var repository: IconPackRepository
 
     @Before
     fun setUp() {
@@ -40,7 +40,7 @@ class IconPackRepositoryImplTest {
         every { preferencesDataSource.activeIconPack } returns activeIconPackFlow
         every { iconPackOverrideDao.getAllOverrides() } returns overridesFlow
 
-        repository = IconPackRepositoryImpl(context, preferencesDataSource, iconPackOverrideDao, testDispatcher)
+        repository = IconPackRepository(context, preferencesDataSource, iconPackOverrideDao, testDispatcher)
     }
 
     @Test

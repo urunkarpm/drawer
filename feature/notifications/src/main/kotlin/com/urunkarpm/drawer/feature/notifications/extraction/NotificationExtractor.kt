@@ -11,7 +11,3 @@ fun extractOtp(text: String): String? {
         matcher.group(1) ?: matcher.group(2)
     } else null
 }
-
-class NotificationExtractor {
-    fun extractOtp(text: String): String? = com.urunkarpm.drawer.feature.notifications.extraction.extractOtp(text)
-}

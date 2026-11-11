@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -47,11 +48,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         enableHighRefreshRate()
-        com.urunkarpm.drawer.core.data.worker.WeatherRefreshWorker.enqueuePeriodic(this)
         setContent {
             val dynamicColor by preferencesDataSource.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
             val hideStatusBar by preferencesDataSource.hideStatusBar.collectAsStateWithLifecycle(initialValue = true)
-            val wallpaperBlur by preferencesDataSource.wallpaperBlur.collectAsStateWithLifecycle(initialValue = false)
+            val wallpaperBlur by preferencesDataSource.wallpaperBlur.collectAsStateWithLifecycle(initialValue = true)
             val wallpaperBlurRadius by preferencesDataSource.wallpaperBlurRadius.collectAsStateWithLifecycle(initialValue = 25f)
 
             androidx.compose.runtime.LaunchedEffect(hideStatusBar) {
@@ -70,8 +70,20 @@ class MainActivity : ComponentActivity() {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                     try {
                         val radius = if (wallpaperBlur) wallpaperBlurRadius.toInt().coerceAtLeast(1) else 0
+                        val params = window.attributes
+                        if (radius > 0) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                            params.blurBehindRadius = radius
+                        } else {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                            params.blurBehindRadius = 0
+                        }
+                        window.attributes = params
                         window.setBackgroundBlurRadius(radius)
-                    } catch (_: Exception) {}
+                        android.util.Log.i("MainActivity", "Applied wallpaper blur radius=$radius, blurBehindRadius=${params.blurBehindRadius}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "Failed to apply wallpaper blur", e)
+                    }
                 }
             }
 
@@ -150,7 +162,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        enableHighRefreshRate()
     }
 
     override fun onAttachedToWindow() {
@@ -161,7 +172,6 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            enableHighRefreshRate()
             if (isStatusBarHidden) {
                 runCatching {
                     val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
@@ -173,7 +183,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var hasConfiguredRefreshRate = false
+
     private fun enableHighRefreshRate() {
+        if (hasConfiguredRefreshRate) return
         try {
             val display = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
                 display
@@ -198,10 +211,11 @@ class MainActivity : ComponentActivity() {
                 changed = true
             }
 
-            // ponytail: update window attributes only when mode/rate actually changes to prevent repeated relayout churn
+            // ponytail: update window attributes only once upon window attachment to prevent repeated relayout churn and LTPO mode renegotiation
             if (changed) {
                 window.attributes = params
             }
+            hasConfiguredRefreshRate = true
         } catch (_: Exception) {}
     }
 

@@ -280,9 +280,9 @@ fun DrawerSurfaceBackground(
         surfaceThemeStyle == "BLUR" -> {
             val frostedGradient = Brush.verticalGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = (0.28f * opacity).coerceIn(0f, 1f)),
-                    (if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = ((if (isExpanded) 0.85f else 0.75f) * opacity).coerceIn(0f, 1f)),
-                    (if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceContainer).copy(alpha = ((if (isExpanded) 0.92f else 0.85f) * opacity).coerceIn(0f, 1f))
+                    Color.White.copy(alpha = ((if (isExpanded) 0.06f else 0.28f) * opacity).coerceIn(0f, 1f)),
+                    (if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = ((if (isExpanded) 0.90f else 0.75f) * opacity).coerceIn(0f, 1f)),
+                    (if (isCinematic) palette.surfaceColor else MaterialTheme.colorScheme.surfaceContainer).copy(alpha = ((if (isExpanded) 0.98f else 0.85f) * opacity).coerceIn(0f, 1f))
                 )
             )
             val frostedBorder = BorderStroke(
@@ -336,11 +336,12 @@ fun DrawerSurfaceBackground(
 
         else -> {
             // "LIQUID_GLASS": Specular multi-stop glass gradient, top rim shine, gleaming border
+            val topSpecular = if (isExpanded) 0.08f * opacity else 0.30f * opacity
             val glassGradient = Brush.verticalGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = (0.30f * opacity).coerceIn(0f, 1f)),
-                    surfaceBaseColor.copy(alpha = ((if (isExpanded) 0.75f else 0.60f) * opacity).coerceIn(0f, 1f)),
-                    surfaceContainerColor.copy(alpha = ((if (isExpanded) 0.95f else 0.85f) * opacity).coerceIn(0f, 1f))
+                    Color.White.copy(alpha = topSpecular.coerceIn(0f, 1f)),
+                    surfaceBaseColor.copy(alpha = ((if (isExpanded) 0.90f else 0.60f) * opacity).coerceIn(0f, 1f)),
+                    surfaceContainerColor.copy(alpha = ((if (isExpanded) 0.98f else 0.85f) * opacity).coerceIn(0f, 1f))
                 )
             )
             val glassBorder = BorderStroke(

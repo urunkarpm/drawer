@@ -108,6 +108,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -154,7 +155,9 @@ import com.urunkarpm.drawer.core.designsystem.theme.LocalAppLabelScale
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
 import com.urunkarpm.drawer.core.designsystem.theme.labelScaleFromName
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -172,6 +175,14 @@ fun HomeScreen(
     val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
     val suggestedApps by viewModel.suggestedApps.collectAsStateWithLifecycle()
     val showDrawerSuggestions by viewModel.showDrawerSuggestions.collectAsStateWithLifecycle()
+    val autoArrangeApps by viewModel.autoArrangeApps.collectAsStateWithLifecycle()
+    val dockShowLabels by viewModel.dockShowLabels.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+    val dockIconSize by viewModel.dockIconSize.collectAsStateWithLifecycle()
+    val multiGroupApps by viewModel.multiGroupApps.collectAsStateWithLifecycle()
+    val lockLayout by viewModel.lockLayout.collectAsStateWithLifecycle()
+    val autoCategorizeNewApps by viewModel.autoCategorizeNewApps.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
@@ -625,15 +636,38 @@ fun HomeScreen(
 
     val areOtherDrawersOpen = uiState.isAllAppsOpen || groupsUiState.groups.any { it.group.isExpanded }
 
+    var lastDrawerCollapseTime by remember { mutableLongStateOf(0L) }
+
     // Auto-collapse expanded notification state when any drawer opens
     LaunchedEffect(areOtherDrawersOpen) {
         if (areOtherDrawersOpen && isNotificationExpanded) {
             isNotificationExpanded = false
+            lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
         }
     }
 
-    // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; auto-collapses open category accordions on upward pull; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
-    val homeNestedScrollConnection = remember(hasNotifications, isNotificationExpanded, dragDropState.isDragging, uiState.openDrawerFromDockOnly, uiState.isAllAppsOpen) {
+    LaunchedEffect(isNotificationExpanded) {
+        if (!isNotificationExpanded) {
+            lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
+        }
+    }
+
+    LaunchedEffect(groupsUiState.groups.any { it.group.isExpanded }) {
+        if (!groupsUiState.groups.any { it.group.isExpanded }) {
+            lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
+        }
+    }
+
+    val currentAnyCategoryExpanded by rememberUpdatedState(groupsUiState.groups.any { it.group.isExpanded })
+    val currentHasNotifications by rememberUpdatedState(hasNotifications)
+    val currentIsNotificationExpanded by rememberUpdatedState(isNotificationExpanded)
+    val currentIsOpenDrawerFromDockOnly by rememberUpdatedState(uiState.openDrawerFromDockOnly)
+    val currentIsAllAppsOpen by rememberUpdatedState(uiState.isAllAppsOpen)
+    val currentIsDragging by rememberUpdatedState(dragDropState.isDragging)
+    val currentEffectiveTwoDrawersSideBySide by rememberUpdatedState(effectiveTwoDrawersSideBySide)
+
+    // ponytail: nested scroll captures downward drag when home scroll is at 0 to expand notifications and upward drag to open all apps; ignores upward drag/fling while category drawer or notification drawer is expanded so scrolling down drawer lists does not activate main app drawer; ceiling: doesn't animate partial drawer pull; upgrade path: AnchoredDraggableState.
+    val homeNestedScrollConnection = remember {
         object : NestedScrollConnection {
             private var scrollDownAccumulator = 0f
             private var scrollUpAccumulator = 0f
@@ -655,33 +689,31 @@ fun HomeScreen(
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
-                if (dragDropState.isDragging) return Offset.Zero
+                if (currentIsDragging) return Offset.Zero
                 if (actionTriggeredInScroll) return Offset.Zero
 
-                val anyCategoryExpanded = groupsUiState.groups.any { it.group.isExpanded }
+                val timeSinceCollapse = android.os.SystemClock.uptimeMillis() - lastDrawerCollapseTime
+                val isRecentCollapse = timeSinceCollapse < 500L
 
                 // ponytail: downward pull expands notifications when at top and no category accordions are open
-                if (!anyCategoryExpanded && hasNotifications && !isNotificationExpanded && available.y > 0f) {
+                if (!currentAnyCategoryExpanded && currentHasNotifications && !currentIsNotificationExpanded && !isRecentCollapse && available.y > 0f) {
                     scrollDownAccumulator += available.y
                     if (scrollDownAccumulator > 60f) {
                         isNotificationExpanded = true
-                        if (!effectiveTwoDrawersSideBySide) {
+                        if (!currentEffectiveTwoDrawersSideBySide) {
                             groupsViewModel.collapseAllGroups()
                         }
                         scrollDownAccumulator = 0f
                         actionTriggeredInScroll = true
                         return Offset(0f, available.y)
                     }
-                } else if (!uiState.isAllAppsOpen && !isNotificationExpanded && available.y < 0f) {
+                } else if (!currentAnyCategoryExpanded && !currentIsAllAppsOpen && !currentIsNotificationExpanded && !isRecentCollapse && available.y < 0f) {
                     scrollDownAccumulator = 0f
                     // Apply resistance to upward drag so normal scrolling does not unintentionally trigger app drawer
                     scrollUpAccumulator += available.y * 0.55f
-                    if (!uiState.openDrawerFromDockOnly) {
+                    if (!currentIsOpenDrawerFromDockOnly) {
                         // Sane resistance threshold: requires deliberate upward pull (~180f accumulated)
                         if (scrollUpAccumulator < -180f) {
-                            if (anyCategoryExpanded) {
-                                groupsViewModel.collapseAllGroups()
-                            }
                             viewModel.openAllApps(currentActiveNotificationPkgs)
                             scrollUpAccumulator = 0f
                             actionTriggeredInScroll = true
@@ -696,12 +728,12 @@ fun HomeScreen(
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (!actionTriggeredInScroll && !uiState.openDrawerFromDockOnly && !uiState.isAllAppsOpen) {
+                val timeSinceCollapse = android.os.SystemClock.uptimeMillis() - lastDrawerCollapseTime
+                val isRecentCollapse = timeSinceCollapse < 500L
+
+                if (!currentAnyCategoryExpanded && !currentIsNotificationExpanded && !isRecentCollapse && !actionTriggeredInScroll && !currentIsOpenDrawerFromDockOnly && !currentIsAllAppsOpen) {
                     // Velocity handoff: quick upward flick directly triggers drawer opening
                     if (available.y < -750f) {
-                        if (groupsUiState.groups.any { it.group.isExpanded }) {
-                            groupsViewModel.collapseAllGroups()
-                        }
                         viewModel.openAllApps(currentActiveNotificationPkgs)
                         actionTriggeredInScroll = true
                         scrollUpAccumulator = 0f
@@ -866,15 +898,20 @@ fun HomeScreen(
                                     }
                                     val isOverOtherDrawers = dragDropState.groupBounds.values.any { it.contains(rootPos) }
                                     var totalDrag = Offset.Zero
+                                    var collapsed = false
                                     while (true) {
                                         val event = awaitPointerEvent(pass = PointerEventPass.Initial)
                                         val change = event.changes.firstOrNull() ?: break
                                         if (!change.pressed) break
                                         val delta = change.position - change.previousPosition
                                         totalDrag += delta
-                                        if (totalDrag.y < -24f || (isOverOtherDrawers && (kotlin.math.abs(totalDrag.y) > 24f || kotlin.math.abs(totalDrag.x) > 24f))) {
+                                        if (!collapsed && (totalDrag.y < -24f || (isOverOtherDrawers && (kotlin.math.abs(totalDrag.y) > 24f || kotlin.math.abs(totalDrag.x) > 24f)))) {
                                             isNotificationExpanded = false
-                                            break
+                                            lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
+                                            collapsed = true
+                                        }
+                                        if (collapsed) {
+                                            change.consume()
                                         }
                                     }
                                 }
@@ -959,10 +996,12 @@ fun HomeScreen(
                                 if (app != null) {
                                     viewModel.getAppIcon(app)
                                 } else {
-                                    try {
-                                        context.packageManager.getApplicationIcon(packageName)
-                                    } catch (_: Exception) {
-                                        null
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            context.packageManager.getApplicationIcon(packageName)
+                                        } catch (_: Exception) {
+                                            null
+                                        }
                                     }
                                 }
                             },
@@ -1041,6 +1080,7 @@ fun HomeScreen(
 
                 val currentHasNotifications by rememberUpdatedState(hasNotifications)
                 val currentIsNotificationExpandedDock by rememberUpdatedState(isNotificationExpanded)
+                val currentAnyCategoryExpandedDock by rememberUpdatedState(groupsUiState.groups.any { it.group.isExpanded })
                 val currentIsAllAppsOpenDock by rememberUpdatedState(uiState.isAllAppsOpen)
 
                 // Bottom: Dock (swiping up from dock opens app drawer 1:1 with finger)
@@ -1066,6 +1106,10 @@ fun HomeScreen(
                                     if (!currentIsAllAppsOpenDock && dockDrag < -55f) {
                                         if (currentIsNotificationExpandedDock) {
                                             isNotificationExpanded = false
+                                            lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
+                                        } else if (currentAnyCategoryExpandedDock) {
+                                            groupsViewModel.collapseAllGroups()
+                                            lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
                                         } else {
                                             viewModel.openAllApps(currentActiveNotificationPkgs)
                                         }
@@ -1561,24 +1605,91 @@ fun HomeScreen(
                 },
                 twoDrawersSideBySide = uiState.twoDrawersSideBySide,
                 onSetTwoDrawersSideBySide = viewModel::setTwoDrawersSideBySide,
+                categoryAlignment = uiState.categoryAlignment,
+                onSetCategoryAlignment = viewModel::setCategoryAlignment,
+                enableWidgetsPage = uiState.enableWidgetsPage,
+                onSetEnableWidgetsPage = viewModel::setEnableWidgetsPage,
+                drawerTitleAnimation = uiState.drawerTitleAnimation,
+                onSetDrawerTitleAnimation = viewModel::setDrawerTitleAnimation,
+                openDrawerFromDockOnly = uiState.openDrawerFromDockOnly,
+                onSetOpenDrawerFromDockOnly = viewModel::setOpenDrawerFromDockOnly,
+                autoArrangeApps = autoArrangeApps,
+                onSetAutoArrangeApps = viewModel::setAutoArrangeApps,
+                multiGroupApps = multiGroupApps,
+                onSetMultiGroupApps = viewModel::setMultiGroupApps,
+                lockLayout = lockLayout,
+                onSetLockLayout = viewModel::setLockLayout,
+                autoCategorizeNewApps = autoCategorizeNewApps,
+                onSetAutoCategorizeNewApps = viewModel::setAutoCategorizeNewApps,
+                themeMode = themeMode,
+                onSetThemeMode = viewModel::setThemeMode,
+                drawerThemeMode = uiState.drawerThemeMode,
+                onSetDrawerThemeMode = viewModel::setDrawerThemeMode,
+                dynamicColor = dynamicColor,
+                onSetDynamicColor = viewModel::setDynamicColor,
+                cinematicPalette = uiState.cinematicPalette,
+                onSetCinematicPalette = viewModel::setCinematicPalette,
+                surfaceThemeStyle = uiState.surfaceThemeStyle,
+                onSetSurfaceThemeStyle = viewModel::setSurfaceThemeStyle,
+                surfaceOpacity = uiState.surfaceOpacity,
+                onSetSurfaceOpacity = viewModel::setSurfaceOpacity,
+                surfaceBlurRadius = uiState.surfaceBlurRadius,
+                onSetSurfaceBlurRadius = viewModel::setSurfaceBlurRadius,
+                surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
+                onSetSurfaceStrokeOpacity = viewModel::setSurfaceStrokeOpacity,
+                surfaceCornerRadius = uiState.surfaceCornerRadius,
+                onSetSurfaceCornerRadius = viewModel::setSurfaceCornerRadius,
+                wallpaperBlur = uiState.wallpaperBlur,
+                onSetWallpaperBlur = viewModel::setWallpaperBlur,
+                wallpaperBlurRadius = uiState.wallpaperBlurRadius,
+                onSetWallpaperBlurRadius = viewModel::setWallpaperBlurRadius,
+                isDynamicWallpaper = uiState.dynamicWallpaperEnabled,
+                onSelectDynamicWallpaper = viewModel::setDynamicWallpaperEnabled,
+                wallpaperGradientSpeedSeconds = uiState.wallpaperGradientSpeedSeconds,
+                onSetWallpaperGradientSpeedSeconds = viewModel::setWallpaperGradientSpeedSeconds,
+                wallpaperGradientPalette = uiState.wallpaperGradientPalette,
+                onSetWallpaperGradientPalette = viewModel::setWallpaperGradientPalette,
+                wallpaperGradientAngle = uiState.wallpaperGradientAngle,
+                onSetWallpaperGradientAngle = viewModel::setWallpaperGradientAngle,
+                wallpaperGradientBlurPercent = uiState.wallpaperGradientBlurPercent,
+                onSetWallpaperGradientBlurPercent = viewModel::setWallpaperGradientBlurPercent,
+                hideStatusBar = uiState.hideStatusBar,
+                onSetHideStatusBar = viewModel::setHideStatusBar,
+                adaptiveIconShape = uiState.adaptiveIconShape,
+                onSetAdaptiveIconShape = viewModel::setAdaptiveIconShape,
+                headerFontFamily = uiState.headerFontFamily,
+                onSetHeaderFontFamily = viewModel::setHeaderFontFamily,
+                appLabelScale = uiState.appLabelScale,
+                onSetAppLabelScale = viewModel::setAppLabelScale,
+                hideDrawerIcons = uiState.hideDrawerIcons,
+                onSetHideDrawerIcons = viewModel::setHideDrawerIcons,
+                dockMesmerizingGlow = uiState.dockMesmerizingGlow,
+                onSetDockMesmerizingGlow = viewModel::setDockMesmerizingGlow,
+                dockShowLabels = dockShowLabels,
+                onSetDockShowLabels = viewModel::setDockShowLabels,
+                dockIconSize = dockIconSize,
+                onSetDockIconSize = viewModel::setDockIconSize,
                 is24Hour = uiState.is24Hour,
                 onSetIs24Hour = viewModel::setIs24Hour,
                 showWeather = uiState.showWeather,
                 onSetShowWeather = viewModel::setShowWeather,
-                adaptiveIconShape = uiState.adaptiveIconShape,
-                onSetAdaptiveIconShape = viewModel::setAdaptiveIconShape,
-                drawerThemeMode = uiState.drawerThemeMode,
-                onSetDrawerThemeMode = viewModel::setDrawerThemeMode,
-                surfaceThemeStyle = uiState.surfaceThemeStyle,
-                onSetSurfaceThemeStyle = viewModel::setSurfaceThemeStyle,
-                dockMesmerizingGlow = uiState.dockMesmerizingGlow,
-                onSetDockMesmerizingGlow = viewModel::setDockMesmerizingGlow,
-                headerFontFamily = uiState.headerFontFamily,
-                onSetHeaderFontFamily = viewModel::setHeaderFontFamily,
+                weatherUnit = uiState.weatherUnit,
+                onSetWeatherUnit = viewModel::setWeatherUnit,
+                showDuoStatusWidget = uiState.showDuoStatusWidget,
+                onSetShowDuoStatusWidget = viewModel::setShowDuoStatusWidget,
+                autoOpenKeyboardInDrawer = uiState.autoOpenKeyboardInDrawer,
+                onSetAutoOpenKeyboardInDrawer = viewModel::setAutoOpenKeyboardInDrawer,
+                blurAppListOnOpen = uiState.blurAppListOnOpen,
+                onSetBlurAppListOnOpen = viewModel::setBlurAppListOnOpen,
+                showDrawerSuggestions = showDrawerSuggestions,
+                onSetShowDrawerSuggestions = viewModel::setShowDrawerSuggestions,
                 stealthTheme = uiState.stealthTheme,
                 onSetStealthTheme = viewModel::setStealthTheme,
-                isDynamicWallpaper = uiState.dynamicWallpaperEnabled,
-                onSelectDynamicWallpaper = viewModel::setDynamicWallpaperEnabled
+                stealthContrastLevel = uiState.stealthContrastLevel,
+                onSetStealthContrastLevel = viewModel::setStealthContrastLevel,
+                sampleApps = uiState.installedApps.take(8),
+                iconLoader = { app -> viewModel.getAppIcon(app) },
+                weatherInfo = uiState.weatherInfo
             )
         }
     }

@@ -19,7 +19,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class AppRepositoryImplTest {
+class AppRepositoryTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val context: Context = mockk(relaxed = true)
@@ -40,7 +40,7 @@ class AppRepositoryImplTest {
 
     @Test
     fun launchApp_startsMainActivityWithCorrectComponentAndUser() = runTest(testDispatcher) {
-        val repository = AppRepositoryImpl(context, testDispatcher)
+        val repository = AppRepository(context, testDispatcher)
 
         val app = AppInfo(
             packageName = "com.test.app",
@@ -64,7 +64,7 @@ class AppRepositoryImplTest {
 
     @Test
     fun getShortcuts_returnsEmptyListWhenPermissionMissing() = runTest(testDispatcher) {
-        val repository = AppRepositoryImpl(context, testDispatcher)
+        val repository = AppRepository(context, testDispatcher)
         every { launcherApps.hasShortcutHostPermission() } returns false
 
         val app = AppInfo(
@@ -80,7 +80,7 @@ class AppRepositoryImplTest {
 
     @Test
     fun uninstallApp_startsActivityWithActionDelete() = runTest(testDispatcher) {
-        val repository = AppRepositoryImpl(context, testDispatcher)
+        val repository = AppRepository(context, testDispatcher)
 
         repository.uninstallApp("com.test.targetapp")
 
@@ -92,7 +92,7 @@ class AppRepositoryImplTest {
     @Test
     fun launchApp_recordsAppLaunchWhenPreferencesAvailable() = runTest(testDispatcher) {
         val prefs: com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource = mockk(relaxed = true)
-        val repository = AppRepositoryImpl(context, testDispatcher, preferencesDataSource = prefs)
+        val repository = AppRepository(context, testDispatcher, preferencesDataSource = prefs)
 
         val app = AppInfo(
             packageName = "com.test.app",

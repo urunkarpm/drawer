@@ -27,7 +27,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class AppGroupRepositoryImplTest {
+class AppGroupRepositoryTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val appGroupDao: AppGroupDao = mockk(relaxed = true)
@@ -36,7 +36,7 @@ class AppGroupRepositoryImplTest {
     private val groupsFlow = MutableStateFlow<List<AppGroupEntity>>(emptyList())
     private val itemsFlow = MutableStateFlow<List<AppGroupItemEntity>>(emptyList())
 
-    private lateinit var repository: AppGroupRepositoryImpl
+    private lateinit var repository: AppGroupRepository
 
     private val sampleApp = AppInfo(
         packageName = "com.test.chat",
@@ -50,7 +50,7 @@ class AppGroupRepositoryImplTest {
         every { appGroupDao.getAllGroups() } returns groupsFlow
         every { appGroupDao.getAllGroupItems() } returns itemsFlow
         every { appGroupDao.getItemsForGroup(any()) } returns itemsFlow
-        repository = AppGroupRepositoryImpl(appGroupDao, { appRepository }, { appCategorizer }, testDispatcher)
+        repository = AppGroupRepository(appGroupDao, { appRepository }, { appCategorizer }, testDispatcher)
     }
 
     @Test
@@ -224,12 +224,12 @@ class AppGroupRepositoryImplTest {
         val expectedSuggestions = listOf(
             CategorizationSuggestion(group = groupEntity.toDomain(), suggestedApps = listOf(app))
         )
-        coEvery { appCategorizer.categorizeApps(any(), any(), any()) } returns expectedSuggestions
+        coEvery { appCategorizer.categorizeApps(any(), any(), any(), any(), any()) } returns expectedSuggestions
 
         val result = repository.suggestCategorization(unassignedOnly = true)
 
         assertEquals(expectedSuggestions, result)
-        coVerify { appCategorizer.categorizeApps(listOf(app), any(), true) }
+        coVerify { appCategorizer.categorizeApps(listOf(app), any(), true, any(), any()) }
     }
 
     @Test
@@ -302,22 +302,13 @@ class AppGroupRepositoryImplTest {
     }
 
     @Test
-    fun isAiModelReady_delegatesToCategorizer() {
-        every { appCategorizer.isModelReady } returns true
-        assertTrue(repository.isAiModelReady)
-
-        every { appCategorizer.isModelReady } returns false
-        assertFalse(repository.isAiModelReady)
-    }
-
-    @Test
     fun suggestCategorization_passesPreferencesDownToCategorizer() = runTest(testDispatcher) {
         val mockPrefs: DrawerPreferencesDataSource = mockk(relaxed = true)
         every { mockPrefs.aiCategorizeAllApps } returns MutableStateFlow(true)
         every { mockPrefs.aiCategorizationStrictness } returns MutableStateFlow("AGGRESSIVE")
         every { mockPrefs.aiForceWorkProfile } returns MutableStateFlow(false)
 
-        val repoWithPrefs = AppGroupRepositoryImpl(
+        val repoWithPrefs = AppGroupRepository(
             appGroupDao = appGroupDao,
             appRepositoryProvider = { appRepository },
             appCategorizerProvider = { appCategorizer },

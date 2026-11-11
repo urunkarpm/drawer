@@ -48,7 +48,6 @@ data class GroupsUiState(
     val allApps: List<AppInfo> = emptyList(), // ponytail: exposed for bulk add
     val isAiCategorizing: Boolean = false,
     val aiSuggestions: List<CategorizationSuggestion>? = null,
-    val isAiModelReady: Boolean = false,
     val installSuggestion: Pair<AppInfo, AppGroup>? = null,
     val mindfulApps: Set<String> = emptySet()
 )
@@ -65,12 +64,10 @@ class GroupsViewModel @Inject constructor(
     private val _showCreateDialog = MutableStateFlow(false)
     private val _isAiCategorizing = MutableStateFlow(false)
     private val _aiSuggestions = MutableStateFlow<List<CategorizationSuggestion>?>(null)
-    private val _isAiModelReady = MutableStateFlow(false)
     private val _installSuggestion = MutableStateFlow<Pair<AppInfo, AppGroup>?>(null)
 
     val isAiCategorizing: StateFlow<Boolean> = _isAiCategorizing.asStateFlow()
     val aiSuggestions: StateFlow<List<CategorizationSuggestion>?> = _aiSuggestions.asStateFlow()
-    val isAiModelReady: StateFlow<Boolean> = _isAiModelReady.asStateFlow()
     val installSuggestion: StateFlow<Pair<AppInfo, AppGroup>?> = _installSuggestion.asStateFlow()
 
     private var aiCategorizationJob: Job? = null
@@ -86,10 +83,9 @@ class GroupsViewModel @Inject constructor(
 
     private val aiState = combine(
         _isAiCategorizing,
-        _aiSuggestions,
-        _isAiModelReady
-    ) { isCategorizing, suggestions, modelReady ->
-        Triple(isCategorizing, suggestions, modelReady)
+        _aiSuggestions
+    ) { isCategorizing, suggestions ->
+        Pair(isCategorizing, suggestions)
     }
 
     private data class GroupPrefs(
@@ -116,7 +112,7 @@ class GroupsViewModel @Inject constructor(
         groupPrefsFlow,
         dialogsState,
         aiState
-    ) { groups, installedApps, groupPrefs, dialogs, (isCategorizing, suggestions, modelReady) ->
+    ) { groups, installedApps, groupPrefs, dialogs, (isCategorizing, suggestions) ->
         // Primary lookup: packageName/activityName
         val appMap = installedApps.associateBy { "${it.packageName}/${it.activityName}" }
         // Fallback lookup: packageName only (first match) - handles cases where activityName differs
@@ -145,7 +141,6 @@ class GroupsViewModel @Inject constructor(
             allApps = installedApps.sortedBy { it.label.lowercase() },
             isAiCategorizing = isCategorizing,
             aiSuggestions = suggestions,
-            isAiModelReady = modelReady,
             installSuggestion = dialogs.installSuggestion,
             mindfulApps = groupPrefs.mindfulApps
         )
@@ -406,7 +401,6 @@ class GroupsViewModel @Inject constructor(
         aiCategorizationJob?.cancel()
         aiCategorizationJob = viewModelScope.launch {
             _isAiCategorizing.value = true
-            _isAiModelReady.value = appGroupRepository.isAiModelReady
             try {
                 val suggestions = appGroupRepository.suggestCategorization(unassignedOnly)
                 _aiSuggestions.value = suggestions
@@ -432,7 +426,6 @@ class GroupsViewModel @Inject constructor(
         aiCategorizationJob = null
         _aiSuggestions.value = null
         _isAiCategorizing.value = false
-        _isAiModelReady.value = false
     }
 
     override fun onCleared() {

@@ -487,6 +487,21 @@ fun NotificationDrawer(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .pointerInput(isExpanded) {
+                                            if (isExpanded) {
+                                                var dragY = 0f
+                                                detectVerticalDragGestures(
+                                                    onDragStart = { dragY = 0f },
+                                                    onVerticalDrag = { change, dragAmount ->
+                                                        dragY += dragAmount
+                                                        if (dragY < -30f) {
+                                                            onExpandedChange(false)
+                                                            change.consume()
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
                                         .padding(vertical = 24.dp, horizontal = 16.dp),
                                     contentAlignment = Alignment.Center
                                 ) {

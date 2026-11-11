@@ -121,7 +121,7 @@ import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.feature.home.dragdrop.AppDragDropState
 import com.urunkarpm.drawer.feature.home.dragdrop.DragDropResult
-import com.urunkarpm.drawer.feature.home.dragdrop.appDragSource
+import com.urunkarpm.drawer.core.designsystem.modifier.appDragSource
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.key
 
@@ -825,7 +825,7 @@ private fun AppItemView(
         modifier
             .clip(RoundedCornerShape(12.dp))
             .appDragSource(
-                app = app,
+                key = app.componentKey,
                 onAppClick = { onAppClick(app) },
                 onAppLongClick = { onAppLongClick(app) },
                 onDragStart = { rootPos ->

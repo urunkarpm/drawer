@@ -64,9 +64,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.model.WidgetItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.abs
+
+private val widgetAppLabelCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
 @Composable
 fun IpodCoverFlowWidgetStack(
@@ -327,13 +331,22 @@ private fun CoverFlowWidgetItemCard(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Subtle branded loading placeholder beneath the widget view so user NEVER sees a blank void
-            val appLabel = remember(widget.packageName) {
-                try {
-                    val pm = context.packageManager
-                    val app = pm.getApplicationInfo(widget.packageName, 0)
-                    pm.getApplicationLabel(app).toString()
-                } catch (_: Exception) {
-                    widget.packageName
+            var appLabel by remember(widget.packageName) {
+                mutableStateOf(widgetAppLabelCache[widget.packageName] ?: widget.packageName)
+            }
+            LaunchedEffect(widget.packageName) {
+                if (!widgetAppLabelCache.containsKey(widget.packageName)) {
+                    val label = withContext(Dispatchers.IO) {
+                        try {
+                            val pm = context.packageManager
+                            val app = pm.getApplicationInfo(widget.packageName, 0)
+                            pm.getApplicationLabel(app).toString()
+                        } catch (_: Exception) {
+                            widget.packageName
+                        }
+                    }
+                    widgetAppLabelCache[widget.packageName] = label
+                    appLabel = label
                 }
             }
             Box(

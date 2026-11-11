@@ -1,0 +1,4 @@
+• Architecture Consolidation: Pruned redundant repository interfaces and boilerplate dependency modules in favor of direct, zero-overhead singletons
+• Live Walkthrough Engine: Real-time reactive preview of custom styling including dynamic colors, cinematic palettes, typography packs, wallpaper gradients, surface blur, and dock metrics
+• Gesture Collision Protection: Seamless nested scrolling prevents open category and notification drawers from conflicting with the swipe-up all-apps gesture
+• Duo Telemetry & Contrast: Enhanced card surface luminance contrast engine and frosted glass scrim protection

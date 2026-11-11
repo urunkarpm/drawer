@@ -119,14 +119,14 @@ class DrawerNotificationListener : NotificationListenerService() {
                         } catch (_: Throwable) {
                             val launchIntent = packageManager.getLaunchIntentForPackage(sbn.packageName)
                             if (launchIntent != null) {
-                                launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                                 startActivity(launchIntent)
                             }
                         }
                     } else {
                         val launchIntent = packageManager.getLaunchIntentForPackage(sbn.packageName)
                         if (launchIntent != null) {
-                            launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                             startActivity(launchIntent)
                         }
                     }

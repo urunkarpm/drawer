@@ -19,19 +19,19 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class WidgetRepositoryImplTest {
+class WidgetRepositoryTest {
 
     private val widgetDao: WidgetDao = mockk(relaxed = true)
     private val drawersFlow = MutableStateFlow<List<WidgetDrawerEntity>>(emptyList())
     private val widgetsFlow = MutableStateFlow<List<WidgetItemEntity>>(emptyList())
 
-    private lateinit var repository: WidgetRepositoryImpl
+    private lateinit var repository: WidgetRepository
 
     @Before
     fun setUp() {
         every { widgetDao.getAllDrawers() } returns drawersFlow
         every { widgetDao.getAllWidgets() } returns widgetsFlow
-        repository = WidgetRepositoryImpl(widgetDao)
+        repository = WidgetRepository(widgetDao)
     }
 
     @Test

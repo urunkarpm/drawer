@@ -18,6 +18,7 @@ import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -41,6 +42,7 @@ class GroupsViewModelTest {
 
     private val groupsFlow = MutableStateFlow<List<AppGroup>>(emptyList())
     private val installedAppsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
+    private val newlyInstalledAppFlow = MutableSharedFlow<AppInfo>()
     private val multiGroupFlow = MutableStateFlow(false)
     private val lockLayoutFlow = MutableStateFlow(false)
     private val drawerNotificationGlowFlow = MutableStateFlow(true)
@@ -73,6 +75,7 @@ class GroupsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         every { appGroupRepository.groups } returns groupsFlow
         every { appRepository.installedApps } returns installedAppsFlow
+        every { appRepository.newlyInstalledApp } returns newlyInstalledAppFlow
         every { preferencesDataSource.multiGroupApps } returns multiGroupFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.drawerNotificationGlow } returns drawerNotificationGlowFlow
@@ -285,25 +288,6 @@ class GroupsViewModelTest {
 
         testScheduler.advanceUntilIdle()
         assertFalse(viewModel.isAiCategorizing.value)
-        assertNull(viewModel.aiSuggestions.value)
-    }
-
-    @Test
-    fun startAiCategorization_tracksIsAiModelReadyAndResetsOnDismiss() = runTest {
-        every { appGroupRepository.isAiModelReady } returns true
-        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
-        coEvery { appGroupRepository.suggestCategorization(any()) } returns listOf(suggestion)
-
-        assertFalse(viewModel.isAiModelReady.value)
-
-        viewModel.startAiCategorization()
-        testScheduler.advanceUntilIdle()
-
-        assertTrue(viewModel.isAiModelReady.value)
-        assertEquals(listOf(suggestion), viewModel.aiSuggestions.value)
-
-        viewModel.dismissAiSuggestions()
-        assertFalse(viewModel.isAiModelReady.value)
         assertNull(viewModel.aiSuggestions.value)
     }
 

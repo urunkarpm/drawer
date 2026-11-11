@@ -20,13 +20,13 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class DockRepositoryImplTest {
+class DockRepositoryTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val dockDao: DockDao = mockk(relaxed = true)
     private val dockFlow = MutableStateFlow<List<DockItemEntity>>(emptyList())
 
-    private lateinit var repository: DockRepositoryImpl
+    private lateinit var repository: DockRepository
 
     private val sampleApp = AppInfo(
         packageName = "com.test.phone",
@@ -37,7 +37,7 @@ class DockRepositoryImplTest {
     @Before
     fun setUp() {
         every { dockDao.getDockItems() } returns dockFlow
-        repository = DockRepositoryImpl(dockDao, testDispatcher)
+        repository = DockRepository(dockDao, testDispatcher)
     }
 
     @Test

@@ -748,8 +748,10 @@ fun DuoStatusIcon(
     LaunchedEffect(isExpanded, status.isCharging) {
         if (isExpanded && status.isCharging) {
             while (true) {
-                val sticky = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                val details = readBatteryChargingStats(context, sticky, true)
+                val details = withContext(Dispatchers.IO) {
+                    val sticky = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                    readBatteryChargingStats(context, sticky, true)
+                }
                 if (details.liveWatts != null) {
                     val prev = liveWatts
                     liveWatts = if (prev != null && prev > 0.1f) {
@@ -823,10 +825,10 @@ fun DuoStatusIcon(
 
     // High-contrast content colors guaranteeing WCAG AAA readability against glass/solid card surfaces
     val cardTitleColor = if (isDarkSurface) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-    val cardSubtextColor = if (isDarkSurface) Color(0xFFCBD5E1) else Color(0xFF475569)
-    val cardTertiaryColor = if (isDarkSurface) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.45f)
-    val cardTileBackground = if (isDarkSurface) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
-    val cardTileBorder = if (isDarkSurface) Color.White.copy(alpha = 0.16f) else Color.Black.copy(alpha = 0.12f)
+    val cardSubtextColor = if (isDarkSurface) Color(0xFF94A3B8) else Color(0xFF475569)
+    val cardTertiaryColor = if (isDarkSurface) Color.White.copy(alpha = 0.60f) else Color.Black.copy(alpha = 0.50f)
+    val cardTileBackground = if (isDarkSurface) Color(0xFF131B2E).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.85f)
+    val cardTileBorder = if (isDarkSurface) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.09f)
     val cardAccentColor = if (isCinematic) palette.primaryAccent else (if (isDarkSurface) Color(0xFF818CF8) else Color(0xFF4F46E5))
     val cardChargingGreen = if (isDarkSurface) Color(0xFF34C759) else Color(0xFF16A34A)
     val cardAlertRed = if (isDarkSurface) Color(0xFFFF453A) else Color(0xFFDC2626)
@@ -834,8 +836,8 @@ fun DuoStatusIcon(
 
     // Morph container dimensions seamlessly
     val configuration = LocalConfiguration.current
-    val maxTargetWidth = (configuration.screenWidthDp.dp - 32.dp).coerceIn(260.dp, 316.dp)
-    val baseExpandedHeight = if (status.isCharging) 218.dp else 196.dp
+    val maxTargetWidth = (configuration.screenWidthDp.dp - 32.dp).coerceIn(264.dp, 320.dp)
+    val baseExpandedHeight = if (status.isCharging) 256.dp else 230.dp
     val currentWidth = lerp(sizeDp.dp, maxTargetWidth, expandProgress)
     val currentHeight = lerp(sizeDp.dp, baseExpandedHeight, expandProgress)
     val currentCornerRadius = lerp((sizeDp / 2f).dp, 22.dp, expandProgress)
@@ -878,8 +880,8 @@ fun DuoStatusIcon(
             // Ground glass finishes with a protective high-contrast backing scrim so light or patterned wallpapers never bleed through and degrade legibility
             val backingAlpha = when (surfaceThemeStyle) {
                 "SOLID" -> 0f
-                "TRANSPARENT" -> 0.40f
-                else -> 0.45f // LIQUID_GLASS, BLUR
+                "TRANSPARENT" -> 0.55f
+                else -> 0.94f // LIQUID_GLASS, BLUR: Opaque backing eliminates wallpaper bleed-through while glass sheen layers on top
             } * ((expandProgress - 0.05f) / 0.95f).coerceIn(0f, 1f)
 
             if (backingAlpha > 0f) {
@@ -888,8 +890,8 @@ fun DuoStatusIcon(
                         .matchParentSize()
                         .clip(RoundedCornerShape(currentCornerRadius))
                         .background(
-                            if (isDarkSurface) Color.Black.copy(alpha = backingAlpha)
-                            else Color.White.copy(alpha = backingAlpha)
+                            if (isDarkSurface) Color(0xFF090D16).copy(alpha = backingAlpha)
+                            else Color(0xFFF1F5F9).copy(alpha = backingAlpha)
                         )
                 )
             }
@@ -1112,7 +1114,7 @@ fun DuoStatusIcon(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .padding(horizontal = 13.dp, vertical = 10.dp)
                     .graphicsLayer {
                         alpha = ((expandProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
                     },
@@ -1198,8 +1200,8 @@ fun DuoStatusIcon(
                             color = cardTileBorder,
                             shape = RoundedCornerShape(13.dp)
                         )
-                        .padding(horizontal = 11.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                        .padding(horizontal = 11.dp, vertical = 7.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1344,7 +1346,7 @@ fun DuoStatusIcon(
                                 color = cardTileBorder,
                                 shape = RoundedCornerShape(13.dp)
                             )
-                            .padding(horizontal = 10.dp, vertical = 7.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
@@ -1399,7 +1401,7 @@ fun DuoStatusIcon(
                                 color = cardTileBorder,
                                 shape = RoundedCornerShape(13.dp)
                             )
-                            .padding(horizontal = 10.dp, vertical = 7.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
@@ -1486,12 +1488,12 @@ fun DuoStatusIcon(
                         }
                         .clip(RoundedCornerShape(13.dp))
                         .background(
-                            if (isSpeedTesting) cardChargingGreen.copy(alpha = 0.15f)
+                            if (isSpeedTesting) cardChargingGreen.copy(alpha = 0.18f)
                             else cardTileBackground
                         )
                         .border(
                             width = 0.8.dp,
-                            color = if (isSpeedTesting) cardChargingGreen.copy(alpha = 0.40f)
+                            color = if (isSpeedTesting) cardChargingGreen.copy(alpha = 0.50f)
                             else cardTileBorder,
                             shape = RoundedCornerShape(13.dp)
                         )
@@ -1500,7 +1502,7 @@ fun DuoStatusIcon(
                             indication = null,
                             onClick = { triggerSpeedTest() }
                         )
-                        .padding(horizontal = 11.dp, vertical = 8.dp),
+                        .padding(horizontal = 11.dp, vertical = 7.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {

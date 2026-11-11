@@ -9,7 +9,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import com.urunkarpm.drawer.core.designsystem.modifier.appDragSource as coreAppDragSource
 import com.urunkarpm.drawer.core.model.AppInfo
 
 class AppDragDropState {
@@ -155,22 +154,4 @@ sealed interface DragDropResult {
 fun rememberAppDragDropState(): AppDragDropState {
     return remember { AppDragDropState() }
 }
-
-fun Modifier.appDragSource(
-    app: AppInfo,
-    onAppClick: () -> Unit,
-    onAppLongClick: () -> Unit,
-    onDragStart: (Offset) -> Unit,
-    onDrag: (Offset) -> Unit,
-    onDragEnd: (isDropped: Boolean) -> Unit,
-    longPressRequired: Boolean = true
-): Modifier = this.coreAppDragSource(
-    key = app.componentKey,
-    onAppClick = onAppClick,
-    onAppLongClick = onAppLongClick,
-    onDragStart = onDragStart,
-    onDrag = onDrag,
-    onDragEnd = onDragEnd,
-    longPressRequired = longPressRequired
-)
 

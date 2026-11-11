@@ -38,7 +38,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class BackupRepositoryImplTest {
+class BackupRepositoryTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val appGroupDao: AppGroupDao = mockk(relaxed = true)
@@ -57,7 +57,7 @@ class BackupRepositoryImplTest {
     private val widgetDrawersFlow = MutableStateFlow<List<WidgetDrawerEntity>>(emptyList())
     private val widgetsFlow = MutableStateFlow<List<WidgetItemEntity>>(emptyList())
 
-    private lateinit var repository: BackupRepositoryImpl
+    private lateinit var repository: BackupRepository
 
     @Before
     fun setUp() {
@@ -79,7 +79,7 @@ class BackupRepositoryImplTest {
         )
         coEvery { preferencesDataSource.restorePreferences(any()) } returns Unit
 
-        repository = BackupRepositoryImpl(
+        repository = BackupRepository(
             appGroupDao = appGroupDao,
             dockDao = dockDao,
             mutedAppDao = mutedAppDao,

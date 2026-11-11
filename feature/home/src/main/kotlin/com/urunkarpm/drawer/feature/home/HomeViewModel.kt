@@ -21,6 +21,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.urunkarpm.drawer.core.designsystem.component.AppIconCache
 import com.urunkarpm.drawer.core.designsystem.component.toImageBitmapSafe
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -164,6 +165,30 @@ class HomeViewModel @Inject constructor(
     val suggestedApps: StateFlow<List<AppInfo>> = _suggestedApps.asStateFlow()
 
     val showDrawerSuggestions: StateFlow<Boolean> = preferencesDataSource.showDrawerSuggestions
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val autoArrangeApps: StateFlow<Boolean> = preferencesDataSource.autoArrangeApps
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val dockShowLabels: StateFlow<Boolean> = preferencesDataSource.dockShowLabels
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val themeMode: StateFlow<String> = preferencesDataSource.themeMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "SYSTEM")
+
+    val dynamicColor: StateFlow<Boolean> = preferencesDataSource.dynamicColor
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val dockIconSize: StateFlow<Float> = preferencesDataSource.dockIconSize
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 56f)
+
+    val multiGroupApps: StateFlow<Boolean> = preferencesDataSource.multiGroupApps
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val lockLayout: StateFlow<Boolean> = preferencesDataSource.lockLayout
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val autoCategorizeNewApps: StateFlow<Boolean> = preferencesDataSource.autoCategorizeNewApps
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     private var currentProfiles: Map<String, AppUsageProfile> = emptyMap()
@@ -740,7 +765,15 @@ class HomeViewModel @Inject constructor(
 
     fun onAppLongClicked(app: AppInfo) {
         _selectedAppForMenu.value = app
-        _shortcuts.value = appRepository.getShortcuts(app)
+        _shortcuts.value = emptyList()
+        viewModelScope.launch {
+            val shortcuts = withContext(Dispatchers.IO) {
+                appRepository.getShortcuts(app)
+            }
+            if (_selectedAppForMenu.value == app) {
+                _shortcuts.value = shortcuts
+            }
+        }
     }
 
     fun dismissAppMenu() {
@@ -996,75 +1029,157 @@ class HomeViewModel @Inject constructor(
     }
 
     fun completeWalkthrough() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setHasCompletedWalkthrough(true)
         }
     }
 
     fun setDynamicWallpaperEnabled(enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setDynamicWallpaperEnabled(enabled)
         }
     }
 
     // ponytail: Direct preference mutations from walkthrough flow; ceiling: doesn't validate conflicting preference matrix; upgrade path: unified batch configuration transaction.
     fun setTwoDrawersSideBySide(enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setTwoDrawersSideBySide(enabled)
         }
     }
 
     fun setIs24Hour(is24: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setIs24Hour(is24)
         }
     }
 
     fun setShowWeather(show: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setShowWeather(show)
         }
     }
 
     fun setAdaptiveIconShape(shape: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setAdaptiveIconShape(shape)
         }
     }
 
     fun setDrawerThemeMode(mode: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setDrawerThemeMode(mode)
         }
     }
 
     fun setSurfaceThemeStyle(style: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setSurfaceThemeStyle(style)
         }
     }
 
     fun setCinematicPalette(palette: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setCinematicPalette(palette)
         }
     }
 
     fun setDockMesmerizingGlow(enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setDockMesmerizingGlow(enabled)
         }
     }
 
     fun setHeaderFontFamily(font: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setHeaderFontFamily(font)
         }
     }
 
     fun setStealthTheme(enabled: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             preferencesDataSource.setStealthTheme(enabled)
         }
     }
+
+    fun setCategoryAlignment(alignment: String) {
+        viewModelScope.launch {
+            preferencesDataSource.setCategoryAlignment(alignment)
+        }
+    }
+
+    fun setWeatherUnit(unit: String) {
+        viewModelScope.launch {
+            preferencesDataSource.setWeatherUnit(unit)
+        }
+    }
+
+    fun setShowDuoStatusWidget(show: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setShowDuoStatusWidget(show)
+        }
+    }
+
+    fun setEnableWidgetsPage(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setEnableWidgetsPage(enabled)
+        }
+    }
+
+    fun setOpenDrawerFromDockOnly(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setOpenDrawerFromDockOnly(enabled)
+        }
+    }
+
+    fun setAutoArrangeApps(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setAutoArrangeApps(enabled)
+        }
+    }
+
+    fun setHideDrawerIcons(hide: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setHideDrawerIcons(hide)
+        }
+    }
+
+    fun setDockShowLabels(show: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setDockShowLabels(show)
+        }
+    }
+
+    fun setAutoOpenKeyboardInDrawer(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setAutoOpenKeyboardInDrawer(enabled)
+        }
+    }
+
+    fun setHideStatusBar(hide: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setHideStatusBar(hide)
+        }
+    }
+
+    fun setThemeMode(mode: String) { viewModelScope.launch { preferencesDataSource.setThemeMode(mode) } }
+    fun setDynamicColor(enabled: Boolean) { viewModelScope.launch { preferencesDataSource.setDynamicColor(enabled) } }
+    fun setSurfaceOpacity(opacity: Float) { viewModelScope.launch { preferencesDataSource.setSurfaceOpacity(opacity) } }
+    fun setSurfaceBlurRadius(radius: Float) { viewModelScope.launch { preferencesDataSource.setSurfaceBlurRadius(radius) } }
+    fun setSurfaceStrokeOpacity(opacity: Float) { viewModelScope.launch { preferencesDataSource.setSurfaceStrokeOpacity(opacity) } }
+    fun setSurfaceCornerRadius(radiusDp: Float) { viewModelScope.launch { preferencesDataSource.setSurfaceCornerRadius(radiusDp) } }
+    fun setWallpaperBlur(enabled: Boolean) { viewModelScope.launch { preferencesDataSource.setWallpaperBlur(enabled) } }
+    fun setWallpaperBlurRadius(radius: Float) { viewModelScope.launch { preferencesDataSource.setWallpaperBlurRadius(radius) } }
+    fun setWallpaperGradientSpeedSeconds(seconds: Int) { viewModelScope.launch { preferencesDataSource.setWallpaperGradientSpeedSeconds(seconds) } }
+    fun setWallpaperGradientBlurPercent(percent: Int) { viewModelScope.launch { preferencesDataSource.setWallpaperGradientBlurPercent(percent) } }
+    fun setWallpaperGradientPalette(palette: String) { viewModelScope.launch { preferencesDataSource.setWallpaperGradientPalette(palette) } }
+    fun setWallpaperGradientAngle(angle: String) { viewModelScope.launch { preferencesDataSource.setWallpaperGradientAngle(angle) } }
+    fun setAppLabelScale(scale: String) { viewModelScope.launch { preferencesDataSource.setAppLabelScale(scale) } }
+    fun setDrawerTitleAnimation(mode: String) { viewModelScope.launch { preferencesDataSource.setDrawerTitleAnimation(mode) } }
+    fun setDockIconSize(sizeDp: Float) { viewModelScope.launch { preferencesDataSource.setDockIconSize(sizeDp) } }
+    fun setMultiGroupApps(multi: Boolean) { viewModelScope.launch { preferencesDataSource.setMultiGroupApps(multi) } }
+    fun setLockLayout(locked: Boolean) { viewModelScope.launch { preferencesDataSource.setLockLayout(locked) } }
+    fun setAutoCategorizeNewApps(enabled: Boolean) { viewModelScope.launch { preferencesDataSource.setAutoCategorizeNewApps(enabled) } }
+    fun setBlurAppListOnOpen(enabled: Boolean) { viewModelScope.launch { preferencesDataSource.setBlurAppListOnOpen(enabled) } }
+    fun setStealthContrastLevel(level: String) { viewModelScope.launch { preferencesDataSource.setStealthContrastLevel(level) } }
+    fun setShowDrawerSuggestions(enabled: Boolean) { viewModelScope.launch { preferencesDataSource.setShowDrawerSuggestions(enabled) } }
 }

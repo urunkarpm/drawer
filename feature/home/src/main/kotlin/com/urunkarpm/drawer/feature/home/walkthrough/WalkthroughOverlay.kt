@@ -9,15 +9,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,17 +18,20 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -46,33 +41,34 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material.icons.outlined.ColorLens
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -83,60 +79,144 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
+import com.urunkarpm.drawer.core.designsystem.component.DockSurfaceBackground
 import com.urunkarpm.drawer.core.designsystem.component.DynamicPantoneWallpaper
-import com.urunkarpm.drawer.core.designsystem.component.PantoneColors
 import com.urunkarpm.drawer.core.designsystem.component.iconShapeFromString
+import com.urunkarpm.drawer.core.designsystem.theme.CinematicPalette
+import com.urunkarpm.drawer.core.designsystem.theme.CinematicPalettes
 import com.urunkarpm.drawer.core.designsystem.theme.headerFontFamilyFromName
+import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.WeatherInfo
 import kotlinx.coroutines.launch
 
-private data class WalkthroughPageData(
-    val badge: String,
-    val title: String,
-    val headline: String,
-    val description: String,
-    val icon: ImageVector,
-    val accentColor: Color
+private val STUDIO_TABS = listOf(
+    "Layout",
+    "Surfaces",
+    "Wallpaper",
+    "Icons & Dock",
+    "Behavior",
+    "Ready"
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WalkthroughOverlay(
     onDismiss: () -> Unit,
+    // Stage 1: Layout & Ergonomics
     twoDrawersSideBySide: Boolean = false,
     onSetTwoDrawersSideBySide: (Boolean) -> Unit = {},
+    categoryAlignment: String = "BOTTOM",
+    onSetCategoryAlignment: (String) -> Unit = {},
+    enableWidgetsPage: Boolean = true,
+    onSetEnableWidgetsPage: (Boolean) -> Unit = {},
+    drawerTitleAnimation: String = "ACCENT_POP",
+    onSetDrawerTitleAnimation: (String) -> Unit = {},
+    openDrawerFromDockOnly: Boolean = false,
+    onSetOpenDrawerFromDockOnly: (Boolean) -> Unit = {},
+    autoArrangeApps: Boolean = true,
+    onSetAutoArrangeApps: (Boolean) -> Unit = {},
+    multiGroupApps: Boolean = false,
+    onSetMultiGroupApps: (Boolean) -> Unit = {},
+    lockLayout: Boolean = false,
+    onSetLockLayout: (Boolean) -> Unit = {},
+    autoCategorizeNewApps: Boolean = true,
+    onSetAutoCategorizeNewApps: (Boolean) -> Unit = {},
+
+    // Stage 2: Colors, Surfaces & Palettes
+    themeMode: String = "SYSTEM",
+    onSetThemeMode: (String) -> Unit = {},
+    drawerThemeMode: String = "SYSTEM",
+    onSetDrawerThemeMode: (String) -> Unit = {},
+    dynamicColor: Boolean = true,
+    onSetDynamicColor: (Boolean) -> Unit = {},
+    cinematicPalette: String = "DEFAULT",
+    onSetCinematicPalette: (String) -> Unit = {},
+    surfaceThemeStyle: String = "LIQUID_GLASS",
+    onSetSurfaceThemeStyle: (String) -> Unit = {},
+    surfaceOpacity: Float = 0.65f,
+    onSetSurfaceOpacity: (Float) -> Unit = {},
+    surfaceBlurRadius: Float = 25f,
+    onSetSurfaceBlurRadius: (Float) -> Unit = {},
+    surfaceStrokeOpacity: Float = 0.40f,
+    onSetSurfaceStrokeOpacity: (Float) -> Unit = {},
+    surfaceCornerRadius: Float = 24f,
+    onSetSurfaceCornerRadius: (Float) -> Unit = {},
+
+    // Stage 3: Wallpaper & Ambiance
+    wallpaperBlur: Boolean = true,
+    onSetWallpaperBlur: (Boolean) -> Unit = {},
+    wallpaperBlurRadius: Float = 25f,
+    onSetWallpaperBlurRadius: (Float) -> Unit = {},
+    isDynamicWallpaper: Boolean = false,
+    onSelectDynamicWallpaper: (Boolean) -> Unit = {},
+    wallpaperGradientSpeedSeconds: Int = 3,
+    onSetWallpaperGradientSpeedSeconds: (Int) -> Unit = {},
+    wallpaperGradientPalette: String = "FULL_SPECTRUM",
+    onSetWallpaperGradientPalette: (String) -> Unit = {},
+    wallpaperGradientAngle: String = "DIAGONAL",
+    onSetWallpaperGradientAngle: (String) -> Unit = {},
+    wallpaperGradientBlurPercent: Int = 40,
+    onSetWallpaperGradientBlurPercent: (Int) -> Unit = {},
+    hideStatusBar: Boolean = true,
+    onSetHideStatusBar: (Boolean) -> Unit = {},
+
+    // Stage 4: Icons, Typography & Dock
+    adaptiveIconShape: String = "CIRCLE",
+    onSetAdaptiveIconShape: (String) -> Unit = {},
+    headerFontFamily: String = "SYSTEM",
+    onSetHeaderFontFamily: (String) -> Unit = {},
+    appLabelScale: String = "NORMAL",
+    onSetAppLabelScale: (String) -> Unit = {},
+    hideDrawerIcons: Boolean = false,
+    onSetHideDrawerIcons: (Boolean) -> Unit = {},
+    dockMesmerizingGlow: Boolean = true,
+    onSetDockMesmerizingGlow: (Boolean) -> Unit = {},
+    dockShowLabels: Boolean = false,
+    onSetDockShowLabels: (Boolean) -> Unit = {},
+    dockIconSize: Float = 56f,
+    onSetDockIconSize: (Float) -> Unit = {},
+
+    // Stage 5: Header, Interactions & Privacy
     is24Hour: Boolean = true,
     onSetIs24Hour: (Boolean) -> Unit = {},
     showWeather: Boolean = true,
     onSetShowWeather: (Boolean) -> Unit = {},
-    adaptiveIconShape: String = "CIRCLE",
-    onSetAdaptiveIconShape: (String) -> Unit = {},
-    drawerThemeMode: String = "SYSTEM",
-    onSetDrawerThemeMode: (String) -> Unit = {},
-    surfaceThemeStyle: String = "LIQUID_GLASS",
-    onSetSurfaceThemeStyle: (String) -> Unit = {},
-    dockMesmerizingGlow: Boolean = true,
-    onSetDockMesmerizingGlow: (Boolean) -> Unit = {},
-    headerFontFamily: String = "SYSTEM",
-    onSetHeaderFontFamily: (String) -> Unit = {},
+    weatherUnit: String = "CELSIUS",
+    onSetWeatherUnit: (String) -> Unit = {},
+    showDuoStatusWidget: Boolean = true,
+    onSetShowDuoStatusWidget: (Boolean) -> Unit = {},
+    autoOpenKeyboardInDrawer: Boolean = false,
+    onSetAutoOpenKeyboardInDrawer: (Boolean) -> Unit = {},
+    blurAppListOnOpen: Boolean = false,
+    onSetBlurAppListOnOpen: (Boolean) -> Unit = {},
+    showDrawerSuggestions: Boolean = true,
+    onSetShowDrawerSuggestions: (Boolean) -> Unit = {},
     stealthTheme: Boolean = false,
     onSetStealthTheme: (Boolean) -> Unit = {},
-    isDynamicWallpaper: Boolean = false,
-    onSelectDynamicWallpaper: (Boolean) -> Unit = {},
+    stealthContrastLevel: String = "LOW",
+    onSetStealthContrastLevel: (String) -> Unit = {},
+
+    // Real App Data
+    sampleApps: List<AppInfo> = emptyList(),
+    iconLoader: (suspend (AppInfo) -> android.graphics.drawable.Drawable?)? = null,
+    weatherInfo: WeatherInfo? = null,
+
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val pagerState = rememberPagerState(pageCount = { STUDIO_TABS.size })
+    var isMinimized by remember { mutableStateOf(false) }
     var showDefaultDialog by remember { mutableStateOf(false) }
-    var isPeeking by remember { mutableStateOf(false) }
 
     val roleLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -145,7 +225,6 @@ fun WalkthroughOverlay(
     }
 
     fun launchDefaultPrompt() {
-        // ponytail: RoleManager on Q+, fallback to ACTION_HOME_SETTINGS; ceiling: relies on system activity result; upgrade path: custom animated in-app visual guide.
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val roleManager = context.getSystemService(RoleManager::class.java)
@@ -167,416 +246,939 @@ fun WalkthroughOverlay(
         }
     }
 
-    val pages = remember {
-        listOf(
-            WalkthroughPageData(
-                badge = "WORKSPACE LAYOUT",
-                title = "Drawer Architecture",
-                headline = "Single column or dual side-by-side multitasking?",
-                description = "Choose 1 unified drawer for classic focus, or 2 side-by-side drawers for separate work and personal context.",
-                icon = Icons.Default.Folder,
-                accentColor = Color(0xFF0F766E)
-            ),
-            WalkthroughPageData(
-                badge = "EXECUTIVE GLANCE",
-                title = "Clock & Weather Header",
-                headline = "Tailor your home time format and live forecasts.",
-                description = "Switch between 12-hour AM/PM and 24-hour military time, with optional real-time weather conditions.",
-                icon = Icons.Default.Widgets,
-                accentColor = Color(0xFF2563EB)
-            ),
-            WalkthroughPageData(
-                badge = "ICON GEOMETRY",
-                title = "App Icon Masking",
-                headline = "Sculpt a uniform adaptive shape for all apps.",
-                description = "Harmonize system and third-party app icons with modern geometric masking.",
-                icon = Icons.Default.Security,
-                accentColor = Color(0xFF7C3AED)
-            ),
-            WalkthroughPageData(
-                badge = "THEME & SURFACES",
-                title = "Theme & Glass Atmosphere",
-                headline = "Light, Dark, or System — with Liquid Glass.",
-                description = "Choose your baseline color temperature and tactile frosted glass or solid OLED finish.",
-                icon = Icons.Default.Palette,
-                accentColor = Color(0xFFD97706)
-            ),
-            WalkthroughPageData(
-                badge = "PRECISION DOCK",
-                title = "Dock & Mesmerizing Glow",
-                headline = "Iridescent chromatic refraction or clean glass.",
-                description = "Infuse the floating quick-launch dock with Peach Fuzz and Very Peri specular edge shimmer.",
-                icon = Icons.Outlined.ColorLens,
-                accentColor = Color(0xFFE11D48)
-            ),
-            WalkthroughPageData(
-                badge = "TYPOGRAPHY",
-                title = "Header Typographic Voice",
-                headline = "Select your signature headline font family.",
-                description = "Set the tone of your launcher with bespoke typography, from modern sans to executive display fonts.",
-                icon = Icons.Default.Language,
-                accentColor = Color(0xFF0D9488)
-            ),
-            WalkthroughPageData(
-                badge = "VISUAL DISCRETION",
-                title = "Stealth Theme & Privacy",
-                headline = "OLED pitch black with muted contrast.",
-                description = "Boardroom-ready discretion: eliminate visual distractions and preserve maximum battery life.",
-                icon = Icons.Default.VisibilityOff,
-                accentColor = Color(0xFF475569)
-            ),
-            WalkthroughPageData(
-                badge = "AESTHETIC AMBIANCE",
-                title = "Pantone Gradient Wallpaper",
-                headline = "Smooth 3s morphing gradient or original wallpaper.",
-                description = "Enjoy smooth 3-second cycle transitions with authentic Pantone colors and 40% blur, or keep your wallpaper.",
-                icon = Icons.Outlined.ColorLens,
-                accentColor = Color(0xFFBE3455)
-            ),
-            WalkthroughPageData(
-                badge = "SETUP COMPLETE",
-                title = "Your Launcher is Ready!",
-                headline = "Live-configured precisely to your taste.",
-                description = "Every setting you chose is already active. Launch Drawer now or make it your default home app.",
-                icon = Icons.Default.Home,
-                accentColor = Color(0xFF059669)
-            )
-        )
-    }
-
-    val pagerState = rememberPagerState(pageCount = { pages.size })
-    val cardAlpha by animateFloatAsState(
-        targetValue = if (isPeeking) 0.08f else 1f,
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-        label = "cardAlpha"
-    )
-
-    // Full-screen backdrop with see-through peek capability
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = if (isPeeking) 0.05f else 0.58f))
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .clickable(enabled = isPeeking) { isPeeking = false },
-        contentAlignment = Alignment.Center
+        modifier = modifier.fillMaxSize()
     ) {
-        // Floating prompt shown while peeking
-        if (isPeeking) {
+        if (isMinimized) {
+            // Floating pill to restore setup studio while inspecting full screen launcher
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.Black.copy(alpha = 0.85f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 32.dp)
-                    .clickable { isPeeking = false }
+                    .navigationBarsPadding()
+                    .padding(bottom = 24.dp)
+                    .clickable { isMinimized = false },
+                shape = RoundedCornerShape(26.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                shadowElevation = 14.dp
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Visibility,
+                        imageVector = Icons.Default.Palette,
                         contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Viewing live launcher • Tap anywhere to return",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        text = "Customize Launcher",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Box(
+                        modifier = Modifier
+                            .height(14.dp)
+                            .width(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    )
+                    Text(
+                        text = "Done ✓",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { onDismiss() }
                     )
                 }
             }
-        }
-
-        // Main Walkthrough Configuration Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .widthIn(max = 500.dp)
-                .alpha(cardAlpha)
-                .padding(vertical = 10.dp),
-            shape = RoundedCornerShape(26.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-            border = BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-            )
-        ) {
-            Column(
+        } else {
+            // Touch-through / Tap-to-minimize transparent area in upper screen
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(18.dp)
+                    .fillMaxHeight(0.44f)
+                    .align(Alignment.TopCenter)
+                    .clickable { isMinimized = true }
+            )
+
+            // Bottom Personalization Studio (56% height, anchored at bottom)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.56f)
+                    .align(Alignment.BottomCenter),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                tonalElevation = 8.dp,
+                shadowElevation = 20.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
             ) {
-                // Top Header Row with Badge, Peek, & Skip
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val currentPageData = pages[pagerState.currentPage]
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = currentPageData.accentColor.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, currentPageData.accentColor.copy(alpha = 0.4f))
-                    ) {
-                        Text(
-                            text = currentPageData.badge,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = currentPageData.accentColor,
-                            letterSpacing = 1.1.sp
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Peek at Live Launcher Button
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.clickable { isPeeking = true }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Visibility,
-                                    contentDescription = "Peek at launcher",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Peek",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        TextButton(
-                            onClick = onDismiss,
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        ) {
-                            Text("Skip", fontWeight = FontWeight.Medium)
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Skip walkthrough",
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Pager Content
-                HorizontalPager(
-                    state = pagerState,
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                ) { pageIndex ->
-                    val page = pages[pageIndex]
-                    val scrollState = rememberScrollState()
-
+                        .fillMaxSize()
+                        .navigationBarsPadding()
+                ) {
+                    // Studio Header: Drag Handle & Actions (Peek & Done)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .verticalScroll(scrollState)
-                            .padding(horizontal = 2.dp, vertical = 4.dp)
+                            .padding(top = 10.dp, start = 16.dp, end = 16.dp, bottom = 4.dp)
                     ) {
-                        Text(
-                            text = page.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                        // Drag Handle
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .size(width = 38.dp, height = 4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+                                .clickable { isMinimized = true }
                         )
 
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        Text(
-                            text = page.headline,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = page.accentColor
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Personalize Launcher",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Changes apply live to your real homescreen",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Real-Time Live Preview & Configuration Area
-                        WalkthroughLiveStep(
-                            pageIndex = pageIndex,
-                            accentColor = page.accentColor,
-                            twoDrawersSideBySide = twoDrawersSideBySide,
-                            onSetTwoDrawersSideBySide = onSetTwoDrawersSideBySide,
-                            is24Hour = is24Hour,
-                            onSetIs24Hour = onSetIs24Hour,
-                            showWeather = showWeather,
-                            onSetShowWeather = onSetShowWeather,
-                            adaptiveIconShape = adaptiveIconShape,
-                            onSetAdaptiveIconShape = onSetAdaptiveIconShape,
-                            drawerThemeMode = drawerThemeMode,
-                            onSetDrawerThemeMode = onSetDrawerThemeMode,
-                            surfaceThemeStyle = surfaceThemeStyle,
-                            onSetSurfaceThemeStyle = onSetSurfaceThemeStyle,
-                            dockMesmerizingGlow = dockMesmerizingGlow,
-                            onSetDockMesmerizingGlow = onSetDockMesmerizingGlow,
-                            headerFontFamily = headerFontFamily,
-                            onSetHeaderFontFamily = onSetHeaderFontFamily,
-                            stealthTheme = stealthTheme,
-                            onSetStealthTheme = onSetStealthTheme,
-                            isDynamicWallpaper = isDynamicWallpaper,
-                            onSelectDynamicWallpaper = onSelectDynamicWallpaper
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = page.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Bottom Navigation Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Pager Indicators
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        repeat(pages.size) { index ->
-                            val isSelected = pagerState.currentPage == index
-                            val width by animateDpAsState(
-                                targetValue = if (isSelected) 22.dp else 6.dp,
-                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                label = "indicatorWidth"
-                            )
-                            val color by animateColorAsState(
-                                targetValue = if (isSelected) {
-                                    pages[pagerState.currentPage].accentColor
-                                } else {
-                                    MaterialTheme.colorScheme.outlineVariant
-                                },
-                                label = "indicatorColor"
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .height(6.dp)
-                                    .width(width)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .clickable {
-                                        coroutineScope.launch {
-                                            pagerState.animateScrollToPage(index)
-                                        }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Peek Fullscreen button
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.clickable { isMinimized = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Visibility,
+                                            contentDescription = "Peek Homescreen",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "Peek",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
                                     }
-                            )
+                                }
+
+                                IconButton(
+                                    onClick = onDismiss,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Done",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    // Action buttons
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (pagerState.currentPage > 0) {
-                            IconButton(
-                                onClick = {
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                    // Scrollable Category Tabs Bar
+                        ScrollableTabRow(
+                            selectedTabIndex = pagerState.currentPage,
+                            edgePadding = 12.dp,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            STUDIO_TABS.forEachIndexed { index, title ->
+                                val isSelected = pagerState.currentPage == index
+                                Tab(
+                                    selected = isSelected,
+                                    onClick = {
+                                        coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                                    },
+                                    text = {
+                                        Text(
+                                            text = title,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            fontSize = 12.sp
+                                        )
                                     }
-                                },
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Previous slide"
                                 )
                             }
                         }
 
-                        val isLastPage = pagerState.currentPage == pages.size - 1
+                        // Tab Page Contents
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) { pageIndex ->
+                            val scrollState = rememberScrollState()
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(scrollState)
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                when (pageIndex) {
+                                    0 -> {
+                                        // ── TAB 0: LAYOUT & ERGONOMICS ─────────────────────
+                                        StudioHeader("Drawer Position", "Stack category drawers up from the bottom or down from the header")
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            StudioChoiceCard(
+                                                title = "Bottom (Down)",
+                                                subtitle = "Thumb-friendly reach",
+                                                isSelected = categoryAlignment.equals("BOTTOM", ignoreCase = true),
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { onSetCategoryAlignment("BOTTOM") }
+                                            )
+                                            StudioChoiceCard(
+                                                title = "Top (Up)",
+                                                subtitle = "Classic top alignment",
+                                                isSelected = categoryAlignment.equals("TOP", ignoreCase = true),
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { onSetCategoryAlignment("TOP") }
+                                            )
+                                        }
 
-                        Button(
-                            onClick = {
-                                if (isLastPage) {
-                                    if (!isDefaultLauncher(context)) {
-                                        showDefaultDialog = true
-                                    } else {
-                                        onDismiss()
+                                        StudioHeader("Drawer Columns", "Single column or dual columns side-by-side on home screen")
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            StudioChoiceCard(
+                                                title = "1 Unified Column",
+                                                subtitle = "Clean single list",
+                                                isSelected = !twoDrawersSideBySide,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { onSetTwoDrawersSideBySide(false) }
+                                            )
+                                            StudioChoiceCard(
+                                                title = "2 Dual Columns",
+                                                subtitle = "Side-by-side multitasking",
+                                                isSelected = twoDrawersSideBySide,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { onSetTwoDrawersSideBySide(true) }
+                                            )
+                                        }
+
+                                        StudioHeader("Drawer Title Animation", "Animate title across the card when opening or closing")
+                                        FlowRow(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            listOf(
+                                                "ACCENT_POP" to "Accent Pop",
+                                                "FLUID_SPRING" to "Elastic",
+                                                "KINETIC_DECEL" to "Sleek Decel",
+                                                "SNAPPY" to "Snappy",
+                                                "OFF" to "Off"
+                                            ).forEach { (animKey, label) ->
+                                                StudioChip(
+                                                    label = label,
+                                                    isSelected = drawerTitleAnimation.equals(animKey, ignoreCase = true),
+                                                    onClick = { onSetDrawerTitleAnimation(animKey) }
+                                                )
+                                            }
+                                        }
+
+                                        StudioHeader("Workspace Navigation", "Toggle gestures, sorting, and pages")
+                                        StudioSwitch(
+                                            title = "Dedicated Widgets Page",
+                                            subtitle = "Swipe right to open dedicated full-page widgets screen",
+                                            checked = enableWidgetsPage,
+                                            onCheckedChange = onSetEnableWidgetsPage
+                                        )
+                                        StudioSwitch(
+                                            title = "Open Drawer from Dock Only",
+                                            subtitle = "Only open drawer when tapping the dock icon (disables swipe-up)",
+                                            checked = openDrawerFromDockOnly,
+                                            onCheckedChange = onSetOpenDrawerFromDockOnly
+                                        )
+                                        StudioSwitch(
+                                            title = "Free Drag & Auto-Arrange",
+                                            subtitle = "Automatically sort and snap apps alphabetically",
+                                            checked = autoArrangeApps,
+                                            onCheckedChange = onSetAutoArrangeApps
+                                        )
+                                        StudioSwitch(
+                                            title = "Multi-Group Apps",
+                                            subtitle = "Allow assigning a single app to multiple categories",
+                                            checked = multiGroupApps,
+                                            onCheckedChange = onSetMultiGroupApps
+                                        )
+                                        StudioSwitch(
+                                            title = "Lock Home Layout",
+                                            subtitle = "Prevent accidental dragging and category modifications",
+                                            checked = lockLayout,
+                                            onCheckedChange = onSetLockLayout
+                                        )
+                                        StudioSwitch(
+                                            title = "Auto-Categorize New Apps",
+                                            subtitle = "Automatically organize newly installed apps using on-device intelligence",
+                                            checked = autoCategorizeNewApps,
+                                            onCheckedChange = onSetAutoCategorizeNewApps
+                                        )
                                     }
-                                } else {
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+
+                                    1 -> {
+                                        // ── TAB 1: THEMES, SURFACES & PALETTES ─────────────
+                                        StudioHeader("Theme Palette Mode", "Light, Dark, AMOLED, or match device system theme")
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            listOf(
+                                                "SYSTEM" to "System",
+                                                "LIGHT" to "Light",
+                                                "DARK" to "Dark",
+                                                "AMOLED" to "AMOLED"
+                                            ).forEach { (mode, label) ->
+                                                StudioChoiceCard(
+                                                    title = label,
+                                                    subtitle = if (mode == "SYSTEM") "Auto" else mode,
+                                                    isSelected = themeMode.equals(mode, ignoreCase = true),
+                                                    modifier = Modifier.weight(1f),
+                                                    onClick = {
+                                                        onSetThemeMode(mode)
+                                                        onSetDrawerThemeMode(if (mode == "LIGHT") "WHITE" else mode)
+                                                    }
+                                                )
+                                            }
+                                        }
+
+                                        StudioSwitch(
+                                            title = "Dynamic Color (Material You)",
+                                            subtitle = "Derive accent highlights from your current wallpaper",
+                                            checked = dynamicColor,
+                                            onCheckedChange = onSetDynamicColor
+                                        )
+
+                                        StudioHeader("Cinematic Color Grading", "Signature Hollywood film-stocks applied to glass rims and category cards")
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            CinematicPalettes.allPalettes.forEach { palette ->
+                                                val isSelected = cinematicPalette.equals(palette.id, ignoreCase = true)
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                    border = BorderStroke(
+                                                        if (isSelected) 2.dp else 1.dp,
+                                                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                                    ),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable { onSetCinematicPalette(palette.id) }
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        // 3-tone color swatch pills
+                                                        Row(horizontalArrangement = Arrangement.spacedBy((-4).dp)) {
+                                                            Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(palette.primaryAccent).border(1.dp, Color.White, CircleShape))
+                                                            Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(palette.secondaryAccent).border(1.dp, Color.White, CircleShape))
+                                                            Box(modifier = Modifier.size(18.dp).clip(CircleShape).background(palette.rimStart).border(1.dp, Color.White, CircleShape))
+                                                        }
+                                                        Spacer(modifier = Modifier.width(10.dp))
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(text = palette.name, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                            Text(text = palette.subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                                                        }
+                                                        if (isSelected) {
+                                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        StudioHeader("Surface Aesthetic Finish", "Tactile finish for the dock and drawers")
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            listOf(
+                                                "LIQUID_GLASS" to "Glass",
+                                                "BLUR" to "Blur",
+                                                "SOLID" to "Solid",
+                                                "TRANSPARENT" to "Clear"
+                                            ).forEach { (style, label) ->
+                                                StudioChoiceCard(
+                                                    title = label,
+                                                    subtitle = when (style) {
+                                                        "LIQUID_GLASS" -> "Specular"
+                                                        "BLUR" -> "Frosted"
+                                                        "SOLID" -> "OLED"
+                                                        else -> "Invisible"
+                                                    },
+                                                    isSelected = surfaceThemeStyle.equals(style, ignoreCase = true),
+                                                    modifier = Modifier.weight(1f),
+                                                    onClick = { onSetSurfaceThemeStyle(style) }
+                                                )
+                                            }
+                                        }
+
+                                        if (surfaceThemeStyle != "TRANSPARENT" && surfaceThemeStyle != "SOLID") {
+                                            StudioSlider(
+                                                title = "Surface Opacity",
+                                                value = surfaceOpacity,
+                                                onValueChange = onSetSurfaceOpacity,
+                                                valueRange = 0.10f..1.0f,
+                                                valueLabel = "${(surfaceOpacity * 100).toInt()}%"
+                                            )
+                                            StudioSlider(
+                                                title = "Blur Depth Intensity",
+                                                value = surfaceBlurRadius,
+                                                onValueChange = onSetSurfaceBlurRadius,
+                                                valueRange = 5f..80f,
+                                                valueLabel = "${surfaceBlurRadius.toInt()} px"
+                                            )
+                                            if (surfaceThemeStyle == "LIQUID_GLASS") {
+                                                StudioSlider(
+                                                    title = "Glass Highlight (Specular Rim)",
+                                                    value = surfaceStrokeOpacity,
+                                                    onValueChange = onSetSurfaceStrokeOpacity,
+                                                    valueRange = 0f..1.0f,
+                                                    valueLabel = "${(surfaceStrokeOpacity * 100).toInt()}%"
+                                                )
+                                            }
+                                        }
+
+                                        if (surfaceThemeStyle != "TRANSPARENT") {
+                                            StudioSlider(
+                                                title = "Corner Curvature",
+                                                value = surfaceCornerRadius,
+                                                onValueChange = onSetSurfaceCornerRadius,
+                                                valueRange = 0f..36f,
+                                                valueLabel = "${surfaceCornerRadius.toInt()} dp"
+                                            )
+                                        }
+                                    }
+
+                                    2 -> {
+                                        // ── TAB 2: WALLPAPER & AMBIANCE ────────────────────
+                                        StudioHeader("Dynamic Pantone Wallpaper", "Smooth gradient transitions between authentic Pantone colors")
+                                        StudioSwitch(
+                                            title = "Enable Dynamic Pantone Wallpaper",
+                                            subtitle = "Live morphing gradient with 40% blur, or keep device wallpaper",
+                                            checked = isDynamicWallpaper,
+                                            onCheckedChange = onSelectDynamicWallpaper
+                                        )
+
+                                        if (isDynamicWallpaper) {
+                                            StudioHeader("Shift Speed", "Cycle duration for color morphing")
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                listOf(2 to "2s", 3 to "3s", 5 to "5s", 8 to "8s", 12 to "12s").forEach { (speed, label) ->
+                                                    StudioChip(
+                                                        label = label,
+                                                        isSelected = wallpaperGradientSpeedSeconds == speed,
+                                                        onClick = { onSetWallpaperGradientSpeedSeconds(speed) }
+                                                    )
+                                                }
+                                            }
+
+                                            StudioHeader("Pantone Palette", "Harmonized authentic color spectrums")
+                                            FlowRow(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                listOf(
+                                                    "FULL_SPECTRUM" to "Full Spectrum",
+                                                    "PANTONE_COTY" to "Color of Year",
+                                                    "AURORA_BOREALIS" to "Aurora",
+                                                    "SUNSET_CHROMA" to "Sunset",
+                                                    "DEEP_TWILIGHT" to "Twilight",
+                                                    "PASTEL_DREAM" to "Pastel"
+                                                ).forEach { (palKey, label) ->
+                                                    StudioChip(
+                                                        label = label,
+                                                        isSelected = wallpaperGradientPalette.equals(palKey, ignoreCase = true),
+                                                        onClick = { onSetWallpaperGradientPalette(palKey) }
+                                                    )
+                                                }
+                                            }
+
+                                            StudioHeader("Flow Direction", "Angle of gradient flow across screen")
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                listOf("DIAGONAL" to "Diagonal", "VERTICAL" to "Vertical", "RADIAL" to "Radial").forEach { (angle, label) ->
+                                                    StudioChoiceCard(
+                                                        title = label,
+                                                        subtitle = angle,
+                                                        isSelected = wallpaperGradientAngle.equals(angle, ignoreCase = true),
+                                                        modifier = Modifier.weight(1f),
+                                                        onClick = { onSetWallpaperGradientAngle(angle) }
+                                                    )
+                                                }
+                                            }
+
+                                            StudioSlider(
+                                                title = "Gradient Blur Diffusion",
+                                                value = wallpaperGradientBlurPercent.toFloat(),
+                                                onValueChange = { onSetWallpaperGradientBlurPercent(it.toInt()) },
+                                                valueRange = 0f..100f,
+                                                valueLabel = "$wallpaperGradientBlurPercent%"
+                                            )
+                                        }
+
+                                        StudioHeader("Home Wallpaper Blur", "Frosted glass blur applied over system wallpaper")
+                                        StudioSwitch(
+                                            title = "Blur System Wallpaper",
+                                            subtitle = "Apply soft frosted blur to home screen background",
+                                            checked = wallpaperBlur,
+                                            onCheckedChange = onSetWallpaperBlur
+                                        )
+
+                                        if (wallpaperBlur) {
+                                            StudioSlider(
+                                                title = "Wallpaper Blur Depth",
+                                                value = wallpaperBlurRadius,
+                                                onValueChange = onSetWallpaperBlurRadius,
+                                                valueRange = 5f..100f,
+                                                valueLabel = "${wallpaperBlurRadius.toInt()} px"
+                                            )
+                                        }
+
+                                        StudioHeader("Immersive Fullscreen", "Hide status bar for distraction-free home screen")
+                                        StudioSwitch(
+                                            title = "Hide System Status Bar",
+                                            subtitle = "Immersive edge-to-edge experience (battery/temp accessible via Duo Status)",
+                                            checked = hideStatusBar,
+                                            onCheckedChange = onSetHideStatusBar
+                                        )
+                                    }
+
+                                    3 -> {
+                                        // ── TAB 3: ICONS, TYPOGRAPHY & DOCK ────────────────
+                                        StudioHeader("Adaptive Icon Mask", "Uniform geometric shape for system and third-party apps")
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            listOf(
+                                                "CIRCLE" to "Circle",
+                                                "SQUIRCLE" to "Squircle",
+                                                "ROUNDED_SQUARE" to "Square",
+                                                "TEARDROP" to "Teardrop",
+                                                "SYSTEM" to "System"
+                                            ).forEach { (shapeKey, label) ->
+                                                val icShape = iconShapeFromString(shapeKey)
+                                                val isSelected = adaptiveIconShape.equals(shapeKey, ignoreCase = true)
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                    border = BorderStroke(
+                                                        if (isSelected) 2.dp else 1.dp,
+                                                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                                    ),
+                                                    modifier = Modifier
+                                                        .width(76.dp)
+                                                        .clickable { onSetAdaptiveIconShape(shapeKey) }
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(28.dp)
+                                                                .clip(icShape)
+                                                                .background(
+                                                                    if (isSelected) MaterialTheme.colorScheme.primary
+                                                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                                )
+                                                        )
+                                                        Text(text = label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        StudioHeader("Header & Clock Typography", "Select display font for clock, date, and group headers")
+                                        var fontDropdownExpanded by remember { mutableStateOf(false) }
+                                        val fontOptions = remember {
+                                            listOf(
+                                                "GOOGLE_SANS" to "Google Sans",
+                                                "DS_DIGITAL" to "DS-Digital",
+                                                "SYSTEM" to "System Sans",
+                                                "ROBOTO" to "Roboto",
+                                                "TEXAS_TROUPE" to "Texas Troupe",
+                                                "MONOSPACE" to "Monospace",
+                                                "SPOOKYY" to "Spookyy",
+                                                "EVIL_EMPIRE" to "Evil Empire",
+                                                "HYPIK" to "Hypik",
+                                                "HELVETICA" to "Helvetica",
+                                                "TIMES_NEW_ROMAN" to "Times New Roman",
+                                                "ARIAL" to "Arial",
+                                                "SERIF" to "Serif",
+                                                "CURSIVE" to "Cursive"
+                                            )
+                                        }
+                                        val currentFontName = fontOptions.find { it.first.equals(headerFontFamily, ignoreCase = true) }?.second ?: headerFontFamily
+
+                                        Box(modifier = Modifier.fillMaxWidth()) {
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { fontDropdownExpanded = true }
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column {
+                                                        Text(text = currentFontName, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                        Text(text = "Sample: 12:45 • Social • Notes", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                                                    }
+                                                    Icon(
+                                                        imageVector = if (fontDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                                        contentDescription = null
+                                                    )
+                                                }
+                                            }
+
+                                            DropdownMenu(
+                                                expanded = fontDropdownExpanded,
+                                                onDismissRequest = { fontDropdownExpanded = false },
+                                                modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 380.dp)
+                                            ) {
+                                                fontOptions.forEach { (key, label) ->
+                                                    val isSelected = headerFontFamily.equals(key, ignoreCase = true)
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Text(text = label, fontFamily = headerFontFamilyFromName(key), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                                                if (isSelected) {
+                                                                    Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                                                }
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            onSetHeaderFontFamily(key)
+                                                            fontDropdownExpanded = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        StudioHeader("App Label Scale", "Scale text size for app names across drawer and dock")
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            listOf("SMALL" to "Small", "NORMAL" to "Default", "LARGE" to "Large").forEach { (scaleKey, label) ->
+                                                StudioChoiceCard(
+                                                    title = label,
+                                                    subtitle = scaleKey,
+                                                    isSelected = appLabelScale.equals(scaleKey, ignoreCase = true),
+                                                    modifier = Modifier.weight(1f),
+                                                    onClick = { onSetAppLabelScale(scaleKey) }
+                                                )
+                                            }
+                                        }
+
+                                        StudioSwitch(
+                                            title = "Text-Only App List",
+                                            subtitle = "Hide app icons in drawer for a clean minimalist text list",
+                                            checked = hideDrawerIcons,
+                                            onCheckedChange = onSetHideDrawerIcons
+                                        )
+
+                                        StudioHeader("Floating Quick-Launch Dock", "Customize dock icon scale, glow, and labels")
+                                        StudioSlider(
+                                            title = "Dock Icon Size",
+                                            value = dockIconSize,
+                                            onValueChange = onSetDockIconSize,
+                                            valueRange = 40f..72f,
+                                            valueLabel = "${dockIconSize.toInt()} dp"
+                                        )
+                                        StudioSwitch(
+                                            title = "Show App Labels on Dock",
+                                            subtitle = "Display app name underneath each dock icon",
+                                            checked = dockShowLabels,
+                                            onCheckedChange = onSetDockShowLabels
+                                        )
+                                        StudioSwitch(
+                                            title = "Mesmerizing Refraction Glow",
+                                            subtitle = "Iridescent chromatic sheen catching light along dock edge",
+                                            checked = dockMesmerizingGlow,
+                                            onCheckedChange = onSetDockMesmerizingGlow
+                                        )
+                                    }
+
+                                    4 -> {
+                                        // ── TAB 4: HEADER, INTERACTIONS & PRIVACY ──────────
+                                        StudioHeader("Clock Formatting", "Choose 12-Hour AM/PM or 24-Hour Military format")
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            StudioChoiceCard(
+                                                title = "12-Hour (AM/PM)",
+                                                subtitle = "Standard time",
+                                                isSelected = !is24Hour,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { onSetIs24Hour(false) }
+                                            )
+                                            StudioChoiceCard(
+                                                title = "24-Hour (Military)",
+                                                subtitle = "24h format",
+                                                isSelected = is24Hour,
+                                                modifier = Modifier.weight(1f),
+                                                onClick = { onSetIs24Hour(true) }
+                                            )
+                                        }
+
+                                        StudioHeader("Live Weather & Telemetry", "Real-time conditions and device telemetry in header")
+                                        StudioSwitch(
+                                            title = "Show Live Weather",
+                                            subtitle = "Display current temperature and weather forecast",
+                                            checked = showWeather,
+                                            onCheckedChange = onSetShowWeather
+                                        )
+
+                                        if (showWeather) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(start = 8.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                StudioChoiceCard(
+                                                    title = "Celsius (°C)",
+                                                    subtitle = "Metric",
+                                                    isSelected = weatherUnit.equals("CELSIUS", ignoreCase = true),
+                                                    modifier = Modifier.weight(1f),
+                                                    onClick = { onSetWeatherUnit("CELSIUS") }
+                                                )
+                                                StudioChoiceCard(
+                                                    title = "Fahrenheit (°F)",
+                                                    subtitle = "Imperial",
+                                                    isSelected = weatherUnit.equals("FAHRENHEIT", ignoreCase = true),
+                                                    modifier = Modifier.weight(1f),
+                                                    onClick = { onSetWeatherUnit("FAHRENHEIT") }
+                                                )
+                                            }
+                                        }
+
+                                        StudioSwitch(
+                                            title = "Show Duo Status Widget",
+                                            subtitle = "Battery percentage & temperature pill in header",
+                                            checked = showDuoStatusWidget,
+                                            onCheckedChange = onSetShowDuoStatusWidget
+                                        )
+
+                                        StudioHeader("Interactions & Privacy", "Keyboard shortcuts and distraction-free options")
+                                        StudioSwitch(
+                                            title = "Auto-Open Keyboard in Drawer",
+                                            subtitle = "Focus search bar immediately when opening All Apps drawer",
+                                            checked = autoOpenKeyboardInDrawer,
+                                            onCheckedChange = onSetAutoOpenKeyboardInDrawer
+                                        )
+                                        StudioSwitch(
+                                            title = "Blur App List on Open",
+                                            subtitle = "Obscure apps with frosted blur until tapped",
+                                            checked = blurAppListOnOpen,
+                                            onCheckedChange = onSetBlurAppListOnOpen
+                                        )
+                                        StudioSwitch(
+                                            title = "Show Suggested Apps",
+                                            subtitle = "Surface smart predictive apps based on your routine",
+                                            checked = showDrawerSuggestions,
+                                            onCheckedChange = onSetShowDrawerSuggestions
+                                        )
+                                        StudioSwitch(
+                                            title = "Stealth Mode (OLED)",
+                                            subtitle = "Pitch-black low-contrast mode for shoulder-proof discretion",
+                                            checked = stealthTheme,
+                                            onCheckedChange = onSetStealthTheme
+                                        )
+                                        if (stealthTheme) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(start = 8.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                listOf("LOW" to "Low", "MEDIUM" to "Medium", "HIGH" to "High").forEach { (lvl, lbl) ->
+                                                    StudioChip(
+                                                        label = "$lbl Contrast",
+                                                        isSelected = stealthContrastLevel.equals(lvl, ignoreCase = true),
+                                                        onClick = { onSetStealthContrastLevel(lvl) }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    5 -> {
+                                        // ── TAB 5: READY & DEFAULT LAUNCHER ────────────────
+                                        StudioHeader("Configuration Overview", "Your launcher is live-configured to your personalized choices")
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    StudioPill(if (twoDrawersSideBySide) "2 Columns" else "1 Column")
+                                                    StudioPill(if (categoryAlignment.equals("BOTTOM", ignoreCase = true)) "Drawers Down" else "Drawers Up")
+                                                    StudioPill(if (is24Hour) "24h Clock" else "12h Clock")
+                                                }
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    StudioPill(themeMode)
+                                                    StudioPill(surfaceThemeStyle)
+                                                    StudioPill(cinematicPalette)
+                                                }
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    StudioPill(adaptiveIconShape)
+                                                    StudioPill(if (dockMesmerizingGlow) "Glow Active" else "Clean Dock")
+                                                    StudioPill(if (showWeather) "Weather ($weatherUnit)" else "No Weather")
+                                                }
+                                            }
+                                        }
+
+                                        StudioHeader("Set as Default Launcher", "Make Drawer your default home app so swiping home returns here")
+                                        OutlinedButton(
+                                            onClick = { launchDefaultPrompt() },
+                                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Icon(Icons.Default.Home, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Set as Default Home App", fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        Button(
+                                            onClick = onDismiss,
+                                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                                            shape = RoundedCornerShape(14.dp)
+                                        ) {
+                                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Start Using Drawer", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        }
                                     }
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = pages[pagerState.currentPage].accentColor
-                            ),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.height(42.dp)
+                            }
+                        }
+
+                        // Bottom Navigation Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (isLastPage) {
-                                Text(
-                                    text = "Start Launcher",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 13.sp
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                            if (pagerState.currentPage > 0) {
+                                IconButton(
+                                    onClick = {
+                                        coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                                    },
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous")
+                                }
                             } else {
-                                Text(
-                                    text = "Next",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 13.sp
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Spacer(modifier = Modifier.size(38.dp))
+                            }
+
+                            // Step indicator dots
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                repeat(STUDIO_TABS.size) { index ->
+                                    val isSelected = pagerState.currentPage == index
+                                    Box(
+                                        modifier = Modifier
+                                            .height(5.dp)
+                                            .width(if (isSelected) 16.dp else 5.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isSelected) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                            )
+                                    )
+                                }
+                            }
+
+                            val isLast = pagerState.currentPage == STUDIO_TABS.size - 1
+                            Button(
+                                onClick = {
+                                    if (isLast) {
+                                        if (!isDefaultLauncher(context)) {
+                                            showDefaultDialog = true
+                                        } else {
+                                            onDismiss()
+                                        }
+                                    } else {
+                                        coroutineScope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.height(38.dp)
+                            ) {
+                                if (isLast) {
+                                    Text("Done", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                                } else {
+                                    Text("Next", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(14.dp))
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
         if (showDefaultDialog) {
             AlertDialog(
@@ -584,644 +1186,173 @@ fun WalkthroughOverlay(
                     showDefaultDialog = false
                     onDismiss()
                 },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Home,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
-                    )
-                },
-                title = {
-                    Text(
-                        text = "Set as Default Launcher?",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Make Drawer your default home app so your personalized drawers, executive dock, and live widgets are always one tap away.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
+                icon = { Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp)) },
+                title = { Text("Set as Default Launcher?", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) },
+                text = { Text("Make Drawer your default home app so your personalized drawers and dock are always one tap away.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 confirmButton = {
-                    Button(
-                        onClick = {
-                            showDefaultDialog = false
-                            launchDefaultPrompt()
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
+                    Button(onClick = { showDefaultDialog = false; launchDefaultPrompt() }, shape = RoundedCornerShape(12.dp)) {
                         Text("Set as Default", fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
-                    TextButton(
-                        onClick = {
-                            showDefaultDialog = false
-                            onDismiss()
-                        }
-                    ) {
-                        Text("Maybe Later")
-                    }
+                    TextButton(onClick = { showDefaultDialog = false; onDismiss() }) { Text("Maybe Later") }
                 },
-                shape = RoundedCornerShape(22.dp)
+                shape = RoundedCornerShape(20.dp)
             )
         }
     }
 }
 
-/**
- * Renders the live interactive preview and configuration options for each walkthrough step.
- */
 @Composable
-private fun WalkthroughLiveStep(
-    pageIndex: Int,
-    accentColor: Color,
-    twoDrawersSideBySide: Boolean,
-    onSetTwoDrawersSideBySide: (Boolean) -> Unit,
-    is24Hour: Boolean,
-    onSetIs24Hour: (Boolean) -> Unit,
-    showWeather: Boolean,
-    onSetShowWeather: (Boolean) -> Unit,
-    adaptiveIconShape: String,
-    onSetAdaptiveIconShape: (String) -> Unit,
-    drawerThemeMode: String,
-    onSetDrawerThemeMode: (String) -> Unit,
-    surfaceThemeStyle: String,
-    onSetSurfaceThemeStyle: (String) -> Unit,
-    dockMesmerizingGlow: Boolean,
-    onSetDockMesmerizingGlow: (Boolean) -> Unit,
-    headerFontFamily: String,
-    onSetHeaderFontFamily: (String) -> Unit,
-    stealthTheme: Boolean,
-    onSetStealthTheme: (Boolean) -> Unit,
-    isDynamicWallpaper: Boolean,
-    onSelectDynamicWallpaper: (Boolean) -> Unit
+private fun StudioHeader(title: String, subtitle: String? = null) {
+    Column(modifier = Modifier.padding(top = 4.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun StudioChoiceCard(
+    title: String,
+    subtitle: String,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        border = BorderStroke(
+            if (isSelected) 1.5.dp else 1.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        ),
+        modifier = modifier
+            .height(58.dp)
+            .clickable(onClick = onClick)
     ) {
-        when (pageIndex) {
-            0 -> {
-                // ── STEP 0: 1 vs 2 DRAWERS ──────────────────────────────────────────────
-                // Live visual mockup
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth().height(96.dp)
-                ) {
-                    Box(modifier = Modifier.fillMaxSize().padding(10.dp), contentAlignment = Alignment.Center) {
-                        if (!twoDrawersSideBySide) {
-                            // 1 Unified Column mockup
-                            Column(
-                                modifier = Modifier.fillMaxWidth(0.85f),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Primary Apps (1 Drawer)", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = accentColor)
-                                    Text("12 apps", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    repeat(4) {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = accentColor.copy(alpha = 0.15f),
-                                            modifier = Modifier.size(28.dp)
-                                        ) {}
-                                    }
-                                }
-                            }
-                        } else {
-                            // 2 Side-by-Side Drawers mockup
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("Drawer 1", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = accentColor)
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        repeat(2) { Surface(shape = RoundedCornerShape(6.dp), color = accentColor.copy(alpha = 0.2f), modifier = Modifier.size(24.dp)) {} }
-                                    }
-                                }
-                                Box(modifier = Modifier.width(1.dp).height(50.dp).background(accentColor.copy(alpha = 0.4f)))
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("Drawer 2", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color(0xFF2563EB))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        repeat(2) { Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFF2563EB).copy(alpha = 0.2f), modifier = Modifier.size(24.dp)) {} }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Interactive selector
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OptionCard(
-                        title = "1 Unified Drawer",
-                        subtitle = "Classic focus",
-                        isSelected = !twoDrawersSideBySide,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSetTwoDrawersSideBySide(false) }
-                    )
-                    OptionCard(
-                        title = "2 Dual Drawers",
-                        subtitle = "Side-by-side split",
-                        isSelected = twoDrawersSideBySide,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSetTwoDrawersSideBySide(true) }
-                    )
-                }
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f, fill = false)) {
+                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = subtitle, fontSize = 9.sp, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
-            1 -> {
-                // ── STEP 1: AT A GLANCE (24h/12h & Weather) ─────────────────────────────
-                // Live visual mockup
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth().height(88.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = if (is24Hour) "15:45" else "03:45 PM",
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Thursday, Oct 18",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        if (showWeather) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = accentColor.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("24°C", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = accentColor)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Sunny", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Interactive controls
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Clock Format", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ChipOption(title = "12-Hour AM/PM", isSelected = !is24Hour, accentColor = accentColor) { onSetIs24Hour(false) }
-                        ChipOption(title = "24-Hour Military", isSelected = is24Hour, accentColor = accentColor) { onSetIs24Hour(true) }
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text("Weather Feed", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ChipOption(title = "Show Weather", isSelected = showWeather, accentColor = accentColor) { onSetShowWeather(true) }
-                        ChipOption(title = "Hide Weather", isSelected = !showWeather, accentColor = accentColor) { onSetShowWeather(false) }
-                    }
-                }
-            }
-
-            2 -> {
-                // ── STEP 2: ICON SHAPE GEOMETRY ─────────────────────────────────────────
-                val shape = remember(adaptiveIconShape) { iconShapeFromString(adaptiveIconShape) }
-
-                // Live visual mockup
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth().height(92.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val icons = listOf(Icons.Default.Call, Icons.AutoMirrored.Filled.Chat, Icons.Default.Language, Icons.Default.PhotoCamera)
-                        val colors = listOf(Color(0xFF22C55E), Color(0xFF3B82F6), Color(0xFFF97316), Color(0xFFA855F7))
-                        icons.forEachIndexed { i, ic ->
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(shape)
-                                    .background(colors[i]),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(imageVector = ic, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-                            }
-                        }
-                    }
-                }
-
-                // Interactive chips
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val shapes = listOf(
-                        "SQUIRCLE" to "Squircle",
-                        "CIRCLE" to "Circle",
-                        "ROUNDED_SQUARE" to "Square",
-                        "TEARDROP" to "Teardrop",
-                        "SYSTEM" to "System"
-                    )
-                    shapes.forEach { (key, label) ->
-                        ChipOption(
-                            title = label,
-                            isSelected = adaptiveIconShape.equals(key, ignoreCase = true),
-                            accentColor = accentColor
-                        ) { onSetAdaptiveIconShape(key) }
-                    }
-                }
-            }
-
-            3 -> {
-                // ── STEP 3: THEME & GLASS SURFACES ──────────────────────────────────────
-                // Live visual mockup
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = when (drawerThemeMode.uppercase()) {
-                        "DARK" -> Color(0xFF121212)
-                        "LIGHT" -> Color(0xFFF4F4F5)
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                    },
-                    border = BorderStroke(
-                        if (surfaceThemeStyle == "LIQUID_GLASS") 1.5.dp else 1.dp,
-                        accentColor.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth().height(88.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Mode: $drawerThemeMode",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Surface: $surfaceThemeStyle",
-                                fontSize = 11.sp,
-                                color = accentColor
-                            )
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = accentColor.copy(alpha = 0.2f),
-                            border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f)),
-                            modifier = Modifier.size(height = 34.dp, width = 74.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("Preview", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = accentColor)
-                            }
-                        }
-                    }
-                }
-
-                // Interactive controls
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Theme Palette", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("SYSTEM" to "System", "DARK" to "Dark", "LIGHT" to "Light").forEach { (mode, label) ->
-                            ChipOption(title = label, isSelected = drawerThemeMode.equals(mode, ignoreCase = true), accentColor = accentColor) {
-                                onSetDrawerThemeMode(mode)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text("Surface Texture", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("LIQUID_GLASS" to "Liquid Glass", "BLUR" to "Frosted Blur", "SOLID" to "Solid OLED").forEach { (style, label) ->
-                            ChipOption(title = label, isSelected = surfaceThemeStyle.equals(style, ignoreCase = true), accentColor = accentColor) {
-                                onSetSurfaceThemeStyle(style)
-                            }
-                        }
-                    }
-                }
-            }
-
-            4 -> {
-                // ── STEP 4: PRECISION DOCK & MESMERIZING GLOW ────────────────────────────
-                // Live visual mockup
-                val glowBorder = if (dockMesmerizingGlow) {
-                    Brush.horizontalGradient(
-                        listOf(PantoneColors.PeachFuzz, PantoneColors.VeryPeri, PantoneColors.VivaMagenta)
-                    )
-                } else {
-                    Brush.horizontalGradient(
-                        listOf(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    )
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                    border = BorderStroke(if (dockMesmerizingGlow) 2.dp else 1.dp, glowBorder),
-                    modifier = Modifier.fillMaxWidth().height(92.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(10.dp),
-                        verticalArrangement = Arrangement.SpaceBetween,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = if (dockMesmerizingGlow) "✨ MESMERIZING GLOW ACTIVE" else "CLEAN GLASS DOCK",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            color = if (dockMesmerizingGlow) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val icons = listOf(Icons.Default.Call, Icons.AutoMirrored.Filled.Chat, Icons.Default.Language, Icons.Default.PhotoCamera)
-                            icons.forEach { ic ->
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (dockMesmerizingGlow) accentColor.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                                    border = BorderStroke(1.dp, if (dockMesmerizingGlow) accentColor.copy(alpha = 0.5f) else Color.Transparent),
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(imageVector = ic, contentDescription = null, tint = if (dockMesmerizingGlow) accentColor else MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Interactive selector
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OptionCard(
-                        title = "Mesmerizing Glow",
-                        subtitle = "Iridescent refraction",
-                        isSelected = dockMesmerizingGlow,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSetDockMesmerizingGlow(true) }
-                    )
-                    OptionCard(
-                        title = "Clean Glass",
-                        subtitle = "Subtle frosted dock",
-                        isSelected = !dockMesmerizingGlow,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSetDockMesmerizingGlow(false) }
-                    )
-                }
-            }
-
-            5 -> {
-                // ── STEP 5: TYPOGRAPHY ──────────────────────────────────────────────────
-                val resolvedFont = remember(headerFontFamily) { headerFontFamilyFromName(headerFontFamily) }
-
-                // Live visual mockup
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth().height(88.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(14.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "12:30 • EXECUTIVE",
-                            fontFamily = resolvedFont,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Bespoke Workspace Typography",
-                            fontFamily = resolvedFont,
-                            fontSize = 11.sp,
-                            color = accentColor
-                        )
-                    }
-                }
-
-                // Interactive chips
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val fonts = listOf(
-                        "GOOGLE_SANS" to "Google Sans",
-                        "SPOOKYY" to "Spookyy",
-                        "DS_DIGITAL" to "DS-Digital",
-                        "EVIL_EMPIRE" to "Evil Empire",
-                        "HYPIK" to "Hypik",
-                        "HELVETICA" to "Helvetica",
-                        "ROBOTO" to "Roboto",
-                        "TIMES_NEW_ROMAN" to "Times",
-                        "ARIAL" to "Arial",
-                        "TEXAS_TROUPE" to "Texas Troupe",
-                        "SYSTEM" to "System Sans",
-                        "MONOSPACE" to "Monospace",
-                        "SERIF" to "Serif",
-                        "CURSIVE" to "Cursive"
-                    )
-                    fonts.forEach { (key, label) ->
-                        ChipOption(
-                            title = label,
-                            isSelected = headerFontFamily.equals(key, ignoreCase = true),
-                            accentColor = accentColor
-                        ) { onSetHeaderFontFamily(key) }
-                    }
-                }
-            }
-
-            6 -> {
-                // ── STEP 6: STEALTH THEME & PRIVACY ─────────────────────────────────────
-                // Live visual mockup
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (stealthTheme) Color(0xFF09090B) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    border = BorderStroke(1.dp, if (stealthTheme) Color(0xFF27272A) else accentColor.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth().height(88.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (stealthTheme) Color(0xFF18181B) else accentColor.copy(alpha = 0.2f),
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (stealthTheme) Icons.Default.VisibilityOff else Icons.Default.NotificationsActive,
-                                        contentDescription = null,
-                                        tint = if (stealthTheme) Color(0xFF71717A) else accentColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = if (stealthTheme) "STEALTH OLED 0%" else "EXECUTIVE NOTIFICATIONS",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    color = if (stealthTheme) Color(0xFF71717A) else MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = if (stealthTheme) "Low contrast • Shoulder proof" else "Vibrant previews & accents",
-                                    fontSize = 10.sp,
-                                    color = if (stealthTheme) Color(0xFF52525B) else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Interactive selector
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OptionCard(
-                        title = "Stealth Mode",
-                        subtitle = "OLED pitch black",
-                        isSelected = stealthTheme,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSetStealthTheme(true) }
-                    )
-                    OptionCard(
-                        title = "Standard Mode",
-                        subtitle = "Full dynamic contrast",
-                        isSelected = !stealthTheme,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSetStealthTheme(false) }
-                    )
-                }
-            }
-
-            7 -> {
-                // ── STEP 7: PANTONE GRADIENT WALLPAPER ──────────────────────────────────
-                // Live visual mockup
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.5.dp, accentColor.copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth().height(92.dp)
-                ) {
-                    if (isDynamicWallpaper) {
-                        DynamicPantoneWallpaper(speedSeconds = 3, blurPercent = 40)
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Original System Wallpaper Active", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-
-                // Interactive selector
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OptionCard(
-                        title = "Pantone Gradient",
-                        subtitle = "3s cycle • 40% blur",
-                        isSelected = isDynamicWallpaper,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSelectDynamicWallpaper(true) }
-                    )
-                    OptionCard(
-                        title = "Original Wallpaper",
-                        subtitle = "System wallpaper",
-                        isSelected = !isDynamicWallpaper,
-                        accentColor = accentColor,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSelectDynamicWallpaper(false) }
-                    )
-                }
-            }
-
-            8 -> {
-                // ── STEP 8: FINAL SUMMARY ────────────────────────────────────────────────
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("ACTIVE CONFIGURATION SUMMARY", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = accentColor, letterSpacing = 0.8.sp)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            SummaryPill(if (twoDrawersSideBySide) "2 Drawers" else "1 Drawer")
-                            SummaryPill(if (is24Hour) "24h" else "12h")
-                            SummaryPill(adaptiveIconShape)
-                        }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            SummaryPill(drawerThemeMode)
-                            SummaryPill(surfaceThemeStyle)
-                            SummaryPill(if (dockMesmerizingGlow) "Mesmerizing Glow" else "Clean Dock")
-                        }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            SummaryPill(if (isDynamicWallpaper) "Pantone Gradient" else "System Wallpaper")
-                            SummaryPill(if (stealthTheme) "Stealth On" else "Standard")
-                        }
-                    }
-                }
+            if (isSelected) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
             }
         }
     }
 }
 
 @Composable
-private fun SummaryPill(text: String) {
+private fun StudioSwitch(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = subtitle, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 14.sp)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun StudioSlider(
+    title: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    valueLabel: String
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text(text = valueLabel, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier.fillMaxWidth().height(26.dp)
+        )
+    }
+}
+
+@Composable
+private fun StudioChip(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        ),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        )
+    }
+}
+
+@Composable
+private fun StudioPill(text: String) {
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -1237,86 +1368,7 @@ private fun SummaryPill(text: String) {
     }
 }
 
-@Composable
-private fun OptionCard(
-    title: String,
-    subtitle: String,
-    isSelected: Boolean,
-    accentColor: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) accentColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        border = BorderStroke(
-            if (isSelected) 2.dp else 1.dp,
-            if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-        ),
-        modifier = modifier
-            .height(68.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 9.sp,
-                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "Selected",
-                    tint = accentColor,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChipOption(
-    title: String,
-    isSelected: Boolean,
-    accentColor: Color,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        border = BorderStroke(
-            1.dp,
-            if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-        ),
-        modifier = Modifier.clickable(onClick = onClick)
-    ) {
-        Text(
-            text = title,
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-        )
-    }
-}
-
 private fun isDefaultLauncher(context: Context): Boolean {
-    // ponytail: standard platform check via RoleManager on Q+ and PackageManager fallback; ceiling: relies on MATCH_DEFAULT_ONLY filter; upgrade path: BroadcastReceiver on ACTION_PREFERRED_ACTIVITY_CHANGED.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val roleManager = context.getSystemService(RoleManager::class.java)
         if (roleManager?.isRoleAvailable(RoleManager.ROLE_HOME) == true) {
