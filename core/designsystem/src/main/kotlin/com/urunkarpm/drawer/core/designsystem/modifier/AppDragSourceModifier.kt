@@ -9,7 +9,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.changedToUp
@@ -17,7 +16,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
@@ -34,7 +33,7 @@ fun Modifier.appDragSource(
     onDragEnd: (isDropped: Boolean) -> Unit,
     longPressRequired: Boolean = true
 ): Modifier = composed {
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val coordsHolder = remember { arrayOfNulls<LayoutCoordinates>(1) }
 
     this
@@ -65,6 +64,7 @@ fun Modifier.appDragSource(
                                 val dist = (releasePos - initialPosition).getDistance()
                                 if (dist <= touchSlop) {
                                     change?.consume()
+                                    crispHaptics.click()
                                     onAppClick()
                                 }
                                 return@withTimeout
@@ -91,11 +91,12 @@ fun Modifier.appDragSource(
                     return@awaitEachGesture
                 }
 
-                // Provide haptic feedback on drag or long-press hold
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                // Provide crisp haptic feedback on drag or long-press hold
+                crispHaptics.heavyClick()
 
                 // If drag was initiated by quick movement in phase 1, trigger onDragStart right away!
                 if (isDragStarted) {
+                    crispHaptics.dragStart()
                     val rootPos = (coordsHolder[0]?.takeIf { it.isAttached }?.positionInRoot() ?: Offset.Zero) + currentPosition
                     onDragStart(rootPos)
                 }
@@ -118,6 +119,7 @@ fun Modifier.appDragSource(
                         if (change.changedToUp() || !change.pressed) {
                             if (isDragStarted) {
                                 isDragStarted = false
+                                crispHaptics.dragEnd()
                                 onDragEnd(true)
                             } else {
                                 onAppLongClick()
@@ -135,6 +137,7 @@ fun Modifier.appDragSource(
                             val totalMovement = (newPosition - initialPosition).getDistance()
                             if (totalMovement > touchSlop) {
                                 isDragStarted = true
+                                crispHaptics.dragStart()
                                 val rootPos = (coordsHolder[0]?.takeIf { it.isAttached }?.positionInRoot() ?: Offset.Zero) + newPosition
                                 onDragStart(rootPos)
                             }

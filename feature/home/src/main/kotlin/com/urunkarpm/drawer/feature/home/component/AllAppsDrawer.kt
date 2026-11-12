@@ -99,14 +99,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -655,6 +654,7 @@ private fun SearchBarHeader(
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
+    val crispHaptics = LocalCrispHaptics.current
 
     Row(
         modifier = modifier
@@ -662,7 +662,10 @@ private fun SearchBarHeader(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onClose) {
+        IconButton(onClick = {
+            crispHaptics.click()
+            onClose()
+        }) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = "Close app drawer",
@@ -690,7 +693,10 @@ private fun SearchBarHeader(
             },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChanged("") }) {
+                    IconButton(onClick = {
+                        crispHaptics.click()
+                        onSearchQueryChanged("")
+                    }) {
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Clear search",
@@ -728,6 +734,7 @@ private fun SearchBarHeader(
             Spacer(modifier = Modifier.width(6.dp))
             IconButton(
                 onClick = {
+                    crispHaptics.click()
                     onClose()
                     onOpenSettings()
                 }
@@ -816,7 +823,7 @@ private fun AppItemView(
     onDragDropResult: ((DragDropResult) -> Unit)? = null,
     activeScrubLetterProvider: () -> String? = { null }
 ) {
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val labelScale = LocalAppLabelScale.current
     val firstChar = remember(app.label) { app.label.firstOrNull()?.uppercaseChar() }
 
@@ -836,6 +843,7 @@ private fun AppItemView(
                 },
                 onDragEnd = { isDropped ->
                     if (isDropped) {
+                        crispHaptics.confirm()
                         val result = dragDropState.endDrag()
                         onDragDropResult?.invoke(result)
                     } else {
@@ -852,9 +860,12 @@ private fun AppItemView(
         modifier
             .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
-                onClick = { onAppClick(app) },
+                onClick = {
+                    crispHaptics.click()
+                    onAppClick(app)
+                },
                 onLongClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    crispHaptics.heavyClick()
                     onAppLongClick(app)
                 }
             )

@@ -100,10 +100,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -504,7 +503,7 @@ private fun GroupCard(
 ) {
     val group = resolvedGroup.group
     val isExpanded = group.isExpanded
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val groupColor = remember(group.colorHex, group.name, group.id) {
         GroupIcons.resolveGroupColor(group.colorHex, group.name, group.id)
     }
@@ -701,8 +700,8 @@ private fun GroupCard(
                         interactionSource = headerInteractionSource,
                         indication = null,
                         onClick = {
-                            // ponytail: crisp native tactile haptic feedback on category drawer snap/toggle; ceiling: TextHandleMove platform standard; upgrade path: custom vibration pattern.
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            // ponytail: crisp native tactile haptic feedback on category drawer snap/toggle
+                            crispHaptics.tick()
                             acknowledgedPkgs = notifyingPkgs
                             onToggleExpand()
                         },
@@ -1069,7 +1068,7 @@ private fun GroupGridItem(
     onDragEnd: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val labelScale = LocalAppLabelScale.current
 
     val baseModifier = modifier
@@ -1088,7 +1087,7 @@ private fun GroupGridItem(
                 key = app.componentKey,
                 onAppClick = onClick,
                 onAppLongClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    crispHaptics.heavyClick()
                     onLongClick()
                 },
                 onDragStart = onDragStart,
@@ -1099,9 +1098,12 @@ private fun GroupGridItem(
     } else {
         baseModifier
             .combinedClickable(
-                onClick = onClick,
+                onClick = {
+                    crispHaptics.click()
+                    onClick()
+                },
                 onLongClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    crispHaptics.heavyClick()
                     onLongClick()
                 }
             )
@@ -1165,7 +1167,7 @@ private fun GroupListLayout(
     onAppDragEnd: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val labelScale = LocalAppLabelScale.current
 
     Column(
@@ -1192,7 +1194,7 @@ private fun GroupListLayout(
                             key = app.componentKey,
                             onAppClick = { onAppClick(app) },
                             onAppLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                crispHaptics.heavyClick()
                                 onAppLongClick(app)
                             },
                             onDragStart = { rootPos -> onAppDragStart(app, rootPos) },
@@ -1203,9 +1205,12 @@ private fun GroupListLayout(
                 } else {
                     baseModifier
                         .combinedClickable(
-                            onClick = { onAppClick(app) },
+                            onClick = {
+                                crispHaptics.click()
+                                onAppClick(app)
+                            },
                             onLongClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                crispHaptics.heavyClick()
                                 onAppLongClick(app)
                             }
                         )
@@ -1273,7 +1278,7 @@ private fun CategoryReelBadge(
     iconLoader: suspend (AppInfo) -> Drawable?,
     modifier: Modifier = Modifier
 ) {
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val density = LocalDensity.current.density
     val reelOffset = remember { Animatable(0f) }
     val lockSettleY = remember { Animatable(0f) }
@@ -1297,9 +1302,11 @@ private fun CategoryReelBadge(
                 val currentTick = value.toInt()
                 if (currentTick != lastTick) {
                     lastTick = currentTick
-                    haptic.performHapticFeedback(
-                        if (currentTick >= totalSteps) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove
-                    )
+                    if (currentTick >= totalSteps) {
+                        crispHaptics.heavyClick()
+                    } else {
+                        crispHaptics.tick()
+                    }
                 }
             }
 

@@ -87,6 +87,8 @@ class SettingsViewModelTest {
     private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
     private val showDrawerSuggestionsFlow = MutableStateFlow(true)
+    private val hapticFeedbackEnabledFlow = MutableStateFlow(true)
+    private val autoCheckUpdatesFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -99,6 +101,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.dynamicColor } returns dynamicColorFlow
         every { preferencesDataSource.accentColor } returns accentColorFlow
         every { preferencesDataSource.hideStatusBar } returns hideStatusBarFlow
+        every { preferencesDataSource.hapticFeedbackEnabled } returns hapticFeedbackEnabledFlow
         every { preferencesDataSource.wallpaperBlur } returns wallpaperBlurFlow
         every { preferencesDataSource.wallpaperBlurRadius } returns wallpaperBlurRadiusFlow
         every { preferencesDataSource.showWeather } returns showWeatherFlow
@@ -152,6 +155,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow
+        every { preferencesDataSource.autoCheckUpdates } returns autoCheckUpdatesFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -444,5 +448,19 @@ class SettingsViewModelTest {
         viewModel.setShowDrawerSuggestions(false)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setShowDrawerSuggestions(false) }
+    }
+
+    @Test
+    fun setHapticFeedbackEnabled_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setHapticFeedbackEnabled(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setHapticFeedbackEnabled(false) }
+    }
+
+    @Test
+    fun setAutoCheckUpdates_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setAutoCheckUpdates(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setAutoCheckUpdates(false) }
     }
 }

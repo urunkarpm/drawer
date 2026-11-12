@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
+import com.urunkarpm.drawer.core.designsystem.haptics.rememberCrispHaptics
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.feature.home.HomeScreen
@@ -54,6 +57,8 @@ class MainActivity : ComponentActivity() {
             val hideStatusBar by preferencesDataSource.hideStatusBar.collectAsStateWithLifecycle(initialValue = true)
             val wallpaperBlur by preferencesDataSource.wallpaperBlur.collectAsStateWithLifecycle(initialValue = true)
             val wallpaperBlurRadius by preferencesDataSource.wallpaperBlurRadius.collectAsStateWithLifecycle(initialValue = 25f)
+            val hapticFeedbackEnabled by preferencesDataSource.hapticFeedbackEnabled.collectAsStateWithLifecycle(initialValue = true)
+            val crispHaptics = rememberCrispHaptics(enabled = hapticFeedbackEnabled)
 
             androidx.compose.runtime.LaunchedEffect(hideStatusBar) {
                 isStatusBarHidden = hideStatusBar
@@ -93,16 +98,20 @@ class MainActivity : ComponentActivity() {
                 dynamicColor = dynamicColor,
                 accentColor = accentColor
             ) {
-                HomeScreen(
-                    widgetHostManager = widgetHostManager,
-                    homeResetTrigger = homeResetTrigger,
-                    onDoubleTapLock = {
-                        val locked = DrawerAccessibilityService.lockScreen()
-                        if (!locked) {
-                            showAccessibilityPrompt = true
+                CompositionLocalProvider(
+                    LocalCrispHaptics provides crispHaptics
+                ) {
+                    HomeScreen(
+                        widgetHostManager = widgetHostManager,
+                        homeResetTrigger = homeResetTrigger,
+                        onDoubleTapLock = {
+                            val locked = DrawerAccessibilityService.lockScreen()
+                            if (!locked) {
+                                showAccessibilityPrompt = true
+                            }
                         }
-                    }
-                )
+                    )
+                }
 
                 if (showAccessibilityPrompt) {
                     AlertDialog(

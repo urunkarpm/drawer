@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import com.urunkarpm.drawer.feature.todo.TodoFilter
 
 @Composable
@@ -23,6 +24,8 @@ fun TodoFilterChips(
     onFilterSelected: (TodoFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val crispHaptics = LocalCrispHaptics.current
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -36,11 +39,15 @@ fun TodoFilterChips(
                 TodoFilter.NEARBY -> "Nearby"
                 TodoFilter.DUE_TODAY -> "Due today"
                 TodoFilter.DONE -> "Done"
+                TodoFilter.STATS -> "Stats"
             }
             val isSelected = filter == selectedFilter
 
             Surface(
-                onClick = { onFilterSelected(filter) },
+                onClick = {
+                    crispHaptics.tick()
+                    onFilterSelected(filter)
+                },
                 shape = RoundedCornerShape(12.dp),
                 color = if (isSelected) {
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)

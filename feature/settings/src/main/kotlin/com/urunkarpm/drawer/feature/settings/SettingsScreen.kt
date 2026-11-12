@@ -1,6 +1,7 @@
 package com.urunkarpm.drawer.feature.settings
 
 import androidx.compose.runtime.CompositionLocalProvider
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 
 import android.content.Intent
 import android.net.Uri
@@ -428,6 +429,15 @@ fun SettingsScreen(
                         subtitle = "Surface relevant apps based on your routine and context",
                         checked = uiState.showDrawerSuggestions,
                         onCheckedChange = { viewModel.setShowDrawerSuggestions(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Crisp Haptic Feedback",
+                        subtitle = "High-definition tactile feedback on app launches, scrubbers, and touch points",
+                        checked = uiState.hapticFeedbackEnabled,
+                        onCheckedChange = { viewModel.setHapticFeedbackEnabled(it) }
                     )
 
 
@@ -1602,6 +1612,15 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    SettingsSwitchRow(
+                        title = "Auto-Check for Updates",
+                        subtitle = "Automatically check for new releases on launch",
+                        checked = uiState.autoCheckUpdates,
+                        onCheckedChange = { viewModel.setAutoCheckUpdates(it) }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -2037,11 +2056,16 @@ private fun SettingsSwitchRow(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val crispHaptics = LocalCrispHaptics.current
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onCheckedChange(!checked) }
+            .clickable {
+                crispHaptics.click()
+                onCheckedChange(!checked)
+            }
             .padding(vertical = 6.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -2064,7 +2088,10 @@ private fun SettingsSwitchRow(
         Spacer(modifier = Modifier.width(16.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = { newValue ->
+                crispHaptics.click()
+                onCheckedChange(newValue)
+            }
         )
     }
 }

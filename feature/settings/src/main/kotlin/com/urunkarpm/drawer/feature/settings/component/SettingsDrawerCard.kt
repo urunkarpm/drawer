@@ -38,8 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -63,7 +62,7 @@ fun SettingsDrawerCard(
     cornerRadius: Dp = 24.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = spring(
@@ -88,7 +87,7 @@ fun SettingsDrawerCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        crispHaptics.tick()
                         onToggle()
                     }
                     .padding(

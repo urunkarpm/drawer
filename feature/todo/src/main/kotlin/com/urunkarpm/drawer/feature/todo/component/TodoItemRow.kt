@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +70,7 @@ fun TodoItemRow(
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val crispHaptics = LocalCrispHaptics.current
     var isDismissed by remember { mutableStateOf(false) }
     val now = System.currentTimeMillis()
     val isOverdue = TodoUtils.isOverdue(task.deadlineUtc, now)
@@ -78,12 +80,14 @@ fun TodoItemRow(
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
                     // Swipe right -> complete
+                    crispHaptics.confirm()
                     isDismissed = true
                     onComplete(task)
                     true
                 }
                 SwipeToDismissBoxValue.EndToStart -> {
                     // Swipe left -> delete
+                    crispHaptics.reject()
                     isDismissed = true
                     onDelete(task)
                     true
@@ -149,7 +153,10 @@ fun TodoItemRow(
             }
         ) {
             Card(
-                onClick = { onClick?.invoke() },
+                onClick = {
+                    crispHaptics.click()
+                    onClick?.invoke()
+                },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = when {
@@ -179,6 +186,7 @@ fun TodoItemRow(
                     // Checkbox
                     IconButton(
                         onClick = {
+                            crispHaptics.confirm()
                             isDismissed = true
                             onComplete(task)
                         },

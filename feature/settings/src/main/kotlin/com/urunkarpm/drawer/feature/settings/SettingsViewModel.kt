@@ -33,7 +33,8 @@ data class ThemeSettings(
     val blurAppListOnOpen: Boolean = false,
     val categoryAlignment: String = "BOTTOM",
     val enableWidgetsPage: Boolean = true,
-    val showDrawerSuggestions: Boolean = true
+    val showDrawerSuggestions: Boolean = true,
+    val hapticFeedbackEnabled: Boolean = true
 )
 
 data class WallpaperSettings(
@@ -141,6 +142,13 @@ private data class GradientVisuals(
     val angle: String
 )
 
+private data class TypographyAndAction(
+    val headerFontFamily: String,
+    val appLabelScale: String,
+    val autoCheckUpdates: Boolean,
+    val action: SettingsActionState
+)
+
 data class SettingsUiState(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
@@ -160,6 +168,7 @@ data class SettingsUiState(
     val blurAppListOnOpen: Boolean = false,
     val enableWidgetsPage: Boolean = true,
     val showDrawerSuggestions: Boolean = true,
+    val hapticFeedbackEnabled: Boolean = true,
     val surfaceThemeStyle: String = "LIQUID_GLASS",
     val surfaceOpacity: Float = 0.65f,
     val surfaceBlurRadius: Float = 25f,
@@ -204,7 +213,8 @@ data class SettingsUiState(
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
     val dockExpandedMaxApps: Int = 8,
-    val drawerTitleAnimation: String = "ACCENT_POP"
+    val drawerTitleAnimation: String = "ACCENT_POP",
+    val autoCheckUpdates: Boolean = true
 )
 
 @HiltViewModel
@@ -230,7 +240,8 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.blurAppListOnOpen,
         preferencesDataSource.categoryAlignment,
         preferencesDataSource.enableWidgetsPage,
-        preferencesDataSource.showDrawerSuggestions
+        preferencesDataSource.showDrawerSuggestions,
+        preferencesDataSource.hapticFeedbackEnabled
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         ThemeSettings(
@@ -245,7 +256,8 @@ class SettingsViewModel @Inject constructor(
             blurAppListOnOpen = values[8] as Boolean,
             categoryAlignment = values[9] as String,
             enableWidgetsPage = values[10] as Boolean,
-            showDrawerSuggestions = values[11] as Boolean
+            showDrawerSuggestions = values[11] as Boolean,
+            hapticFeedbackEnabled = values[12] as Boolean
         )
     }
 
@@ -372,13 +384,14 @@ class SettingsViewModel @Inject constructor(
 
     private val typographyFlow = combine(
         preferencesDataSource.headerFontFamily,
-        preferencesDataSource.appLabelScale
-    ) { font, scale ->
-        font to scale
+        preferencesDataSource.appLabelScale,
+        preferencesDataSource.autoCheckUpdates
+    ) { font, scale, autoCheckUpdates ->
+        Triple(font, scale, autoCheckUpdates)
     }
 
-    private val typographyAndActionFlow = combine(typographyFlow, actionState) { (font, scale), action ->
-        Triple(font, scale, action)
+    private val typographyAndActionFlow = combine(typographyFlow, actionState) { (font, scale, autoCheckUpdates), action ->
+        TypographyAndAction(font, scale, autoCheckUpdates, action)
     }
 
     private val wallpaperVisualsFlow = combine(
@@ -415,7 +428,7 @@ class SettingsViewModel @Inject constructor(
         dockAndSurfaceFlow,
         miscFlow,
         typographyAndActionFlow
-    ) { (theme, wallpaper), glance, (dock, surface), misc, (headerFontFamily, appLabelScale, action) ->
+    ) { (theme, wallpaper), glance, (dock, surface), misc, (headerFontFamily, appLabelScale, autoCheckUpdates, action) ->
         SettingsUiState(
             themeMode = theme.themeMode,
             drawerThemeMode = theme.drawerThemeMode,
@@ -435,6 +448,7 @@ class SettingsViewModel @Inject constructor(
             blurAppListOnOpen = theme.blurAppListOnOpen,
             enableWidgetsPage = theme.enableWidgetsPage,
             showDrawerSuggestions = theme.showDrawerSuggestions,
+            hapticFeedbackEnabled = theme.hapticFeedbackEnabled,
             surfaceThemeStyle = surface.surfaceThemeStyle,
             surfaceOpacity = surface.surfaceOpacity,
             surfaceBlurRadius = surface.surfaceBlurRadius,
@@ -479,13 +493,20 @@ class SettingsViewModel @Inject constructor(
             wallpaperGradientPalette = wallpaper.wallpaperGradientPalette,
             wallpaperGradientAngle = wallpaper.wallpaperGradientAngle,
             dockMesmerizingGlow = wallpaper.dockMesmerizingGlow,
-            drawerTitleAnimation = misc.drawerTitleAnimation
+            drawerTitleAnimation = misc.drawerTitleAnimation,
+            autoCheckUpdates = autoCheckUpdates
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = SettingsUiState()
     )
+
+    fun setAutoCheckUpdates(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAutoCheckUpdates(enabled)
+        }
+    }
 
     fun setAiCategorizationStrictness(strictness: String) {
         viewModelScope.launch(ioDispatcher) {
@@ -550,6 +571,12 @@ class SettingsViewModel @Inject constructor(
     fun setDuoStatusPosition(position: String) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setDuoStatusPosition(position)
+        }
+    }
+
+    fun setHapticFeedbackEnabled(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setHapticFeedbackEnabled(enabled)
         }
     }
 

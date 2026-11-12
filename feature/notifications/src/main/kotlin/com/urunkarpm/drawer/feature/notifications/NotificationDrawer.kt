@@ -28,10 +28,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -167,7 +166,7 @@ fun NotificationDrawer(
     cinematicPaletteId: String = "DEFAULT"
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val muteSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val rulesSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -341,8 +340,8 @@ fun NotificationDrawer(
                                 interactionSource = headerInteractionSource,
                                 indication = null
                             ) {
-                                // ponytail: crisp native tactile feedback on notification drawer snap/toggle; ceiling: TextHandleMove; upgrade path: custom vibration pattern.
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                // ponytail: crisp native tactile feedback on notification drawer snap/toggle
+                                crispHaptics.tick()
                                 onExpandedChange(!isExpanded)
                             }
                             .pointerInput(isExpanded) {
@@ -577,6 +576,7 @@ fun NotificationDrawer(
                                 ) {
                                     TextButton(
                                         onClick = {
+                                            crispHaptics.confirm()
                                             viewModel.clearAllNotifications()
                                         },
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
@@ -890,7 +890,7 @@ private fun EndlessNotificationCard(
     stealthContrastLevel: String = "LOW"
 ) {
     var pendingAction by remember { mutableStateOf<NotificationSwipeAction?>(null) }
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
 
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { it * 0.38f },
@@ -901,7 +901,11 @@ private fun EndlessNotificationCard(
                 else -> null
             }
             if (item.isClearable && action != null && action != NotificationSwipeAction.NONE) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (action == NotificationSwipeAction.DISMISS) {
+                    crispHaptics.reject()
+                } else {
+                    crispHaptics.confirm()
+                }
                 pendingAction = action
                 true
             } else false
@@ -1084,7 +1088,10 @@ private fun EndlessNotificationCard(
                             }
                             if (item.isClearable) {
                                 IconButton(
-                                    onClick = onDismiss,
+                                    onClick = {
+                                        crispHaptics.reject()
+                                        onDismiss()
+                                    },
                                     modifier = Modifier.size(26.dp)
                                 ) {
                                     Icon(
@@ -1267,7 +1274,7 @@ private fun DismissibleNotificationRow(
     stealthContrastLevel: String = "LOW"
 ) {
     var pendingAction by remember { mutableStateOf<NotificationSwipeAction?>(null) }
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
 
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { it * 0.38f },
@@ -1278,7 +1285,11 @@ private fun DismissibleNotificationRow(
                 else -> null
             }
             if (item.isClearable && action != null && action != NotificationSwipeAction.NONE) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (action == NotificationSwipeAction.DISMISS) {
+                    crispHaptics.reject()
+                } else {
+                    crispHaptics.confirm()
+                }
                 pendingAction = action
                 true
             } else false
@@ -1436,7 +1447,7 @@ private fun DismissibleNotificationRow(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 IconButton(
                                     onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        crispHaptics.reject()
                                         pendingAction = NotificationSwipeAction.DISMISS
                                     },
                                     modifier = Modifier.size(24.dp)

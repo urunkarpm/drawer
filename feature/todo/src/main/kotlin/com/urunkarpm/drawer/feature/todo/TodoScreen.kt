@@ -1,5 +1,6 @@
 package com.urunkarpm.drawer.feature.todo
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -52,6 +53,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -61,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,16 +75,38 @@ import com.urunkarpm.drawer.feature.todo.component.DoneListPage
 import com.urunkarpm.drawer.feature.todo.component.PlacePickerBottomSheet
 import com.urunkarpm.drawer.feature.todo.component.TodoFilterChips
 import com.urunkarpm.drawer.feature.todo.component.TodoItemRow
+import com.urunkarpm.drawer.feature.todo.component.TodoStatsPage
 
 @Composable
 fun TodoScreen(
     onOpenPlacePicker: (() -> Unit)? = null,
     onOpenHealthScreen: (() -> Unit)? = null,
     isWallpaperBlurActive: Boolean = false,
+    isVisible: Boolean = true,
     modifier: Modifier = Modifier,
     viewModel: TodoViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Reset stats filter to the normal to-do list whenever navigating away from to-do page
+    LaunchedEffect(isVisible) {
+        if (!isVisible) {
+            viewModel.resetFilterIfStats()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.resetFilterIfStats()
+        }
+    }
+
+    // Pressing back while viewing stats returns to the to-do list
+    BackHandler(enabled = uiState.filter == TodoFilter.STATS) {
+        viewModel.setFilter(TodoFilter.ALL)
+    }
+
+    val crispHaptics = LocalCrispHaptics.current
     var showAddSheet by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<TodoItem?>(null) }
     var showPlacePicker by remember { mutableStateOf(false) }
@@ -232,9 +257,12 @@ fun TodoScreen(
                 containerColor = Color.Transparent,
                 snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                 floatingActionButton = {
-                    if (uiState.filter != TodoFilter.DONE) {
+                    if (uiState.filter != TodoFilter.DONE && uiState.filter != TodoFilter.STATS) {
                         FloatingActionButton(
-                            onClick = { showAddSheet = true },
+                            onClick = {
+                                crispHaptics.click()
+                                showAddSheet = true
+                            },
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary,
                             shape = CircleShape,
@@ -296,6 +324,7 @@ fun TodoScreen(
 
                             Surface(
                                 onClick = {
+                                    crispHaptics.click()
                                     showHealthScreen = true
                                     onOpenHealthScreen?.invoke()
                                 },
@@ -324,16 +353,25 @@ fun TodoScreen(
                         onFilterSelected = { viewModel.setFilter(it) }
                     )
 
-                    // Content Area: Open list vs Done list
-                    if (uiState.filter == TodoFilter.DONE) {
-                        DoneListPage(
-                            doneTasks = uiState.doneTasks,
-                            doneTodayCount = uiState.doneTodayCount,
-                            onRestore = { viewModel.restoreTask(it) },
-                            onDelete = { viewModel.deleteTask(it) },
-                            onClearAll = { viewModel.clearAllDone() }
-                        )
-                    } else {
+                    // Content Area: Open list vs Done list vs Stats
+                    when (uiState.filter) {
+                        TodoFilter.DONE -> {
+                            DoneListPage(
+                                doneTasks = uiState.doneTasks,
+                                doneTodayCount = uiState.doneTodayCount,
+                                onRestore = { viewModel.restoreTask(it) },
+                                onDelete = { viewModel.deleteTask(it) },
+                                onClearAll = { viewModel.clearAllDone() }
+                            )
+                        }
+                        TodoFilter.STATS -> {
+                            TodoStatsPage(
+                                stats = uiState.stats,
+                                openTasks = uiState.openTasks,
+                                onCompleteTask = { viewModel.completeTask(it) }
+                            )
+                        }
+                        else -> {
                         if (uiState.openTasks.isEmpty() && uiState.nearbyNowTasks.isEmpty()) {
                             Box(
                                 modifier = Modifier
@@ -431,4 +469,5 @@ fun TodoScreen(
             }
         }
     }
+}
 }

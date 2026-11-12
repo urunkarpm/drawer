@@ -43,6 +43,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -95,6 +96,7 @@ fun AddTodoBottomSheet(
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val crispHaptics = LocalCrispHaptics.current
     val context = LocalContext.current
     val isEditMode = editingTodo != null
 
@@ -135,6 +137,7 @@ fun AddTodoBottomSheet(
     fun submitForm() {
         val trimmedTitle = title.trim()
         if (trimmedTitle.isBlank()) return
+        crispHaptics.confirm()
 
         if (isEditMode && editingTodo != null) {
             val updated = editingTodo.copy(
@@ -449,7 +452,10 @@ fun AddTodoBottomSheet(
                 TodoPriority.entries.forEach { p ->
                     FilterChip(
                         selected = priority == p,
-                        onClick = { priority = p },
+                        onClick = {
+                            crispHaptics.tick()
+                            priority = p
+                        },
                         label = { Text(p.name, fontSize = 12.sp) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = when (p) {
@@ -470,7 +476,10 @@ fun AddTodoBottomSheet(
                 listOf("None" to null, "Daily" to "DAILY", "Weekdays" to "WEEKDAYS", "Weekly" to "WEEKLY").forEach { (label, rule) ->
                     FilterChip(
                         selected = repeatRule == rule,
-                        onClick = { repeatRule = rule },
+                        onClick = {
+                            crispHaptics.tick()
+                            repeatRule = rule
+                        },
                         label = { Text(label, fontSize = 12.sp) }
                     )
                 }

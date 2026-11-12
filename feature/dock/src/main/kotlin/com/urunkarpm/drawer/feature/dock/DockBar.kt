@@ -57,7 +57,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.changedToUp
@@ -65,7 +65,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -215,7 +214,7 @@ fun DockBar(
             val dockWidth = (rowWidth + (dockPaddingHorizontal * 2)).coerceAtMost(maxWidth)
 
             val localDensity = LocalDensity.current
-            val haptic = LocalHapticFeedback.current
+            val crispHaptics = LocalCrispHaptics.current
 
             var draggedSlotIndex by remember { mutableStateOf<Int?>(null) }
             var rawDragOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -237,7 +236,7 @@ fun DockBar(
             LaunchedEffect(activeTargetIndex) {
                 if (activeTargetIndex != null && activeTargetIndex != currentTargetIndex) {
                     if (currentTargetIndex != null) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        crispHaptics.tick()
                     }
                     currentTargetIndex = activeTargetIndex
                 }
@@ -325,7 +324,7 @@ fun DockBar(
                                 rawDragOffsetPx = 0f
                                 dragOffsetPx = 0f
                                 currentTargetIndex = index
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                crispHaptics.dragStart()
                             },
                             onDrag = { dx ->
                                 rawDragOffsetPx += dx
@@ -342,6 +341,7 @@ fun DockBar(
                                 val fromIdx = draggedSlotIndex
                                 val toIdx = currentTargetIndex
                                 if (fromIdx != null && toIdx != null && fromIdx != toIdx && toIdx in 0 until itemCount) {
+                                    crispHaptics.confirm()
                                     val fromPos = visibleApps[fromIdx].first.position
                                     val toPos = visibleApps[toIdx].first.position
                                     viewModel.reorderDock(fromPos, toPos)
@@ -349,6 +349,8 @@ fun DockBar(
                                     visibleApps.getOrNull(fromIdx)?.let { (item, app) ->
                                         viewModel.onItemLongClicked(item, app)
                                     }
+                                } else if (fromIdx != null) {
+                                    crispHaptics.dragEnd()
                                 }
                                 draggedSlotIndex = null
                                 rawDragOffsetPx = 0f
@@ -432,7 +434,7 @@ private fun DockAppSlot(
     iconShape: Shape = CircleShape,
     maxCapacity: Int = 5
 ) {
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val labelScale = LocalAppLabelScale.current
     val label = app?.label ?: dockItem.customLabel ?: dockItem.packageName
 
@@ -468,12 +470,18 @@ private fun DockAppSlot(
                     )
                 }
             }
-            .clickable(onClick = currentOnClick)
+            .clickable {
+                crispHaptics.click()
+                currentOnClick()
+            }
     } else {
         Modifier.combinedClickable(
-            onClick = currentOnClick,
+            onClick = {
+                crispHaptics.click()
+                currentOnClick()
+            },
             onLongClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                crispHaptics.heavyClick()
                 currentOnLongClick()
             }
         )

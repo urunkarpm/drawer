@@ -56,8 +56,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.unit.lerp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -665,7 +664,7 @@ fun DuoStatusIcon(
     isMesmerizingGlow: Boolean = true
 ) {
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     val status = rememberDuoSystemStatus(context)
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -770,7 +769,7 @@ fun DuoStatusIcon(
 
     fun triggerSpeedTest() {
         if (isSpeedTesting) return
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        crispHaptics.click()
         if (!status.isWifiConnected && !status.isCellularConnected) {
             lastRecordedSpeed = "Offline"
             prefs.edit().putString("last_speed", "Offline").apply()
@@ -789,7 +788,7 @@ fun DuoStatusIcon(
             if (result != "Failed" && result != "Unavailable") {
                 lastRecordedSpeed = result
                 prefs.edit().putString("last_speed", result).apply()
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                crispHaptics.confirm()
             } else {
                 lastRecordedSpeed = "Unavailable"
             }
@@ -864,7 +863,7 @@ fun DuoStatusIcon(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    crispHaptics.click()
                     if (!isExpanded) {
                         onToggleExpand()
                     }
@@ -1169,7 +1168,7 @@ fun DuoStatusIcon(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    crispHaptics.click()
                                     onToggleExpand()
                                 }
                             ),

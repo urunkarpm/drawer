@@ -104,6 +104,10 @@ class DrawerPreferencesDataSource @Inject constructor(
         val SHOW_DRAWER_SUGGESTIONS = booleanPreferencesKey("show_drawer_suggestions")
         val MINDFUL_APPS = stringPreferencesKey("mindful_apps")
         val ACCENT_COLOR = stringPreferencesKey("accent_color")
+        val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
+        val AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
+        val LAST_UPDATE_CHECK_TIME = longPreferencesKey("last_update_check_time")
+        val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
 
         val TODO_LOCATION_ENABLED = booleanPreferencesKey("todo_location_enabled")
         val TODO_QUIET_HOURS_START = stringPreferencesKey("todo_quiet_hours_start")
@@ -278,6 +282,27 @@ class DrawerPreferencesDataSource @Inject constructor(
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_COLOR] ?: true }
     val accentColor: Flow<String> = dataStore.data.map { it[PreferencesKeys.ACCENT_COLOR] ?: "DYNAMIC" }
     val hideStatusBar: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_STATUS_BAR] ?: true }
+    val hapticFeedbackEnabled: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HAPTIC_FEEDBACK_ENABLED] ?: true }
+
+    suspend fun setHapticFeedbackEnabled(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.HAPTIC_FEEDBACK_ENABLED] = enabled }
+    }
+
+    val autoCheckUpdates: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.AUTO_CHECK_UPDATES] ?: true }
+    val lastUpdateCheckTime: Flow<Long> = dataStore.data.map { it[PreferencesKeys.LAST_UPDATE_CHECK_TIME] ?: 0L }
+    val dismissedUpdateVersion: Flow<String> = dataStore.data.map { it[PreferencesKeys.DISMISSED_UPDATE_VERSION] ?: "" }
+
+    suspend fun setAutoCheckUpdates(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.AUTO_CHECK_UPDATES] = enabled }
+    }
+
+    suspend fun setLastUpdateCheckTime(timeMillis: Long) {
+        dataStore.edit { it[PreferencesKeys.LAST_UPDATE_CHECK_TIME] = timeMillis }
+    }
+
+    suspend fun setDismissedUpdateVersion(versionTag: String) {
+        dataStore.edit { it[PreferencesKeys.DISMISSED_UPDATE_VERSION] = versionTag }
+    }
 
     val showWeather: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.SHOW_WEATHER] ?: true }
     val weatherUnit: Flow<String> = dataStore.data.map { it[PreferencesKeys.WEATHER_UNIT] ?: "CELSIUS" }

@@ -135,4 +135,51 @@ class TodoViewModelTest {
         // Normal last
         assertEquals(1L, sorted[2].id)
     }
+
+    @Test
+    fun uiState_computesStatsAccurately() = runTest(testDispatcher) {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        testScheduler.runCurrent()
+
+        val now = System.currentTimeMillis()
+        val openTask = TodoItem(id = 1L, title = "Open Task", status = TodoStatus.OPEN, createdAt = now)
+        val doneTask = TodoItem(id = 2L, title = "Done Task", status = TodoStatus.DONE, completedAt = now)
+
+        openTodosFlow.value = listOf(openTask)
+        doneTodosFlow.value = listOf(doneTask)
+        testScheduler.runCurrent()
+
+        val stats = viewModel.uiState.value.stats
+        assertEquals(2, stats.totalAdded)
+        assertEquals(1, stats.completedCount)
+        assertEquals(1, stats.pendingOnTrackCount)
+        assertEquals(0, stats.overdueOrStaleCount)
+    }
+
+    @Test
+    fun resetFilterIfStats_resetsToAllOnlyWhenStats() = runTest(testDispatcher) {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        testScheduler.runCurrent()
+
+        viewModel.setFilter(TodoFilter.STATS)
+        testScheduler.runCurrent()
+        assertEquals(TodoFilter.STATS, viewModel.uiState.value.filter)
+
+        viewModel.resetFilterIfStats()
+        testScheduler.runCurrent()
+        assertEquals(TodoFilter.ALL, viewModel.uiState.value.filter)
+
+        // Does not reset non-stats filters
+        viewModel.setFilter(TodoFilter.NEARBY)
+        testScheduler.runCurrent()
+        assertEquals(TodoFilter.NEARBY, viewModel.uiState.value.filter)
+
+        viewModel.resetFilterIfStats()
+        testScheduler.runCurrent()
+        assertEquals(TodoFilter.NEARBY, viewModel.uiState.value.filter)
+    }
 }

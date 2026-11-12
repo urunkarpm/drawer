@@ -31,11 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -56,7 +55,7 @@ fun AlphabetIndexBar(
     onDragEnd: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val haptic = LocalHapticFeedback.current
+    val crispHaptics = LocalCrispHaptics.current
     var barHeightPx by remember { mutableFloatStateOf(0f) }
     var draggingLetter by remember { mutableStateOf<String?>(null) }
     var dragYOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -70,7 +69,7 @@ fun AlphabetIndexBar(
         dragYOffsetPx = clampedY
         if (letter != draggingLetter) {
             draggingLetter = letter
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            crispHaptics.tick()
             onLetterScrolled(letter)
         }
     }

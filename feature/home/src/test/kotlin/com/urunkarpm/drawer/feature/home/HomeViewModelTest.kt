@@ -3,9 +3,11 @@ package com.urunkarpm.drawer.feature.home
 import app.cash.turbine.test
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.DockRepository
+import com.urunkarpm.drawer.core.data.repository.UpdateRepository
 import com.urunkarpm.drawer.core.data.repository.WeatherRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.model.AppInfo
+import com.urunkarpm.drawer.core.model.AppUpdateInfo
 import com.urunkarpm.drawer.core.model.WeatherInfo
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -36,6 +38,7 @@ class HomeViewModelTest {
     private val weatherRepository: WeatherRepository = mockk(relaxed = true)
     private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository = mockk(relaxed = true)
+    private val updateRepository: UpdateRepository = mockk(relaxed = true)
 
     private val appsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
     private val weatherFlow = MutableStateFlow<WeatherInfo?>(null)
@@ -88,6 +91,9 @@ class HomeViewModelTest {
     private val suggestionBlacklistFlow = MutableStateFlow<Set<String>>(emptySet())
     private val showDrawerSuggestionsFlow = MutableStateFlow(true)
     private val mindfulAppsFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val autoCheckUpdatesFlow = MutableStateFlow(true)
+    private val lastUpdateCheckTimeFlow = MutableStateFlow(0L)
+    private val dismissedUpdateVersionFlow = MutableStateFlow("")
 
     private val sampleApps = listOf(
         AppInfo(
@@ -169,6 +175,9 @@ class HomeViewModelTest {
         every { preferencesDataSource.suggestionBlacklist } returns suggestionBlacklistFlow
         every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow
         every { preferencesDataSource.mindfulApps } returns mindfulAppsFlow
+        every { preferencesDataSource.autoCheckUpdates } returns autoCheckUpdatesFlow
+        every { preferencesDataSource.lastUpdateCheckTime } returns lastUpdateCheckTimeFlow
+        every { preferencesDataSource.dismissedUpdateVersion } returns dismissedUpdateVersionFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow
         every { widgetRepository.getAllDrawers() } returns drawersFlow
 
@@ -176,11 +185,12 @@ class HomeViewModelTest {
         weatherFlow.value = sampleWeather
 
         viewModel = HomeViewModel(
-            appRepository,
-            dockRepository,
-            weatherRepository,
-            preferencesDataSource,
-            widgetRepository
+            appRepository = appRepository,
+            dockRepository = dockRepository,
+            weatherRepository = weatherRepository,
+            preferencesDataSource = preferencesDataSource,
+            widgetRepository = widgetRepository,
+            updateRepository = updateRepository
         )
     }
 
@@ -690,6 +700,89 @@ class HomeViewModelTest {
         viewModel.setAccentColor("#10B981")
         testScheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setAccentColor("#10B981") }
+    }
+
+    @Test
+    fun checkForUpdateOnStartup_whenUpdateAvailable_emitsAvailableUpdate() = runTest {
+        val updateInfo = AppUpdateInfo(
+            latestVersionTag = "v2.9.0",
+            releaseName = "v2.9.0",
+            releaseNotes = "New features",
+            apkDownloadUrl = "https://example.com/drawer.apk",
+            htmlUrl = "https://example.com",
+            isUpdateAvailable = true
+        )
+        coEvery { updateRepository.checkForUpdates("2.8.0") } returns Result.success(updateInfo)
+
+        viewModel.checkForUpdateOnStartup("2.8.0")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(updateInfo, viewModel.availableUpdate.value)
+        coVerify { preferencesDataSource.setLastUpdateCheckTime(any()) }
+    }
+
+    @Test
+    fun checkForUpdateOnStartup_whenAlreadyDismissed_doesNotEmit() = runTest {
+        dismissedUpdateVersionFlow.value = "v2.9.0"
+        val updateInfo = AppUpdateInfo(
+            latestVersionTag = "v2.9.0",
+            releaseName = "v2.9.0",
+            releaseNotes = "New features",
+            apkDownloadUrl = "https://example.com/drawer.apk",
+            htmlUrl = "https://example.com",
+            isUpdateAvailable = true
+        )
+        coEvery { updateRepository.checkForUpdates("2.8.0") } returns Result.success(updateInfo)
+
+        viewModel.checkForUpdateOnStartup("2.8.0")
+        testScheduler.advanceUntilIdle()
+
+        assertNull(viewModel.availableUpdate.value)
+    }
+
+    @Test
+    fun checkForUpdateOnStartup_whenAutoCheckDisabled_doesNotQueryRepo() = runTest {
+        autoCheckUpdatesFlow.value = false
+
+        viewModel.checkForUpdateOnStartup("2.8.0")
+        testScheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) { updateRepository.checkForUpdates(any()) }
+        assertNull(viewModel.availableUpdate.value)
+    }
+
+    @Test
+    fun checkForUpdateOnStartup_whenCheckedRecently_skipsQuery() = runTest {
+        lastUpdateCheckTimeFlow.value = System.currentTimeMillis() - 10_000L // 10 seconds ago
+
+        viewModel.checkForUpdateOnStartup("2.8.0")
+        testScheduler.advanceUntilIdle()
+
+        coVerify(exactly = 0) { updateRepository.checkForUpdates(any()) }
+        assertNull(viewModel.availableUpdate.value)
+    }
+
+    @Test
+    fun dismissUpdate_clearsStateAndPersistsDismissedVersion() = runTest {
+        val updateInfo = AppUpdateInfo(
+            latestVersionTag = "v2.9.0",
+            releaseName = "v2.9.0",
+            releaseNotes = "New features",
+            apkDownloadUrl = "https://example.com/drawer.apk",
+            htmlUrl = "https://example.com",
+            isUpdateAvailable = true
+        )
+        coEvery { updateRepository.checkForUpdates("2.8.0") } returns Result.success(updateInfo)
+
+        viewModel.checkForUpdateOnStartup("2.8.0")
+        testScheduler.advanceUntilIdle()
+        assertEquals(updateInfo, viewModel.availableUpdate.value)
+
+        viewModel.dismissUpdate("v2.9.0")
+        testScheduler.advanceUntilIdle()
+
+        assertNull(viewModel.availableUpdate.value)
+        coVerify { preferencesDataSource.setDismissedUpdateVersion("v2.9.0") }
     }
 }
 

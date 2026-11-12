@@ -7,7 +7,8 @@ enum class TodoFilter {
     ALL,
     NEARBY,
     DUE_TODAY,
-    DONE
+    DONE,
+    STATS
 }
 
 enum class UndoType {
@@ -32,6 +33,7 @@ data class TodoUiState(
     val currentPlaceName: String? = null,
     val undoAction: UndoAction? = null,
     val settings: TodoSettings = TodoSettings(),
+    val stats: TodoStats = TodoStats(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )

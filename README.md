@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.7.3-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.9.0-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -31,13 +31,25 @@ Everything you need to get things done is reachable in under a second; everythin
 
 ---
 
-## 🌟 What's New in v2.7.0
+## 🌟 What's New in v2.9.0
 
-* **🪶 Lean Architecture & Pure Android Stack:** Completely pruned legacy heavy dependencies (Ktor, unused Coil & Jetpack Navigation libraries, unapplied Detekt, and dead AI assistant mocks), stripping over 4,000 lines of dead code to return Drawer to its fast, focused, and featherweight core.
-* **⚡ 120Hz Zero-Hitch Rendering & Scroll Polish:** Eliminated recomposition hitches, unnecessary particle overlays, and scroll stalls across all drawers. Hardware-accelerated blur scrim transitions run at butter-smooth 120 FPS.
-* **🛡️ Zero-Leak Lifecycle & Widget Reliability:** Resolved Activity cache leaks and hardened `DrawerWidgetHostManager` listener lifecycles, ensuring zero memory accumulation over long-term continuous uptime.
-* **🎨 Backwards-Compatible Theming & Inset Polish:** Added native Android 8.0/8.1 (API 26/27) window insets and light navigation bar theming fallbacks (`values-v27/themes.xml`), fixing wallpaper color sampling and contrast.
-* **🔒 Modern Backup & Data Protection:** Added scoped Android 12+ Cloud Backup and Device-to-Device data extraction rules (`data_extraction_rules.xml`, `backup_rules.xml`) to safeguard user layouts and preferences.
+* **📳 CrispHaptics Engine Across All High Touch Points:**
+  * Native haptic feedback engine leveraging Android 11+ (API 30+) vibration primitives (`PRIMITIVE_CLICK`, `PRIMITIVE_TICK`, `PRIMITIVE_THUD`, `PRIMITIVE_QUICK_RISE`, `PRIMITIVE_QUICK_FALL`) with API 29 predefined effects and legacy View haptic fallbacks.
+  * Tactile feedback integrated across the entire launcher: dock icon drags & slot boundary ticks, app drawer letter scrub rail, category drawer accordion toggles & casino reel shuffle, To-Do swipes & checkmarks, notification drawer gestures, status duo expand/collapse, and settings switches.
+  * Master **Crisp Haptic Feedback** toggle in Settings under General to enable or silence haptics system-wide.
+* **🔔 In-App Update Notifications & Smart Auto-Check:**
+  * Automated background check on launcher startup, intelligently throttled to 24-hour intervals to preserve battery and respect GitHub API limits.
+  * Clean in-app Material 3 update dialog displaying the latest release name, version tag, and full markdown release notes.
+  * Non-intrusive **Later** option with version-specific dismissal memory so users are never repeatedly prompted for the same version.
+  * One-tap **Download APK** / **Open Release** actions with instant browser or package installer redirection.
+  * User-controllable **Auto-Check for Updates** switch in Settings under About Drawer / GitHub Updates.
+* **✅ Native To-Do Engine, Location Alerts & Liquid Glass Task Analytics:**
+  * Right-page gesture-driven to-do organizer with quick filter chips (*All*, *Nearby*, *Due today*, *Done*), custom deadline pickers, priority badges, and done task archives.
+  * 100% de-Googled geofence & location alerts using native Android sensors and an offline-capable OpenStreetMap place picker.
+  * Interactive Liquid Glass task completion & punctuality analytics.
+* **🎨 Material You Dynamic Theming & Vibrant Color Palettes:**
+  * Wallpaper-extracted dynamic theming with vibrant high-chroma palette options (Electric Amber, Vivid Cyan, Hot Rose, Violet, Neon Lime, Royal Azure, Sunset Orange) ensuring bold contrast on neutral wallpapers.
+  * Edge-to-edge frosted glass backdrop blur behind the To-Do screen with zero separator line artifacts.
 
 ---
 
@@ -183,6 +195,7 @@ For engineers and contributors, Drawer is engineered according to Google's offic
     ├── dock/             # Floating frosted glass dock & fast action bar
     ├── notifications/    # System notification listener, quick-mute & privacy masking
     ├── iconpacks/        # Icon pack parsing, caching & custom shape masking
+    ├── todo/             # Gesture to-do engine, location alerts & task analytics
     └── settings/         # Visual customization, typography packs, backup & tour
 ```
 

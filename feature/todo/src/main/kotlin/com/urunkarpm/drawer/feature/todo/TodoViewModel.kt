@@ -95,7 +95,7 @@ class TodoViewModel @Inject constructor(
 
         // Filter and sort open tasks
         val filteredList = when (filter) {
-            TodoFilter.ALL -> openList
+            TodoFilter.ALL, TodoFilter.STATS -> openList
             TodoFilter.NEARBY -> {
                 if (location != null) {
                     val (uLat, uLon) = location
@@ -120,6 +120,8 @@ class TodoViewModel @Inject constructor(
             )
         } else emptyList()
 
+        val stats = TodoStatsCalculator.calculate(openList, doneList, now)
+
         TodoUiState(
             filter = filter,
             openTasks = sortedOpenTasks,
@@ -129,7 +131,8 @@ class TodoViewModel @Inject constructor(
             doneTodayCount = doneTodayCount,
             userLocation = location,
             undoAction = undoAction,
-            settings = settings
+            settings = settings,
+            stats = stats
         )
     }.stateIn(
         scope = viewModelScope,
@@ -182,6 +185,12 @@ class TodoViewModel @Inject constructor(
 
     fun setFilter(filter: TodoFilter) {
         _filter.value = filter
+    }
+
+    fun resetFilterIfStats() {
+        if (_filter.value == TodoFilter.STATS) {
+            _filter.value = TodoFilter.ALL
+        }
     }
 
     fun updateUserLocation(lat: Double, lon: Double) {

@@ -7,8 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.data.repository.DockRepository
+import com.urunkarpm.drawer.core.data.repository.UpdateRepository
 import com.urunkarpm.drawer.core.data.repository.WeatherRepository
 import com.urunkarpm.drawer.core.data.prediction.AppPredictor
+import com.urunkarpm.drawer.core.model.AppUpdateInfo
 import com.urunkarpm.drawer.core.model.AppUsageProfile
 import com.urunkarpm.drawer.core.data.util.DevicePostureUtils
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
@@ -151,9 +153,10 @@ class HomeViewModel @Inject constructor(
     private val preferencesDataSource: DrawerPreferencesDataSource,
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository,
     private val appPredictor: AppPredictor = AppPredictor(),
-    @ApplicationContext private val context: Context? = null,
+    @param:ApplicationContext private val context: Context? = null,
     private val widgetHostManager: DrawerWidgetHostManager? = null,
-    private val todoRepository: com.urunkarpm.drawer.core.data.repository.TodoRepository? = null
+    private val todoRepository: com.urunkarpm.drawer.core.data.repository.TodoRepository? = null,
+    private val updateRepository: UpdateRepository? = null
 ) : ViewModel() {
 
     val staleTodoCount: StateFlow<Int> = if (todoRepository != null) {
@@ -166,6 +169,9 @@ class HomeViewModel @Inject constructor(
     } else {
         MutableStateFlow(0)
     }
+
+    private val _availableUpdate = MutableStateFlow<AppUpdateInfo?>(null)
+    val availableUpdate: StateFlow<AppUpdateInfo?> = _availableUpdate.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     private val _isAllAppsOpen = MutableStateFlow(false)
@@ -548,6 +554,39 @@ class HomeViewModel @Inject constructor(
     fun refreshWeather() {
         viewModelScope.launch {
             weatherRepository.refreshWeather()
+        }
+    }
+
+    fun checkForUpdateOnStartup(installedVersion: String) {
+        val repo = updateRepository ?: return
+        viewModelScope.launch {
+            val autoCheck = preferencesDataSource.autoCheckUpdates.first()
+            if (!autoCheck) return@launch
+
+            val lastCheck = preferencesDataSource.lastUpdateCheckTime.first()
+            val now = System.currentTimeMillis()
+            if (now - lastCheck < 24 * 60 * 60 * 1000L && now >= lastCheck) {
+                return@launch
+            }
+
+            preferencesDataSource.setLastUpdateCheckTime(now)
+
+            val result = repo.checkForUpdates(installedVersion)
+            result.onSuccess { info ->
+                if (info.isUpdateAvailable) {
+                    val dismissed = preferencesDataSource.dismissedUpdateVersion.first()
+                    if (info.latestVersionTag != dismissed) {
+                        _availableUpdate.value = info
+                    }
+                }
+            }
+        }
+    }
+
+    fun dismissUpdate(versionTag: String) {
+        _availableUpdate.value = null
+        viewModelScope.launch {
+            preferencesDataSource.setDismissedUpdateVersion(versionTag)
         }
     }
 

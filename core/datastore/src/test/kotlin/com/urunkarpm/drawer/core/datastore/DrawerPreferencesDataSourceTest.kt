@@ -406,4 +406,30 @@ class DrawerPreferencesDataSourceTest {
         dataSource.setAccentColor("#3B82F6")
         assertEquals("#3B82F6", dataSource.accentColor.first())
     }
+
+    @Test
+    fun testHapticFeedbackEnabledDefaultAndPersistence() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(true, dataSource.hapticFeedbackEnabled.first())
+        dataSource.setHapticFeedbackEnabled(false)
+        assertEquals(false, dataSource.hapticFeedbackEnabled.first())
+        dataSource.setHapticFeedbackEnabled(true)
+        assertEquals(true, dataSource.hapticFeedbackEnabled.first())
+    }
+
+    @Test
+    fun testAutoCheckUpdatesDefaultAndPersistence() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(true, dataSource.autoCheckUpdates.first())
+        dataSource.setAutoCheckUpdates(false)
+        assertEquals(false, dataSource.autoCheckUpdates.first())
+
+        assertEquals(0L, dataSource.lastUpdateCheckTime.first())
+        dataSource.setLastUpdateCheckTime(1700000000000L)
+        assertEquals(1700000000000L, dataSource.lastUpdateCheckTime.first())
+
+        assertEquals("", dataSource.dismissedUpdateVersion.first())
+        dataSource.setDismissedUpdateVersion("v2.9.0")
+        assertEquals("v2.9.0", dataSource.dismissedUpdateVersion.first())
+    }
 }

@@ -48,6 +48,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.Animatable
 import com.urunkarpm.drawer.core.designsystem.animation.FluidSpringPhysics
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -64,6 +65,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
@@ -91,6 +94,7 @@ import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.feature.home.component.WidgetsPage
 import com.urunkarpm.drawer.feature.home.component.WidgetPickerBottomSheet
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Card
@@ -177,6 +181,7 @@ fun HomeScreen(
     onDoubleTapLock: () -> Unit = {},
     homeResetTrigger: Long = 0L
 ) {
+    val crispHaptics = LocalCrispHaptics.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val groupsUiState by groupsViewModel.uiState.collectAsStateWithLifecycle()
     val notificationsUiState by notificationsViewModel.uiState.collectAsStateWithLifecycle()
@@ -192,6 +197,7 @@ fun HomeScreen(
     val lockLayout by viewModel.lockLayout.collectAsStateWithLifecycle()
     val autoCategorizeNewApps by viewModel.autoCategorizeNewApps.collectAsStateWithLifecycle()
     val staleTodoCount by viewModel.staleTodoCount.collectAsStateWithLifecycle()
+    val availableUpdate by viewModel.availableUpdate.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
@@ -320,6 +326,10 @@ fun HomeScreen(
                 )
             )
         }
+        val installedVersion = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
+        }.getOrDefault("0.0.0")
+        viewModel.checkForUpdateOnStartup(installedVersion)
     }
 
     LaunchedEffect(uiState.userMessage) {
@@ -1021,6 +1031,7 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 4.dp, vertical = 2.dp)
                                 .clickable {
+                                    crispHaptics.click()
                                     coroutineScope.launch {
                                         pagerState.animateScrollToPage(todoPageIndex)
                                     }
@@ -1203,6 +1214,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .padding(horizontal = 6.dp)
                                 .clickable {
+                                    crispHaptics.tick()
                                     coroutineScope.launch {
                                         pagerState.animateScrollToPage(pageIdx)
                                     }
@@ -1326,11 +1338,24 @@ fun HomeScreen(
                 if (available.x < 0f && pagerState.currentPage == homePageIndex) {
                     pullAccumulator = 0f
                 }
+                // When on Widgets page (page 0), dragging or swiping right navigates back to Home
+                if (source == NestedScrollSource.UserInput && uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 30f) {
+                    coroutineScope.launch {
+                        viewModel.collapseAllWidgetDrawers()
+                        pagerState.animateScrollToPage(homePageIndex)
+                    }
+                }
                 return Offset.Zero
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 pullAccumulator = 0f
+                if (uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 250f) {
+                    coroutineScope.launch {
+                        viewModel.collapseAllWidgetDrawers()
+                        pagerState.animateScrollToPage(homePageIndex)
+                    }
+                }
                 return Velocity.Zero
             }
         }
@@ -1350,6 +1375,7 @@ fun HomeScreen(
     val isNonHomePage = (uiState.enableWidgetsPage && pagerState.currentPage == 0) || (pagerState.currentPage == todoPageIndex)
     BackHandler(enabled = isNonHomePage && !isCameraOpen && !isSettingsOpen && !showHomeMenu && !uiState.isAllAppsOpen && uiState.selectedAppForMenu == null && appForCategorySelection == null && !isNotificationExpanded && !groupsUiState.groups.any { it.group.isExpanded }) {
         coroutineScope.launch {
+            viewModel.collapseAllWidgetDrawers()
             pagerState.animateScrollToPage(homePageIndex)
         }
     }
@@ -1366,8 +1392,7 @@ fun HomeScreen(
                 !isSettingsOpen &&
                 !isCameraOpen &&
                 !isNotificationExpanded &&
-                !groupsUiState.groups.any { it.group.isExpanded } &&
-                !uiState.widgetDrawers.any { it.isExpanded },
+                !groupsUiState.groups.any { it.group.isExpanded },
             flingBehavior = PagerDefaults.flingBehavior(
                 state = pagerState,
                 snapPositionalThreshold = 0.35f
@@ -1414,6 +1439,7 @@ fun HomeScreen(
                         surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                         onBackToHome = {
                             coroutineScope.launch {
+                                viewModel.collapseAllWidgetDrawers()
                                 pagerState.animateScrollToPage(homePageIndex)
                             }
                         },
@@ -1429,6 +1455,7 @@ fun HomeScreen(
                 else -> {
                     com.urunkarpm.drawer.feature.todo.TodoScreen(
                         isWallpaperBlurActive = uiState.wallpaperBlur,
+                        isVisible = pagerState.currentPage == todoPageIndex,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1545,6 +1572,89 @@ fun HomeScreen(
                 dismissButton = {
                     TextButton(onClick = { groupsViewModel.dismissInstallSuggestion() }) {
                         Text("Not now")
+                    }
+                }
+            )
+        }
+
+        // ── In-App Update Prompt Dialog ─────────────────────────────────────────
+        val updateToPrompt = availableUpdate
+        if (updateToPrompt != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    crispHaptics.tick()
+                    viewModel.dismissUpdate(updateToPrompt.latestVersionTag)
+                },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.SystemUpdate,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Update Available",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = updateToPrompt.releaseName.ifBlank { updateToPrompt.latestVersionTag },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "A new version of Drawer (${updateToPrompt.latestVersionTag}) is available.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (updateToPrompt.releaseNotes.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = updateToPrompt.releaseNotes,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 8,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            crispHaptics.confirm()
+                            val downloadUrl = updateToPrompt.apkDownloadUrl ?: updateToPrompt.htmlUrl
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl)).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                            viewModel.dismissUpdate(updateToPrompt.latestVersionTag)
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (updateToPrompt.apkDownloadUrl?.endsWith(".apk", ignoreCase = true) == true) "Download APK" else "Open Release")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            crispHaptics.tick()
+                            viewModel.dismissUpdate(updateToPrompt.latestVersionTag)
+                        }
+                    ) {
+                        Text("Later")
                     }
                 }
             )
