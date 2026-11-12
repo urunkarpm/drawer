@@ -297,4 +297,48 @@ class GroupsViewModelTest {
         testScheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.toggleMindfulApp("com.instagram.android") }
     }
+
+    @Test
+    fun collapseAllGroups_immediatelyUpdatesUiStateInMemory() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            val initial = expectMostRecentItem()
+            assertTrue(initial.groups.first().group.isExpanded)
+
+            // Calling collapseAllGroups should immediately collapse the drawer in-memory
+            viewModel.collapseAllGroups()
+
+            val collapsed = awaitItem()
+            assertFalse(collapsed.groups.first().group.isExpanded)
+
+            testScheduler.advanceUntilIdle()
+            coVerify { appGroupRepository.collapseAllGroups() }
+        }
+    }
+
+    @Test
+    fun toggleGroupExpanded_immediatelyUpdatesUiStateInMemory() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            val initial = expectMostRecentItem()
+            assertTrue(initial.groups.first().group.isExpanded)
+
+            // Toggle should collapse immediately
+            viewModel.toggleGroupExpanded("group_work")
+            val toggledOff = awaitItem()
+            assertFalse(toggledOff.groups.first().group.isExpanded)
+
+            // Toggle again should expand immediately
+            viewModel.toggleGroupExpanded("group_work")
+            val toggledOn = awaitItem()
+            assertTrue(toggledOn.groups.first().group.isExpanded)
+
+            testScheduler.advanceUntilIdle()
+            coVerify(exactly = 2) { appGroupRepository.toggleGroupExpanded("group_work") }
+        }
+    }
 }

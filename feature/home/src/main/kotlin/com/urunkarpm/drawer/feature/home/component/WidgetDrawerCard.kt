@@ -177,15 +177,20 @@ fun WidgetDrawerCard(
 
     val chevronRotation by animateFloatAsState(
         targetValue = if (drawer.isExpanded) 180f else 0f,
-        animationSpec = spring(
-            dampingRatio = 0.72f,
-            stiffness = 380f
-        ),
+        animationSpec = if (drawer.isExpanded) {
+            spring(dampingRatio = 0.72f, stiffness = 380f)
+        } else {
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 3200f)
+        },
         label = "chevron_rotation"
     )
     val chevronBgColor by animateColorAsState(
         targetValue = if (drawer.isExpanded) drawerColor.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        animationSpec = if (drawer.isExpanded) {
+            tween(durationMillis = 250, easing = FastOutSlowInEasing)
+        } else {
+            tween(durationMillis = 90, easing = FastOutLinearInEasing)
+        },
         label = "chevronBgColor"
     )
     val animatedBorderColor by animateColorAsState(
@@ -434,11 +439,11 @@ fun WidgetDrawerCard(
                 exit = shrinkVertically(
                     shrinkTowards = Alignment.Top,
                     animationSpec = spring(
-                        dampingRatio = 0.90f,
-                        stiffness = 420f
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = 3800f
                     )
                 ) + fadeOut(
-                    animationSpec = tween(140, easing = FastOutLinearInEasing)
+                    animationSpec = tween(80, easing = FastOutLinearInEasing)
                 ),
                 modifier = Modifier.clipToBounds()
             ) {

@@ -65,6 +65,9 @@ class GroupsViewModel @Inject constructor(
     private val _isAiCategorizing = MutableStateFlow(false)
     private val _aiSuggestions = MutableStateFlow<List<CategorizationSuggestion>?>(null)
     private val _installSuggestion = MutableStateFlow<Pair<AppInfo, AppGroup>?>(null)
+    // ponytail: Immediate in-memory optimistic tracking for instantaneous 0ms drawer toggles & outside-click collapse without waiting for Room SQLite disk I/O.
+    // null = use DB state; "NONE" = explicitly collapsed; "<groupId>" = explicitly expanded
+    private val _userExpandedGroupOverride = MutableStateFlow<String?>(null)
 
     val isAiCategorizing: StateFlow<Boolean> = _isAiCategorizing.asStateFlow()
     val aiSuggestions: StateFlow<List<CategorizationSuggestion>?> = _aiSuggestions.asStateFlow()
@@ -106,8 +109,23 @@ class GroupsViewModel @Inject constructor(
         GroupPrefs(multiGroup, lockLayout, drawerGlow, titleAnim, mindful)
     }
 
-    val uiState: StateFlow<GroupsUiState> = combine(
+    private val groupsWithOptimisticExpanded = combine(
         appGroupRepository.groups,
+        _userExpandedGroupOverride
+    ) { groups, overrideId ->
+        val currentExpandedId = when (overrideId) {
+            null -> groups.firstOrNull { it.isExpanded }?.id
+            "NONE" -> null
+            else -> overrideId
+        }
+        groups.map { group ->
+            val isExp = (group.id == currentExpandedId)
+            if (group.isExpanded != isExp) group.copy(isExpanded = isExp) else group
+        }
+    }
+
+    val uiState: StateFlow<GroupsUiState> = combine(
+        groupsWithOptimisticExpanded,
         appRepository.installedApps,
         groupPrefsFlow,
         dialogsState,
@@ -226,12 +244,21 @@ class GroupsViewModel @Inject constructor(
     }
 
     fun toggleGroupExpanded(groupId: String) {
+        // Immediate optimistic in-memory toggle for instantaneous UI response (0ms latency)
+        val currentlyExpanded = when (val override = _userExpandedGroupOverride.value) {
+            null -> uiState.value.groups.firstOrNull { it.group.isExpanded }?.group?.id
+            "NONE" -> null
+            else -> override
+        }
+        _userExpandedGroupOverride.value = if (currentlyExpanded == groupId) "NONE" else groupId
         viewModelScope.launch {
             appGroupRepository.toggleGroupExpanded(groupId)
         }
     }
 
     fun collapseAllGroups() {
+        // Immediate optimistic in-memory collapse for instantaneous UI response (0ms latency)
+        _userExpandedGroupOverride.value = "NONE"
         viewModelScope.launch {
             appGroupRepository.collapseAllGroups()
         }

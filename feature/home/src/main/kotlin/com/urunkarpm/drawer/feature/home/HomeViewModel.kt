@@ -182,6 +182,8 @@ class HomeViewModel @Inject constructor(
     private val _pendingMindfulApp = MutableStateFlow<AppInfo?>(null)
     private val _suggestedApps = MutableStateFlow<List<AppInfo>>(emptyList())
     val suggestedApps: StateFlow<List<AppInfo>> = _suggestedApps.asStateFlow()
+    // ponytail: Immediate in-memory optimistic tracking for instantaneous 0ms widget drawer collapse & expand
+    private val _expandedWidgetDrawerIds = MutableStateFlow<Set<String>?>(null)
 
     val showDrawerSuggestions: StateFlow<Boolean> = preferencesDataSource.showDrawerSuggestions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -381,18 +383,30 @@ class HomeViewModel @Inject constructor(
         widgetRepository.getAllWidgets(),
         glancePrefsFlow,
         homeDialogsFlow,
-        surfacePrefsFlow
+        surfacePrefsFlow,
+        _expandedWidgetDrawerIds
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val apps = args[0] as List<AppInfo>
         val weather = args[1] as? WeatherInfo
         @Suppress("UNCHECKED_CAST")
-        val drawersList = args[2] as List<com.urunkarpm.drawer.core.model.WidgetDrawer>
+        val rawDrawersList = args[2] as List<com.urunkarpm.drawer.core.model.WidgetDrawer>
         @Suppress("UNCHECKED_CAST")
         val widgetsList = args[3] as List<com.urunkarpm.drawer.core.model.WidgetItem>
         val glancePrefs = args[4] as GlancePrefs
         val dialogs = args[5] as HomeDialogsState
         val surfacePrefs = args[6] as SurfaceThemePrefs
+        @Suppress("UNCHECKED_CAST")
+        val expandedDrawerOverride = args[7] as? Set<String>
+
+        val drawersList = rawDrawersList.map { drawer ->
+            if (expandedDrawerOverride != null) {
+                val isExp = expandedDrawerOverride.contains(drawer.id)
+                if (drawer.isExpanded != isExp) drawer.copy(isExpanded = isExp) else drawer
+            } else {
+                drawer
+            }
+        }
 
         val standalone = widgetsList.filter { it.drawerId == null }
 
@@ -988,6 +1002,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun collapseAllWidgetDrawers() {
+        // Immediate optimistic in-memory collapse (0ms latency)
+        _expandedWidgetDrawerIds.value = emptySet()
         viewModelScope.launch(Dispatchers.IO) {
             val fromState = uiState.value.widgetDrawers.filter { it.isExpanded }
             val fromRepo = try {
@@ -1003,6 +1019,9 @@ class HomeViewModel @Inject constructor(
     }
 
     fun toggleWidgetDrawerExpand(drawerId: String) {
+        // Immediate optimistic in-memory toggle (0ms latency)
+        val current = _expandedWidgetDrawerIds.value ?: uiState.value.widgetDrawers.filter { it.isExpanded }.map { it.id }.toSet()
+        _expandedWidgetDrawerIds.value = if (current.contains(drawerId)) current - drawerId else current + drawerId
         viewModelScope.launch(Dispatchers.IO) {
             val drawer = uiState.value.widgetDrawers.find { it.id == drawerId } ?: return@launch
             widgetRepository.updateDrawer(drawer.copy(isExpanded = !drawer.isExpanded))

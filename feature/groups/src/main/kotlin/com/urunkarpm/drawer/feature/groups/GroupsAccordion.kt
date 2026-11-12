@@ -609,15 +609,20 @@ private fun GroupCard(
     }
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = spring(
-            dampingRatio = 0.72f,
-            stiffness = 380f
-        ),
+        animationSpec = if (isExpanded) {
+            spring(dampingRatio = 0.72f, stiffness = 380f)
+        } else {
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 3200f)
+        },
         label = "chevron_rotation"
     )
     val chevronBgColor by animateColorAsState(
         targetValue = if (isExpanded) groupColor.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        animationSpec = if (isExpanded) {
+            tween(durationMillis = 250, easing = FastOutSlowInEasing)
+        } else {
+            tween(durationMillis = 90, easing = FastOutLinearInEasing)
+        },
         label = "chevronBgColor"
     )
     var showMenu by remember { mutableStateOf(false) }
@@ -886,12 +891,12 @@ private fun GroupCard(
                     shrinkTowards = Alignment.Top,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMedium
+                        stiffness = 3800f
                     )
                 ) + fadeOut(
                     animationSpec = tween(
-                        durationMillis = 150,
-                        easing = FastOutSlowInEasing
+                        durationMillis = 80,
+                        easing = FastOutLinearInEasing
                     )
                 ),
                 modifier = Modifier.clipToBounds()

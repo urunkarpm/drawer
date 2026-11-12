@@ -857,16 +857,61 @@ fun HomeScreen(
                     }
                 }
 
+                var homeRootBoxCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+                val currentGroups by rememberUpdatedState(groupsUiState.groups)
+                val currentIsNotificationExpanded by rememberUpdatedState(isNotificationExpanded)
+                val currentIsDuoStatusExpanded by rememberUpdatedState(isDuoStatusExpanded)
+                val currentIsAllAppsOpen by rememberUpdatedState(uiState.isAllAppsOpen)
+                val currentIsSettingsOpen by rememberUpdatedState(isSettingsOpen)
+                val currentIsCameraOpen by rememberUpdatedState(isCameraOpen)
+                val currentAnyCategoryExpanded = currentGroups.any { it.group.isExpanded }
+                val currentAnyDrawerExpanded = currentAnyCategoryExpanded || currentIsNotificationExpanded
+
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .onGloballyPositioned { homeRootBoxCoordinates = it }
                         .graphicsLayer {
                             scaleX = homeScale.value
                             scaleY = homeScale.value
                             alpha = homeAlpha.value
                         }
                         .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
-                        .navigationBarsPadding(),
+                        .navigationBarsPadding()
+                        // ponytail: Instantaneous outside-click collapse engine for expanded category & notification drawers.
+                        // Intercepts pointer-down events on Initial pass with 0ms latency; collapses drawer immediately without waiting for finger up or double-tap delay.
+                        .pointerInput(currentAnyCategoryExpanded, currentIsNotificationExpanded) {
+                            if (!currentAnyCategoryExpanded && !currentIsNotificationExpanded) return@pointerInput
+                            awaitEachGesture {
+                                val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                                val rootPos = homeRootBoxCoordinates?.localToRoot(down.position) ?: down.position
+
+                                val expandedGroup = currentGroups.firstOrNull { it.group.isExpanded }
+                                val expandedGroupBounds = expandedGroup?.let { dragDropState.groupBounds[it.group.id] }
+                                val isInsideExpandedGroup = expandedGroupBounds?.contains(rootPos) == true
+
+                                val isInsideNotification = if (currentIsNotificationExpanded) {
+                                    notificationBounds?.contains(rootPos) == true
+                                } else false
+
+                                if (!isInsideExpandedGroup && !isInsideNotification) {
+                                    if (currentIsNotificationExpanded) {
+                                        isNotificationExpanded = false
+                                        lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
+                                    }
+                                    if (currentAnyCategoryExpanded) {
+                                        groupsViewModel.collapseAllGroups()
+                                        lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
+                                    }
+                                    val isOverOtherGroupHeader = dragDropState.groupBounds.entries.any { (id, rect) ->
+                                        id != expandedGroup?.group?.id && rect.contains(rootPos)
+                                    }
+                                    if (!isOverOtherGroupHeader) {
+                                        down.consume()
+                                    }
+                                }
+                            }
+                        },
                     contentAlignment = Alignment.TopCenter
                 ) {
                     if (isDuoStatusExpanded) {
@@ -881,12 +926,6 @@ fun HomeScreen(
                                 }
                         )
                     }
-                    val currentGroups by rememberUpdatedState(groupsUiState.groups)
-                    val currentIsNotificationExpanded by rememberUpdatedState(isNotificationExpanded)
-                    val currentIsDuoStatusExpanded by rememberUpdatedState(isDuoStatusExpanded)
-                    val currentIsAllAppsOpen by rememberUpdatedState(uiState.isAllAppsOpen)
-                    val currentIsSettingsOpen by rememberUpdatedState(isSettingsOpen)
-                    val currentIsCameraOpen by rememberUpdatedState(isCameraOpen)
 
                     Column(
                         modifier = Modifier
@@ -897,6 +936,40 @@ fun HomeScreen(
                             .onGloballyPositioned { coords ->
                                 rootColumnBounds = coords.boundsInRoot()
                             }
+                            // Inner column instantaneous outside-click listener for touch events passing through padding/insets
+                            .pointerInput(currentAnyCategoryExpanded, currentIsNotificationExpanded) {
+                                if (!currentAnyCategoryExpanded && !currentIsNotificationExpanded) return@pointerInput
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                                    val colBounds = rootColumnBounds ?: Rect.Zero
+                                    val rootPos = Offset(colBounds.left + down.position.x, colBounds.top + down.position.y)
+
+                                    val expandedGroup = currentGroups.firstOrNull { it.group.isExpanded }
+                                    val expandedGroupBounds = expandedGroup?.let { dragDropState.groupBounds[it.group.id] }
+                                    val isInsideExpandedGroup = expandedGroupBounds?.contains(rootPos) == true
+
+                                    val isInsideNotification = if (currentIsNotificationExpanded) {
+                                        notificationBounds?.contains(rootPos) == true
+                                    } else false
+
+                                    if (!isInsideExpandedGroup && !isInsideNotification) {
+                                        if (currentIsNotificationExpanded) {
+                                            isNotificationExpanded = false
+                                            lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
+                                        }
+                                        if (currentAnyCategoryExpanded) {
+                                            groupsViewModel.collapseAllGroups()
+                                            lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
+                                        }
+                                        val isOverOtherGroupHeader = dragDropState.groupBounds.entries.any { (id, rect) ->
+                                            id != expandedGroup?.group?.id && rect.contains(rootPos)
+                                        }
+                                        if (!isOverOtherGroupHeader) {
+                                            down.consume()
+                                        }
+                                    }
+                                }
+                            }
                             // ponytail: double-tap on empty screen space locks phone via AccessibilityService; long-press opens context menu (Settings & Add Category & Add Widget); single-tap closes open drawers.
                             // pointerInput(Unit) with rememberUpdatedState prevents gesture detector coroutine restarts and dropped touches on list/state changes.
                             .pointerInput(Unit) {
@@ -905,18 +978,20 @@ fun HomeScreen(
                                         if (currentIsAllAppsOpen || currentIsSettingsOpen || currentIsCameraOpen) return@detectTapGestures
                                         val colBounds = rootColumnBounds ?: Rect.Zero
                                         val rootPos = Offset(colBounds.left + offset.x, colBounds.top + offset.y)
-                                        val isOverDock = dragDropState.dockBounds?.contains(rootPos) == true
-                                        val isOverGlance = glanceBounds?.contains(rootPos) == true
-                                        val isOverGroup = dragDropState.groupBounds.values.any { it.contains(rootPos) }
-                                        val isOverNotification = notificationBounds?.contains(rootPos) == true
+                                        val expandedGroup = currentGroups.firstOrNull { it.group.isExpanded }
+                                        val isInsideExpandedGroup = expandedGroup?.let { dragDropState.groupBounds[it.group.id]?.contains(rootPos) } == true
+                                        val isInsideNotification = notificationBounds?.contains(rootPos) == true
+
                                         if (currentIsDuoStatusExpanded) {
                                             isDuoStatusExpanded = false
-                                        } else if (!isOverDock && !isOverGlance && !isOverGroup && !isOverNotification) {
-                                            if (currentIsNotificationExpanded) {
+                                        } else {
+                                            if (currentIsNotificationExpanded && !isInsideNotification) {
                                                 isNotificationExpanded = false
+                                                lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
                                             }
-                                            if (currentGroups.any { it.group.isExpanded }) {
+                                            if (expandedGroup != null && !isInsideExpandedGroup) {
                                                 groupsViewModel.collapseAllGroups()
+                                                lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
                                             }
                                         }
                                     },

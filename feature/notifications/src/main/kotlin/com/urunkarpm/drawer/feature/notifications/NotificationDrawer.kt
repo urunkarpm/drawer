@@ -172,10 +172,11 @@ fun NotificationDrawer(
 
     val chevronRotation by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = spring(
-            dampingRatio = 0.72f,
-            stiffness = 380f
-        ),
+        animationSpec = if (isExpanded) {
+            spring(dampingRatio = 0.72f, stiffness = 380f)
+        } else {
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 3200f)
+        },
         label = "notif_chevron"
     )
 
@@ -461,18 +462,18 @@ fun NotificationDrawer(
                             shrinkTowards = Alignment.Top,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMedium
+                                stiffness = 3800f
                             )
                         ) + slideOutVertically(
                             targetOffsetY = { -it / 8 },
                             animationSpec = tween(
-                                durationMillis = 180,
+                                durationMillis = 80,
                                 easing = FastOutLinearInEasing
                             )
                         ) + fadeOut(
                             animationSpec = tween(
-                                durationMillis = 150,
-                                easing = FastOutSlowInEasing
+                                durationMillis = 80,
+                                easing = FastOutLinearInEasing
                             )
                         )
                     ) {
