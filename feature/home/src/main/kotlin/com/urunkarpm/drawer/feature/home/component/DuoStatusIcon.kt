@@ -809,12 +809,13 @@ fun DuoStatusIcon(
         }
     }
 
-    val chargingGreen = Color(0xFF34C759)
+    val isLightDisplay = displayColor.luminance() < 0.5f
+    val chargingGreen = if (isLightDisplay) Color(0xFF16A34A) else Color(0xFF34C759)
     val activeColor = displayColor
-    val inactiveColor = displayColor.copy(alpha = 0.22f)
+    val inactiveColor = if (isLightDisplay) displayColor.copy(alpha = 0.38f) else displayColor.copy(alpha = 0.24f)
     val activeBatteryColor = if (isCharging) chargingGreen else activeColor
-    val inactiveBatteryColor = if (isCharging) chargingGreen.copy(alpha = 0.20f) else inactiveColor
-    val alertRed = Color(0xFFFF3B30)
+    val inactiveBatteryColor = if (isCharging) chargingGreen.copy(alpha = if (isLightDisplay) 0.35f else 0.20f) else inactiveColor
+    val alertRed = if (isLightDisplay) Color(0xFFDC2626) else Color(0xFFFF3B30)
 
     // ponytail: Surface-aware contrast engine for expanded telemetry card; ceiling: two-tier dark/light token derivation; upgrade path: full Material 3 dynamic color scheme harmonizer.
     val palette = remember(cinematicPaletteId) { CinematicPalettes.find(cinematicPaletteId) }
@@ -906,6 +907,27 @@ fun DuoStatusIcon(
                 cinematicPaletteId = cinematicPaletteId,
                 modifier = Modifier.matchParentSize()
             )
+        } else {
+            // Collapsed capsule surface backing ensuring high contrast on white and light wallpapers
+            val collapsedFade = (1f - (expandProgress / 0.30f)).coerceIn(0f, 1f)
+            val collapsedBackingColor = if (isLightDisplay) {
+                Color(0xFF0F172A).copy(alpha = 0.09f * collapsedFade)
+            } else {
+                Color.Black.copy(alpha = 0.22f * collapsedFade)
+            }
+            val collapsedBorderColor = if (isLightDisplay) {
+                Color.Black.copy(alpha = 0.14f * collapsedFade)
+            } else {
+                Color.White.copy(alpha = 0.16f * collapsedFade)
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(sizeDp.dp)
+                    .clip(CircleShape)
+                    .background(collapsedBackingColor)
+                    .border(androidx.compose.foundation.BorderStroke(1.dp, collapsedBorderColor), CircleShape)
+            )
         }
         // ── Layer 1: Collapsed Unified Circular Duo Status Icon ──
         if (expandProgress < 0.95f) {
@@ -928,6 +950,14 @@ fun DuoStatusIcon(
                     val centerX = size.width / 2f
                     val centerY = size.height * 0.492f
 
+                    // Shadow halo pass guaranteeing crisp visibility on white or busy wallpapers
+                    val shadowColor = if (isLightDisplay) {
+                        Color.White.copy(alpha = 0.65f)
+                    } else {
+                        Color.Black.copy(alpha = 0.55f)
+                    }
+                    val shadowStrokeOffset = 0.8f * s
+
                     // 1. BATTERY: Outer circular arc (sweeping 242° from 149° clockwise to 31°)
                     val outerRadius = 117.0f * s
                     val outerStroke = 18.0f * s
@@ -935,6 +965,16 @@ fun DuoStatusIcon(
                     val totalBatteryArc = 242.0f
                     val arcTopLeft = Offset(centerX - outerRadius, centerY - outerRadius)
                     val arcSize = Size(outerRadius * 2f, outerRadius * 2f)
+
+                    drawArc(
+                        color = shadowColor,
+                        startAngle = startAngle,
+                        sweepAngle = totalBatteryArc,
+                        useCenter = false,
+                        topLeft = Offset(arcTopLeft.x, arcTopLeft.y + shadowStrokeOffset),
+                        size = arcSize,
+                        style = Stroke(width = outerStroke + 1.2f * s, cap = StrokeCap.Round)
+                    )
 
                     drawArc(
                         color = inactiveBatteryColor,
@@ -970,6 +1010,15 @@ fun DuoStatusIcon(
                             )
                         }
                         drawArc(
+                            color = shadowColor,
+                            startAngle = startAngle,
+                            sweepAngle = activeSweep,
+                            useCenter = false,
+                            topLeft = Offset(arcTopLeft.x, arcTopLeft.y + shadowStrokeOffset),
+                            size = arcSize,
+                            style = Stroke(width = outerStroke + 1.2f * s, cap = StrokeCap.Round)
+                        )
+                        drawArc(
                             color = activeBatteryColor,
                             startAngle = startAngle,
                             sweepAngle = activeSweep,
@@ -992,6 +1041,11 @@ fun DuoStatusIcon(
                     for (i in dotOffsets.indices) {
                         val offset = dotOffsets[i]
                         val dotCenter = Offset(centerX + offset.x, centerY + offset.y)
+                        drawCircle(
+                            color = shadowColor,
+                            radius = dotRadius + 0.8f * s,
+                            center = Offset(dotCenter.x, dotCenter.y + shadowStrokeOffset)
+                        )
                         if (!status.isCellularConnected) {
                             drawCircle(
                                 color = alertRed,
@@ -1054,55 +1108,52 @@ fun DuoStatusIcon(
                     )
                     wedgePath.close()
 
-                    if (!status.isWifiConnected) {
-                        drawArc(
-                            color = alertRed,
-                            startAngle = 226.0f,
-                            sweepAngle = 88.0f,
-                            useCenter = false,
-                            topLeft = Offset(wifiOriginX - rTop, wifiOriginY - rTop),
-                            size = Size(rTop * 2f, rTop * 2f),
-                            style = Stroke(width = strokeTop, cap = StrokeCap.Round)
-                        )
-                        drawArc(
-                            color = alertRed,
-                            startAngle = 225.0f,
-                            sweepAngle = 90.0f,
-                            useCenter = false,
-                            topLeft = Offset(wifiOriginX - rMid, wifiOriginY - rMid),
-                            size = Size(rMid * 2f, rMid * 2f),
-                            style = Stroke(width = strokeMid, cap = StrokeCap.Round)
-                        )
-                        drawPath(
-                            path = wedgePath,
-                            color = alertRed
-                        )
-                    } else {
-                        drawArc(
-                            color = if (isTopActive) activeColor else inactiveColor,
-                            startAngle = 226.0f,
-                            sweepAngle = 88.0f,
-                            useCenter = false,
-                            topLeft = Offset(wifiOriginX - rTop, wifiOriginY - rTop),
-                            size = Size(rTop * 2f, rTop * 2f),
-                            style = Stroke(width = strokeTop, cap = StrokeCap.Round)
-                        )
+                    val topWifiColor = if (!status.isWifiConnected) alertRed else if (isTopActive) activeColor else inactiveColor
+                    val midWifiColor = if (!status.isWifiConnected) alertRed else if (isMidActive) activeColor else inactiveColor
+                    val baseWifiColor = if (!status.isWifiConnected) alertRed else if (isBaseActive) activeColor else inactiveColor
 
-                        drawArc(
-                            color = if (isMidActive) activeColor else inactiveColor,
-                            startAngle = 225.0f,
-                            sweepAngle = 90.0f,
-                            useCenter = false,
-                            topLeft = Offset(wifiOriginX - rMid, wifiOriginY - rMid),
-                            size = Size(rMid * 2f, rMid * 2f),
-                            style = Stroke(width = strokeMid, cap = StrokeCap.Round)
-                        )
+                    drawArc(
+                        color = shadowColor,
+                        startAngle = 226.0f,
+                        sweepAngle = 88.0f,
+                        useCenter = false,
+                        topLeft = Offset(wifiOriginX - rTop, wifiOriginY - rTop + shadowStrokeOffset),
+                        size = Size(rTop * 2f, rTop * 2f),
+                        style = Stroke(width = strokeTop + 1.2f * s, cap = StrokeCap.Round)
+                    )
+                    drawArc(
+                        color = topWifiColor,
+                        startAngle = 226.0f,
+                        sweepAngle = 88.0f,
+                        useCenter = false,
+                        topLeft = Offset(wifiOriginX - rTop, wifiOriginY - rTop),
+                        size = Size(rTop * 2f, rTop * 2f),
+                        style = Stroke(width = strokeTop, cap = StrokeCap.Round)
+                    )
 
-                        drawPath(
-                            path = wedgePath,
-                            color = if (isBaseActive) activeColor else inactiveColor
-                        )
-                    }
+                    drawArc(
+                        color = shadowColor,
+                        startAngle = 225.0f,
+                        sweepAngle = 90.0f,
+                        useCenter = false,
+                        topLeft = Offset(wifiOriginX - rMid, wifiOriginY - rMid + shadowStrokeOffset),
+                        size = Size(rMid * 2f, rMid * 2f),
+                        style = Stroke(width = strokeMid + 1.2f * s, cap = StrokeCap.Round)
+                    )
+                    drawArc(
+                        color = midWifiColor,
+                        startAngle = 225.0f,
+                        sweepAngle = 90.0f,
+                        useCenter = false,
+                        topLeft = Offset(wifiOriginX - rMid, wifiOriginY - rMid),
+                        size = Size(rMid * 2f, rMid * 2f),
+                        style = Stroke(width = strokeMid, cap = StrokeCap.Round)
+                    )
+
+                    drawPath(
+                        path = wedgePath,
+                        color = baseWifiColor
+                    )
                 }
             }
         }

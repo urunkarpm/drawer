@@ -86,6 +86,7 @@ fun rememberWallpaperContrastColors(): WallpaperContrastColors {
                 runCatching {
                     val wm = WallpaperManager.getInstance(context)
                     val colors = wm.getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
+                        ?: wm.getWallpaperColors(WallpaperManager.FLAG_LOCK)
                     if (colors != null) {
                         // WallpaperColors.getColorHints is API 31+; below that, fall through
                         // to the luminance heuristic so API 27-30 devices do not crash.
@@ -104,7 +105,29 @@ fun rememberWallpaperContrastColors(): WallpaperContrastColors {
                             lum > 0.48f
                         }
                     } else {
-                        null
+                        val drawable = wm.drawable ?: wm.fastDrawable
+                        if (drawable != null) {
+                            val bmp = android.graphics.Bitmap.createBitmap(32, 32, android.graphics.Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(bmp)
+                            drawable.setBounds(0, 0, 32, 32)
+                            drawable.draw(canvas)
+                            var totalLum = 0f
+                            var count = 0
+                            for (x in 0 until 32 step 4) {
+                                for (y in 0 until 16 step 4) {
+                                    val pixel = bmp.getPixel(x, y)
+                                    val r = android.graphics.Color.red(pixel) / 255f
+                                    val g = android.graphics.Color.green(pixel) / 255f
+                                    val b = android.graphics.Color.blue(pixel) / 255f
+                                    totalLum += (0.2126f * r + 0.7152f * g + 0.0722f * b)
+                                    count++
+                                }
+                            }
+                            bmp.recycle()
+                            if (count > 0) (totalLum / count) > 0.48f else null
+                        } else {
+                            null
+                        }
                     }
                 }.getOrNull()
             } else {
@@ -134,7 +157,7 @@ fun rememberWallpaperContrastColors(): WallpaperContrastColors {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             val wm = runCatching { WallpaperManager.getInstance(context) }.getOrNull()
             val listener = WallpaperManager.OnColorsChangedListener { colors, which ->
-                if ((which and WallpaperManager.FLAG_SYSTEM) != 0 && colors != null) {
+                if (colors != null) {
                     // WallpaperColors.getColorHints is API 31+; below that, fall through
                     // to the luminance heuristic so API 27-30 devices do not crash.
                     val supportsDarkText = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&

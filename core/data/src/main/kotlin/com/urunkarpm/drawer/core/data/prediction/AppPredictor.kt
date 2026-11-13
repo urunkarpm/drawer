@@ -18,7 +18,7 @@ class AppPredictor @Inject constructor() {
         activeNotificationPackages: Set<String>,
         lastExitedPackage: String? = null,
         currentTimeMs: Long = System.currentTimeMillis(),
-        maxSuggestions: Int = 6
+        maxSuggestions: Int = 8
     ): List<AppInfo> {
         if (installedApps.isEmpty()) return emptyList()
 

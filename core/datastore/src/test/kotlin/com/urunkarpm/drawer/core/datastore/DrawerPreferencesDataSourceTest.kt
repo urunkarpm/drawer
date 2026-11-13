@@ -432,4 +432,21 @@ class DrawerPreferencesDataSourceTest {
         dataSource.setDismissedUpdateVersion("v2.9.0")
         assertEquals("v2.9.0", dataSource.dismissedUpdateVersion.first())
     }
+
+    @Test
+    fun defaultAppDrawerColumnsIsFour() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(4, dataSource.appDrawerColumns.first())
+    }
+
+    @Test
+    fun updateAppDrawerColumnsPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setAppDrawerColumns(5)
+        assertEquals(5, dataSource.appDrawerColumns.first())
+        dataSource.setAppDrawerColumns(6)
+        assertEquals(6, dataSource.appDrawerColumns.first())
+        dataSource.setAppDrawerColumns(10) // coercion check
+        assertEquals(6, dataSource.appDrawerColumns.first())
+    }
 }

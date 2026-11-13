@@ -82,6 +82,7 @@ class HomeViewModelTest {
     private val dockMesmerizingGlowFlow = MutableStateFlow(true)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
     private val blurAppListOnOpenFlow = MutableStateFlow(false)
+    private val appDrawerColumnsFlow = MutableStateFlow(4)
     private val dockIconSizeFlow = MutableStateFlow(56f)
     private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
     private val lockLayoutFlow = MutableStateFlow(false)
@@ -160,6 +161,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.dockMesmerizingGlow } returns dockMesmerizingGlowFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.blurAppListOnOpen } returns blurAppListOnOpenFlow
+        every { preferencesDataSource.appDrawerColumns } returns appDrawerColumnsFlow
         every { preferencesDataSource.dockIconSize } returns dockIconSizeFlow
         every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow

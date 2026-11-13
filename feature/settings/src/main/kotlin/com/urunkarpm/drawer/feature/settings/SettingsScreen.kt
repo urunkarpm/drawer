@@ -433,6 +433,31 @@ fun SettingsScreen(
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+                    Text(
+                        text = "App Drawer Columns",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Number of app icons per row in the all apps drawer",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "4" to "4 Icons",
+                            "5" to "5 Icons",
+                            "6" to "6 Icons"
+                        ),
+                        selected = uiState.appDrawerColumns.toString(),
+                        onSelect = { viewModel.setAppDrawerColumns(it.toIntOrNull() ?: 4) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
                     SettingsSwitchRow(
                         title = "Crisp Haptic Feedback",
                         subtitle = "High-definition tactile feedback on app launches, scrubbers, and touch points",

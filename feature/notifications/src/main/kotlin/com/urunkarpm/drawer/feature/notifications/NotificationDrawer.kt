@@ -268,9 +268,6 @@ fun NotificationDrawer(
         // â”€â”€ Notifications Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         } else {
             val hasNotifications = uiState.activeNotifications.isNotEmpty()
-            val hasClearableNotifications = remember(uiState.activeNotifications) {
-                uiState.activeNotifications.any { it.isClearable }
-            }
             // ponytail: clean standard list state; notifications stay open until dismissed or toggled; ceiling: in-memory list; upgrade path: persistent notification store.
             val listState = rememberLazyListState()
 
@@ -571,7 +568,7 @@ fun NotificationDrawer(
                                 }
 
                                 AnimatedVisibility(
-                                    visible = hasClearableNotifications,
+                                    visible = hasNotifications,
                                     enter = fadeIn(animationSpec = tween(150)) + expandHorizontally(),
                                     exit = fadeOut(animationSpec = tween(150)) + shrinkHorizontally()
                                 ) {
@@ -901,7 +898,7 @@ private fun EndlessNotificationCard(
                 SwipeToDismissBoxValue.EndToStart -> swipeLeftAction
                 else -> null
             }
-            if (item.isClearable && action != null && action != NotificationSwipeAction.NONE) {
+            if (action != null && action != NotificationSwipeAction.NONE) {
                 if (action == NotificationSwipeAction.DISMISS) {
                     crispHaptics.reject()
                 } else {
@@ -935,8 +932,8 @@ private fun EndlessNotificationCard(
     ) {
         SwipeToDismissBox(
             state = dismissState,
-            enableDismissFromStartToEnd = item.isClearable && swipeRightAction != NotificationSwipeAction.NONE,
-            enableDismissFromEndToStart = item.isClearable && swipeLeftAction != NotificationSwipeAction.NONE,
+            enableDismissFromStartToEnd = swipeRightAction != NotificationSwipeAction.NONE,
+            enableDismissFromEndToStart = swipeLeftAction != NotificationSwipeAction.NONE,
             backgroundContent = {
                 val direction = dismissState.dismissDirection
                 val action = when (direction) {
@@ -1087,22 +1084,20 @@ private fun EndlessNotificationCard(
                                     modifier = Modifier.size(15.dp)
                                 )
                             }
-                            if (item.isClearable) {
-                                IconButton(
-                                    onClick = {
-                                        crispHaptics.reject()
-                                        onDismiss()
-                                    },
-                                    modifier = Modifier.size(26.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
+                            IconButton(
+                                onClick = {
+                                    crispHaptics.reject()
+                                    onDismiss()
+                                },
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss",
+                                    tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp)
+                                )
                             }
                         }
 
@@ -1285,7 +1280,7 @@ private fun DismissibleNotificationRow(
                 SwipeToDismissBoxValue.EndToStart -> swipeLeftAction
                 else -> null
             }
-            if (item.isClearable && action != null && action != NotificationSwipeAction.NONE) {
+            if (action != null && action != NotificationSwipeAction.NONE) {
                 if (action == NotificationSwipeAction.DISMISS) {
                     crispHaptics.reject()
                 } else {
@@ -1328,8 +1323,8 @@ private fun DismissibleNotificationRow(
     ) {
         SwipeToDismissBox(
             state = dismissState,
-            enableDismissFromStartToEnd = item.isClearable && swipeRightAction != NotificationSwipeAction.NONE,
-            enableDismissFromEndToStart = item.isClearable && swipeLeftAction != NotificationSwipeAction.NONE,
+            enableDismissFromStartToEnd = swipeRightAction != NotificationSwipeAction.NONE,
+            enableDismissFromEndToStart = swipeLeftAction != NotificationSwipeAction.NONE,
             backgroundContent = {
                 val direction = dismissState.dismissDirection
                 val action = when (direction) {
@@ -1444,22 +1439,20 @@ private fun DismissibleNotificationRow(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (item.isClearable) {
-                                Spacer(modifier = Modifier.width(4.dp))
-                                IconButton(
-                                    onClick = {
-                                        crispHaptics.reject()
-                                        pendingAction = NotificationSwipeAction.DISMISS
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss notification",
-                                        tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = {
+                                    crispHaptics.reject()
+                                    pendingAction = NotificationSwipeAction.DISMISS
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss notification",
+                                    tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp)
+                                )
                             }
                         }
 

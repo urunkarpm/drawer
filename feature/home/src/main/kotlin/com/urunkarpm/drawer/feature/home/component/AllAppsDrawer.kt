@@ -147,6 +147,7 @@ fun AllAppsDrawer(
     surfaceCornerRadiusDp: Float = 24f,
     autoOpenKeyboard: Boolean = false,
     blurAppListOnOpen: Boolean = true,
+    appDrawerColumns: Int = 4,
     onOpenSettings: (() -> Unit)? = null,
     frequentApps: List<AppInfo> = emptyList()
 ) {
@@ -223,13 +224,45 @@ fun AllAppsDrawer(
 
             val configuration = LocalConfiguration.current
             val screenWidth = configuration.screenWidthDp
+            val selectedColumns = appDrawerColumns.coerceIn(4, 6)
             val gridColumns = when {
-                screenWidth < 600 -> 4
-                screenWidth < 840 -> 6
-                screenWidth < 1100 -> 7
-                else -> 8
+                screenWidth < 600 -> selectedColumns
+                screenWidth < 840 -> maxOf(selectedColumns, 6)
+                screenWidth < 1100 -> maxOf(selectedColumns, 7)
+                else -> maxOf(selectedColumns, 8)
             }
-            val horizontalPadding = if (screenWidth < 360) 12.dp else if (screenWidth >= 840) 24.dp else 16.dp
+            val horizontalPadding = when {
+                screenWidth < 360 -> if (gridColumns >= 6) 6.dp else if (gridColumns == 5) 8.dp else 12.dp
+                screenWidth >= 840 -> 24.dp
+                gridColumns >= 6 -> 10.dp
+                gridColumns == 5 -> 12.dp
+                else -> 16.dp
+            }
+            val gridSpacing = when {
+                gridColumns >= 6 -> 6.dp
+                gridColumns == 5 -> 8.dp
+                else -> 12.dp
+            }
+            val gridVerticalSpacing = when {
+                gridColumns >= 6 -> 12.dp
+                gridColumns == 5 -> 14.dp
+                else -> 16.dp
+            }
+            val gridIconSize = when {
+                gridColumns >= 6 -> if (screenWidth < 360) 36.dp else 40.dp
+                gridColumns == 5 -> if (screenWidth < 360) 42.dp else 46.dp
+                else -> if (screenWidth < 360) 48.dp else 54.dp
+            }
+            val gridItemPadding = when {
+                gridColumns >= 6 -> 1.dp
+                gridColumns == 5 -> 2.dp
+                else -> 4.dp
+            }
+            val gridLabelFontSize = when {
+                gridColumns >= 6 -> 10.sp * LocalAppLabelScale.current
+                gridColumns == 5 -> 11.sp * LocalAppLabelScale.current
+                else -> null
+            }
 
             val letterIndexMap = remember(displayedApps) {
                 val map = HashMap<String, Int>(32)
@@ -514,8 +547,8 @@ fun AllAppsDrawer(
                                         end = horizontalPadding,
                                         bottom = 12.dp
                                     ),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(gridVerticalSpacing),
+                                    horizontalArrangement = Arrangement.spacedBy(gridSpacing),
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     items(
@@ -528,6 +561,9 @@ fun AllAppsDrawer(
                                             onAppClick = onAppClick,
                                             onAppLongClick = onAppLongClick,
                                             iconLoader = iconLoader,
+                                            iconSize = gridIconSize,
+                                            itemHorizontalPadding = gridItemPadding,
+                                            labelFontSize = gridLabelFontSize,
                                             iconShape = iconShape,
                                             dragDropState = dragDropState,
                                             onDragDropResult = onDragDropResult,
@@ -762,27 +798,41 @@ private fun FrequentAppsRow(
     onDragDropResult: ((DragDropResult) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
-    val itemsToShow = remember(frequentApps) { frequentApps.take(6) }
+    val itemsToShow = remember(frequentApps, gridColumns) { frequentApps.take(gridColumns) }
     if (itemsToShow.isEmpty()) return
 
     val configuration = LocalConfiguration.current
     val isSmallScreen = configuration.screenWidthDp < 360
-    val iconSize = if (isSmallScreen) 36.dp else 40.dp
-    val effectiveHorizontalPadding = if (isSmallScreen) 8.dp else horizontalPadding.coerceAtLeast(12.dp)
+    val (iconSize, suggestedFontSize, suggestedSpacing) = when {
+        gridColumns <= 4 -> Triple(
+            if (isSmallScreen) 38.dp else 42.dp,
+            11.sp * LocalAppLabelScale.current,
+            12.dp
+        )
+        gridColumns == 5 -> Triple(
+            if (isSmallScreen) 34.dp else 38.dp,
+            10.5.sp * LocalAppLabelScale.current,
+            8.dp
+        )
+        else -> Triple(
+            if (isSmallScreen) 30.dp else 34.dp,
+            10.sp * LocalAppLabelScale.current,
+            6.dp
+        )
+    }
 
-    // ponytail: 6 suggested apps row with proper padding and equal weight per slot, always visible and unblurred; ceiling: single row 6 apps; upgrade path: continuous responsive row.
     Row(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentWidth(Alignment.CenterHorizontally)
             .widthIn(max = 760.dp)
             .padding(
-                start = effectiveHorizontalPadding,
-                end = effectiveHorizontalPadding,
+                start = horizontalPadding,
+                end = horizontalPadding,
                 top = 4.dp,
                 bottom = 6.dp
             ),
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(suggestedSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         for (app in itemsToShow) {
@@ -796,8 +846,8 @@ private fun FrequentAppsRow(
                     onAppLongClick = onAppLongClick,
                     iconLoader = iconLoader,
                     iconSize = iconSize,
-                    itemHorizontalPadding = 2.dp,
-                    labelFontSize = 10.sp * LocalAppLabelScale.current,
+                    itemHorizontalPadding = if (gridColumns >= 6) 1.dp else 2.dp,
+                    labelFontSize = suggestedFontSize,
                     iconShape = iconShape,
                     dragDropState = dragDropState,
                     onDragDropResult = onDragDropResult

@@ -121,4 +121,27 @@ class NotificationRepositoryTest {
 
         coVerify { mutedAppDao.deleteRule("com.test.app1") }
     }
+
+    @Test
+    fun dismissNotification_filtersOutDismissedItemLocally() = runTest(testDispatcher) {
+        notificationsFlow.value = listOf(notification1, notification2)
+        rulesFlow.value = emptyList()
+
+        repository.dismissNotification(notification1.key)
+
+        val active = repository.activeNotifications.first()
+        assertEquals(1, active.size)
+        assertEquals(notification2.key, active.first().key)
+    }
+
+    @Test
+    fun clearAllNotifications_filtersOutAllItemsLocally() = runTest(testDispatcher) {
+        notificationsFlow.value = listOf(notification1, notification2)
+        rulesFlow.value = emptyList()
+
+        repository.clearAllNotifications()
+
+        val active = repository.activeNotifications.first()
+        assertTrue(active.isEmpty())
+    }
 }

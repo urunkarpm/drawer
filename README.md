@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.9.1-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.9.2-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -28,6 +28,24 @@ Most mobile launchers are designed like digital billboards: cluttered screens, r
 
 **Drawer was built on a different philosophy: Intentionality.**  
 Everything you need to get things done is reachable in under a second; everything else stays effortlessly out of your line of sight.
+
+---
+
+## 🌟 What's New in v2.9.2
+
+* **📐 5 & 6 Column App Drawer (Enhanced Personalization):**
+  * Added user-customizable app drawer column density: choose between **4, 5, or 6 columns** to match your device screen size and personal density preference.
+  * Configurable in **Settings -> Surface & Appearance -> App Drawer Columns**.
+  * Intelligently scales icon sizes, text labels, and grid gutters so higher densities remain legible, balanced, and easy to tap.
+* **✨ Harmonized Suggested Apps Alignment:**
+  * Suggested / frequent apps at the top of the app drawer now dynamically match your selected column count (4, 5, or 6 apps).
+  * Equalized horizontal spacing and item widths guarantee that suggested apps align symmetrically with the drawer grid below.
+* **☀️ High-Contrast Duo Status Pill on White Wallpapers:**
+  * Resolved status icon legibility issues on pure white and high-luminance wallpapers.
+  * Added adaptive wallpaper luminance detection, dual-layer outline shadow passes on canvas arcs, and an ultra-subtle protective glass capsule backing in collapsed mode.
+  * Battery gauge, charging lightning bolt, volume meter, and percentage indicators stay razor-sharp and legible against any background.
+* **⚡ Instant Notification Dismissal & Swipe Handling:**
+  * Enhanced swipe-to-dismiss notification responsiveness with immediate optimistic state removal, preventing UI animation hitching.
 
 ---
 

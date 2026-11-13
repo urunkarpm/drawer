@@ -63,6 +63,7 @@ class SettingsViewModelTest {
     private val enableCameraMirrorFlow = MutableStateFlow(true)
     private val autoOpenKeyboardInDrawerFlow = MutableStateFlow(false)
     private val blurAppListOnOpenFlow = MutableStateFlow(false)
+    private val appDrawerColumnsFlow = MutableStateFlow(4)
     private val categoryAlignmentFlow = MutableStateFlow("TOP")
     private val enableWidgetsPageFlow = MutableStateFlow(false)
     private val headerFontFamilyFlow = MutableStateFlow("GOOGLE_SANS")
@@ -129,6 +130,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.autoOpenKeyboardInDrawer } returns autoOpenKeyboardInDrawerFlow
         every { preferencesDataSource.blurAppListOnOpen } returns blurAppListOnOpenFlow
+        every { preferencesDataSource.appDrawerColumns } returns appDrawerColumnsFlow
         every { preferencesDataSource.categoryAlignment } returns categoryAlignmentFlow
         every { preferencesDataSource.enableWidgetsPage } returns enableWidgetsPageFlow
         every { preferencesDataSource.showDuoStatusWidget } returns showDuoStatusWidgetFlow
@@ -202,6 +204,7 @@ class SettingsViewModelTest {
             assertFalse(state.stealthLimitBrightness)
             assertTrue(state.autoCategorizeNewApps)
             assertTrue(state.showDrawerSuggestions)
+            assertEquals(4, state.appDrawerColumns)
             assertEquals(8, state.dockExpandedMaxApps)
             cancelAndIgnoreRemainingEvents()
         }
@@ -212,6 +215,13 @@ class SettingsViewModelTest {
         viewModel.setDockExpandedMaxApps(9)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setDockExpandedMaxApps(9) }
+    }
+
+    @Test
+    fun setAppDrawerColumns_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setAppDrawerColumns(5)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setAppDrawerColumns(5) }
     }
 
     @Test

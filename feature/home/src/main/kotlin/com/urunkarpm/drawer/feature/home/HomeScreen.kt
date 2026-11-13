@@ -1568,6 +1568,7 @@ fun HomeScreen(
             surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
             autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer,
             blurAppListOnOpen = uiState.blurAppListOnOpen,
+            appDrawerColumns = uiState.appDrawerColumns,
             onOpenSettings = onDrawerOpenSettings
         )
 

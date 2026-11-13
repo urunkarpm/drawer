@@ -68,7 +68,8 @@ data class GlancePrefs(
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
     val drawerTitleAnimation: String = "ACCENT_POP",
-    val blurAppListOnOpen: Boolean = true
+    val blurAppListOnOpen: Boolean = true,
+    val appDrawerColumns: Int = 4
 )
 
 data class HomeDialogsState(
@@ -132,6 +133,7 @@ data class HomeUiState(
     val dockMesmerizingGlow: Boolean = true,
     val drawerTitleAnimation: String = "ACCENT_POP",
     val blurAppListOnOpen: Boolean = true,
+    val appDrawerColumns: Int = 4,
     val mindfulApps: Set<String> = emptySet(),
     val pendingMindfulApp: AppInfo? = null
 )
@@ -252,7 +254,8 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.wallpaperGradientAngle,
         preferencesDataSource.dockMesmerizingGlow,
         preferencesDataSource.drawerTitleAnimation,
-        preferencesDataSource.blurAppListOnOpen
+        preferencesDataSource.blurAppListOnOpen,
+        preferencesDataSource.appDrawerColumns
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val is24Hour = values[0] as Boolean
@@ -286,6 +289,7 @@ class HomeViewModel @Inject constructor(
         val dockMesmerizingGlow = values[28] as Boolean
         val drawerTitleAnimation = values[29] as String
         val blurAppListOnOpen = values[30] as Boolean
+        val appDrawerColumns = values[31] as Int
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -317,7 +321,8 @@ class HomeViewModel @Inject constructor(
             wallpaperGradientAngle,
             dockMesmerizingGlow,
             drawerTitleAnimation,
-            blurAppListOnOpen
+            blurAppListOnOpen,
+            appDrawerColumns
         )
     }
 
@@ -472,6 +477,7 @@ class HomeViewModel @Inject constructor(
             dockMesmerizingGlow = glancePrefs.dockMesmerizingGlow,
             drawerTitleAnimation = glancePrefs.drawerTitleAnimation,
             blurAppListOnOpen = glancePrefs.blurAppListOnOpen,
+            appDrawerColumns = glancePrefs.appDrawerColumns,
             mindfulApps = dialogs.mindfulApps,
             pendingMindfulApp = dialogs.pendingMindfulApp
         )

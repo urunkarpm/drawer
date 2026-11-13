@@ -31,6 +31,7 @@ data class ThemeSettings(
     val wallpaperBlurRadius: Float = 25f,
     val autoOpenKeyboardInDrawer: Boolean = false,
     val blurAppListOnOpen: Boolean = false,
+    val appDrawerColumns: Int = 4,
     val categoryAlignment: String = "BOTTOM",
     val enableWidgetsPage: Boolean = true,
     val showDrawerSuggestions: Boolean = true,
@@ -166,6 +167,7 @@ data class SettingsUiState(
     val categoryAlignment: String = "BOTTOM",
     val autoOpenKeyboardInDrawer: Boolean = false,
     val blurAppListOnOpen: Boolean = false,
+    val appDrawerColumns: Int = 4,
     val enableWidgetsPage: Boolean = true,
     val showDrawerSuggestions: Boolean = true,
     val hapticFeedbackEnabled: Boolean = true,
@@ -238,6 +240,7 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.wallpaperBlurRadius,
         preferencesDataSource.autoOpenKeyboardInDrawer,
         preferencesDataSource.blurAppListOnOpen,
+        preferencesDataSource.appDrawerColumns,
         preferencesDataSource.categoryAlignment,
         preferencesDataSource.enableWidgetsPage,
         preferencesDataSource.showDrawerSuggestions,
@@ -254,10 +257,11 @@ class SettingsViewModel @Inject constructor(
             wallpaperBlurRadius = values[6] as Float,
             autoOpenKeyboardInDrawer = values[7] as Boolean,
             blurAppListOnOpen = values[8] as Boolean,
-            categoryAlignment = values[9] as String,
-            enableWidgetsPage = values[10] as Boolean,
-            showDrawerSuggestions = values[11] as Boolean,
-            hapticFeedbackEnabled = values[12] as Boolean
+            appDrawerColumns = values[9] as Int,
+            categoryAlignment = values[10] as String,
+            enableWidgetsPage = values[11] as Boolean,
+            showDrawerSuggestions = values[12] as Boolean,
+            hapticFeedbackEnabled = values[13] as Boolean
         )
     }
 
@@ -446,6 +450,7 @@ class SettingsViewModel @Inject constructor(
             categoryAlignment = theme.categoryAlignment,
             autoOpenKeyboardInDrawer = theme.autoOpenKeyboardInDrawer,
             blurAppListOnOpen = theme.blurAppListOnOpen,
+            appDrawerColumns = theme.appDrawerColumns,
             enableWidgetsPage = theme.enableWidgetsPage,
             showDrawerSuggestions = theme.showDrawerSuggestions,
             hapticFeedbackEnabled = theme.hapticFeedbackEnabled,
@@ -818,6 +823,12 @@ class SettingsViewModel @Inject constructor(
     fun setBlurAppListOnOpen(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setBlurAppListOnOpen(enabled)
+        }
+    }
+
+    fun setAppDrawerColumns(columns: Int) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAppDrawerColumns(columns)
         }
     }
 

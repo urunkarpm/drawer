@@ -15,10 +15,12 @@ import com.urunkarpm.drawer.core.model.NotificationItem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -55,10 +57,13 @@ class NotificationRepository @Inject constructor(
         list.map { it.toDomain() }
     }.flowOn(ioDispatcher)
 
+    private val _locallyDismissedKeys = MutableStateFlow<Set<String>>(emptySet())
+
     val activeNotifications: Flow<List<NotificationItem>> = combine(
         notificationBridge.notifications,
-        mutedRules
-    ) { notifications, rules ->
+        mutedRules,
+        _locallyDismissedKeys
+    ) { notifications, rules, dismissedKeys ->
         val ruleMap = rules.associateBy { it.packageName }
         val now = System.currentTimeMillis()
 
@@ -69,6 +74,8 @@ class NotificationRepository @Inject constructor(
             .distinctBy { it.key }
 
         deduped.filter { item ->
+            if (item.key in dismissedKeys) return@filter false
+
             val rule = ruleMap[item.packageName] ?: return@filter true
 
             if (rule.autoDismiss) {
@@ -115,6 +122,8 @@ class NotificationRepository @Inject constructor(
     }
 
     fun dismissNotification(key: String) {
+        val currentKeys = notificationBridge.notifications.value.map { it.key }.toSet()
+        _locallyDismissedKeys.update { current -> (current + key).intersect(currentKeys.ifEmpty { setOf(key) }) }
         notificationBridge.onDismissNotification?.invoke(key)
     }
 
@@ -123,6 +132,8 @@ class NotificationRepository @Inject constructor(
     }
 
     fun clearAllNotifications() {
+        val currentKeys = notificationBridge.notifications.value.map { it.key }.toSet()
+        _locallyDismissedKeys.value = currentKeys
         notificationBridge.onClearAllNotifications?.invoke()
     }
 
