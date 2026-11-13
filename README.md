@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.9.2-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.9.3-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -28,6 +28,24 @@ Most mobile launchers are designed like digital billboards: cluttered screens, r
 
 **Drawer was built on a different philosophy: Intentionality.**  
 Everything you need to get things done is reachable in under a second; everything else stays effortlessly out of your line of sight.
+
+---
+
+## 🌟 What's New in v2.9.3
+
+* **🧩 Widget Drawer Swipe Isolation:**
+  * Fixed an issue where swiping horizontally through CoverFlow widgets inside an expanded widget drawer inadvertently triggered the root pager or page resistance and navigated back to the Home screen.
+  * Nested horizontal drag and fling gestures are now cleanly isolated while any widget drawer is expanded.
+* **🌊 Silky Smooth Drawer Expand & Collapse Animations:**
+  * Resolved hitching, jitter, and abrupt snapping when expanding or collapsing category accordion drawers (such as Media and Notifications).
+  * Replaced jarring hyper-stiff exit springs with fluid medium stiffness (`Spring.StiffnessMedium`) and synchronized 150ms alpha transitions.
+  * Eliminated redundant double `bringIntoView` jumps and abrupt scroll clamping on collapse.
+* **🔍 Search Bar Input Text Clipping Fix:**
+  * Fixed an issue in the All-Apps drawer where text entered in the search bar had ascenders and descenders vertically cropped.
+  * Configured explicit font styling, line-height constraints, and flexible minimum height to prevent clipping across all device densities and font scales.
+* **📝 To-Do Sheet Keyboard Inset Handling:**
+  * Fixed an issue in the To-Do task creation bottom sheet where the "+ Add Task" submit button was cropped behind the on-screen soft keyboard.
+  * Added keyboard inset padding (`imePadding`) and scroll support (`verticalScroll`), allowing all form controls and actions to remain fully visible and accessible.
 
 ---
 

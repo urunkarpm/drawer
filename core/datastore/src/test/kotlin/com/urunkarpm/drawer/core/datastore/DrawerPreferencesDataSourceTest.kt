@@ -250,6 +250,7 @@ class DrawerPreferencesDataSourceTest {
         val customBackup = initialBackup.copy(
             themeMode = "DARK",
             drawerThemeMode = "AMOLED",
+            drawerLiquidGlass = true,
             drawerTitleAnimation = "KINETIC_DECEL",
             dynamicColor = false,
             hideStatusBar = false,
@@ -272,6 +273,7 @@ class DrawerPreferencesDataSourceTest {
         val restoredBackup = dataSource.getPreferencesBackup()
         assertEquals("DARK", restoredBackup.themeMode)
         assertEquals("AMOLED", restoredBackup.drawerThemeMode)
+        assertEquals(true, restoredBackup.drawerLiquidGlass)
         assertEquals("KINETIC_DECEL", restoredBackup.drawerTitleAnimation)
         assertEquals(false, restoredBackup.dynamicColor)
         assertEquals(false, restoredBackup.hideStatusBar)

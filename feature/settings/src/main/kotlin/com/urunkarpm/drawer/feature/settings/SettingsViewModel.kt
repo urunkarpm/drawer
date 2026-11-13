@@ -24,6 +24,7 @@ import javax.inject.Inject
 data class ThemeSettings(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
+    val drawerLiquidGlass: Boolean = false,
     val dynamicColor: Boolean = true,
     val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,
@@ -153,6 +154,7 @@ private data class TypographyAndAction(
 data class SettingsUiState(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
+    val drawerLiquidGlass: Boolean = false,
     val dynamicColor: Boolean = true,
     val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,
@@ -233,6 +235,7 @@ class SettingsViewModel @Inject constructor(
     private val themeFlow = combine<Any, ThemeSettings>(
         preferencesDataSource.themeMode,
         preferencesDataSource.drawerThemeMode,
+        preferencesDataSource.drawerLiquidGlass,
         preferencesDataSource.dynamicColor,
         preferencesDataSource.accentColor,
         preferencesDataSource.hideStatusBar,
@@ -250,18 +253,19 @@ class SettingsViewModel @Inject constructor(
         ThemeSettings(
             themeMode = values[0] as String,
             drawerThemeMode = values[1] as String,
-            dynamicColor = values[2] as Boolean,
-            accentColor = values[3] as String,
-            hideStatusBar = values[4] as Boolean,
-            wallpaperBlur = values[5] as Boolean,
-            wallpaperBlurRadius = values[6] as Float,
-            autoOpenKeyboardInDrawer = values[7] as Boolean,
-            blurAppListOnOpen = values[8] as Boolean,
-            appDrawerColumns = values[9] as Int,
-            categoryAlignment = values[10] as String,
-            enableWidgetsPage = values[11] as Boolean,
-            showDrawerSuggestions = values[12] as Boolean,
-            hapticFeedbackEnabled = values[13] as Boolean
+            drawerLiquidGlass = values[2] as Boolean,
+            dynamicColor = values[3] as Boolean,
+            accentColor = values[4] as String,
+            hideStatusBar = values[5] as Boolean,
+            wallpaperBlur = values[6] as Boolean,
+            wallpaperBlurRadius = values[7] as Float,
+            autoOpenKeyboardInDrawer = values[8] as Boolean,
+            blurAppListOnOpen = values[9] as Boolean,
+            appDrawerColumns = values[10] as Int,
+            categoryAlignment = values[11] as String,
+            enableWidgetsPage = values[12] as Boolean,
+            showDrawerSuggestions = values[13] as Boolean,
+            hapticFeedbackEnabled = values[14] as Boolean
         )
     }
 
@@ -436,6 +440,7 @@ class SettingsViewModel @Inject constructor(
         SettingsUiState(
             themeMode = theme.themeMode,
             drawerThemeMode = theme.drawerThemeMode,
+            drawerLiquidGlass = theme.drawerLiquidGlass,
             dynamicColor = theme.dynamicColor,
             accentColor = theme.accentColor,
             hideStatusBar = theme.hideStatusBar,
@@ -594,6 +599,12 @@ class SettingsViewModel @Inject constructor(
     fun setDrawerThemeMode(mode: String) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setDrawerThemeMode(mode)
+        }
+    }
+
+    fun setDrawerLiquidGlass(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDrawerLiquidGlass(enabled)
         }
     }
 

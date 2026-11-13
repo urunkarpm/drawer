@@ -180,7 +180,7 @@ fun WidgetDrawerCard(
         animationSpec = if (drawer.isExpanded) {
             spring(dampingRatio = 0.72f, stiffness = 380f)
         } else {
-            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 3200f)
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
         },
         label = "chevron_rotation"
     )
@@ -189,7 +189,7 @@ fun WidgetDrawerCard(
         animationSpec = if (drawer.isExpanded) {
             tween(durationMillis = 250, easing = FastOutSlowInEasing)
         } else {
-            tween(durationMillis = 90, easing = FastOutLinearInEasing)
+            tween(durationMillis = 150, easing = FastOutSlowInEasing)
         },
         label = "chevronBgColor"
     )
@@ -440,10 +440,10 @@ fun WidgetDrawerCard(
                     shrinkTowards = Alignment.Top,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = 3800f
+                        stiffness = Spring.StiffnessMedium
                     )
                 ) + fadeOut(
-                    animationSpec = tween(80, easing = FastOutLinearInEasing)
+                    animationSpec = tween(150, easing = FastOutSlowInEasing)
                 ),
                 modifier = Modifier.clipToBounds()
             ) {

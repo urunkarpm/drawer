@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class LauncherPreferencesBackup(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
+    val drawerLiquidGlass: Boolean = false,
     val dynamicColor: Boolean = true,
     val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,

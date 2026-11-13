@@ -175,7 +175,7 @@ fun NotificationDrawer(
         animationSpec = if (isExpanded) {
             spring(dampingRatio = 0.72f, stiffness = 380f)
         } else {
-            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 3200f)
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
         },
         label = "notif_chevron"
     )
@@ -459,17 +459,17 @@ fun NotificationDrawer(
                             shrinkTowards = Alignment.Top,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = 3800f
+                                stiffness = Spring.StiffnessMedium
                             )
                         ) + slideOutVertically(
                             targetOffsetY = { -it / 8 },
                             animationSpec = tween(
-                                durationMillis = 80,
+                                durationMillis = 150,
                                 easing = FastOutLinearInEasing
                             )
                         ) + fadeOut(
                             animationSpec = tween(
-                                durationMillis = 80,
+                                durationMillis = 150,
                                 easing = FastOutLinearInEasing
                             )
                         )

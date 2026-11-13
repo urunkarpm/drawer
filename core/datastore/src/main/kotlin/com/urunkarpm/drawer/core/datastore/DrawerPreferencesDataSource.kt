@@ -67,6 +67,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val WALLPAPER_BLUR_RADIUS = floatPreferencesKey("wallpaper_blur_radius")
         val LOCK_LAYOUT = booleanPreferencesKey("lock_layout")
         val DRAWER_THEME_MODE = stringPreferencesKey("drawer_theme_mode")
+        val DRAWER_LIQUID_GLASS = booleanPreferencesKey("drawer_liquid_glass")
         val HAS_SEEDED_DEFAULT_DOCK = booleanPreferencesKey("has_seeded_default_dock_v3")
         val AUTO_ARRANGE_APPS = booleanPreferencesKey("auto_arrange_apps")
         val AUTO_OPEN_KEYBOARD_IN_DRAWER = booleanPreferencesKey("auto_open_keyboard_in_drawer")
@@ -279,6 +280,7 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     val themeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.THEME_MODE] ?: "SYSTEM" }
     val drawerThemeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM" }
+    val drawerLiquidGlass: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DRAWER_LIQUID_GLASS] ?: false }
     val headerFontFamily: Flow<String> = dataStore.data.map { it[PreferencesKeys.HEADER_FONT_FAMILY] ?: "GOOGLE_SANS" }
     val appLabelScale: Flow<String> = dataStore.data.map { it[PreferencesKeys.APP_LABEL_SCALE] ?: "NORMAL" }
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_COLOR] ?: true }
@@ -410,6 +412,10 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setDrawerThemeMode(mode: String) {
         dataStore.edit { it[PreferencesKeys.DRAWER_THEME_MODE] = mode }
+    }
+
+    suspend fun setDrawerLiquidGlass(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.DRAWER_LIQUID_GLASS] = enabled }
     }
 
     suspend fun setDynamicColor(enabled: Boolean) {
@@ -828,6 +834,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         return LauncherPreferencesBackup(
             themeMode = p[PreferencesKeys.THEME_MODE] ?: "SYSTEM",
             drawerThemeMode = p[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM",
+            drawerLiquidGlass = p[PreferencesKeys.DRAWER_LIQUID_GLASS] ?: false,
             dynamicColor = p[PreferencesKeys.DYNAMIC_COLOR] ?: true,
             accentColor = p[PreferencesKeys.ACCENT_COLOR] ?: "DYNAMIC",
             hideStatusBar = p[PreferencesKeys.HIDE_STATUS_BAR] ?: true,
@@ -897,6 +904,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         dataStore.edit { p ->
             p[PreferencesKeys.THEME_MODE] = prefs.themeMode
             p[PreferencesKeys.DRAWER_THEME_MODE] = prefs.drawerThemeMode
+            p[PreferencesKeys.DRAWER_LIQUID_GLASS] = prefs.drawerLiquidGlass
             p[PreferencesKeys.DYNAMIC_COLOR] = prefs.dynamicColor
             p[PreferencesKeys.ACCENT_COLOR] = prefs.accentColor
             p[PreferencesKeys.HIDE_STATUS_BAR] = prefs.hideStatusBar

@@ -612,7 +612,7 @@ private fun GroupCard(
         animationSpec = if (isExpanded) {
             spring(dampingRatio = 0.72f, stiffness = 380f)
         } else {
-            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 3200f)
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
         },
         label = "chevron_rotation"
     )
@@ -621,7 +621,7 @@ private fun GroupCard(
         animationSpec = if (isExpanded) {
             tween(durationMillis = 250, easing = FastOutSlowInEasing)
         } else {
-            tween(durationMillis = 90, easing = FastOutLinearInEasing)
+            tween(durationMillis = 150, easing = FastOutSlowInEasing)
         },
         label = "chevronBgColor"
     )
@@ -655,10 +655,8 @@ private fun GroupCard(
         if (!group.isExpanded) {
             listScrollState.scrollTo(0)
         } else {
-            // ponytail: smoothly bring expanded category drawer into full view above dock without layout jitter; ceiling: double-settle delay (120ms/160ms); upgrade path: AnimatedVisibility progress listener.
-            delay(120)
-            bringIntoViewRequester.bringIntoView()
-            delay(160)
+            // Smoothly bring expanded category drawer into view without double-jump jitter
+            delay(180)
             bringIntoViewRequester.bringIntoView()
         }
     }
@@ -891,12 +889,12 @@ private fun GroupCard(
                     shrinkTowards = Alignment.Top,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = 3800f
+                        stiffness = Spring.StiffnessMedium
                     )
                 ) + fadeOut(
                     animationSpec = tween(
-                        durationMillis = 80,
-                        easing = FastOutLinearInEasing
+                        durationMillis = 150,
+                        easing = FastOutSlowInEasing
                     )
                 ),
                 modifier = Modifier.clipToBounds()

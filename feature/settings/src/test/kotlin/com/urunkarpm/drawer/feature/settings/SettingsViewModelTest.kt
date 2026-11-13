@@ -31,6 +31,7 @@ class SettingsViewModelTest {
 
     private val themeModeFlow = MutableStateFlow("SYSTEM")
     private val drawerThemeModeFlow = MutableStateFlow("SYSTEM")
+    private val drawerLiquidGlassFlow = MutableStateFlow(false)
     private val dynamicColorFlow = MutableStateFlow(true)
     private val accentColorFlow = MutableStateFlow("DYNAMIC")
     private val hideStatusBarFlow = MutableStateFlow(true)
@@ -99,6 +100,7 @@ class SettingsViewModelTest {
 
         every { preferencesDataSource.themeMode } returns themeModeFlow
         every { preferencesDataSource.drawerThemeMode } returns drawerThemeModeFlow
+        every { preferencesDataSource.drawerLiquidGlass } returns drawerLiquidGlassFlow
         every { preferencesDataSource.dynamicColor } returns dynamicColorFlow
         every { preferencesDataSource.accentColor } returns accentColorFlow
         every { preferencesDataSource.hideStatusBar } returns hideStatusBarFlow
@@ -345,6 +347,14 @@ class SettingsViewModelTest {
         testScheduler.advanceUntilIdle()
 
         coVerify { preferencesDataSource.setDrawerThemeMode("WHITE") }
+    }
+
+    @Test
+    fun setDrawerLiquidGlass_persistsSetting() = runTest(testDispatcher) {
+        viewModel.setDrawerLiquidGlass(true)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setDrawerLiquidGlass(true) }
     }
 
     @Test

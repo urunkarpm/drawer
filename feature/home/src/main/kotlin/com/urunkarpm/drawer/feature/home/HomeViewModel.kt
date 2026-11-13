@@ -47,6 +47,7 @@ data class GlancePrefs(
     val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
     val drawerThemeMode: String = "SYSTEM",
+    val drawerLiquidGlass: Boolean = false,
     val autoOpenKeyboardInDrawer: Boolean = false,
     val showDuoStatusWidget: Boolean = true,
     val enableCameraMirror: Boolean = true,
@@ -102,6 +103,7 @@ data class HomeUiState(
     val wallpaperBlur: Boolean = true,
     val wallpaperBlurRadius: Float = 25f,
     val drawerThemeMode: String = "SYSTEM",
+    val drawerLiquidGlass: Boolean = false,
     val autoOpenKeyboardInDrawer: Boolean = false,
     val showDuoStatusWidget: Boolean = true,
     val enableCameraMirror: Boolean = true,
@@ -233,6 +235,7 @@ class HomeViewModel @Inject constructor(
         preferencesDataSource.wallpaperBlur,
         preferencesDataSource.wallpaperBlurRadius,
         preferencesDataSource.drawerThemeMode,
+        preferencesDataSource.drawerLiquidGlass,
         preferencesDataSource.autoOpenKeyboardInDrawer,
         preferencesDataSource.showDuoStatusWidget,
         preferencesDataSource.enableCameraMirror,
@@ -267,29 +270,30 @@ class HomeViewModel @Inject constructor(
         val wallpaperBlur = values[6] as Boolean
         val wallpaperBlurRadius = values[7] as Float
         val drawerThemeMode = values[8] as String
-        val autoOpenKeyboardInDrawer = values[9] as Boolean
-        val showDuoStatusWidget = values[10] as Boolean
-        val enableCameraMirror = values[11] as Boolean
-        val categoryAlignment = values[12] as String
-        val enableWidgetsPage = values[13] as Boolean
-        val headerFontFamily = values[14] as String
-        val appLabelScale = values[15] as String
-        val openDrawerFromDockOnly = values[16] as Boolean
-        val duoStatusPosition = values[17] as String
-        val hasCompletedWalkthrough = values[18] as Boolean
-        val hideDrawerIcons = values[19] as Boolean
-        val stealthTheme = values[20] as Boolean
-        val stealthContrastLevel = values[21] as String
-        val stealthLimitBrightness = values[22] as Boolean
-        val dynamicWallpaperEnabled = values[23] as Boolean
-        val wallpaperGradientSpeedSeconds = values[24] as Int
-        val wallpaperGradientBlurPercent = values[25] as Int
-        val wallpaperGradientPalette = values[26] as String
-        val wallpaperGradientAngle = values[27] as String
-        val dockMesmerizingGlow = values[28] as Boolean
-        val drawerTitleAnimation = values[29] as String
-        val blurAppListOnOpen = values[30] as Boolean
-        val appDrawerColumns = values[31] as Int
+        val drawerLiquidGlass = values[9] as Boolean
+        val autoOpenKeyboardInDrawer = values[10] as Boolean
+        val showDuoStatusWidget = values[11] as Boolean
+        val enableCameraMirror = values[12] as Boolean
+        val categoryAlignment = values[13] as String
+        val enableWidgetsPage = values[14] as Boolean
+        val headerFontFamily = values[15] as String
+        val appLabelScale = values[16] as String
+        val openDrawerFromDockOnly = values[17] as Boolean
+        val duoStatusPosition = values[18] as String
+        val hasCompletedWalkthrough = values[19] as Boolean
+        val hideDrawerIcons = values[20] as Boolean
+        val stealthTheme = values[21] as Boolean
+        val stealthContrastLevel = values[22] as String
+        val stealthLimitBrightness = values[23] as Boolean
+        val dynamicWallpaperEnabled = values[24] as Boolean
+        val wallpaperGradientSpeedSeconds = values[25] as Int
+        val wallpaperGradientBlurPercent = values[26] as Int
+        val wallpaperGradientPalette = values[27] as String
+        val wallpaperGradientAngle = values[28] as String
+        val dockMesmerizingGlow = values[29] as Boolean
+        val drawerTitleAnimation = values[30] as String
+        val blurAppListOnOpen = values[31] as Boolean
+        val appDrawerColumns = values[32] as Int
         GlancePrefs(
             is24Hour,
             showWeather,
@@ -300,6 +304,7 @@ class HomeViewModel @Inject constructor(
             wallpaperBlur,
             wallpaperBlurRadius,
             drawerThemeMode,
+            drawerLiquidGlass,
             autoOpenKeyboardInDrawer,
             showDuoStatusWidget,
             enableCameraMirror,
@@ -446,6 +451,7 @@ class HomeViewModel @Inject constructor(
             wallpaperBlur = glancePrefs.wallpaperBlur,
             wallpaperBlurRadius = glancePrefs.wallpaperBlurRadius,
             drawerThemeMode = glancePrefs.drawerThemeMode,
+            drawerLiquidGlass = glancePrefs.drawerLiquidGlass,
             autoOpenKeyboardInDrawer = glancePrefs.autoOpenKeyboardInDrawer,
             showDuoStatusWidget = glancePrefs.showDuoStatusWidget,
             enableCameraMirror = glancePrefs.enableCameraMirror,
@@ -1148,6 +1154,12 @@ class HomeViewModel @Inject constructor(
     fun setDrawerThemeMode(mode: String) {
         viewModelScope.launch {
             preferencesDataSource.setDrawerThemeMode(mode)
+        }
+    }
+
+    fun setDrawerLiquidGlass(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setDrawerLiquidGlass(enabled)
         }
     }
 

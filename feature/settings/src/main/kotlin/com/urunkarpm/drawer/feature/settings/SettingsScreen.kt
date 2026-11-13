@@ -310,6 +310,15 @@ fun SettingsScreen(
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                     SettingsSwitchRow(
+                        title = "Liquid Glass App Drawer",
+                        subtitle = "Apple-style translucent glass refraction, specular rim shine, and fluid spring physics",
+                        checked = uiState.drawerLiquidGlass,
+                        onCheckedChange = { viewModel.setDrawerLiquidGlass(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
                         title = "Dynamic Color (Material You)",
                         subtitle = "Derive accent colors from your wallpaper",
                         checked = uiState.dynamicColor,

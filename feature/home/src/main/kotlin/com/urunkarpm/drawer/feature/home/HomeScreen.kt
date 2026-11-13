@@ -857,6 +857,12 @@ fun HomeScreen(
                     }
                 }
 
+                LaunchedEffect(groupsUiState.groups.any { it.group.isExpanded }) {
+                    if (!groupsUiState.groups.any { it.group.isExpanded } && homeScrollState.value > 0) {
+                        homeScrollState.animateScrollTo(0, animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing))
+                    }
+                }
+
                 var homeRootBoxCoordinates by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
                 val currentGroups by rememberUpdatedState(groupsUiState.groups)
                 val currentIsNotificationExpanded by rememberUpdatedState(isNotificationExpanded)
@@ -1413,8 +1419,8 @@ fun HomeScreen(
                 if (available.x < 0f && pagerState.currentPage == homePageIndex) {
                     pullAccumulator = 0f
                 }
-                // When on Widgets page (page 0), dragging or swiping right navigates back to Home
-                if (source == NestedScrollSource.UserInput && uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 30f) {
+                // When on Widgets page (page 0), dragging or swiping right navigates back to Home only if no widget drawers are open
+                if (source == NestedScrollSource.UserInput && uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 30f && !uiState.widgetDrawers.any { it.isExpanded }) {
                     coroutineScope.launch {
                         viewModel.collapseAllWidgetDrawers()
                         pagerState.animateScrollToPage(homePageIndex)
@@ -1425,7 +1431,7 @@ fun HomeScreen(
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 pullAccumulator = 0f
-                if (uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 250f) {
+                if (uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 250f && !uiState.widgetDrawers.any { it.isExpanded }) {
                     coroutineScope.launch {
                         viewModel.collapseAllWidgetDrawers()
                         pagerState.animateScrollToPage(homePageIndex)
@@ -1467,7 +1473,8 @@ fun HomeScreen(
                 !isSettingsOpen &&
                 !isCameraOpen &&
                 !isNotificationExpanded &&
-                !groupsUiState.groups.any { it.group.isExpanded },
+                !groupsUiState.groups.any { it.group.isExpanded } &&
+                !uiState.widgetDrawers.any { it.isExpanded },
             flingBehavior = PagerDefaults.flingBehavior(
                 state = pagerState,
                 snapPositionalThreshold = 0.35f
@@ -1565,6 +1572,7 @@ fun HomeScreen(
             onClose = onDrawerClose,
             iconLoader = onDrawerIconLoader,
             drawerThemeMode = uiState.drawerThemeMode,
+            drawerLiquidGlass = uiState.drawerLiquidGlass,
             surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
             autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer,
             blurAppListOnOpen = uiState.blurAppListOnOpen,
