@@ -48,6 +48,7 @@ class GroupsViewModelTest {
     private val drawerNotificationGlowFlow = MutableStateFlow(true)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
     private val mindfulAppsFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
 
     private lateinit var viewModel: GroupsViewModel
 
@@ -81,6 +82,7 @@ class GroupsViewModelTest {
         every { preferencesDataSource.drawerNotificationGlow } returns drawerNotificationGlowFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.mindfulApps } returns mindfulAppsFlow
+        every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
 
         groupsFlow.value = listOf(sampleGroup)
         installedAppsFlow.value = listOf(appZ, appA)
