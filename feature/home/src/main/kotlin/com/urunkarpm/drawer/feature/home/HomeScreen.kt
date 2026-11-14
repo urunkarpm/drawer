@@ -339,9 +339,10 @@ fun HomeScreen(
         }
     }
 
-    // Back: close camera preview, settings, duo status breakdown, popup menu, category picker, action sheet, all-apps, notification drawer, or group accordion
-    BackHandler(enabled = isDuoStatusExpanded || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
+    // Back: close camera preview, settings, duo status breakdown, popup menu, category picker, action sheet, all-apps, notification drawer, vault, or group accordion
+    BackHandler(enabled = uiState.isVaultOpen || isDuoStatusExpanded || isCameraOpen || isSettingsOpen || showHomeMenu || uiState.isAllAppsOpen || uiState.selectedAppForMenu != null || appForCategorySelection != null || isNotificationExpanded || groupsUiState.groups.any { it.group.isExpanded }) {
         when {
+            uiState.isVaultOpen -> viewModel.closeVault()
             isDuoStatusExpanded -> isDuoStatusExpanded = false
             isCameraOpen -> isCameraOpen = false
             isSettingsOpen -> isSettingsOpen = false
@@ -1384,7 +1385,20 @@ fun HomeScreen(
                             uiState.adaptiveIconShape
                         ),
                         isDropTarget = isOverDock,
-                        onAppClick = { app -> viewModel.onAppClicked(app) }
+                        onAppClick = { app -> viewModel.onAppClicked(app) },
+                        onTriggerHiddenVault = {
+                            val activity = context as? android.app.Activity
+                            if (activity != null) {
+                                com.urunkarpm.drawer.feature.home.auth.VaultAuthenticator.authenticate(
+                                    activity = activity,
+                                    onSuccess = {
+                                        viewModel.openVault()
+                                    }
+                                )
+                            } else {
+                                viewModel.openVault()
+                            }
+                        }
                     )
                 }
             }
@@ -1580,6 +1594,25 @@ fun HomeScreen(
             blurAppListOnOpen = uiState.blurAppListOnOpen,
             appDrawerColumns = uiState.appDrawerColumns,
             onOpenSettings = onDrawerOpenSettings
+        )
+
+        // ── Hidden Drawer Vault Overlay ──────────────────────────────────────
+        com.urunkarpm.drawer.feature.home.component.HiddenVaultDrawer(
+            isOpen = uiState.isVaultOpen,
+            onClose = { viewModel.closeVault() },
+            hiddenApps = uiState.hiddenApps,
+            allInstalledApps = uiState.rawInstalledApps,
+            onLaunchApp = { app -> viewModel.onAppClicked(app) },
+            onUnhideApp = { pkg -> viewModel.removeHiddenApp(pkg) },
+            onAddHiddenApp = { pkg -> viewModel.addHiddenApp(pkg) },
+            surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
+            matchDeviceScreenCurve = uiState.matchDeviceScreenCurve,
+            deviceCurveOffsetDp = uiState.deviceCurveOffsetDp,
+            iconLoader = { app -> viewModel.getAppIcon(app) },
+            onOpenAppDetails = { pkg ->
+                val app = uiState.rawInstalledApps.find { it.packageName == pkg }
+                if (app != null) viewModel.openAppDetails(app)
+            }
         )
 
         // ── App Long-Press Action Sheet ────────────────────────────────────────
