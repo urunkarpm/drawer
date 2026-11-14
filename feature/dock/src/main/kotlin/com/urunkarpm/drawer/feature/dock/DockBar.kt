@@ -96,7 +96,8 @@ fun DockBar(
     iconShape: Shape = CircleShape,
     viewModel: DockViewModel = hiltViewModel(),
     isDropTarget: Boolean = false,
-    onAppClick: ((AppInfo) -> Unit)? = null
+    onAppClick: ((AppInfo) -> Unit)? = null,
+    onTriggerHiddenVault: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -221,6 +222,19 @@ fun DockBar(
             var dragOffsetPx by remember { mutableFloatStateOf(0f) }
             var currentTargetIndex by remember { mutableStateOf<Int?>(null) }
 
+            var rawVaultDragPx by remember { mutableFloatStateOf(0f) }
+            var hasTriggeredVault by remember { mutableStateOf(false) }
+            var lastVaultHapticStep by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+            val animatedVaultOffsetPx by animateFloatAsState(
+                targetValue = if (rawVaultDragPx != 0f) {
+                    val thresholdPx = with(localDensity) { 70.dp.toPx() }
+                    val dampeningCoeff = with(localDensity) { 110.dp.toPx() }
+                    kotlin.math.sign(rawVaultDragPx) * thresholdPx * (1f - kotlin.math.exp(-kotlin.math.abs(rawVaultDragPx) / dampeningCoeff))
+                } else 0f,
+                animationSpec = FluidSpringPhysics.fluidSpring(),
+                label = "vaultElasticPull"
+            )
+
             val slotWidthDp = (rowWidth - (actualSpacing * (itemCount - 1).coerceAtLeast(0))).coerceAtLeast(0.dp) / itemCount
             val slotPitchDp = slotWidthDp + actualSpacing
             val slotPitchPx = with(localDensity) { slotPitchDp.toPx() }
@@ -294,6 +308,50 @@ fun DockBar(
                             label = "dockSlotShift_$index"
                         )
 
+                        val isLastItem = (index == visibleApps.size - 1)
+                        // ponytail: dual-direction elastic drag past last dock icon triggers secret vault; ceiling: 1D horizontal pull; upgrade path: 2D radial expansion.
+                        val vaultPullModifier = if (isLastItem && !uiState.isEditMode) {
+                            Modifier.pointerInput(Unit) {
+                                val thresholdPx = with(localDensity) { 70.dp.toPx() }
+                                val dampeningCoeff = with(localDensity) { 110.dp.toPx() }
+                                val triggerPx = with(localDensity) { 55.dp.toPx() }
+                                val hapticStepPx = with(localDensity) { 18.dp.toPx() }
+
+                                detectHorizontalDragGestures(
+                                    onDragStart = {
+                                        rawVaultDragPx = 0f
+                                        hasTriggeredVault = false
+                                        lastVaultHapticStep = 0
+                                    },
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        rawVaultDragPx += dragAmount
+                                        val currentEffective = kotlin.math.sign(rawVaultDragPx) * thresholdPx * (1f - kotlin.math.exp(-kotlin.math.abs(rawVaultDragPx) / dampeningCoeff))
+                                        val absEffective = kotlin.math.abs(currentEffective)
+                                        val currentStep = (absEffective / hapticStepPx).toInt()
+                                        if (currentStep > lastVaultHapticStep) {
+                                            crispHaptics.tick()
+                                            lastVaultHapticStep = currentStep
+                                        }
+                                        if (!hasTriggeredVault && absEffective >= triggerPx) {
+                                            hasTriggeredVault = true
+                                            crispHaptics.confirm()
+                                            onTriggerHiddenVault()
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        rawVaultDragPx = 0f
+                                        hasTriggeredVault = false
+                                        lastVaultHapticStep = 0
+                                    },
+                                    onDragCancel = {
+                                        rawVaultDragPx = 0f
+                                        hasTriggeredVault = false
+                                        lastVaultHapticStep = 0
+                                    }
+                                )
+                            }
+                        } else Modifier
+
                         // ponytail: dock slot shift reads translation lambda inside graphicsLayer; ceiling: slot shifts in X only; upgrade path: 2D fluid grid physics.
                         DockAppSlot(
                             dockItem = dockItem,
@@ -303,12 +361,13 @@ fun DockBar(
                             isEditMode = uiState.isEditMode,
                             autoArrangeEnabled = uiState.autoArrangeApps && itemCount > 1,
                             isBeingDragged = isBeingDragged,
-                            dragTranslationX = { if (isBeingDragged) dragOffsetPx else animatedShiftPx },
+                            dragTranslationX = { (if (isBeingDragged) dragOffsetPx else animatedShiftPx) + (if (isLastItem) animatedVaultOffsetPx else 0f) },
                             iconShape = iconShape,
                             maxCapacity = maxCapacity,
                             modifier = Modifier
                                 .weight(1f)
-                                .zIndex(if (isBeingDragged) 10f else 1f),
+                                .zIndex(if (isBeingDragged) 10f else 1f)
+                                .then(vaultPullModifier),
                             onClick = {
                                 if (uiState.isEditMode) {
                                     viewModel.setEditMode(false)
