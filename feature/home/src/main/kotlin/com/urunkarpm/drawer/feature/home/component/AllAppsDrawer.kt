@@ -102,6 +102,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
+import com.urunkarpm.drawer.core.designsystem.theme.rememberDeviceScreenCurve
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -147,6 +148,9 @@ fun AllAppsDrawer(
     onDragDropResult: ((DragDropResult) -> Unit)? = null,
     drawerThemeMode: String = "SYSTEM",
     drawerLiquidGlass: Boolean = false,
+    drawerLook: String = if (drawerLiquidGlass) "LIQUID_GLASS" else "SOLID",
+    matchDeviceScreenCurve: Boolean = true,
+    deviceCurveOffsetDp: Float = 0f,
     surfaceCornerRadiusDp: Float = 24f,
     autoOpenKeyboard: Boolean = false,
     blurAppListOnOpen: Boolean = true,
@@ -168,10 +172,14 @@ fun AllAppsDrawer(
         else -> isSystemDark
     }
 
+    val isLiquidGlassActive = (drawerLook == "LIQUID_GLASS" || (drawerLook == "SOLID" && drawerLiquidGlass))
+    val isFrostedGlassActive = (drawerLook == "FROSTED_GLASS")
+    val isAnyGlassActive = isLiquidGlassActive || isFrostedGlassActive
+
     // Wrap the entire app drawer with DrawerTheme so all typography, search bars, and app labels use correct theme contrast
     DrawerTheme(darkTheme = isDrawerDark) {
         // ponytail: original fluid critically damped spring transition settling around 320ms; ceiling: vertical slide and fade; upgrade path: shared element morph.
-        val enterTransition = if (drawerLiquidGlass) {
+        val enterTransition = if (isAnyGlassActive) {
             slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = FluidSpringPhysics.fluidSpring(dampingRatio = 0.82f, stiffness = 380f)
@@ -190,7 +198,7 @@ fun AllAppsDrawer(
             )
         }
 
-        val exitTransition = if (drawerLiquidGlass) {
+        val exitTransition = if (isAnyGlassActive) {
             slideOutVertically(
                 targetOffsetY = { it },
                 animationSpec = FluidSpringPhysics.criticallyDampedSpring(stiffness = 420f)
@@ -245,8 +253,8 @@ fun AllAppsDrawer(
             }
 
             val specularSheenProgress = remember { Animatable(0f) }
-            LaunchedEffect(visible, drawerLiquidGlass) {
-                if (visible && drawerLiquidGlass) {
+            LaunchedEffect(visible, isAnyGlassActive) {
+                if (visible && isAnyGlassActive) {
                     specularSheenProgress.snapTo(0f)
                     specularSheenProgress.animateTo(
                         targetValue = 1f,
@@ -413,21 +421,26 @@ fun AllAppsDrawer(
                 label = "drawerAlphaDuringDrag"
             )
 
-            // 100% solid, crisp background in White, Dark, or System mode — or Apple Liquid Glass when enabled
+            // 100% solid, crisp background in White, Dark, or System mode — or Apple Liquid Glass / Frosted Glass when enabled
             val drawerBackgroundColor = if (isDrawerDark) Color(0xFF141218) else Color(0xFFFFFFFF)
             val drawerBorder = remember(isDrawerDark) { BorderStroke(1.dp, if (isDrawerDark) Color(0xFF2B2930) else Color(0xFFE5E7EB)) }
 
-            val drawerShape = remember(surfaceCornerRadiusDp) {
-                RoundedCornerShape(
-                    topStart = surfaceCornerRadiusDp.dp,
-                    topEnd = surfaceCornerRadiusDp.dp,
-                    bottomStart = 0.dp,
-                    bottomEnd = 0.dp
-                )
+            val detectedScreenCurve = rememberDeviceScreenCurve(fallbackDp = surfaceCornerRadiusDp)
+            val drawerShape = remember(matchDeviceScreenCurve, detectedScreenCurve, deviceCurveOffsetDp, surfaceCornerRadiusDp) {
+                if (matchDeviceScreenCurve) {
+                    detectedScreenCurve.toRoundedCornerShape(offsetDp = deviceCurveOffsetDp, minDp = 0f)
+                } else {
+                    RoundedCornerShape(
+                        topStart = surfaceCornerRadiusDp.dp,
+                        topEnd = surfaceCornerRadiusDp.dp,
+                        bottomStart = (surfaceCornerRadiusDp * 0.75f).dp,
+                        bottomEnd = (surfaceCornerRadiusDp * 0.75f).dp
+                    )
+                }
             }
 
-            // Apple Liquid Glass styling: translucent frosted substrate with chromatic depth & anisotropic rim highlight
-            val glassBackgroundBrush = remember(isDrawerDark) {
+            // Apple Liquid Glass styling: crystalline translucent glass substrate with sharp specular sheen
+            val liquidGlassBackgroundBrush = remember(isDrawerDark) {
                 if (isDrawerDark) {
                     Brush.verticalGradient(
                         colors = listOf(
@@ -442,6 +455,27 @@ fun AllAppsDrawer(
                             Color(0xDBFFFFFF), // Crystalline pearl top
                             Color(0xD0EEF1F6), // Diffuse frosted mist
                             Color(0xDEE0E4EC)  // Clean grounded base
+                        )
+                    )
+                }
+            }
+
+            // Frosted Liquid Glass styling: deeper velvety satin diffusion with soft frosted ambient glow
+            val frostedGlassBackgroundBrush = remember(isDrawerDark) {
+                if (isDrawerDark) {
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xE8262433), // Velvety satin smoky top
+                            Color(0xF2181722), // Soft obsidian frosted body
+                            Color(0xF80E0D14)  // Grounded deep base
+                        )
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xF2FFFFFF), // High-opacity pearl top
+                            Color(0xEBF0F3F8), // Soft misty frosted body
+                            Color(0xF4E4E8F0)  // Grounded satin base
                         )
                     )
                 }
@@ -468,6 +502,31 @@ fun AllAppsDrawer(
                 )
             }
 
+            val frostedBorderStroke = remember(isDrawerDark) {
+                BorderStroke(
+                    width = 1.5.dp,
+                    brush = Brush.verticalGradient(
+                        colors = if (isDrawerDark) {
+                            listOf(
+                                Color.White.copy(alpha = 0.45f),
+                                Color.White.copy(alpha = 0.20f),
+                                Color.White.copy(alpha = 0.10f)
+                            )
+                        } else {
+                            listOf(
+                                Color.White.copy(alpha = 0.90f),
+                                Color.White.copy(alpha = 0.55f),
+                                Color.White.copy(alpha = 0.30f)
+                            )
+                        }
+                    )
+                )
+            }
+
+            val activeBorderStroke = remember(isFrostedGlassActive, isDrawerDark) {
+                if (isFrostedGlassActive) frostedBorderStroke else glassBorderStroke
+            }
+
             val sheenPosition = specularSheenProgress.value
             val specularSheenBrush = remember(sheenPosition, isDrawerDark) {
                 Brush.horizontalGradient(
@@ -484,15 +543,15 @@ fun AllAppsDrawer(
             // ponytail: translationY on the outer Surface moves the entire drawer background card together with content on pull-to-dismiss; ceiling: 1D vertical displacement without 2D tilt; upgrade path: AnchoredDraggableState.
             Surface(
                 shape = drawerShape,
-                border = if (drawerLiquidGlass) glassBorderStroke else drawerBorder,
-                color = if (drawerLiquidGlass) Color.Transparent else drawerBackgroundColor,
-                shadowElevation = if (drawerLiquidGlass) 16.dp else 0.dp,
+                border = if (isAnyGlassActive) activeBorderStroke else drawerBorder,
+                color = if (isAnyGlassActive) Color.Transparent else drawerBackgroundColor,
+                shadowElevation = if (isAnyGlassActive) 16.dp else 0.dp,
                 modifier = modifier
                     .fillMaxSize()
                     .graphicsLayer {
                         translationY = drawerTranslationY.value
                         alpha = animatedDrawerAlpha
-                        if (drawerLiquidGlass && drawerTranslationY.value > 0f) {
+                        if (isAnyGlassActive && drawerTranslationY.value > 0f) {
                             val compression = (drawerTranslationY.value / 3200f).coerceIn(0f, 0.035f)
                             scaleX = 1f - compression * 0.7f
                             scaleY = 1f - compression
@@ -500,22 +559,30 @@ fun AllAppsDrawer(
                     }
             ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                if (drawerLiquidGlass) {
-                    // 1. Translucent liquid glass gradient fill
+                if (isAnyGlassActive) {
+                    // 1. Translucent glass gradient fill
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(glassBackgroundBrush)
+                            .background(if (isFrostedGlassActive) frostedGlassBackgroundBrush else liquidGlassBackgroundBrush)
                     )
 
-                    // 2. Subtle chromatic refraction wash
-                    val innerGlowBrush = remember(isDrawerDark) {
+                    // 2. Subtle chromatic refraction / frosted diffusion wash
+                    val innerGlowBrush = remember(isFrostedGlassActive, isDrawerDark) {
                         Brush.radialGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = if (isDrawerDark) 0.06f else 0.12f),
-                                Color.Transparent
-                            ),
-                            radius = 800f
+                            colors = if (isFrostedGlassActive) {
+                                listOf(
+                                    Color.White.copy(alpha = if (isDrawerDark) 0.12f else 0.20f),
+                                    Color.White.copy(alpha = if (isDrawerDark) 0.03f else 0.06f),
+                                    Color.Transparent
+                                )
+                            } else {
+                                listOf(
+                                    Color.White.copy(alpha = if (isDrawerDark) 0.06f else 0.12f),
+                                    Color.Transparent
+                                )
+                            },
+                            radius = if (isFrostedGlassActive) 1200f else 800f
                         )
                     }
                     Box(
@@ -528,7 +595,7 @@ fun AllAppsDrawer(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(2.5.dp)
+                            .height(if (isFrostedGlassActive) 3.5.dp else 2.5.dp)
                             .background(specularSheenBrush)
                             .align(Alignment.TopCenter)
                     )
@@ -610,14 +677,14 @@ fun AllAppsDrawer(
                             .size(width = 36.dp, height = 4.dp)
                             .clip(RoundedCornerShape(2.dp))
                             .background(
-                                if (drawerLiquidGlass) {
+                                if (isAnyGlassActive) {
                                     if (isDrawerDark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.28f)
                                 } else {
                                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                                 }
                             )
                             .then(
-                                if (drawerLiquidGlass) {
+                                if (isAnyGlassActive) {
                                     Modifier.border(
                                         BorderStroke(0.5.dp, Color.White.copy(alpha = 0.40f)),
                                         RoundedCornerShape(2.dp)
@@ -838,7 +905,7 @@ fun AllAppsDrawer(
                     onClose = onClose,
                     onOpenSettings = onOpenSettings,
                     focusRequester = searchFocusRequester,
-                    isLiquidGlass = drawerLiquidGlass,
+                    isLiquidGlass = isAnyGlassActive,
                     modifier = Modifier
                         .fillMaxWidth()
                         .wrapContentWidth(Alignment.CenterHorizontally)

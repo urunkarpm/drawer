@@ -54,6 +54,9 @@ class HomeViewModelTest {
     private val wallpaperBlurRadiusFlow = MutableStateFlow(25f)
     private val drawerThemeModeFlow = MutableStateFlow("SYSTEM")
     private val drawerLiquidGlassFlow = MutableStateFlow(false)
+    private val drawerLookFlow = MutableStateFlow("SOLID")
+    private val matchDeviceScreenCurveFlow = MutableStateFlow(true)
+    private val deviceCurveOffsetDpFlow = MutableStateFlow(0f)
     private val accentColorFlow = MutableStateFlow("DYNAMIC")
     private val autoOpenKeyboardInDrawerFlow = MutableStateFlow(false)
     private val showDuoStatusWidgetFlow = MutableStateFlow(true)
@@ -96,6 +99,8 @@ class HomeViewModelTest {
     private val autoCheckUpdatesFlow = MutableStateFlow(true)
     private val lastUpdateCheckTimeFlow = MutableStateFlow(0L)
     private val dismissedUpdateVersionFlow = MutableStateFlow("")
+    private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val hiddenNotifUnlockCountFlow = MutableStateFlow(0)
 
     private val sampleApps = listOf(
         AppInfo(
@@ -140,6 +145,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.wallpaperBlurRadius } returns wallpaperBlurRadiusFlow
         every { preferencesDataSource.drawerThemeMode } returns drawerThemeModeFlow
         every { preferencesDataSource.drawerLiquidGlass } returns drawerLiquidGlassFlow
+        every { preferencesDataSource.drawerLook } returns drawerLookFlow
         every { preferencesDataSource.accentColor } returns accentColorFlow
         every { preferencesDataSource.autoOpenKeyboardInDrawer } returns autoOpenKeyboardInDrawerFlow
         every { preferencesDataSource.showDuoStatusWidget } returns showDuoStatusWidgetFlow
@@ -172,6 +178,8 @@ class HomeViewModelTest {
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
         every { preferencesDataSource.surfaceStrokeOpacity } returns surfaceStrokeOpacityFlow
         every { preferencesDataSource.surfaceCornerRadius } returns surfaceCornerRadiusFlow
+        every { preferencesDataSource.matchDeviceScreenCurve } returns matchDeviceScreenCurveFlow
+        every { preferencesDataSource.deviceCurveOffsetDp } returns deviceCurveOffsetDpFlow
         every { preferencesDataSource.cinematicPalette } returns cinematicPaletteFlow
         every { preferencesDataSource.appLaunchCounts } returns appLaunchCountsFlow
         every { preferencesDataSource.appLastLaunchedTimes } returns appLastLaunchedTimesFlow
@@ -182,6 +190,8 @@ class HomeViewModelTest {
         every { preferencesDataSource.autoCheckUpdates } returns autoCheckUpdatesFlow
         every { preferencesDataSource.lastUpdateCheckTime } returns lastUpdateCheckTimeFlow
         every { preferencesDataSource.dismissedUpdateVersion } returns dismissedUpdateVersionFlow
+        every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
+        every { preferencesDataSource.hiddenNotifUnlockCount } returns hiddenNotifUnlockCountFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow
         every { widgetRepository.getAllDrawers() } returns drawersFlow
 
@@ -588,6 +598,9 @@ class HomeViewModelTest {
         viewModel.setAdaptiveIconShape("CIRCLE")
         viewModel.setDrawerThemeMode("DARK")
         viewModel.setDrawerLiquidGlass(true)
+        viewModel.setDrawerLook("FROSTED_GLASS")
+        viewModel.setMatchDeviceScreenCurve(false)
+        viewModel.setDeviceCurveOffsetDp(3f)
         viewModel.setSurfaceThemeStyle("SOLID")
         viewModel.setDockMesmerizingGlow(false)
         viewModel.setHeaderFontFamily("MONOSPACE")
@@ -600,6 +613,9 @@ class HomeViewModelTest {
         coVerify { preferencesDataSource.setAdaptiveIconShape("CIRCLE") }
         coVerify { preferencesDataSource.setDrawerThemeMode("DARK") }
         coVerify { preferencesDataSource.setDrawerLiquidGlass(true) }
+        coVerify { preferencesDataSource.setDrawerLook("FROSTED_GLASS") }
+        coVerify { preferencesDataSource.setMatchDeviceScreenCurve(false) }
+        coVerify { preferencesDataSource.setDeviceCurveOffsetDp(3f) }
         coVerify { preferencesDataSource.setSurfaceThemeStyle("SOLID") }
         coVerify { preferencesDataSource.setDockMesmerizingGlow(false) }
         coVerify { preferencesDataSource.setHeaderFontFamily("MONOSPACE") }
@@ -789,6 +805,43 @@ class HomeViewModelTest {
 
         assertNull(viewModel.availableUpdate.value)
         coVerify { preferencesDataSource.setDismissedUpdateVersion("v2.9.0") }
+    }
+
+    @Test
+    fun testHiddenAppsExclusionAndVault() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+            val initial = expectMostRecentItem()
+            assertEquals(3, initial.installedApps.size)
+
+            hiddenAppPackagesFlow.value = setOf("com.google.android.youtube")
+            testScheduler.advanceUntilIdle()
+            val updated = expectMostRecentItem()
+            assertEquals(2, updated.installedApps.size)
+            assertFalse(updated.installedApps.any { it.packageName == "com.google.android.youtube" })
+            assertEquals(1, updated.hiddenApps.size)
+            assertEquals("com.google.android.youtube", updated.hiddenApps.first().packageName)
+
+            viewModel.openVault()
+            testScheduler.advanceUntilIdle()
+            val vaultOpenState = expectMostRecentItem()
+            assertTrue(vaultOpenState.isVaultOpen)
+            coVerify { preferencesDataSource.setHiddenNotifUnlockCount(0) }
+
+            viewModel.closeVault()
+            testScheduler.advanceUntilIdle()
+            val vaultClosedState = expectMostRecentItem()
+            assertFalse(vaultClosedState.isVaultOpen)
+
+            viewModel.addHiddenApp("com.android.chrome")
+            testScheduler.advanceUntilIdle()
+            coVerify { preferencesDataSource.addHiddenApp("com.android.chrome") }
+
+            viewModel.removeHiddenApp("com.android.chrome")
+            testScheduler.advanceUntilIdle()
+            coVerify { preferencesDataSource.removeHiddenApp("com.android.chrome") }
+        }
     }
 }
 

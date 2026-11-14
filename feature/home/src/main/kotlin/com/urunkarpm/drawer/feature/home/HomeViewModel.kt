@@ -118,6 +118,9 @@ data class HomeUiState(
     val surfaceStrokeOpacity: Float = 0.40f,
     val surfaceCornerRadius: Float = 24f,
     val cinematicPalette: String = "DEFAULT",
+    val drawerLook: String = "SOLID",
+    val matchDeviceScreenCurve: Boolean = true,
+    val deviceCurveOffsetDp: Float = 0f,
     val headerFontFamily: String = "SYSTEM",
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
@@ -137,7 +140,12 @@ data class HomeUiState(
     val blurAppListOnOpen: Boolean = true,
     val appDrawerColumns: Int = 4,
     val mindfulApps: Set<String> = emptySet(),
-    val pendingMindfulApp: AppInfo? = null
+    val pendingMindfulApp: AppInfo? = null,
+    val isVaultOpen: Boolean = false,
+    val hiddenAppPackages: Set<String> = emptySet(),
+    val hiddenApps: List<AppInfo> = emptyList(),
+    val rawInstalledApps: List<AppInfo> = emptyList(),
+    val hiddenNotifUnlockCount: Int = 0
 )
 
 data class SurfaceThemePrefs(
@@ -146,7 +154,10 @@ data class SurfaceThemePrefs(
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
     val surfaceCornerRadius: Float = 24f,
-    val cinematicPalette: String = "DEFAULT"
+    val cinematicPalette: String = "DEFAULT",
+    val drawerLook: String = "SOLID",
+    val matchDeviceScreenCurve: Boolean = true,
+    val deviceCurveOffsetDp: Float = 0f
 )
 
 @HiltViewModel
@@ -188,6 +199,16 @@ class HomeViewModel @Inject constructor(
     val suggestedApps: StateFlow<List<AppInfo>> = _suggestedApps.asStateFlow()
     // ponytail: Immediate in-memory optimistic tracking for instantaneous 0ms widget drawer collapse & expand
     private val _expandedWidgetDrawerIds = MutableStateFlow<Set<String>?>(null)
+    private val _isVaultOpen = MutableStateFlow(false)
+    val isVaultOpen: StateFlow<Boolean> = _isVaultOpen.asStateFlow()
+
+    private val vaultPrefsFlow = combine(
+        preferencesDataSource.hiddenAppPackages,
+        preferencesDataSource.hiddenNotifUnlockCount,
+        _isVaultOpen
+    ) { hiddenPackages, unlockCount, isVaultOpen ->
+        Triple(hiddenPackages, unlockCount, isVaultOpen)
+    }
 
     val showDrawerSuggestions: StateFlow<Boolean> = preferencesDataSource.showDrawerSuggestions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -355,15 +376,30 @@ class HomeViewModel @Inject constructor(
         combine(
             preferencesDataSource.surfaceThemeStyle,
             preferencesDataSource.surfaceCornerRadius,
-            preferencesDataSource.cinematicPalette
-        ) { theme, cornerRadius, palette -> Triple(theme, cornerRadius, palette) },
+            preferencesDataSource.cinematicPalette,
+            preferencesDataSource.drawerLook
+        ) { theme, cornerRadius, palette, look -> listOf(theme, cornerRadius, palette, look) },
         combine(
             preferencesDataSource.surfaceOpacity,
             preferencesDataSource.surfaceBlurRadius,
-            preferencesDataSource.surfaceStrokeOpacity
-        ) { opacity, blurRadius, strokeOpacity -> Triple(opacity, blurRadius, strokeOpacity) }
-    ) { (theme, cornerRadius, palette), (opacity, blurRadius, strokeOpacity) ->
-        SurfaceThemePrefs(theme, opacity, blurRadius, strokeOpacity, cornerRadius, palette)
+            preferencesDataSource.surfaceStrokeOpacity,
+            preferencesDataSource.matchDeviceScreenCurve,
+            preferencesDataSource.deviceCurveOffsetDp
+        ) { opacity, blurRadius, strokeOpacity, matchCurve, offsetDp ->
+            listOf(opacity, blurRadius, strokeOpacity, matchCurve, offsetDp)
+        }
+    ) { surface1, surface2 ->
+        SurfaceThemePrefs(
+            surfaceThemeStyle = surface1[0] as String,
+            surfaceCornerRadius = surface1[1] as Float,
+            cinematicPalette = surface1[2] as String,
+            drawerLook = surface1[3] as String,
+            surfaceOpacity = surface2[0] as Float,
+            surfaceBlurRadius = surface2[1] as Float,
+            surfaceStrokeOpacity = surface2[2] as Float,
+            matchDeviceScreenCurve = surface2[3] as Boolean,
+            deviceCurveOffsetDp = surface2[4] as Float
+        )
     }
 
     private var cachedAppsRef: List<AppInfo>? = null
@@ -394,7 +430,8 @@ class HomeViewModel @Inject constructor(
         glancePrefsFlow,
         homeDialogsFlow,
         surfacePrefsFlow,
-        _expandedWidgetDrawerIds
+        _expandedWidgetDrawerIds,
+        vaultPrefsFlow
     ) { args: Array<Any?> ->
         @Suppress("UNCHECKED_CAST")
         val apps = args[0] as List<AppInfo>
@@ -408,6 +445,11 @@ class HomeViewModel @Inject constructor(
         val surfacePrefs = args[6] as SurfaceThemePrefs
         @Suppress("UNCHECKED_CAST")
         val expandedDrawerOverride = args[7] as? Set<String>
+        @Suppress("UNCHECKED_CAST")
+        val vaultPrefs = args[8] as Triple<Set<String>, Int, Boolean>
+        val hiddenPackages = vaultPrefs.first
+        val unlockCount = vaultPrefs.second
+        val isVaultOpen = vaultPrefs.third
 
         val drawersList = rawDrawersList.map { drawer ->
             if (expandedDrawerOverride != null) {
@@ -420,21 +462,29 @@ class HomeViewModel @Inject constructor(
 
         val standalone = widgetsList.filter { it.drawerId == null }
 
+        val visibleApps = apps.filter { it.packageName !in hiddenPackages }
+        val hiddenApps = apps.filter { it.packageName in hiddenPackages }
+
         val filtered = if (dialogs.searchQuery.isBlank()) {
-            apps
+            visibleApps
         } else {
-            apps.filter { it.label.contains(dialogs.searchQuery, ignoreCase = true) }
+            visibleApps.filter { it.label.contains(dialogs.searchQuery, ignoreCase = true) }
         }
-        val appsByPkg = if (cachedAppsRef === apps) {
+        val appsByPkg = if (cachedAppsRef === visibleApps) {
             cachedAppsByPkg
         } else {
-            cachedAppsRef = apps
-            apps.associateBy { it.packageName }.also { cachedAppsByPkg = it }
+            cachedAppsRef = visibleApps
+            visibleApps.associateBy { it.packageName }.also { cachedAppsByPkg = it }
         }
         HomeUiState(
-            installedApps = apps,
+            installedApps = visibleApps,
             installedAppsByPackage = appsByPkg,
             filteredApps = filtered,
+            rawInstalledApps = apps,
+            hiddenApps = hiddenApps,
+            hiddenAppPackages = hiddenPackages,
+            isVaultOpen = isVaultOpen,
+            hiddenNotifUnlockCount = unlockCount,
             searchQuery = dialogs.searchQuery,
             isAllAppsOpen = dialogs.isAllAppsOpen,
             selectedAppForMenu = dialogs.selectedAppForMenu,
@@ -466,6 +516,9 @@ class HomeViewModel @Inject constructor(
             surfaceStrokeOpacity = surfacePrefs.surfaceStrokeOpacity,
             surfaceCornerRadius = surfacePrefs.surfaceCornerRadius,
             cinematicPalette = surfacePrefs.cinematicPalette,
+            drawerLook = surfacePrefs.drawerLook,
+            matchDeviceScreenCurve = surfacePrefs.matchDeviceScreenCurve,
+            deviceCurveOffsetDp = surfacePrefs.deviceCurveOffsetDp,
             headerFontFamily = glancePrefs.headerFontFamily,
             appLabelScale = glancePrefs.appLabelScale,
             openDrawerFromDockOnly = glancePrefs.openDrawerFromDockOnly,
@@ -801,6 +854,29 @@ class HomeViewModel @Inject constructor(
     fun closeAllApps() {
         _isAllAppsOpen.value = false
         _searchQuery.value = ""
+    }
+
+    fun openVault() {
+        _isVaultOpen.value = true
+        viewModelScope.launch {
+            preferencesDataSource.setHiddenNotifUnlockCount(0)
+        }
+    }
+
+    fun closeVault() {
+        _isVaultOpen.value = false
+    }
+
+    fun addHiddenApp(packageName: String) {
+        viewModelScope.launch {
+            preferencesDataSource.addHiddenApp(packageName)
+        }
+    }
+
+    fun removeHiddenApp(packageName: String) {
+        viewModelScope.launch {
+            preferencesDataSource.removeHiddenApp(packageName)
+        }
     }
 
     fun toggleAllApps(activeNotificationPackages: Set<String> = emptySet()) {
@@ -1160,6 +1236,24 @@ class HomeViewModel @Inject constructor(
     fun setDrawerLiquidGlass(enabled: Boolean) {
         viewModelScope.launch {
             preferencesDataSource.setDrawerLiquidGlass(enabled)
+        }
+    }
+
+    fun setDrawerLook(look: String) {
+        viewModelScope.launch {
+            preferencesDataSource.setDrawerLook(look)
+        }
+    }
+
+    fun setMatchDeviceScreenCurve(match: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setMatchDeviceScreenCurve(match)
+        }
+    }
+
+    fun setDeviceCurveOffsetDp(offset: Float) {
+        viewModelScope.launch {
+            preferencesDataSource.setDeviceCurveOffsetDp(offset)
         }
     }
 

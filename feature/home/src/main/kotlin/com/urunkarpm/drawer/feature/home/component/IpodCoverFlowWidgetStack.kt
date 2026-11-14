@@ -51,13 +51,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -134,6 +139,27 @@ fun IpodCoverFlowWidgetStack(
 
     var verticalDragAccumulator by remember { mutableFloatStateOf(0f) }
 
+    // Isolate CoverFlow horizontal gestures: consume any unhandled horizontal scroll or fling
+    // so nested dragging inside widget cards NEVER propagates upward to the root screen pager.
+    val isolateCoverFlowScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                return Offset(available.x, 0f)
+            }
+
+            override suspend fun onPostFling(
+                consumed: Velocity,
+                available: Velocity
+            ): Velocity {
+                return Velocity(available.x, 0f)
+            }
+        }
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -142,6 +168,7 @@ fun IpodCoverFlowWidgetStack(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(heightDp.dp)
+                .nestedScroll(isolateCoverFlowScroll)
                 .then(
                     if (widgets.size > 1) {
                         Modifier.pointerInput(pagerState.currentPage, widgets.size) {

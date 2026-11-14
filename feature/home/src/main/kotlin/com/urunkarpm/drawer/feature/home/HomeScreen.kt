@@ -1419,8 +1419,8 @@ fun HomeScreen(
                 if (available.x < 0f && pagerState.currentPage == homePageIndex) {
                     pullAccumulator = 0f
                 }
-                // When on Widgets page (page 0), dragging or swiping right navigates back to Home only if no widget drawers are open
-                if (source == NestedScrollSource.UserInput && uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 30f && !uiState.widgetDrawers.any { it.isExpanded }) {
+                // When on Widgets page (page 0), dragging or swiping right navigates back to Home
+                if (source == NestedScrollSource.UserInput && uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 30f) {
                     coroutineScope.launch {
                         viewModel.collapseAllWidgetDrawers()
                         pagerState.animateScrollToPage(homePageIndex)
@@ -1429,15 +1429,15 @@ fun HomeScreen(
                 return Offset.Zero
             }
 
-            override suspend fun onPreFling(available: Velocity): Velocity {
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 pullAccumulator = 0f
-                if (uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 250f && !uiState.widgetDrawers.any { it.isExpanded }) {
+                if (uiState.enableWidgetsPage && pagerState.currentPage == 0 && available.x > 250f) {
                     coroutineScope.launch {
                         viewModel.collapseAllWidgetDrawers()
                         pagerState.animateScrollToPage(homePageIndex)
                     }
                 }
-                return Velocity.Zero
+                return super.onPostFling(consumed, available)
             }
         }
     }
@@ -1473,8 +1473,7 @@ fun HomeScreen(
                 !isSettingsOpen &&
                 !isCameraOpen &&
                 !isNotificationExpanded &&
-                !groupsUiState.groups.any { it.group.isExpanded } &&
-                !uiState.widgetDrawers.any { it.isExpanded },
+                !groupsUiState.groups.any { it.group.isExpanded },
             flingBehavior = PagerDefaults.flingBehavior(
                 state = pagerState,
                 snapPositionalThreshold = 0.35f
@@ -1573,6 +1572,9 @@ fun HomeScreen(
             iconLoader = onDrawerIconLoader,
             drawerThemeMode = uiState.drawerThemeMode,
             drawerLiquidGlass = uiState.drawerLiquidGlass,
+            drawerLook = uiState.drawerLook,
+            matchDeviceScreenCurve = uiState.matchDeviceScreenCurve,
+            deviceCurveOffsetDp = uiState.deviceCurveOffsetDp,
             surfaceCornerRadiusDp = uiState.surfaceCornerRadius,
             autoOpenKeyboard = uiState.autoOpenKeyboardInDrawer,
             blurAppListOnOpen = uiState.blurAppListOnOpen,

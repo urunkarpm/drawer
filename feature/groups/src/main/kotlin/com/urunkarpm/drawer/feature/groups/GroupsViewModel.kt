@@ -96,7 +96,8 @@ class GroupsViewModel @Inject constructor(
         val lockLayout: Boolean,
         val drawerGlow: Boolean,
         val drawerTitleAnimation: String,
-        val mindfulApps: Set<String>
+        val mindfulApps: Set<String>,
+        val hiddenApps: Set<String> = emptySet()
     )
 
     private val groupPrefsFlow = combine(
@@ -104,9 +105,18 @@ class GroupsViewModel @Inject constructor(
         preferencesDataSource.lockLayout,
         preferencesDataSource.drawerNotificationGlow,
         preferencesDataSource.drawerTitleAnimation,
-        preferencesDataSource.mindfulApps
-    ) { multiGroup, lockLayout, drawerGlow, titleAnim, mindful ->
-        GroupPrefs(multiGroup, lockLayout, drawerGlow, titleAnim, mindful)
+        preferencesDataSource.mindfulApps,
+        preferencesDataSource.hiddenAppPackages
+    ) { args: Array<Any?> ->
+        val multiGroup = args[0] as Boolean
+        val lockLayout = args[1] as Boolean
+        val drawerGlow = args[2] as Boolean
+        val titleAnim = args[3] as String
+        @Suppress("UNCHECKED_CAST")
+        val mindful = args[4] as Set<String>
+        @Suppress("UNCHECKED_CAST")
+        val hiddenApps = args[5] as Set<String>
+        GroupPrefs(multiGroup, lockLayout, drawerGlow, titleAnim, mindful, hiddenApps)
     }
 
     private val groupsWithOptimisticExpanded = combine(
@@ -131,10 +141,11 @@ class GroupsViewModel @Inject constructor(
         dialogsState,
         aiState
     ) { groups, installedApps, groupPrefs, dialogs, (isCategorizing, suggestions) ->
+        val visibleInstalledApps = installedApps.filter { it.packageName !in groupPrefs.hiddenApps }
         // Primary lookup: packageName/activityName
-        val appMap = installedApps.associateBy { "${it.packageName}/${it.activityName}" }
+        val appMap = visibleInstalledApps.associateBy { "${it.packageName}/${it.activityName}" }
         // Fallback lookup: packageName only (first match) - handles cases where activityName differs
-        val appByPkg = installedApps.groupBy { it.packageName }
+        val appByPkg = visibleInstalledApps.groupBy { it.packageName }
         val resolvedGroups = groups.map { group ->
             val resolvedApps = group.items.mapNotNull { item ->
                 appMap["${item.packageName}/${item.activityName}"]
@@ -156,7 +167,7 @@ class GroupsViewModel @Inject constructor(
             lockLayout = groupPrefs.lockLayout,
             drawerNotificationGlow = groupPrefs.drawerGlow,
             drawerTitleAnimation = groupPrefs.drawerTitleAnimation,
-            allApps = installedApps.sortedBy { it.label.lowercase() },
+            allApps = visibleInstalledApps.sortedBy { it.label.lowercase() },
             isAiCategorizing = isCategorizing,
             aiSuggestions = suggestions,
             installSuggestion = dialogs.installSuggestion,

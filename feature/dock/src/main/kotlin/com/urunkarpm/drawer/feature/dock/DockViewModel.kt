@@ -73,8 +73,9 @@ class DockViewModel @Inject constructor(
 
     private val dockPreferencesFlow = combine(
         dockThemePrefsFlow,
-        dockLayoutPrefsFlow
-    ) { theme, layout ->
+        dockLayoutPrefsFlow,
+        preferencesDataSource.hiddenAppPackages
+    ) { theme, layout, hiddenApps ->
         DockPreferences(
             backgroundStyle = theme.themeStyle,
             iconSize = layout.iconSize,
@@ -86,7 +87,8 @@ class DockViewModel @Inject constructor(
             autoArrangeApps = layout.autoArrangeApps,
             mesmerizingGlow = layout.mesmerizingGlow,
             dockExpandedMaxApps = layout.dockExpandedMaxApps,
-            cinematicPalette = theme.cinematicPalette
+            cinematicPalette = theme.cinematicPalette,
+            hiddenAppPackages = hiddenApps
         )
     }
 
@@ -97,7 +99,8 @@ class DockViewModel @Inject constructor(
         _selectedDockItemForMenu,
         _isEditMode
     ) { items, installedApps, prefs, selectedItem, isEditMode ->
-        val resolved = items.sortedBy { it.position }.map { dockItem ->
+        val visibleItems = items.filter { it.packageName !in prefs.hiddenAppPackages }
+        val resolved = visibleItems.sortedBy { it.position }.map { dockItem ->
             val matchingApp = installedApps.find {
                 it.packageName == dockItem.packageName &&
                 it.activityName == dockItem.activityName &&
@@ -162,7 +165,8 @@ private data class DockPreferences(
     val autoArrangeApps: Boolean,
     val mesmerizingGlow: Boolean,
     val dockExpandedMaxApps: Int,
-    val cinematicPalette: String = "DEFAULT"
+    val cinematicPalette: String = "DEFAULT",
+    val hiddenAppPackages: Set<String> = emptySet()
 )
 
     fun reorderDock(fromPosition: Int, toPosition: Int) {
