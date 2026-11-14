@@ -49,5 +49,5 @@ Builds:
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 2.9.3
-CurrentVersionCode: 32
+CurrentVersion: 2.10.0
+CurrentVersionCode: 33

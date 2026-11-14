@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.9.3-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.10.0-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -28,6 +28,29 @@ Most mobile launchers are designed like digital billboards: cluttered screens, r
 
 **Drawer was built on a different philosophy: Intentionality.**  
 Everything you need to get things done is reachable in under a second; everything else stays effortlessly out of your line of sight.
+
+---
+
+## 🌟 What's New in v2.10.0
+
+* **🛡️ Hidden Drawer (Private Vault):**
+  * Introduced a discreet, encrypted app vault triggered by swiping horizontally from the last app in the dock.
+  * Elastic pull resistance physics with logarithmic damping and progressive tactile haptic ticks as you pull, confirming at the threshold breakpoint.
+  * Secured via native Android `BiometricPrompt` with `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` (fingerprint, face unlock, or device lock PIN/pattern).
+  * Styled in Frosted Liquid Glass with hardware-conforming border radii, app launch, unhide, and app details actions.
+* **🔒 Zero-Trace Privacy & Global App Isolation:**
+  * Apps placed inside the vault are completely scrubbed from All-Apps drawers, category accordions, dock bars, and search queries.
+* **🔔 Discreet Notification Privacy & Material You Ambient Glow:**
+  * Notifications belonging to vaulted apps are suppressed from both the Notification Drawer and DuoStatus badges.
+  * Subtle Material You breathing halo illuminates the drawer's notification bell icon for the first two device unlocks, alerting you discreetly without disclosing details or sender identities.
+* **📱 Physical Display Curve Auto-Detection & Fine-Tuning:**
+  * Automatically detects physical hardware display corner radius via Android 12+ `RoundedCorner` API (`WindowManager.currentWindowMetrics`).
+  * "Match Device Screen Curve" toggle with live hardware detection telemetry in Settings.
+  * Manual curve offset slider (`-12dp` to `+12dp`) to align drawer borders with phone cases and screen protectors.
+* **🎨 App Drawer Visual Looks:**
+  * Added selectable drawer look presets in **Settings -> Surface & Appearance -> App Drawer Look**: choose between **Solid**, **Liquid Glass**, and **Frosted Glass** satin diffusion.
+* **🔙 Widget Drawer Outside-Swipe Return:**
+  * Fixed an issue where swiping outside an expanded widget drawer did not return to the home screen.
 
 ---
 
