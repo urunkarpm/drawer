@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.urunkarpm.drawer.core.model.AppUsageProfile
 import com.urunkarpm.drawer.core.model.LauncherPreferencesBackup
 import com.urunkarpm.drawer.core.model.NotificationSwipeAction
@@ -68,6 +69,9 @@ class DrawerPreferencesDataSource @Inject constructor(
         val LOCK_LAYOUT = booleanPreferencesKey("lock_layout")
         val DRAWER_THEME_MODE = stringPreferencesKey("drawer_theme_mode")
         val DRAWER_LIQUID_GLASS = booleanPreferencesKey("drawer_liquid_glass")
+        val DRAWER_LOOK = stringPreferencesKey("drawer_look")
+        val MATCH_DEVICE_SCREEN_CURVE = booleanPreferencesKey("match_device_screen_curve")
+        val DEVICE_CURVE_OFFSET_DP = floatPreferencesKey("device_curve_offset_dp")
         val HAS_SEEDED_DEFAULT_DOCK = booleanPreferencesKey("has_seeded_default_dock_v3")
         val AUTO_ARRANGE_APPS = booleanPreferencesKey("auto_arrange_apps")
         val AUTO_OPEN_KEYBOARD_IN_DRAWER = booleanPreferencesKey("auto_open_keyboard_in_drawer")
@@ -120,6 +124,9 @@ class DrawerPreferencesDataSource @Inject constructor(
         val TODO_DONE_AUTO_DELETE_DAYS = intPreferencesKey("todo_done_auto_delete_days")
         val TODO_HIDE_TASK_TEXT_LOCK_SCREEN = booleanPreferencesKey("todo_hide_task_text_lock_screen")
         val TODO_LOCATION_ALERTS_SNOOZED_UNTIL = longPreferencesKey("todo_location_alerts_snoozed_until")
+
+        val HIDDEN_APP_PACKAGES = stringSetPreferencesKey("hidden_app_packages")
+        val HIDDEN_NOTIF_UNLOCK_COUNT = intPreferencesKey("hidden_notif_unlock_count")
     }
 
     val todoSettings: Flow<TodoSettings> = dataStore.data.map { prefs ->
@@ -161,6 +168,49 @@ class DrawerPreferencesDataSource @Inject constructor(
     suspend fun snoozeAllLocationAlerts(until: Long) {
         dataStore.edit { prefs ->
             prefs[PreferencesKeys.TODO_LOCATION_ALERTS_SNOOZED_UNTIL] = until
+        }
+    }
+
+    val hiddenAppPackages: Flow<Set<String>> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] ?: emptySet()
+    }
+
+    val hiddenNotifUnlockCount: Flow<Int> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.HIDDEN_NOTIF_UNLOCK_COUNT] ?: 0
+    }
+
+    suspend fun addHiddenApp(packageName: String) {
+        dataStore.edit { preferences ->
+            val current = preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] ?: emptySet()
+            preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] = current + packageName
+        }
+    }
+
+    suspend fun removeHiddenApp(packageName: String) {
+        dataStore.edit { preferences ->
+            val current = preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] ?: emptySet()
+            preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] = current - packageName
+        }
+    }
+
+    suspend fun setHiddenApps(packages: Set<String>) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] = packages
+        }
+    }
+
+    suspend fun setHiddenNotifUnlockCount(count: Int) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.HIDDEN_NOTIF_UNLOCK_COUNT] = count.coerceAtLeast(0)
+        }
+    }
+
+    suspend fun decrementHiddenNotifUnlockCount() {
+        dataStore.edit { preferences ->
+            val current = preferences[PreferencesKeys.HIDDEN_NOTIF_UNLOCK_COUNT] ?: 0
+            if (current > 0) {
+                preferences[PreferencesKeys.HIDDEN_NOTIF_UNLOCK_COUNT] = current - 1
+            }
         }
     }
 
@@ -281,6 +331,11 @@ class DrawerPreferencesDataSource @Inject constructor(
     val themeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.THEME_MODE] ?: "SYSTEM" }
     val drawerThemeMode: Flow<String> = dataStore.data.map { it[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM" }
     val drawerLiquidGlass: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DRAWER_LIQUID_GLASS] ?: false }
+    val drawerLook: Flow<String> = dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.DRAWER_LOOK] ?: if (prefs[PreferencesKeys.DRAWER_LIQUID_GLASS] == true) "LIQUID_GLASS" else "SOLID"
+    }
+    val matchDeviceScreenCurve: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.MATCH_DEVICE_SCREEN_CURVE] ?: true }
+    val deviceCurveOffsetDp: Flow<Float> = dataStore.data.map { it[PreferencesKeys.DEVICE_CURVE_OFFSET_DP] ?: 0f }
     val headerFontFamily: Flow<String> = dataStore.data.map { it[PreferencesKeys.HEADER_FONT_FAMILY] ?: "GOOGLE_SANS" }
     val appLabelScale: Flow<String> = dataStore.data.map { it[PreferencesKeys.APP_LABEL_SCALE] ?: "NORMAL" }
     val dynamicColor: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DYNAMIC_COLOR] ?: true }
@@ -415,7 +470,25 @@ class DrawerPreferencesDataSource @Inject constructor(
     }
 
     suspend fun setDrawerLiquidGlass(enabled: Boolean) {
-        dataStore.edit { it[PreferencesKeys.DRAWER_LIQUID_GLASS] = enabled }
+        dataStore.edit {
+            it[PreferencesKeys.DRAWER_LIQUID_GLASS] = enabled
+            it[PreferencesKeys.DRAWER_LOOK] = if (enabled) "LIQUID_GLASS" else "SOLID"
+        }
+    }
+
+    suspend fun setDrawerLook(look: String) {
+        dataStore.edit {
+            it[PreferencesKeys.DRAWER_LOOK] = look
+            it[PreferencesKeys.DRAWER_LIQUID_GLASS] = (look == "LIQUID_GLASS" || look == "FROSTED_GLASS")
+        }
+    }
+
+    suspend fun setMatchDeviceScreenCurve(match: Boolean) {
+        dataStore.edit { it[PreferencesKeys.MATCH_DEVICE_SCREEN_CURVE] = match }
+    }
+
+    suspend fun setDeviceCurveOffsetDp(offset: Float) {
+        dataStore.edit { it[PreferencesKeys.DEVICE_CURVE_OFFSET_DP] = offset }
     }
 
     suspend fun setDynamicColor(enabled: Boolean) {
@@ -835,6 +908,9 @@ class DrawerPreferencesDataSource @Inject constructor(
             themeMode = p[PreferencesKeys.THEME_MODE] ?: "SYSTEM",
             drawerThemeMode = p[PreferencesKeys.DRAWER_THEME_MODE] ?: "SYSTEM",
             drawerLiquidGlass = p[PreferencesKeys.DRAWER_LIQUID_GLASS] ?: false,
+            drawerLook = p[PreferencesKeys.DRAWER_LOOK] ?: if (p[PreferencesKeys.DRAWER_LIQUID_GLASS] == true) "LIQUID_GLASS" else "SOLID",
+            matchDeviceScreenCurve = p[PreferencesKeys.MATCH_DEVICE_SCREEN_CURVE] ?: true,
+            deviceCurveOffsetDp = p[PreferencesKeys.DEVICE_CURVE_OFFSET_DP] ?: 0f,
             dynamicColor = p[PreferencesKeys.DYNAMIC_COLOR] ?: true,
             accentColor = p[PreferencesKeys.ACCENT_COLOR] ?: "DYNAMIC",
             hideStatusBar = p[PreferencesKeys.HIDE_STATUS_BAR] ?: true,
@@ -895,7 +971,8 @@ class DrawerPreferencesDataSource @Inject constructor(
             aiForceWorkProfile = p[PreferencesKeys.AI_FORCE_WORK_PROFILE] ?: true,
             appLaunchCounts = launchCounts,
             appLastLaunchedTimes = launchTimes,
-            mindfulApps = mindful
+            mindfulApps = mindful,
+            hiddenAppPackages = p[PreferencesKeys.HIDDEN_APP_PACKAGES] ?: emptySet()
         )
     }
 
@@ -905,6 +982,9 @@ class DrawerPreferencesDataSource @Inject constructor(
             p[PreferencesKeys.THEME_MODE] = prefs.themeMode
             p[PreferencesKeys.DRAWER_THEME_MODE] = prefs.drawerThemeMode
             p[PreferencesKeys.DRAWER_LIQUID_GLASS] = prefs.drawerLiquidGlass
+            p[PreferencesKeys.DRAWER_LOOK] = prefs.drawerLook
+            p[PreferencesKeys.MATCH_DEVICE_SCREEN_CURVE] = prefs.matchDeviceScreenCurve
+            p[PreferencesKeys.DEVICE_CURVE_OFFSET_DP] = prefs.deviceCurveOffsetDp
             p[PreferencesKeys.DYNAMIC_COLOR] = prefs.dynamicColor
             p[PreferencesKeys.ACCENT_COLOR] = prefs.accentColor
             p[PreferencesKeys.HIDE_STATUS_BAR] = prefs.hideStatusBar
@@ -981,6 +1061,9 @@ class DrawerPreferencesDataSource @Inject constructor(
             }
             if (prefs.mindfulApps.isNotEmpty()) {
                 p[PreferencesKeys.MINDFUL_APPS] = Json.encodeToString(prefs.mindfulApps)
+            }
+            if (prefs.hiddenAppPackages.isNotEmpty()) {
+                p[PreferencesKeys.HIDDEN_APP_PACKAGES] = prefs.hiddenAppPackages
             }
         }
     }

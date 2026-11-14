@@ -7,6 +7,9 @@ data class LauncherPreferencesBackup(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
     val drawerLiquidGlass: Boolean = false,
+    val drawerLook: String = "SOLID",
+    val matchDeviceScreenCurve: Boolean = true,
+    val deviceCurveOffsetDp: Float = 0f,
     val dynamicColor: Boolean = true,
     val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,
@@ -67,7 +70,8 @@ data class LauncherPreferencesBackup(
     val aiForceWorkProfile: Boolean = true,
     val appLaunchCounts: Map<String, Int> = emptyMap(),
     val appLastLaunchedTimes: Map<String, Long> = emptyMap(),
-    val mindfulApps: Set<String> = emptySet()
+    val mindfulApps: Set<String> = emptySet(),
+    val hiddenAppPackages: Set<String> = emptySet()
 )
 
 @Serializable

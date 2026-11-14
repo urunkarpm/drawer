@@ -240,6 +240,34 @@ class DrawerPreferencesDataSourceTest {
     }
 
     @Test
+    fun testHiddenAppsAndUnlockCountPreferences() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(emptySet<String>(), dataSource.hiddenAppPackages.first())
+        assertEquals(0, dataSource.hiddenNotifUnlockCount.first())
+
+        dataSource.addHiddenApp("com.secret.chat")
+        assertEquals(setOf("com.secret.chat"), dataSource.hiddenAppPackages.first())
+
+        dataSource.addHiddenApp("com.private.vault")
+        assertEquals(setOf("com.secret.chat", "com.private.vault"), dataSource.hiddenAppPackages.first())
+
+        dataSource.removeHiddenApp("com.secret.chat")
+        assertEquals(setOf("com.private.vault"), dataSource.hiddenAppPackages.first())
+
+        dataSource.setHiddenNotifUnlockCount(2)
+        assertEquals(2, dataSource.hiddenNotifUnlockCount.first())
+
+        dataSource.decrementHiddenNotifUnlockCount()
+        assertEquals(1, dataSource.hiddenNotifUnlockCount.first())
+
+        dataSource.decrementHiddenNotifUnlockCount()
+        assertEquals(0, dataSource.hiddenNotifUnlockCount.first())
+
+        dataSource.decrementHiddenNotifUnlockCount()
+        assertEquals(0, dataSource.hiddenNotifUnlockCount.first())
+    }
+
+    @Test
     fun getPreferencesBackupAndRestorePreferencesRoundTrip() = runTest {
         val dataSource = createDataSource(backgroundScope)
         val initialBackup = dataSource.getPreferencesBackup()
@@ -265,12 +293,14 @@ class DrawerPreferencesDataSourceTest {
             wallpaperGradientSpeedSeconds = 5,
             autoCategorizeNewApps = false,
             aiCategorizationStrictness = "STRICT",
-            cinematicPalette = "TEAL_AMBER"
+            cinematicPalette = "TEAL_AMBER",
+            hiddenAppPackages = setOf("com.hidden.one")
         )
 
         dataSource.restorePreferences(customBackup)
 
         val restoredBackup = dataSource.getPreferencesBackup()
+        assertEquals(setOf("com.hidden.one"), restoredBackup.hiddenAppPackages)
         assertEquals("DARK", restoredBackup.themeMode)
         assertEquals("AMOLED", restoredBackup.drawerThemeMode)
         assertEquals(true, restoredBackup.drawerLiquidGlass)
@@ -450,5 +480,31 @@ class DrawerPreferencesDataSourceTest {
         assertEquals(6, dataSource.appDrawerColumns.first())
         dataSource.setAppDrawerColumns(10) // coercion check
         assertEquals(6, dataSource.appDrawerColumns.first())
+    }
+
+    @Test
+    fun testDrawerLookAndScreenCurvePreferences() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals("SOLID", dataSource.drawerLook.first())
+        assertEquals(true, dataSource.matchDeviceScreenCurve.first())
+        assertEquals(0f, dataSource.deviceCurveOffsetDp.first(), 0.001f)
+
+        dataSource.setDrawerLook("FROSTED_GLASS")
+        assertEquals("FROSTED_GLASS", dataSource.drawerLook.first())
+        assertEquals(true, dataSource.drawerLiquidGlass.first())
+
+        dataSource.setDrawerLook("LIQUID_GLASS")
+        assertEquals("LIQUID_GLASS", dataSource.drawerLook.first())
+        assertEquals(true, dataSource.drawerLiquidGlass.first())
+
+        dataSource.setDrawerLook("SOLID")
+        assertEquals("SOLID", dataSource.drawerLook.first())
+        assertEquals(false, dataSource.drawerLiquidGlass.first())
+
+        dataSource.setMatchDeviceScreenCurve(false)
+        assertEquals(false, dataSource.matchDeviceScreenCurve.first())
+
+        dataSource.setDeviceCurveOffsetDp(4.5f)
+        assertEquals(4.5f, dataSource.deviceCurveOffsetDp.first(), 0.001f)
     }
 }
