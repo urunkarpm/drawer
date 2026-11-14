@@ -29,6 +29,8 @@ data class NotificationsUiState(
     val isServiceConnected: Boolean = false,
     val activeNotifications: List<NotificationItem> = emptyList(),
     val groupedNotifications: List<AppNotificationGroup> = emptyList(),
+    val hiddenNotifications: List<NotificationItem> = emptyList(),
+    val groupedHiddenNotifications: List<AppNotificationGroup> = emptyList(),
     val mutedRules: List<MutedAppRule> = emptyList(),
     val privacyMode: Boolean = false,
     val swipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
@@ -71,13 +73,17 @@ class NotificationsViewModel @Inject constructor(
         preferencesDataSource.notificationSwipeRightAction,
         preferencesDataSource.notificationSwipeLeftAction,
         preferencesDataSource.hiddenAppPackages,
-        preferencesDataSource.hiddenNotifUnlockCount
+        preferencesDataSource.hiddenNotifUnlockCount,
+        preferencesDataSource.appVaultEnabled
     ) { args: Array<Any?> ->
+        val appVaultEnabled = args[5] as Boolean
+        val rawHidden = @Suppress("UNCHECKED_CAST") (args[3] as Set<String>)
+        // ponytail: restore hidden notifications to public drawer when vault disabled; ceiling: in-memory flow filtering; upgrade path: unified effectiveHiddenAppsFlow.
         NotificationPreferencesData(
             privacyMode = args[0] as Boolean,
             swipeRightAction = args[1] as NotificationSwipeAction,
             swipeLeftAction = args[2] as NotificationSwipeAction,
-            hiddenAppPackages = @Suppress("UNCHECKED_CAST") (args[3] as Set<String>),
+            hiddenAppPackages = if (appVaultEnabled) rawHidden else emptySet(),
             hiddenNotifUnlockCount = args[4] as Int
         )
     }
@@ -102,6 +108,17 @@ class NotificationsViewModel @Inject constructor(
         }
         previousHiddenKeys = currentHiddenKeys
 
+        val groupedHidden = hiddenItems
+            .groupBy { it.packageName }
+            .map { (pkg, items) ->
+                AppNotificationGroup(
+                    packageName = pkg,
+                    appName = items.firstOrNull()?.appName ?: pkg,
+                    items = items.sortedByDescending { it.postTimeMillis }
+                )
+            }
+            .sortedByDescending { it.items.firstOrNull()?.postTimeMillis ?: 0L }
+
         // Suppress notifications for hidden apps from drawer and DuoStatus
         val visibleNotifications = notifications.filter { it.packageName !in hiddenPackages }
 
@@ -121,6 +138,8 @@ class NotificationsViewModel @Inject constructor(
             isServiceConnected = notificationRepository.checkPermission(),
             activeNotifications = visibleNotifications,
             groupedNotifications = grouped,
+            hiddenNotifications = hiddenItems,
+            groupedHiddenNotifications = groupedHidden,
             mutedRules = rules,
             privacyMode = notifPrefs.privacyMode,
             swipeRightAction = notifPrefs.swipeRightAction,

@@ -121,6 +121,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -168,7 +170,8 @@ fun NotificationDrawer(
     isMesmerizingGlow: Boolean = true,
     surfaceOpacity: Float = 0.65f,
     surfaceStrokeOpacity: Float = 0.40f,
-    cinematicPaletteId: String = "DEFAULT"
+    cinematicPaletteId: String = "DEFAULT",
+    forVaultOnly: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val crispHaptics = LocalCrispHaptics.current
@@ -185,7 +188,7 @@ fun NotificationDrawer(
         label = "notif_chevron"
     )
 
-    val notifCount = uiState.activeNotifications.size
+    val notifCount = if (forVaultOnly) uiState.hiddenNotifications.size else uiState.activeNotifications.size
 
     val context = LocalContext.current
     val activity = context as? Activity
@@ -226,7 +229,7 @@ fun NotificationDrawer(
         modifier = modifier.fillMaxWidth()
     ) {
         // â”€â”€ Onboarding Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if (!uiState.isPermissionGranted) {
+        if (!uiState.isPermissionGranted && !forVaultOnly) {
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(
@@ -272,7 +275,9 @@ fun NotificationDrawer(
 
         // â”€â”€ Notifications Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         } else {
-            val hasNotifications = uiState.activeNotifications.isNotEmpty()
+            val displayedNotifications = if (forVaultOnly) uiState.hiddenNotifications else uiState.activeNotifications
+            val displayedGroups = if (forVaultOnly) uiState.groupedHiddenNotifications else uiState.groupedNotifications
+            val hasNotifications = displayedNotifications.isNotEmpty()
             // ponytail: clean standard list state; notifications stay open until dismissed or toggled; ceiling: in-memory list; upgrade path: persistent notification store.
             val listState = rememberLazyListState()
 
@@ -365,10 +370,11 @@ fun NotificationDrawer(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val shouldGlow = uiState.hiddenNotifUnlockCount > 0
+                        val shouldGlow = !forVaultOnly && uiState.hiddenNotifUnlockCount > 0
                         val glowColor = MaterialTheme.colorScheme.primary
-                        val infiniteTransition = rememberInfiniteTransition(label = "bell_glow")
-                        val glowAlpha by if (shouldGlow) {
+                        val infiniteTransition = rememberInfiniteTransition(label = "caret_glow")
+                        // ponytail: defer glow animation read to draw phase via drawBehind to prevent 120Hz continuous recomposition churn; ceiling: fixed pulse easing; upgrade path: spring-driven reactive indicator.
+                        val glowAlphaState = if (shouldGlow) {
                             infiniteTransition.animateFloat(
                                 initialValue = 0.25f,
                                 targetValue = 0.85f,
@@ -376,16 +382,14 @@ fun NotificationDrawer(
                                     animation = tween(1400, easing = FastOutSlowInEasing),
                                     repeatMode = RepeatMode.Reverse
                                 ),
-                                label = "bellGlowAlpha"
+                                label = "caretGlowAlpha"
                             )
-                        } else {
-                            remember { mutableFloatStateOf(0f) }
-                        }
+                        } else null
 
-                        // Stacked app-icon avatars, actively viewed app-icon, or subtle/glowing bell indicator
-                        if (hasNotifications && !shouldGlow) {
+                        // Stacked app-icon avatars, actively viewed app-icon, or subtle bell/security indicator
+                        if (hasNotifications) {
                             NotificationIconStack(
-                                groups = uiState.groupedNotifications,
+                                groups = displayedGroups,
                                 iconLoader = iconLoader,
                                 stealthTheme = stealthTheme,
                                 stealthContrastLevel = stealthContrastLevel
@@ -395,31 +399,16 @@ fun NotificationDrawer(
                                 modifier = Modifier
                                     .size(26.dp)
                                     .clip(CircleShape)
-                                    .then(
-                                        if (shouldGlow) {
-                                            Modifier.background(
-                                                Brush.radialGradient(
-                                                    colors = listOf(
-                                                        glowColor.copy(alpha = glowAlpha),
-                                                        glowColor.copy(alpha = glowAlpha * 0.35f),
-                                                        Color.Transparent
-                                                    )
-                                                )
-                                            )
-                                        } else {
-                                            Modifier.background(
-                                                if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel).copy(alpha = 0.12f)
-                                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                            )
-                                        }
+                                    .background(
+                                        if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel).copy(alpha = 0.12f)
+                                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.NotificationsNone,
+                                    imageVector = if (forVaultOnly) Icons.Default.Security else Icons.Default.NotificationsNone,
                                     contentDescription = null,
-                                    tint = if (shouldGlow) glowColor
-                                           else if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                    tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
                                            else MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -430,7 +419,7 @@ fun NotificationDrawer(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Notifications",
+                                text = if (forVaultOnly) "Vault Notifications" else "Notifications",
                                 fontFamily = LocalHeaderFontFamily.current,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
@@ -438,7 +427,7 @@ fun NotificationDrawer(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            val count = uiState.activeNotifications.size
+                            val count = displayedNotifications.size
                             Text(
                                 text = if (!hasNotifications) "All caught up"
                                 else if (isExpanded) {
@@ -450,18 +439,40 @@ fun NotificationDrawer(
                             )
                         }
 
-                        // Animated chevron
+                        // Animated chevron (caret) with subtle ambient glow when hidden notifications are waiting
                         Box(
                             modifier = Modifier
                                 .size(30.dp)
                                 .clip(CircleShape)
-                                .background(chevronBgColor),
+                                .then(
+                                    if (shouldGlow && glowAlphaState != null) {
+                                        Modifier.drawBehind {
+                                            val alpha = glowAlphaState.value
+                                            drawCircle(
+                                                brush = Brush.radialGradient(
+                                                    colors = listOf(
+                                                        glowColor.copy(alpha = alpha),
+                                                        glowColor.copy(alpha = alpha * 0.45f),
+                                                        Color.Transparent
+                                                    )
+                                                )
+                                            )
+                                            drawCircle(
+                                                color = glowColor.copy(alpha = alpha * 0.8f),
+                                                style = Stroke(width = 1.dp.toPx())
+                                            )
+                                        }
+                                    } else {
+                                        Modifier.background(chevronBgColor)
+                                    }
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.KeyboardArrowDown,
                                 contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                tint = if (shouldGlow) glowColor
+                                else if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
                                 else if (isExpanded) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
@@ -557,7 +568,7 @@ fun NotificationDrawer(
                                         .padding(vertical = 4.dp)
                                 ) {
                                     items(
-                                        items = uiState.activeNotifications,
+                                        items = displayedNotifications,
                                         key = { it.key }
                                     ) { item ->
                                         EndlessNotificationCard(

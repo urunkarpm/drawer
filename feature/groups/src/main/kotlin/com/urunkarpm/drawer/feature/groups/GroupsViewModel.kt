@@ -106,7 +106,8 @@ class GroupsViewModel @Inject constructor(
         preferencesDataSource.drawerNotificationGlow,
         preferencesDataSource.drawerTitleAnimation,
         preferencesDataSource.mindfulApps,
-        preferencesDataSource.hiddenAppPackages
+        preferencesDataSource.hiddenAppPackages,
+        preferencesDataSource.appVaultEnabled
     ) { args: Array<Any?> ->
         val multiGroup = args[0] as Boolean
         val lockLayout = args[1] as Boolean
@@ -116,7 +117,16 @@ class GroupsViewModel @Inject constructor(
         val mindful = args[4] as Set<String>
         @Suppress("UNCHECKED_CAST")
         val hiddenApps = args[5] as Set<String>
-        GroupPrefs(multiGroup, lockLayout, drawerGlow, titleAnim, mindful, hiddenApps)
+        val appVaultEnabled = args[6] as Boolean
+        // ponytail: restore hidden group apps when vault disabled; ceiling: in-memory flow filtering; upgrade path: unified effectiveHiddenAppsFlow.
+        GroupPrefs(
+            multiGroup = multiGroup,
+            lockLayout = lockLayout,
+            drawerGlow = drawerGlow,
+            drawerTitleAnimation = titleAnim,
+            mindfulApps = mindful,
+            hiddenApps = if (appVaultEnabled) hiddenApps else emptySet()
+        )
     }
 
     private val groupsWithOptimisticExpanded = combine(

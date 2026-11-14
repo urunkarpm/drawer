@@ -49,6 +49,7 @@ class GroupsViewModelTest {
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
     private val mindfulAppsFlow = MutableStateFlow<Set<String>>(emptySet())
     private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val appVaultEnabledFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: GroupsViewModel
 
@@ -83,6 +84,7 @@ class GroupsViewModelTest {
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.mindfulApps } returns mindfulAppsFlow
         every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
+        every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow
 
         groupsFlow.value = listOf(sampleGroup)
         installedAppsFlow.value = listOf(appZ, appA)
@@ -341,6 +343,24 @@ class GroupsViewModelTest {
 
             testScheduler.advanceUntilIdle()
             coVerify(exactly = 2) { appGroupRepository.toggleGroupExpanded("group_work") }
+        }
+    }
+
+    @Test
+    fun hiddenAppsExclusion_bypassedWhenVaultDisabled() = runTest {
+        hiddenAppPackagesFlow.value = setOf("com.z")
+        viewModel.uiState.test {
+            testScheduler.advanceUntilIdle()
+            val stateHidden = expectMostRecentItem()
+            // com.z is hidden, only com.a remains in group
+            assertEquals(1, stateHidden.groups.first().apps.size)
+            assertEquals("com.a", stateHidden.groups.first().apps.first().packageName)
+
+            appVaultEnabledFlow.value = false
+            testScheduler.advanceUntilIdle()
+            val stateRestored = expectMostRecentItem()
+            // com.z restored when vault disabled
+            assertEquals(2, stateRestored.groups.first().apps.size)
         }
     }
 }

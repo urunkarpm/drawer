@@ -46,6 +46,7 @@ class DockViewModelTest {
     private val dockExpandedMaxAppsFlow = MutableStateFlow(8)
     private val cinematicPaletteFlow = MutableStateFlow("DEFAULT")
     private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val appVaultEnabledFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: DockViewModel
 
@@ -78,6 +79,7 @@ class DockViewModelTest {
         every { preferencesDataSource.dockExpandedMaxApps } returns dockExpandedMaxAppsFlow
         every { preferencesDataSource.cinematicPalette } returns cinematicPaletteFlow
         every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
+        every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow
 
         dockItemsFlow.value = listOf(sampleDockItem)
         installedAppsFlow.value = listOf(sampleApp)
@@ -159,6 +161,22 @@ class DockViewModelTest {
             testScheduler.advanceUntilIdle()
             assertTrue(expectMostRecentItem().isEditMode)
             cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun hiddenAppsExclusion_bypassedWhenVaultDisabled() = runTest {
+        hiddenAppPackagesFlow.value = setOf("com.test.browser")
+        viewModel.uiState.test {
+            testScheduler.advanceUntilIdle()
+            val stateHidden = expectMostRecentItem()
+            assertTrue(stateHidden.dockItems.isEmpty())
+
+            appVaultEnabledFlow.value = false
+            testScheduler.advanceUntilIdle()
+            val stateRestored = expectMostRecentItem()
+            assertEquals(1, stateRestored.dockItems.size)
+            assertEquals("com.test.browser", stateRestored.dockItems.first().packageName)
         }
     }
 }

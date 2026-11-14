@@ -94,6 +94,7 @@ class SettingsViewModelTest {
     private val showDrawerSuggestionsFlow = MutableStateFlow(true)
     private val hapticFeedbackEnabledFlow = MutableStateFlow(true)
     private val autoCheckUpdatesFlow = MutableStateFlow(true)
+    private val appVaultEnabledFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: SettingsViewModel
 
@@ -166,6 +167,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow
         every { preferencesDataSource.autoCheckUpdates } returns autoCheckUpdatesFlow
+        every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow
 
         viewModel = SettingsViewModel(
             preferencesDataSource = preferencesDataSource,
@@ -512,5 +514,12 @@ class SettingsViewModelTest {
         viewModel.setAutoCheckUpdates(false)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setAutoCheckUpdates(false) }
+    }
+
+    @Test
+    fun setAppVaultEnabled_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setAppVaultEnabled(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setAppVaultEnabled(false) }
     }
 }

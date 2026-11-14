@@ -127,6 +127,7 @@ class DrawerPreferencesDataSource @Inject constructor(
 
         val HIDDEN_APP_PACKAGES = stringSetPreferencesKey("hidden_app_packages")
         val HIDDEN_NOTIF_UNLOCK_COUNT = intPreferencesKey("hidden_notif_unlock_count")
+        val APP_VAULT_ENABLED = booleanPreferencesKey("app_vault_enabled")
     }
 
     val todoSettings: Flow<TodoSettings> = dataStore.data.map { prefs ->
@@ -186,6 +187,14 @@ class DrawerPreferencesDataSource @Inject constructor(
         }
     }
 
+    suspend fun addHiddenApps(packageNames: Collection<String>) {
+        if (packageNames.isEmpty()) return
+        dataStore.edit { preferences ->
+            val current = preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] ?: emptySet()
+            preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] = current + packageNames
+        }
+    }
+
     suspend fun removeHiddenApp(packageName: String) {
         dataStore.edit { preferences ->
             val current = preferences[PreferencesKeys.HIDDEN_APP_PACKAGES] ?: emptySet()
@@ -211,6 +220,16 @@ class DrawerPreferencesDataSource @Inject constructor(
             if (current > 0) {
                 preferences[PreferencesKeys.HIDDEN_NOTIF_UNLOCK_COUNT] = current - 1
             }
+        }
+    }
+
+    val appVaultEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.APP_VAULT_ENABLED] ?: true
+    }
+
+    suspend fun setAppVaultEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[PreferencesKeys.APP_VAULT_ENABLED] = enabled
         }
     }
 
@@ -972,7 +991,8 @@ class DrawerPreferencesDataSource @Inject constructor(
             appLaunchCounts = launchCounts,
             appLastLaunchedTimes = launchTimes,
             mindfulApps = mindful,
-            hiddenAppPackages = p[PreferencesKeys.HIDDEN_APP_PACKAGES] ?: emptySet()
+            hiddenAppPackages = p[PreferencesKeys.HIDDEN_APP_PACKAGES] ?: emptySet(),
+            appVaultEnabled = p[PreferencesKeys.APP_VAULT_ENABLED] ?: true
         )
     }
 
@@ -1065,6 +1085,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             if (prefs.hiddenAppPackages.isNotEmpty()) {
                 p[PreferencesKeys.HIDDEN_APP_PACKAGES] = prefs.hiddenAppPackages
             }
+            p[PreferencesKeys.APP_VAULT_ENABLED] = prefs.appVaultEnabled
         }
     }
 }

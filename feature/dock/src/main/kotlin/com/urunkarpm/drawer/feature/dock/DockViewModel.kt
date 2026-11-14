@@ -74,8 +74,10 @@ class DockViewModel @Inject constructor(
     private val dockPreferencesFlow = combine(
         dockThemePrefsFlow,
         dockLayoutPrefsFlow,
-        preferencesDataSource.hiddenAppPackages
-    ) { theme, layout, hiddenApps ->
+        preferencesDataSource.hiddenAppPackages,
+        preferencesDataSource.appVaultEnabled
+    ) { theme, layout, hiddenApps, appVaultEnabled ->
+        // ponytail: restore hidden dock icons when vault disabled; ceiling: in-memory flow filtering; upgrade path: unified effectiveHiddenAppsFlow.
         DockPreferences(
             backgroundStyle = theme.themeStyle,
             iconSize = layout.iconSize,
@@ -88,7 +90,7 @@ class DockViewModel @Inject constructor(
             mesmerizingGlow = layout.mesmerizingGlow,
             dockExpandedMaxApps = layout.dockExpandedMaxApps,
             cinematicPalette = theme.cinematicPalette,
-            hiddenAppPackages = hiddenApps
+            hiddenAppPackages = if (appVaultEnabled) hiddenApps else emptySet()
         )
     }
 
@@ -115,7 +117,7 @@ class DockViewModel @Inject constructor(
         }
 
         DockUiState(
-            dockItems = items,
+            dockItems = visibleItems,
             resolvedApps = resolved,
             backgroundStyle = prefs.backgroundStyle,
             iconSizeDp = prefs.iconSize,

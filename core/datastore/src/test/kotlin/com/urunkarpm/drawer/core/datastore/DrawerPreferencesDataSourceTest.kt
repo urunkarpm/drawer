@@ -251,8 +251,11 @@ class DrawerPreferencesDataSourceTest {
         dataSource.addHiddenApp("com.private.vault")
         assertEquals(setOf("com.secret.chat", "com.private.vault"), dataSource.hiddenAppPackages.first())
 
+        dataSource.addHiddenApps(listOf("com.hidden.one", "com.hidden.two"))
+        assertEquals(setOf("com.secret.chat", "com.private.vault", "com.hidden.one", "com.hidden.two"), dataSource.hiddenAppPackages.first())
+
         dataSource.removeHiddenApp("com.secret.chat")
-        assertEquals(setOf("com.private.vault"), dataSource.hiddenAppPackages.first())
+        assertEquals(setOf("com.private.vault", "com.hidden.one", "com.hidden.two"), dataSource.hiddenAppPackages.first())
 
         dataSource.setHiddenNotifUnlockCount(2)
         assertEquals(2, dataSource.hiddenNotifUnlockCount.first())
@@ -263,8 +266,22 @@ class DrawerPreferencesDataSourceTest {
         dataSource.decrementHiddenNotifUnlockCount()
         assertEquals(0, dataSource.hiddenNotifUnlockCount.first())
 
+        // App Vault toggle defaults to true and can be toggled
+        assertEquals(true, dataSource.appVaultEnabled.first())
+        dataSource.setAppVaultEnabled(false)
+        assertEquals(false, dataSource.appVaultEnabled.first())
+        dataSource.setAppVaultEnabled(true)
+        assertEquals(true, dataSource.appVaultEnabled.first())
+
         dataSource.decrementHiddenNotifUnlockCount()
         assertEquals(0, dataSource.hiddenNotifUnlockCount.first())
+
+        // App Vault toggle defaults to true and can be toggled
+        assertEquals(true, dataSource.appVaultEnabled.first())
+        dataSource.setAppVaultEnabled(false)
+        assertEquals(false, dataSource.appVaultEnabled.first())
+        dataSource.setAppVaultEnabled(true)
+        assertEquals(true, dataSource.appVaultEnabled.first())
     }
 
     @Test

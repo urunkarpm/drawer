@@ -40,6 +40,7 @@ class NotificationsViewModelTest {
     private val swipeLeftFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS)
     private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
     private val hiddenNotifUnlockCountFlow = MutableStateFlow(0)
+    private val appVaultEnabledFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: NotificationsViewModel
 
@@ -81,6 +82,7 @@ class NotificationsViewModelTest {
         every { preferencesDataSource.notificationSwipeLeftAction } returns swipeLeftFlow
         every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
         every { preferencesDataSource.hiddenNotifUnlockCount } returns hiddenNotifUnlockCountFlow
+        every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow
 
         notificationsFlow.value = listOf(notificationA1, notificationA2, notificationB1)
 
@@ -181,8 +183,20 @@ class NotificationsViewModelTest {
             assertEquals(1, state.activeNotifications.size)
             assertEquals("com.mail", state.activeNotifications.first().packageName)
             assertEquals(1, state.groupedNotifications.size)
+            assertEquals(2, state.hiddenNotifications.size)
+            assertEquals(1, state.groupedHiddenNotifications.size)
+            assertEquals("com.chat", state.groupedHiddenNotifications.first().packageName)
 
             coVerify { preferencesDataSource.setHiddenNotifUnlockCount(2) }
+
+            // When appVaultEnabled is false, hidden notifications return to public activeNotifications
+            appVaultEnabledFlow.value = false
+            testScheduler.advanceUntilIdle()
+
+            val restoredState = expectMostRecentItem()
+            assertEquals(3, restoredState.activeNotifications.size)
+            assertEquals(2, restoredState.groupedNotifications.size)
+            assertEquals(0, restoredState.hiddenNotifications.size)
         }
     }
 }

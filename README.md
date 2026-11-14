@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.10.1-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.10.2-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -31,7 +31,28 @@ Everything you need to get things done is reachable in under a second; everythin
 
 ---
 
-## 🌟 What's New in v2.10.1
+## 🌟 What's New in v2.10.2
+
+* **⚡ Instantaneous Outside-Touch Drawer Collapse (0ms Latency):**
+  * Tapping or swiping anywhere outside an expanded category drawer, notification drawer, or hidden vault drawer now closes it instantaneously on touch-down (`ACTION_DOWN`) without waiting for finger release, double-tap delays, or 3-second timers.
+  * Consumes outside touches to prevent unintended app launches from the dock or wallpaper while cleanly allowing direct switching between category drawer headers.
+
+* **🛡️ Dynamic Vault Apps Restoration & Safe Disable:**
+  * Disabling the App Vault feature now immediately restores all hidden apps back to the main app drawer, dock, and category groups. Notifications from previously hidden apps flow back to the normal notification drawer seamlessly.
+
+* **✨ Multi-Select Batch Vault Hiding:**
+  * Added batch multi-selection in the Vault: select multiple apps with interactive checkboxes and hide them all with a single tap.
+
+* **🔔 Dedicated Vault Notification Drawer & Discreet Caret Indicator:**
+  * Embedded a dedicated, private notification drawer inside the Vault that exclusively displays alerts from hidden apps.
+  * Main notification drawer features a discreet ambient glow indicator on the chevron caret when private notifications are pending, with no identifiable app badges on the lockscreen or homescreen.
+  * Added guide cards in Settings under Privacy & System explaining Vault access gestures and notification privacy.
+
+* **🚀 120 FPS Jank & Recomposition Optimization:**
+  * Moved caret glow and glass specular sweep animations to GPU draw phase via `.drawBehind`, eliminating continuous composition churn and ensuring buttery smooth 120 FPS rendering.
+  * Added item content-type recycling in the Vault grid.
+
+---
 
 * **🛡️ Calibrated Elastic Vault Swipe & Zero-Flick Trigger:**
   * Recalibrated the dock elastic resistance to trigger effortlessly with a natural ~28dp thumb swipe (reduced from 170dp), complete with dual haptic ticks and crisp confirmation pop.

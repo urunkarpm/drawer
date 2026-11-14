@@ -89,6 +89,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -527,19 +528,6 @@ fun AllAppsDrawer(
                 if (isFrostedGlassActive) frostedBorderStroke else glassBorderStroke
             }
 
-            val sheenPosition = specularSheenProgress.value
-            val specularSheenBrush = remember(sheenPosition, isDrawerDark) {
-                Brush.horizontalGradient(
-                    0.0f to Color.Transparent,
-                    (sheenPosition - 0.20f).coerceIn(0f, 1f) to Color.Transparent,
-                    (sheenPosition - 0.08f).coerceIn(0f, 1f) to Color.White.copy(alpha = if (isDrawerDark) 0.35f else 0.50f),
-                    sheenPosition.coerceIn(0f, 1f) to Color.White.copy(alpha = if (isDrawerDark) 0.95f else 1.0f),
-                    (sheenPosition + 0.08f).coerceIn(0f, 1f) to Color.White.copy(alpha = if (isDrawerDark) 0.35f else 0.50f),
-                    (sheenPosition + 0.20f).coerceIn(0f, 1f) to Color.Transparent,
-                    1.0f to Color.Transparent
-                )
-            }
-
             // ponytail: translationY on the outer Surface moves the entire drawer background card together with content on pull-to-dismiss; ceiling: 1D vertical displacement without 2D tilt; upgrade path: AnchoredDraggableState.
             Surface(
                 shape = drawerShape,
@@ -592,11 +580,25 @@ fun AllAppsDrawer(
                     )
 
                     // 3. Specular light sweep line across the top rim curve
+                    // ponytail: defer sheen progress read to draw phase via drawBehind to prevent 60-120Hz recomposition churn during drawer entrance; ceiling: horizontal sweep only; upgrade path: shader-based caustics.
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(if (isFrostedGlassActive) 3.5.dp else 2.5.dp)
-                            .background(specularSheenBrush)
+                            .drawBehind {
+                                val sheen = specularSheenProgress.value
+                                drawRect(
+                                    brush = Brush.horizontalGradient(
+                                        0.0f to Color.Transparent,
+                                        (sheen - 0.20f).coerceIn(0f, 1f) to Color.Transparent,
+                                        (sheen - 0.08f).coerceIn(0f, 1f) to Color.White.copy(alpha = if (isDrawerDark) 0.35f else 0.50f),
+                                        sheen.coerceIn(0f, 1f) to Color.White.copy(alpha = if (isDrawerDark) 0.95f else 1.0f),
+                                        (sheen + 0.08f).coerceIn(0f, 1f) to Color.White.copy(alpha = if (isDrawerDark) 0.35f else 0.50f),
+                                        (sheen + 0.20f).coerceIn(0f, 1f) to Color.Transparent,
+                                        1.0f to Color.Transparent
+                                    )
+                                )
+                            }
                             .align(Alignment.TopCenter)
                     )
 

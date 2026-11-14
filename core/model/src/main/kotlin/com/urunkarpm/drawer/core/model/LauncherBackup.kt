@@ -71,7 +71,8 @@ data class LauncherPreferencesBackup(
     val appLaunchCounts: Map<String, Int> = emptyMap(),
     val appLastLaunchedTimes: Map<String, Long> = emptyMap(),
     val mindfulApps: Set<String> = emptySet(),
-    val hiddenAppPackages: Set<String> = emptySet()
+    val hiddenAppPackages: Set<String> = emptySet(),
+    val appVaultEnabled: Boolean = true
 )
 
 @Serializable

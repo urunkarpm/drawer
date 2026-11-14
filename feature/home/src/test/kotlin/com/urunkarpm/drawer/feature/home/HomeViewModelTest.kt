@@ -101,6 +101,7 @@ class HomeViewModelTest {
     private val dismissedUpdateVersionFlow = MutableStateFlow("")
     private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
     private val hiddenNotifUnlockCountFlow = MutableStateFlow(0)
+    private val appVaultEnabledFlow = MutableStateFlow(true)
 
     private val sampleApps = listOf(
         AppInfo(
@@ -192,6 +193,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.dismissedUpdateVersion } returns dismissedUpdateVersionFlow
         every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
         every { preferencesDataSource.hiddenNotifUnlockCount } returns hiddenNotifUnlockCountFlow
+        every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow
         every { widgetRepository.getAllDrawers() } returns drawersFlow
 
@@ -829,6 +831,17 @@ class HomeViewModelTest {
             assertTrue(vaultOpenState.isVaultOpen)
             coVerify { preferencesDataSource.setHiddenNotifUnlockCount(0) }
 
+            // Launching an app auto-closes the vault
+            every { appRepository.launchApp(sampleApps.first()) } returns true
+            viewModel.onAppClicked(sampleApps.first())
+            testScheduler.advanceUntilIdle()
+            val vaultClosedAfterLaunchState = expectMostRecentItem()
+            assertFalse(vaultClosedAfterLaunchState.isVaultOpen)
+
+            viewModel.openVault()
+            testScheduler.advanceUntilIdle()
+            expectMostRecentItem()
+
             viewModel.closeVault()
             testScheduler.advanceUntilIdle()
             val vaultClosedState = expectMostRecentItem()
@@ -838,9 +851,33 @@ class HomeViewModelTest {
             testScheduler.advanceUntilIdle()
             coVerify { preferencesDataSource.addHiddenApp("com.android.chrome") }
 
+            viewModel.addHiddenApps(listOf("com.android.chrome", "com.google.android.youtube"))
+            testScheduler.advanceUntilIdle()
+            coVerify { preferencesDataSource.addHiddenApps(listOf("com.android.chrome", "com.google.android.youtube")) }
+
             viewModel.removeHiddenApp("com.android.chrome")
             testScheduler.advanceUntilIdle()
             coVerify { preferencesDataSource.removeHiddenApp("com.android.chrome") }
+
+            // When appVaultEnabled is false, openVault is ignored and hidden apps return to normal app drawer
+            appVaultEnabledFlow.value = false
+            testScheduler.advanceUntilIdle()
+            val vaultDisabledState = expectMostRecentItem()
+            assertFalse(vaultDisabledState.isAppVaultEnabled)
+            assertEquals(3, vaultDisabledState.installedApps.size)
+            assertTrue(vaultDisabledState.installedApps.any { it.packageName == "com.google.android.youtube" })
+
+            viewModel.openVault()
+            testScheduler.advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isVaultOpen)
+
+            // When appVaultEnabled is re-enabled, vault apps are hidden again
+            appVaultEnabledFlow.value = true
+            testScheduler.advanceUntilIdle()
+            val vaultReenabledState = expectMostRecentItem()
+            assertTrue(vaultReenabledState.isAppVaultEnabled)
+            assertEquals(2, vaultReenabledState.installedApps.size)
+            assertFalse(vaultReenabledState.installedApps.any { it.packageName == "com.google.android.youtube" })
         }
     }
 

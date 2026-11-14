@@ -98,7 +98,8 @@ data class MiscSettings(
     val aiCategorizationStrictness: String = "BALANCED",
     val aiCategorizeAllApps: Boolean = false,
     val aiForceWorkProfile: Boolean = true,
-    val drawerTitleAnimation: String = "ACCENT_POP"
+    val drawerTitleAnimation: String = "ACCENT_POP",
+    val appVaultEnabled: Boolean = true
 )
 
 data class SettingsActionState(
@@ -137,7 +138,8 @@ private data class MiscPart4(
     val aiCategorizationStrictness: String,
     val aiCategorizeAllApps: Boolean,
     val aiForceWorkProfile: Boolean,
-    val drawerTitleAnimation: String
+    val drawerTitleAnimation: String,
+    val appVaultEnabled: Boolean
 )
 
 private data class GradientVisuals(
@@ -224,7 +226,8 @@ data class SettingsUiState(
     val dockMesmerizingGlow: Boolean = true,
     val dockExpandedMaxApps: Int = 8,
     val drawerTitleAnimation: String = "ACCENT_POP",
-    val autoCheckUpdates: Boolean = true
+    val autoCheckUpdates: Boolean = true,
+    val appVaultEnabled: Boolean = true
 )
 
 @HiltViewModel
@@ -380,9 +383,10 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.aiCategorizationStrictness,
         preferencesDataSource.aiCategorizeAllApps,
         preferencesDataSource.aiForceWorkProfile,
-        preferencesDataSource.drawerTitleAnimation
-    ) { strictness, categorizeAll, forceWorkProfile, titleAnim ->
-        MiscPart4(strictness, categorizeAll, forceWorkProfile, titleAnim)
+        preferencesDataSource.drawerTitleAnimation,
+        preferencesDataSource.appVaultEnabled
+    ) { strictness, categorizeAll, forceWorkProfile, titleAnim, appVaultEnabled ->
+        MiscPart4(strictness, categorizeAll, forceWorkProfile, titleAnim, appVaultEnabled)
     }
 
     private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3, miscFlowPart4) { p1, p2, p3, p4 ->
@@ -405,7 +409,8 @@ class SettingsViewModel @Inject constructor(
             aiCategorizationStrictness = p4.aiCategorizationStrictness,
             aiCategorizeAllApps = p4.aiCategorizeAllApps,
             aiForceWorkProfile = p4.aiForceWorkProfile,
-            drawerTitleAnimation = p4.drawerTitleAnimation
+            drawerTitleAnimation = p4.drawerTitleAnimation,
+            appVaultEnabled = p4.appVaultEnabled
         )
     }
 
@@ -526,13 +531,20 @@ class SettingsViewModel @Inject constructor(
             wallpaperGradientAngle = wallpaper.wallpaperGradientAngle,
             dockMesmerizingGlow = wallpaper.dockMesmerizingGlow,
             drawerTitleAnimation = misc.drawerTitleAnimation,
-            autoCheckUpdates = autoCheckUpdates
+            autoCheckUpdates = autoCheckUpdates,
+            appVaultEnabled = misc.appVaultEnabled
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = SettingsUiState()
     )
+
+    fun setAppVaultEnabled(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setAppVaultEnabled(enabled)
+        }
+    }
 
     fun setAutoCheckUpdates(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {

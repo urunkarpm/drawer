@@ -141,6 +141,7 @@ data class HomeUiState(
     val appDrawerColumns: Int = 4,
     val mindfulApps: Set<String> = emptySet(),
     val pendingMindfulApp: AppInfo? = null,
+    val isAppVaultEnabled: Boolean = true,
     val isVaultOpen: Boolean = false,
     val hiddenAppPackages: Set<String> = emptySet(),
     val hiddenApps: List<AppInfo> = emptyList(),
@@ -202,12 +203,20 @@ class HomeViewModel @Inject constructor(
     private val _isVaultOpen = MutableStateFlow(false)
     val isVaultOpen: StateFlow<Boolean> = _isVaultOpen.asStateFlow()
 
+    private data class VaultPrefs(
+        val hiddenPackages: Set<String>,
+        val unlockCount: Int,
+        val isVaultOpen: Boolean,
+        val appVaultEnabled: Boolean
+    )
+
     private val vaultPrefsFlow = combine(
         preferencesDataSource.hiddenAppPackages,
         preferencesDataSource.hiddenNotifUnlockCount,
-        _isVaultOpen
-    ) { hiddenPackages, unlockCount, isVaultOpen ->
-        Triple(hiddenPackages, unlockCount, isVaultOpen)
+        _isVaultOpen,
+        preferencesDataSource.appVaultEnabled
+    ) { hiddenPackages, unlockCount, isVaultOpen, appVaultEnabled ->
+        VaultPrefs(hiddenPackages, unlockCount, isVaultOpen, appVaultEnabled)
     }
 
     val showDrawerSuggestions: StateFlow<Boolean> = preferencesDataSource.showDrawerSuggestions
@@ -445,11 +454,11 @@ class HomeViewModel @Inject constructor(
         val surfacePrefs = args[6] as SurfaceThemePrefs
         @Suppress("UNCHECKED_CAST")
         val expandedDrawerOverride = args[7] as? Set<String>
-        @Suppress("UNCHECKED_CAST")
-        val vaultPrefs = args[8] as Triple<Set<String>, Int, Boolean>
-        val hiddenPackages = vaultPrefs.first
-        val unlockCount = vaultPrefs.second
-        val isVaultOpen = vaultPrefs.third
+        val vaultPrefs = args[8] as VaultPrefs
+        val hiddenPackages = vaultPrefs.hiddenPackages
+        val unlockCount = vaultPrefs.unlockCount
+        val isVaultOpen = vaultPrefs.isVaultOpen
+        val appVaultEnabled = vaultPrefs.appVaultEnabled
 
         val drawersList = rawDrawersList.map { drawer ->
             if (expandedDrawerOverride != null) {
@@ -462,8 +471,10 @@ class HomeViewModel @Inject constructor(
 
         val standalone = widgetsList.filter { it.drawerId == null }
 
-        val visibleApps = apps.filter { it.packageName !in hiddenPackages }
-        val hiddenApps = apps.filter { it.packageName in hiddenPackages }
+        // ponytail: bypass hidden package exclusion when vault disabled so apps instantly return to normal app drawer; ceiling: in-memory flow filtering; upgrade path: reactive effectiveHiddenAppsFlow.
+        val effectiveHiddenPackages = if (appVaultEnabled) hiddenPackages else emptySet()
+        val visibleApps = apps.filter { it.packageName !in effectiveHiddenPackages }
+        val hiddenApps = if (appVaultEnabled) apps.filter { it.packageName in hiddenPackages } else emptyList()
 
         val filtered = if (dialogs.searchQuery.isBlank()) {
             visibleApps
@@ -482,7 +493,8 @@ class HomeViewModel @Inject constructor(
             filteredApps = filtered,
             rawInstalledApps = apps,
             hiddenApps = hiddenApps,
-            hiddenAppPackages = hiddenPackages,
+            hiddenAppPackages = effectiveHiddenPackages,
+            isAppVaultEnabled = appVaultEnabled,
             isVaultOpen = isVaultOpen,
             hiddenNotifUnlockCount = unlockCount,
             searchQuery = dialogs.searchQuery,
@@ -857,6 +869,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun openVault() {
+        if (!uiState.value.isAppVaultEnabled) return
         _isVaultOpen.value = true
         viewModelScope.launch {
             preferencesDataSource.setHiddenNotifUnlockCount(0)
@@ -870,6 +883,13 @@ class HomeViewModel @Inject constructor(
     fun addHiddenApp(packageName: String) {
         viewModelScope.launch {
             preferencesDataSource.addHiddenApp(packageName)
+        }
+    }
+
+    fun addHiddenApps(packageNames: Collection<String>) {
+        if (packageNames.isEmpty()) return
+        viewModelScope.launch {
+            preferencesDataSource.addHiddenApps(packageNames)
         }
     }
 
@@ -904,6 +924,9 @@ class HomeViewModel @Inject constructor(
             lastLaunchTimestamp = System.currentTimeMillis()
             if (_isAllAppsOpen.value) {
                 closeAllApps()
+            }
+            if (_isVaultOpen.value) {
+                closeVault()
             }
         }
         return launched
