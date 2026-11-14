@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -109,9 +110,17 @@ fun HiddenVaultDrawer(
     onOpenAppDetails: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    if (!isOpen) return
+    BackHandler(enabled = isOpen, onBack = onClose)
 
-    BackHandler(onBack = onClose)
+    var isDismissAllowed by remember(isOpen) { mutableStateOf(false) }
+    LaunchedEffect(isOpen) {
+        if (isOpen) {
+            kotlinx.coroutines.delay(250)
+            isDismissAllowed = true
+        } else {
+            isDismissAllowed = false
+        }
+    }
 
     val isSystemDark = isSystemInDarkTheme()
     var showAddAppsSheet by remember { mutableStateOf(false) }
@@ -177,7 +186,15 @@ fun HiddenVaultDrawer(
             modifier = modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.65f))
-                .clickable(onClick = onClose),
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {
+                        if (isDismissAllowed) {
+                            onClose()
+                        }
+                    }
+                ),
             contentAlignment = Alignment.BottomCenter
         ) {
             Surface(
@@ -188,7 +205,11 @@ fun HiddenVaultDrawer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.92f)
-                    .clickable(enabled = false) {} // Prevent dismiss on card click
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { /* Consume clicks to prevent dismiss on card click */ }
+                    )
             ) {
                 Box(
                     modifier = Modifier

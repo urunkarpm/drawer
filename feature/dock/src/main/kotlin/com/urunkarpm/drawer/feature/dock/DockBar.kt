@@ -227,8 +227,8 @@ fun DockBar(
             var lastVaultHapticStep by remember { androidx.compose.runtime.mutableIntStateOf(0) }
             val animatedVaultOffsetPx by animateFloatAsState(
                 targetValue = if (rawVaultDragPx != 0f) {
-                    val thresholdPx = with(localDensity) { 70.dp.toPx() }
-                    val dampeningCoeff = with(localDensity) { 110.dp.toPx() }
+                    val thresholdPx = with(localDensity) { 48.dp.toPx() }
+                    val dampeningCoeff = with(localDensity) { 36.dp.toPx() }
                     kotlin.math.sign(rawVaultDragPx) * thresholdPx * (1f - kotlin.math.exp(-kotlin.math.abs(rawVaultDragPx) / dampeningCoeff))
                 } else 0f,
                 animationSpec = FluidSpringPhysics.fluidSpring(),
@@ -312,10 +312,10 @@ fun DockBar(
                         // ponytail: dual-direction elastic drag past last dock icon triggers secret vault; ceiling: 1D horizontal pull; upgrade path: 2D radial expansion.
                         val vaultPullModifier = if (isLastItem && !uiState.isEditMode) {
                             Modifier.pointerInput(Unit) {
-                                val thresholdPx = with(localDensity) { 70.dp.toPx() }
-                                val dampeningCoeff = with(localDensity) { 110.dp.toPx() }
-                                val triggerPx = with(localDensity) { 55.dp.toPx() }
-                                val hapticStepPx = with(localDensity) { 18.dp.toPx() }
+                                val thresholdPx = with(localDensity) { 48.dp.toPx() }
+                                val dampeningCoeff = with(localDensity) { 36.dp.toPx() }
+                                val triggerPx = with(localDensity) { 26.dp.toPx() }
+                                val hapticStepPx = with(localDensity) { 13.dp.toPx() }
 
                                 detectHorizontalDragGestures(
                                     onDragStart = {
@@ -323,7 +323,8 @@ fun DockBar(
                                         hasTriggeredVault = false
                                         lastVaultHapticStep = 0
                                     },
-                                    onHorizontalDrag = { _, dragAmount ->
+                                    onHorizontalDrag = { change, dragAmount ->
+                                        change.consume()
                                         rawVaultDragPx += dragAmount
                                         val currentEffective = kotlin.math.sign(rawVaultDragPx) * thresholdPx * (1f - kotlin.math.exp(-kotlin.math.abs(rawVaultDragPx) / dampeningCoeff))
                                         val absEffective = kotlin.math.abs(currentEffective)
@@ -332,16 +333,23 @@ fun DockBar(
                                             crispHaptics.tick()
                                             lastVaultHapticStep = currentStep
                                         }
-                                        if (!hasTriggeredVault && absEffective >= triggerPx) {
-                                            hasTriggeredVault = true
-                                            crispHaptics.confirm()
-                                            onTriggerHiddenVault()
+                                        if (absEffective >= triggerPx) {
+                                            if (!hasTriggeredVault) {
+                                                hasTriggeredVault = true
+                                                crispHaptics.confirm()
+                                            }
+                                        } else {
+                                            hasTriggeredVault = false
                                         }
                                     },
                                     onDragEnd = {
+                                        val shouldTrigger = hasTriggeredVault
                                         rawVaultDragPx = 0f
                                         hasTriggeredVault = false
                                         lastVaultHapticStep = 0
+                                        if (shouldTrigger) {
+                                            onTriggerHiddenVault()
+                                        }
                                     },
                                     onDragCancel = {
                                         rawVaultDragPx = 0f

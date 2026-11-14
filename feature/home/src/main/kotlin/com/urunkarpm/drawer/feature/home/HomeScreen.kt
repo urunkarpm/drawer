@@ -1372,7 +1372,7 @@ fun HomeScreen(
                                 onVerticalDrag = { _, dragAmount ->
                                     if (actionTriggered) return@detectVerticalDragGestures
                                     dockDrag += dragAmount
-                                    if (!currentIsAllAppsOpenDock && dockDrag < -55f) {
+                                    if (!currentIsAllAppsOpenDock && !uiState.isVaultOpen && dockDrag < -55f) {
                                         if (currentIsNotificationExpandedDock) {
                                             isNotificationExpanded = false
                                             lastDrawerCollapseTime = android.os.SystemClock.uptimeMillis()
@@ -1383,7 +1383,7 @@ fun HomeScreen(
                                             viewModel.openAllApps(currentActiveNotificationPkgs)
                                         }
                                         actionTriggered = true
-                                    } else if (!currentIsAllAppsOpenDock && dockDrag > 50f) {
+                                    } else if (!currentIsAllAppsOpenDock && !uiState.isVaultOpen && dockDrag > 50f) {
                                         if (currentHasNotifications && !currentIsNotificationExpandedDock) {
                                             isNotificationExpanded = true
                                             if (!effectiveTwoDrawersSideBySide) {
@@ -1503,6 +1503,7 @@ fun HomeScreen(
             state = pagerState,
             userScrollEnabled = !dragDropState.isDragging &&
                 !uiState.isAllAppsOpen &&
+                !uiState.isVaultOpen &&
                 !isSettingsOpen &&
                 !isCameraOpen &&
                 !isNotificationExpanded &&

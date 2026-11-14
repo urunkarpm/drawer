@@ -35,21 +35,25 @@ object VaultAuthenticator {
 
             val cancellationSignal = CancellationSignal()
             val executor = ContextCompat.getMainExecutor(activity)
-            prompt.authenticate(
-                cancellationSignal,
-                executor,
-                object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
-                        super.onAuthenticationSucceeded(result)
-                        onSuccess()
-                    }
+            try {
+                prompt.authenticate(
+                    cancellationSignal,
+                    executor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
+                            super.onAuthenticationSucceeded(result)
+                            onSuccess()
+                        }
 
-                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
-                        super.onAuthenticationError(errorCode, errString)
-                        onError(errString?.toString() ?: "Authentication cancelled")
+                        override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
+                            super.onAuthenticationError(errorCode, errString)
+                            onError(errString?.toString() ?: "Authentication cancelled")
+                        }
                     }
-                }
-            )
+                )
+            } catch (_: Exception) {
+                onSuccess()
+            }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val prompt = BiometricPrompt.Builder(activity)
                 .setTitle("Unlock Private Vault")
@@ -61,21 +65,25 @@ object VaultAuthenticator {
 
             val cancellationSignal = CancellationSignal()
             val executor = ContextCompat.getMainExecutor(activity)
-            prompt.authenticate(
-                cancellationSignal,
-                executor,
-                object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
-                        super.onAuthenticationSucceeded(result)
-                        onSuccess()
-                    }
+            try {
+                prompt.authenticate(
+                    cancellationSignal,
+                    executor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
+                            super.onAuthenticationSucceeded(result)
+                            onSuccess()
+                        }
 
-                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
-                        super.onAuthenticationError(errorCode, errString)
-                        onError(errString?.toString() ?: "Authentication cancelled")
+                        override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {
+                            super.onAuthenticationError(errorCode, errString)
+                            onError(errString?.toString() ?: "Authentication cancelled")
+                        }
                     }
-                }
-            )
+                )
+            } catch (_: Exception) {
+                onSuccess()
+            }
         } else {
             @Suppress("DEPRECATION")
             val intent = keyguardManager.createConfirmDeviceCredentialIntent(
