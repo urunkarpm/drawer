@@ -38,6 +38,8 @@ class NotificationsViewModelTest {
     private val privacyModeFlow = MutableStateFlow(false)
     private val swipeRightFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ)
     private val swipeLeftFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS)
+    private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val hiddenNotifUnlockCountFlow = MutableStateFlow(0)
 
     private lateinit var viewModel: NotificationsViewModel
 
@@ -77,6 +79,8 @@ class NotificationsViewModelTest {
         every { preferencesDataSource.notificationsPrivacyMode } returns privacyModeFlow
         every { preferencesDataSource.notificationSwipeRightAction } returns swipeRightFlow
         every { preferencesDataSource.notificationSwipeLeftAction } returns swipeLeftFlow
+        every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
+        every { preferencesDataSource.hiddenNotifUnlockCount } returns hiddenNotifUnlockCountFlow
 
         notificationsFlow.value = listOf(notificationA1, notificationA2, notificationB1)
 
@@ -163,5 +167,22 @@ class NotificationsViewModelTest {
         testScheduler.advanceUntilIdle()
 
         coVerify { preferencesDataSource.setNotificationsPrivacyMode(true) }
+    }
+
+    @Test
+    fun testHiddenNotificationSuppression() = runTest {
+        hiddenAppPackagesFlow.value = setOf("com.chat")
+
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertEquals(1, state.activeNotifications.size)
+            assertEquals("com.mail", state.activeNotifications.first().packageName)
+            assertEquals(1, state.groupedNotifications.size)
+
+            coVerify { preferencesDataSource.setHiddenNotifUnlockCount(2) }
+        }
     }
 }

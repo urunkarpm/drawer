@@ -696,6 +696,25 @@ fun HomeScreen(
         }
     }
 
+    // Discreet notification cue: listen for device unlock events to decrement counter
+    DisposableEffect(context) {
+        val receiver = UnlockReceiver {
+            viewModel.onUserUnlocked()
+        }
+        val filter = android.content.IntentFilter(android.content.Intent.ACTION_USER_PRESENT)
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose {
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (_: Exception) {}
+        }
+    }
+
     val areOtherDrawersOpen = uiState.isAllAppsOpen || groupsUiState.groups.any { it.group.isExpanded }
 
     var lastDrawerCollapseTime by remember { mutableLongStateOf(0L) }

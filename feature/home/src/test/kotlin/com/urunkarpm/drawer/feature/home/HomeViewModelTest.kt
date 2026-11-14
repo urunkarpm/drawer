@@ -843,5 +843,13 @@ class HomeViewModelTest {
             coVerify { preferencesDataSource.removeHiddenApp("com.android.chrome") }
         }
     }
+
+    @Test
+    fun onUserUnlocked_decrementsHiddenNotifUnlockCount() = runTest {
+        viewModel.onUserUnlocked()
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.decrementHiddenNotifUnlockCount() }
+    }
 }
 

@@ -879,6 +879,12 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun onUserUnlocked() {
+        viewModelScope.launch {
+            preferencesDataSource.decrementHiddenNotifUnlockCount()
+        }
+    }
+
     fun toggleAllApps(activeNotificationPackages: Set<String> = emptySet()) {
         if (_isAllAppsOpen.value) {
             closeAllApps()

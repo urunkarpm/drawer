@@ -34,7 +34,16 @@ data class NotificationsUiState(
     val swipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
     val swipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
     val selectedItemForMute: NotificationItem? = null,
-    val showRulesSheet: Boolean = false
+    val showRulesSheet: Boolean = false,
+    val hiddenNotifUnlockCount: Int = 0
+)
+
+private data class NotificationPreferencesData(
+    val privacyMode: Boolean,
+    val swipeRightAction: NotificationSwipeAction,
+    val swipeLeftAction: NotificationSwipeAction,
+    val hiddenAppPackages: Set<String>,
+    val hiddenNotifUnlockCount: Int
 )
 
 @HiltViewModel
@@ -47,6 +56,7 @@ class NotificationsViewModel @Inject constructor(
     private val _selectedItemForMute = MutableStateFlow<NotificationItem?>(null)
     private val _showRulesSheet = MutableStateFlow(false)
     private val _permissionGrantedState = MutableStateFlow(notificationRepository.checkPermission())
+    private var previousHiddenKeys = emptySet<String>()
 
     private val uiControlsFlow = combine(
         _selectedItemForMute,
@@ -59,9 +69,17 @@ class NotificationsViewModel @Inject constructor(
     private val notificationPreferencesFlow = combine(
         preferencesDataSource.notificationsPrivacyMode,
         preferencesDataSource.notificationSwipeRightAction,
-        preferencesDataSource.notificationSwipeLeftAction
-    ) { privacyMode, swipeRight, swipeLeft ->
-        Triple(privacyMode, swipeRight, swipeLeft)
+        preferencesDataSource.notificationSwipeLeftAction,
+        preferencesDataSource.hiddenAppPackages,
+        preferencesDataSource.hiddenNotifUnlockCount
+    ) { args: Array<Any?> ->
+        NotificationPreferencesData(
+            privacyMode = args[0] as Boolean,
+            swipeRightAction = args[1] as NotificationSwipeAction,
+            swipeLeftAction = args[2] as NotificationSwipeAction,
+            hiddenAppPackages = @Suppress("UNCHECKED_CAST") (args[3] as Set<String>),
+            hiddenNotifUnlockCount = args[4] as Int
+        )
     }
 
     val uiState: StateFlow<NotificationsUiState> = combine(
@@ -70,9 +88,24 @@ class NotificationsViewModel @Inject constructor(
         notificationPreferencesFlow,
         uiControlsFlow
     ) { notifications, rules, notifPrefs, controls ->
-        val (privacyMode, swipeRight, swipeLeft) = notifPrefs
         val (selectedItem, showRules, permission) = controls
-        val grouped = notifications
+        val hiddenPackages = notifPrefs.hiddenAppPackages
+
+        // Detect newly posted notifications from hidden apps and arm the unlock indicator
+        val hiddenItems = notifications.filter { it.packageName in hiddenPackages }
+        val currentHiddenKeys = hiddenItems.map { it.key }.toSet()
+        val newHiddenKeys = currentHiddenKeys - previousHiddenKeys
+        if (newHiddenKeys.isNotEmpty()) {
+            viewModelScope.launch {
+                preferencesDataSource.setHiddenNotifUnlockCount(2)
+            }
+        }
+        previousHiddenKeys = currentHiddenKeys
+
+        // Suppress notifications for hidden apps from drawer and DuoStatus
+        val visibleNotifications = notifications.filter { it.packageName !in hiddenPackages }
+
+        val grouped = visibleNotifications
             .groupBy { it.packageName }
             .map { (pkg, items) ->
                 AppNotificationGroup(
@@ -86,14 +119,15 @@ class NotificationsViewModel @Inject constructor(
         NotificationsUiState(
             isPermissionGranted = permission,
             isServiceConnected = notificationRepository.checkPermission(),
-            activeNotifications = notifications,
+            activeNotifications = visibleNotifications,
             groupedNotifications = grouped,
             mutedRules = rules,
-            privacyMode = privacyMode,
-            swipeRightAction = swipeRight,
-            swipeLeftAction = swipeLeft,
+            privacyMode = notifPrefs.privacyMode,
+            swipeRightAction = notifPrefs.swipeRightAction,
+            swipeLeftAction = notifPrefs.swipeLeftAction,
             selectedItemForMute = selectedItem,
-            showRulesSheet = showRules
+            showRulesSheet = showRules,
+            hiddenNotifUnlockCount = notifPrefs.hiddenNotifUnlockCount
         )
     }.stateIn(
         scope = viewModelScope,

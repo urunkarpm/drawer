@@ -14,6 +14,10 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -108,6 +112,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -360,8 +365,25 @@ fun NotificationDrawer(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Stacked app-icon avatars, actively viewed app-icon, or subtle bell indicator
-                        if (hasNotifications) {
+                        val shouldGlow = uiState.hiddenNotifUnlockCount > 0
+                        val glowColor = MaterialTheme.colorScheme.primary
+                        val infiniteTransition = rememberInfiniteTransition(label = "bell_glow")
+                        val glowAlpha by if (shouldGlow) {
+                            infiniteTransition.animateFloat(
+                                initialValue = 0.25f,
+                                targetValue = 0.85f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1400, easing = FastOutSlowInEasing),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "bellGlowAlpha"
+                            )
+                        } else {
+                            remember { mutableFloatStateOf(0f) }
+                        }
+
+                        // Stacked app-icon avatars, actively viewed app-icon, or subtle/glowing bell indicator
+                        if (hasNotifications && !shouldGlow) {
                             NotificationIconStack(
                                 groups = uiState.groupedNotifications,
                                 iconLoader = iconLoader,
@@ -373,16 +395,31 @@ fun NotificationDrawer(
                                 modifier = Modifier
                                     .size(26.dp)
                                     .clip(CircleShape)
-                                    .background(
-                                        if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel).copy(alpha = 0.12f)
-                                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    .then(
+                                        if (shouldGlow) {
+                                            Modifier.background(
+                                                Brush.radialGradient(
+                                                    colors = listOf(
+                                                        glowColor.copy(alpha = glowAlpha),
+                                                        glowColor.copy(alpha = glowAlpha * 0.35f),
+                                                        Color.Transparent
+                                                    )
+                                                )
+                                            )
+                                        } else {
+                                            Modifier.background(
+                                                if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel).copy(alpha = 0.12f)
+                                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                            )
+                                        }
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.NotificationsNone,
                                     contentDescription = null,
-                                    tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
+                                    tint = if (shouldGlow) glowColor
+                                           else if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
                                            else MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
