@@ -2,6 +2,7 @@ package com.urunkarpm.drawer.feature.settings
 
 import androidx.compose.runtime.CompositionLocalProvider
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
+import com.urunkarpm.drawer.core.designsystem.theme.rememberDeviceScreenCurve
 
 import android.content.Intent
 import android.net.Uri
@@ -309,11 +310,27 @@ fun SettingsScreen(
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    SettingsSwitchRow(
-                        title = "Liquid Glass App Drawer",
-                        subtitle = "Apple-style translucent glass refraction, specular rim shine, and fluid spring physics",
-                        checked = uiState.drawerLiquidGlass,
-                        onCheckedChange = { viewModel.setDrawerLiquidGlass(it) }
+                    Text(
+                        text = "App Drawer Look",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Choose between classic solid, crystalline liquid glass, or frosted satin diffusion",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "SOLID" to "Solid",
+                            "LIQUID_GLASS" to "Liquid Glass",
+                            "FROSTED_GLASS" to "Frosted Glass"
+                        ),
+                        selected = uiState.drawerLook,
+                        onSelect = { viewModel.setDrawerLook(it) }
                     )
 
                     SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -737,6 +754,34 @@ fun SettingsScreen(
                             valueRange = 0f..36f,
                             steps = 8,
                             valueLabel = "${uiState.surfaceCornerRadius.toInt()} dp"
+                        )
+                    }
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    val detectedCurve = rememberDeviceScreenCurve(fallbackDp = uiState.surfaceCornerRadius)
+                    val curveSubtitle = if (detectedCurve.isHardwareDetected) {
+                        "Auto-detected hardware display curve: ${detectedCurve.rawDetectedDp.toInt()} dp"
+                    } else {
+                        "Hugs physical screen corners on supported devices"
+                    }
+
+                    SettingsSwitchRow(
+                        title = "Match Device Screen Curve",
+                        subtitle = curveSubtitle,
+                        checked = uiState.matchDeviceScreenCurve,
+                        onCheckedChange = { viewModel.setMatchDeviceScreenCurve(it) }
+                    )
+
+                    if (uiState.matchDeviceScreenCurve) {
+                        SettingsSliderRow(
+                            title = "Curve Fine-Tuning",
+                            subtitle = "Nudge drawer border curve to align with cases or screen protectors",
+                            value = uiState.deviceCurveOffsetDp,
+                            onValueChange = { viewModel.setDeviceCurveOffsetDp(it) },
+                            valueRange = -12f..12f,
+                            steps = 12,
+                            valueLabel = "${if (uiState.deviceCurveOffsetDp > 0) "+" else ""}${uiState.deviceCurveOffsetDp.toInt()} dp"
                         )
                     }
 

@@ -32,6 +32,9 @@ class SettingsViewModelTest {
     private val themeModeFlow = MutableStateFlow("SYSTEM")
     private val drawerThemeModeFlow = MutableStateFlow("SYSTEM")
     private val drawerLiquidGlassFlow = MutableStateFlow(false)
+    private val drawerLookFlow = MutableStateFlow("SOLID")
+    private val matchDeviceScreenCurveFlow = MutableStateFlow(true)
+    private val deviceCurveOffsetDpFlow = MutableStateFlow(0f)
     private val dynamicColorFlow = MutableStateFlow(true)
     private val accentColorFlow = MutableStateFlow("DYNAMIC")
     private val hideStatusBarFlow = MutableStateFlow(true)
@@ -101,6 +104,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.themeMode } returns themeModeFlow
         every { preferencesDataSource.drawerThemeMode } returns drawerThemeModeFlow
         every { preferencesDataSource.drawerLiquidGlass } returns drawerLiquidGlassFlow
+        every { preferencesDataSource.drawerLook } returns drawerLookFlow
         every { preferencesDataSource.dynamicColor } returns dynamicColorFlow
         every { preferencesDataSource.accentColor } returns accentColorFlow
         every { preferencesDataSource.hideStatusBar } returns hideStatusBarFlow
@@ -120,6 +124,8 @@ class SettingsViewModelTest {
         every { preferencesDataSource.surfaceBlurRadius } returns surfaceBlurRadiusFlow
         every { preferencesDataSource.surfaceStrokeOpacity } returns surfaceStrokeOpacityFlow
         every { preferencesDataSource.surfaceCornerRadius } returns surfaceCornerRadiusFlow
+        every { preferencesDataSource.matchDeviceScreenCurve } returns matchDeviceScreenCurveFlow
+        every { preferencesDataSource.deviceCurveOffsetDp } returns deviceCurveOffsetDpFlow
         every { preferencesDataSource.cinematicPalette } returns cinematicPaletteFlow
         every { preferencesDataSource.autoArrangeApps } returns autoArrangeAppsFlow
         every { preferencesDataSource.multiGroupApps } returns multiGroupAppsFlow
@@ -355,6 +361,30 @@ class SettingsViewModelTest {
         testScheduler.advanceUntilIdle()
 
         coVerify { preferencesDataSource.setDrawerLiquidGlass(true) }
+    }
+
+    @Test
+    fun setDrawerLook_persistsSetting() = runTest(testDispatcher) {
+        viewModel.setDrawerLook("FROSTED_GLASS")
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setDrawerLook("FROSTED_GLASS") }
+    }
+
+    @Test
+    fun setMatchDeviceScreenCurve_persistsSetting() = runTest(testDispatcher) {
+        viewModel.setMatchDeviceScreenCurve(false)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setMatchDeviceScreenCurve(false) }
+    }
+
+    @Test
+    fun setDeviceCurveOffsetDp_persistsSetting() = runTest(testDispatcher) {
+        viewModel.setDeviceCurveOffsetDp(4f)
+        testScheduler.advanceUntilIdle()
+
+        coVerify { preferencesDataSource.setDeviceCurveOffsetDp(4f) }
     }
 
     @Test

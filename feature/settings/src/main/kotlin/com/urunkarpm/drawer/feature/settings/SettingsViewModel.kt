@@ -25,6 +25,7 @@ data class ThemeSettings(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
     val drawerLiquidGlass: Boolean = false,
+    val drawerLook: String = "SOLID",
     val dynamicColor: Boolean = true,
     val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,
@@ -73,7 +74,9 @@ data class SurfaceSettings(
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
     val surfaceCornerRadius: Float = 24f,
-    val cinematicPalette: String = "DEFAULT"
+    val cinematicPalette: String = "DEFAULT",
+    val matchDeviceScreenCurve: Boolean = true,
+    val deviceCurveOffsetDp: Float = 0f
 )
 
 data class MiscSettings(
@@ -155,6 +158,7 @@ data class SettingsUiState(
     val themeMode: String = "SYSTEM",
     val drawerThemeMode: String = "SYSTEM",
     val drawerLiquidGlass: Boolean = false,
+    val drawerLook: String = "SOLID",
     val dynamicColor: Boolean = true,
     val accentColor: String = "DYNAMIC",
     val hideStatusBar: Boolean = true,
@@ -178,6 +182,8 @@ data class SettingsUiState(
     val surfaceBlurRadius: Float = 25f,
     val surfaceStrokeOpacity: Float = 0.40f,
     val surfaceCornerRadius: Float = 24f,
+    val matchDeviceScreenCurve: Boolean = true,
+    val deviceCurveOffsetDp: Float = 0f,
     val cinematicPalette: String = "DEFAULT",
     val dockBackground: String = "LIQUID_GLASS",
     val dockIconSize: Float = 56f,
@@ -236,6 +242,7 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.themeMode,
         preferencesDataSource.drawerThemeMode,
         preferencesDataSource.drawerLiquidGlass,
+        preferencesDataSource.drawerLook,
         preferencesDataSource.dynamicColor,
         preferencesDataSource.accentColor,
         preferencesDataSource.hideStatusBar,
@@ -254,18 +261,19 @@ class SettingsViewModel @Inject constructor(
             themeMode = values[0] as String,
             drawerThemeMode = values[1] as String,
             drawerLiquidGlass = values[2] as Boolean,
-            dynamicColor = values[3] as Boolean,
-            accentColor = values[4] as String,
-            hideStatusBar = values[5] as Boolean,
-            wallpaperBlur = values[6] as Boolean,
-            wallpaperBlurRadius = values[7] as Float,
-            autoOpenKeyboardInDrawer = values[8] as Boolean,
-            blurAppListOnOpen = values[9] as Boolean,
-            appDrawerColumns = values[10] as Int,
-            categoryAlignment = values[11] as String,
-            enableWidgetsPage = values[12] as Boolean,
-            showDrawerSuggestions = values[13] as Boolean,
-            hapticFeedbackEnabled = values[14] as Boolean
+            drawerLook = values[3] as String,
+            dynamicColor = values[4] as Boolean,
+            accentColor = values[5] as String,
+            hideStatusBar = values[6] as Boolean,
+            wallpaperBlur = values[7] as Boolean,
+            wallpaperBlurRadius = values[8] as Float,
+            autoOpenKeyboardInDrawer = values[9] as Boolean,
+            blurAppListOnOpen = values[10] as Boolean,
+            appDrawerColumns = values[11] as Int,
+            categoryAlignment = values[12] as String,
+            enableWidgetsPage = values[13] as Boolean,
+            showDrawerSuggestions = values[14] as Boolean,
+            hapticFeedbackEnabled = values[15] as Boolean
         )
     }
 
@@ -294,15 +302,26 @@ class SettingsViewModel @Inject constructor(
         combine(
             preferencesDataSource.surfaceThemeStyle,
             preferencesDataSource.surfaceCornerRadius,
-            preferencesDataSource.cinematicPalette
-        ) { themeStyle, cornerRadius, palette -> Triple(themeStyle, cornerRadius, palette) },
+            preferencesDataSource.cinematicPalette,
+            preferencesDataSource.matchDeviceScreenCurve
+        ) { themeStyle, cornerRadius, palette, matchCurve -> listOf(themeStyle, cornerRadius, palette, matchCurve) },
         combine(
             preferencesDataSource.surfaceOpacity,
             preferencesDataSource.surfaceBlurRadius,
-            preferencesDataSource.surfaceStrokeOpacity
-        ) { opacity, blurRadius, strokeOpacity -> Triple(opacity, blurRadius, strokeOpacity) }
-    ) { (themeStyle, cornerRadius, palette), (opacity, blurRadius, strokeOpacity) ->
-        SurfaceSettings(themeStyle, opacity, blurRadius, strokeOpacity, cornerRadius, palette)
+            preferencesDataSource.surfaceStrokeOpacity,
+            preferencesDataSource.deviceCurveOffsetDp
+        ) { opacity, blurRadius, strokeOpacity, offsetDp -> listOf(opacity, blurRadius, strokeOpacity, offsetDp) }
+    ) { surface1, surface2 ->
+        SurfaceSettings(
+            surfaceThemeStyle = surface1[0] as String,
+            surfaceCornerRadius = surface1[1] as Float,
+            cinematicPalette = surface1[2] as String,
+            matchDeviceScreenCurve = surface1[3] as Boolean,
+            surfaceOpacity = surface2[0] as Float,
+            surfaceBlurRadius = surface2[1] as Float,
+            surfaceStrokeOpacity = surface2[2] as Float,
+            deviceCurveOffsetDp = surface2[3] as Float
+        )
     }
 
     private val dockFlow = combine<Any, DockSettings>(
@@ -441,6 +460,7 @@ class SettingsViewModel @Inject constructor(
             themeMode = theme.themeMode,
             drawerThemeMode = theme.drawerThemeMode,
             drawerLiquidGlass = theme.drawerLiquidGlass,
+            drawerLook = theme.drawerLook,
             dynamicColor = theme.dynamicColor,
             accentColor = theme.accentColor,
             hideStatusBar = theme.hideStatusBar,
@@ -464,6 +484,8 @@ class SettingsViewModel @Inject constructor(
             surfaceBlurRadius = surface.surfaceBlurRadius,
             surfaceStrokeOpacity = surface.surfaceStrokeOpacity,
             surfaceCornerRadius = surface.surfaceCornerRadius,
+            matchDeviceScreenCurve = surface.matchDeviceScreenCurve,
+            deviceCurveOffsetDp = surface.deviceCurveOffsetDp,
             cinematicPalette = surface.cinematicPalette,
             dockBackground = surface.surfaceThemeStyle,
             dockIconSize = dock.dockIconSize,
@@ -608,6 +630,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setDrawerLook(look: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDrawerLook(look)
+        }
+    }
+
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setDynamicColor(enabled)
@@ -689,6 +717,18 @@ class SettingsViewModel @Inject constructor(
     fun setSurfaceCornerRadius(radiusDp: Float) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setSurfaceCornerRadius(radiusDp)
+        }
+    }
+
+    fun setMatchDeviceScreenCurve(match: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setMatchDeviceScreenCurve(match)
+        }
+    }
+
+    fun setDeviceCurveOffsetDp(offset: Float) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDeviceCurveOffsetDp(offset)
         }
     }
 
