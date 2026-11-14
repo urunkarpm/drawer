@@ -1,6 +1,6 @@
 # Hidden Drawer Vault & Discreet Privacy Engine Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build a secure Hidden Drawer Vault opened via an elastic resistance swipe from the last dock app with BiometricPrompt security, global app/search filtering, notification suppression, and an ambient Material You glowing notification bell indicator for the first 2 unlocks.
 
@@ -36,7 +36,7 @@
   - `DrawerPreferencesDataSource.setHiddenNotifUnlockCount(count: Int): Unit`
   - `DrawerPreferencesDataSource.decrementHiddenNotifUnlockCount(): Unit`
 
-- [ ] **Step 1: Write the failing unit tests**
+- [x] **Step 1: Write the failing unit tests**
 
 In `core/datastore/src/test/kotlin/com/urunkarpm/drawer/core/datastore/DrawerPreferencesDataSourceTest.kt`, add:
 ```kotlin
@@ -68,12 +68,12 @@ In `core/datastore/src/test/kotlin/com/urunkarpm/drawer/core/datastore/DrawerPre
     }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.\gradlew.bat :core:datastore:testDebugUnitTest --tests "com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSourceTest.testHiddenAppsAndUnlockCountPreferences"`
 Expected: Compilation failure or method not found.
 
-- [ ] **Step 3: Implement minimal preferences in `DrawerPreferencesDataSource.kt` and `LauncherBackup.kt`**
+- [x] **Step 3: Implement minimal preferences in `DrawerPreferencesDataSource.kt` and `LauncherBackup.kt`**
 
 In `core/datastore/src/main/kotlin/com/urunkarpm/drawer/core/datastore/DrawerPreferencesDataSource.kt`:
 ```kotlin
@@ -125,12 +125,12 @@ In `core/datastore/src/main/kotlin/com/urunkarpm/drawer/core/datastore/DrawerPre
 ```
 Update `LauncherBackup.kt` to include `val hiddenAppPackages: Set<String> = emptySet()`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.\gradlew.bat :core:datastore:testDebugUnitTest --tests "com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSourceTest.testHiddenAppsAndUnlockCountPreferences"`
 Expected: BUILD SUCCESSFUL and test PASSES.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add core/datastore core/model
@@ -151,7 +151,7 @@ git commit -m "feat(datastore): add preferences for hidden apps and unlock count
 - Produces:
   - `DockBar(..., onTriggerHiddenVault: () -> Unit = {})` callback invoked when user pulls past 75dp threshold.
 
-- [ ] **Step 1: Implement resistance physics and gesture detection in `DockBar.kt`**
+- [x] **Step 1: Implement resistance physics and gesture detection in `DockBar.kt`**
 
 In `feature/dock/src/main/kotlin/com/urunkarpm/drawer/feature/dock/DockBar.kt`:
 1. Add `onTriggerHiddenVault: () -> Unit = {}` to `DockBar` parameters.
@@ -166,12 +166,12 @@ In `feature/dock/src/main/kotlin/com/urunkarpm/drawer/feature/dock/DockBar.kt`:
    - On release (`onDragEnd`, `onDragCancel`), animate `vaultPullDelta` back to `0f` using spring physics.
 3. Apply `graphicsLayer { translationX = effectivePullOffset }` to the last app slot or dock row.
 
-- [ ] **Step 2: Compile `:feature:dock` to verify implementation**
+- [x] **Step 2: Compile `:feature:dock` to verify implementation**
 
 Run: `.\gradlew.bat :feature:dock:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```powershell
 git add feature/dock
@@ -199,7 +199,7 @@ git commit -m "feat(dock): add elastic resistance gesture and breakpoint trigger
   - `HomeViewModel.addHiddenApp(pkg: String)`
   - `HomeViewModel.removeHiddenApp(pkg: String)`
 
-- [ ] **Step 1: Write unit tests in `HomeViewModelTest.kt`**
+- [x] **Step 1: Write unit tests in `HomeViewModelTest.kt`**
 
 Test that:
 1. `allApps` emitted by `HomeViewModel` excludes packages in `hiddenAppPackages`.
@@ -207,12 +207,12 @@ Test that:
 3. `closeVault()` sets `isVaultOpen = false`.
 4. Adding an app to hidden packages removes it from `allApps`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.\gradlew.bat :feature:home:testDebugUnitTest --tests "com.urunkarpm.drawer.feature.home.HomeViewModelTest.testHiddenAppsExclusion"`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement vault state and filtering in `HomeViewModel.kt`**
+- [x] **Step 3: Implement vault state and filtering in `HomeViewModel.kt`**
 
 1. Collect `preferencesDataSource.hiddenAppPackages` and combine with app list flows.
 2. In `allApps` computation:
@@ -225,12 +225,12 @@ Expected: FAIL.
    - `addHiddenApp(pkg: String)`: persists to DataStore, unpins from dock if present.
    - `removeHiddenApp(pkg: String)`: removes from DataStore.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `.\gradlew.bat :feature:home:testDebugUnitTest --tests "com.urunkarpm.drawer.feature.home.HomeViewModelTest.testHiddenAppsExclusion"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add feature/home
@@ -255,7 +255,7 @@ git commit -m "feat(home): add vault state and global hidden app filtering in Ho
   - `HiddenVaultDrawer` composable overlay in `HomeScreen`.
   - Android `BiometricPrompt` triggering on dock elastic breakpoint.
 
-- [ ] **Step 1: Create `HiddenVaultDrawer.kt`**
+- [x] **Step 1: Create `HiddenVaultDrawer.kt`**
 
 Build `HiddenVaultDrawer.kt`:
 1. Fullscreen or bottom-sheet overlay with Frosted Liquid Glass surface and hardware display curve.
@@ -264,7 +264,7 @@ Build `HiddenVaultDrawer.kt`:
 4. "Add Apps" Sheet: Searchable dialog listing non-hidden installed apps with checkboxes and "Hide Selected" button.
 5. BackHandler: closes vault on back gesture.
 
-- [ ] **Step 2: Wire `BiometricPrompt` and `HiddenVaultDrawer` into `HomeScreen.kt`**
+- [x] **Step 2: Wire `BiometricPrompt` and `HiddenVaultDrawer` into `HomeScreen.kt`**
 
 1. Implement `launchVaultBiometricAuth(context: Context, onSuccess: () -> Unit)` using `androidx.biometric.BiometricPrompt`:
    - Authenticators: `BIOMETRIC_STRONG or DEVICE_CREDENTIAL`.
@@ -272,12 +272,12 @@ Build `HiddenVaultDrawer.kt`:
 2. In `DockBar(..., onTriggerHiddenVault = { launchVaultBiometricAuth(context) { viewModel.openVault() } })`.
 3. Render `HiddenVaultDrawer` when `uiState.isVaultOpen` is true with slide-up and fade transition.
 
-- [ ] **Step 3: Compile `:feature:home`**
+- [x] **Step 3: Compile `:feature:home`**
 
 Run: `.\gradlew.bat :feature:home:compileDebugKotlin`
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```powershell
 git add feature/home
@@ -304,18 +304,18 @@ git commit -m "feat(home): create HiddenVaultDrawer UI and integrate BiometricPr
   - Glowing breathing halo on Notification Drawer bell icon when `hiddenNotifUnlockCount > 0`.
   - `UnlockReceiver` decrementing counter on `ACTION_USER_PRESENT`.
 
-- [ ] **Step 1: Write test for hidden notification suppression in `NotificationsViewModelTest.kt`**
+- [x] **Step 1: Write test for hidden notification suppression in `NotificationsViewModelTest.kt`**
 
 Verify that `StatusBarNotification` with `packageName in hiddenAppPackages`:
 1. Is not emitted in `activeNotifications`.
 2. Triggers `setHiddenNotifUnlockCount(2)`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `.\gradlew.bat :feature:notifications:testDebugUnitTest --tests "com.urunkarpm.drawer.feature.notifications.NotificationsViewModelTest.testHiddenNotificationSuppression"`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement notification suppression and glow trigger**
+- [x] **Step 3: Implement notification suppression and glow trigger**
 
 1. In `NotificationsViewModel.kt`, inject `DrawerPreferencesDataSource`.
 2. When a notification arrives from a package in `hiddenAppPackages`:
@@ -339,19 +339,19 @@ Expected: FAIL.
        ```
      - Draw radial ambient glow with `MaterialTheme.colorScheme.primary.copy(alpha = glowAlpha)`.
 
-- [ ] **Step 4: Implement `UnlockReceiver.kt` in `feature:home`**
+- [x] **Step 4: Implement `UnlockReceiver.kt` in `feature:home`**
 
 1. Create `UnlockReceiver.kt`:
    - BroadcastReceiver registered for `Intent.ACTION_USER_PRESENT`.
    - On receive: calls `preferencesDataSource.decrementHiddenNotifUnlockCount()`.
 2. Register and unregister `UnlockReceiver` in `HomeScreen.kt` lifecycle.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `.\gradlew.bat :feature:notifications:testDebugUnitTest`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add feature/notifications feature/home
@@ -366,17 +366,17 @@ git commit -m "feat(notifications): implement discreet notification suppression,
 - Test all modules: `.\gradlew.bat testDebugUnitTest`
 - Assemble Debug APK: `.\gradlew.bat assembleDebug`
 
-- [ ] **Step 1: Run full unit test suite**
+- [x] **Step 1: Run full unit test suite**
 
 Run: `.\gradlew.bat testDebugUnitTest`
 Expected: BUILD SUCCESSFUL across all modules.
 
-- [ ] **Step 2: Assemble Debug APK**
+- [x] **Step 2: Assemble Debug APK**
 
 Run: `.\gradlew.bat assembleDebug`
 Expected: BUILD SUCCESSFUL with generated APK in `app/build/outputs/apk/debug/app-debug.apk`.
 
-- [ ] **Step 3: Commit and update documentation**
+- [x] **Step 3: Commit and update documentation**
 
 ```powershell
 git add -A
