@@ -103,6 +103,8 @@ import androidx.compose.ui.unit.sp
 import android.os.SystemClock
 import java.io.File
 import androidx.compose.ui.text.style.TextOverflow
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
+import com.urunkarpm.drawer.core.designsystem.theme.toMonochrome
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -810,12 +812,15 @@ fun DuoStatusIcon(
     }
 
     val isLightDisplay = displayColor.luminance() < 0.5f
-    val chargingGreen = if (isLightDisplay) Color(0xFF16A34A) else Color(0xFF34C759)
+    val isMonochrome = LocalMonochromeIcons.current
+    val rawChargingGreen = if (isLightDisplay) Color(0xFF16A34A) else Color(0xFF34C759)
+    val chargingGreen = if (isMonochrome) rawChargingGreen.toMonochrome() else rawChargingGreen
     val activeColor = displayColor
     val inactiveColor = if (isLightDisplay) displayColor.copy(alpha = 0.38f) else displayColor.copy(alpha = 0.24f)
     val activeBatteryColor = if (isCharging) chargingGreen else activeColor
     val inactiveBatteryColor = if (isCharging) chargingGreen.copy(alpha = if (isLightDisplay) 0.35f else 0.20f) else inactiveColor
-    val alertRed = if (isLightDisplay) Color(0xFFDC2626) else Color(0xFFFF3B30)
+    val rawAlertRed = if (isLightDisplay) Color(0xFFDC2626) else Color(0xFFFF3B30)
+    val alertRed = if (isMonochrome) rawAlertRed.toMonochrome() else rawAlertRed
 
     // ponytail: Surface-aware contrast engine for expanded telemetry card; ceiling: two-tier dark/light token derivation; upgrade path: full Material 3 dynamic color scheme harmonizer.
     val palette = remember(cinematicPaletteId) { CinematicPalettes.find(cinematicPaletteId) }
@@ -829,9 +834,12 @@ fun DuoStatusIcon(
     val cardTertiaryColor = if (isDarkSurface) Color.White.copy(alpha = 0.60f) else Color.Black.copy(alpha = 0.50f)
     val cardTileBackground = if (isDarkSurface) Color(0xFF131B2E).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.85f)
     val cardTileBorder = if (isDarkSurface) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.09f)
-    val cardAccentColor = if (isCinematic) palette.primaryAccent else (if (isDarkSurface) Color(0xFF818CF8) else Color(0xFF4F46E5))
-    val cardChargingGreen = if (isDarkSurface) Color(0xFF34C759) else Color(0xFF16A34A)
-    val cardAlertRed = if (isDarkSurface) Color(0xFFFF453A) else Color(0xFFDC2626)
+    val rawCardAccentColor = if (isCinematic) palette.primaryAccent else (if (isDarkSurface) Color(0xFF818CF8) else Color(0xFF4F46E5))
+    val cardAccentColor = if (isMonochrome) rawCardAccentColor.toMonochrome() else rawCardAccentColor
+    val rawCardChargingGreen = if (isDarkSurface) Color(0xFF34C759) else Color(0xFF16A34A)
+    val cardChargingGreen = if (isMonochrome) rawCardChargingGreen.toMonochrome() else rawCardChargingGreen
+    val rawCardAlertRed = if (isDarkSurface) Color(0xFFFF453A) else Color(0xFFDC2626)
+    val cardAlertRed = if (isMonochrome) rawCardAlertRed.toMonochrome() else rawCardAlertRed
     val cardInactiveTrack = if (isDarkSurface) Color.White.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.14f)
 
     // Morph container dimensions seamlessly

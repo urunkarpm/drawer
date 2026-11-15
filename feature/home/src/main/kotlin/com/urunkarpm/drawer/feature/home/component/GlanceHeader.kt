@@ -57,6 +57,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
+import com.urunkarpm.drawer.core.designsystem.theme.toMonochrome
 import com.urunkarpm.drawer.core.model.WeatherInfo
 import kotlinx.coroutines.delay
 import androidx.lifecycle.Lifecycle
@@ -265,12 +267,15 @@ fun GlanceHeader(
     }
 
     val wallpaperContrast = rememberWallpaperContrastColors()
-    val displayColor = wallpaperContrast.primaryText
-    val subtextColor = wallpaperContrast.secondaryText
-    val textShadow = wallpaperContrast.textShadow
+    val isMonochrome = LocalMonochromeIcons.current
+    // When monochrome icons is active, the wallpaper is AMOLED pitch black; use high-contrast white text
+    val displayColor = if (isMonochrome) Color.White else wallpaperContrast.primaryText
+    val subtextColor = if (isMonochrome) Color(0xFFD1D5DB) else wallpaperContrast.secondaryText
+    val textShadow = if (isMonochrome) null else wallpaperContrast.textShadow
 
     val isLight = displayColor.luminance() < 0.5f
-    val aqiColor = weatherInfo?.aqi?.let { getAqiSeverityColor(it, isLight) }
+    val rawAqiColor = weatherInfo?.aqi?.let { getAqiSeverityColor(it, isLight) }
+    val aqiColor = if (isMonochrome) rawAqiColor?.toMonochrome() else rawAqiColor
 
     // ponytail: AnnotatedString colors AQI severity while preserving subtextColor for weather condition; ceiling: US AQI 6-color scale; upgrade path: customizable AQI warning thresholds in Settings.
     val weatherAnnotatedText = remember(weatherInfo, aqiColor, subtextColor) {
@@ -343,6 +348,7 @@ fun GlanceHeader(
                     ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // ponytail: Tabular numbers ('tnum') prevent horizontal text jitter on minute increments; tightened tracking (-1.2sp) gives a machined, editorial silhouette; ceiling: fonts without tnum OpenType tables fall back to proportional; upgrade path: custom canvas digit odometer animation.
                 Text(
                     text = timeDigits,
                     fontFamily = LocalHeaderFontFamily.current,
@@ -352,9 +358,10 @@ fun GlanceHeader(
                     style = TextStyle(
                         platformStyle = PlatformTextStyle(includeFontPadding = false),
                         lineHeight = 44.sp,
-                        shadow = textShadow
+                        shadow = textShadow,
+                        fontFeatureSettings = "tnum"
                     ),
-                    letterSpacing = (-0.5).sp,
+                    letterSpacing = (-1.2).sp,
                     maxLines = 1,
                     softWrap = false,
                     modifier = Modifier.alignByBaseline()
@@ -400,7 +407,7 @@ fun GlanceHeader(
                         platformStyle = PlatformTextStyle(includeFontPadding = false),
                         shadow = textShadow
                     ),
-                    letterSpacing = 0.1.sp,
+                    letterSpacing = 0.2.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -487,9 +494,10 @@ fun GlanceHeader(
                         style = TextStyle(
                             platformStyle = PlatformTextStyle(includeFontPadding = false),
                             lineHeight = 44.sp,
-                            shadow = textShadow
+                            shadow = textShadow,
+                            fontFeatureSettings = "tnum"
                         ),
-                        letterSpacing = (-0.5).sp,
+                        letterSpacing = (-1.0).sp,
                         textAlign = TextAlign.End,
                         maxLines = 1,
                         softWrap = false,

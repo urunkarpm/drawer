@@ -22,7 +22,7 @@ enum class SettingsSection(
     ),
     HOME_DRAWERS(
         title = "Home Screen & Drawers",
-        subtitle = "Category alignment, dual columns, lock layout, and title animations"
+        subtitle = "App drawer columns (4, 5, 6 icons), category alignment, dual columns, and title animations"
     ),
     DOCK(
         title = "Dock Bar & Gestures",

@@ -71,7 +71,7 @@ fun HomeContextMenuSheet(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
             )
 
             Spacer(modifier = Modifier.height(8.dp))

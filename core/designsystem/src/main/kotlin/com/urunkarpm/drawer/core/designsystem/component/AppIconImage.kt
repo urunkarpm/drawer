@@ -37,6 +37,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Converts a DataStore icon-shape string to a Compose [Shape]. */
+val LocalMonochromeIcons = androidx.compose.runtime.compositionLocalOf { false }
+
 fun iconShapeFromString(shapeName: String): Shape = when (shapeName) {
     "CIRCLE", "SYSTEM" -> CircleShape
     "SQUIRCLE" -> RoundedCornerShape(30)            // 30% corner = squircle
@@ -156,10 +158,20 @@ private fun AppIconContent(
         contentAlignment = Alignment.Center
     ) {
         if (bitmap != null) {
+            // ponytail: Universal monochrome app icons - desaturate bitmaps with ColorMatrix to eliminate third-party icon color clashes; ceiling: 100% grayscale desaturation; upgrade path: customizable two-tone tinted duotone shaders.
+            val isMonochrome = LocalMonochromeIcons.current
+            val colorFilter = remember(isMonochrome) {
+                if (isMonochrome) {
+                    androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+                        androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) }
+                    )
+                } else null
+            }
             Image(
                 bitmap = bitmap,
                 contentDescription = label,
                 filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+                colorFilter = colorFilter,
                 modifier = Modifier
                     .size(size)
                     .clip(iconShape)

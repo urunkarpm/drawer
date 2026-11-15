@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.urunkarpm.drawer.core.model.NotificationSwipeAction
 import com.urunkarpm.drawer.feature.settings.SettingsUiState
 import com.urunkarpm.drawer.feature.settings.SettingsViewModel
 import com.urunkarpm.drawer.feature.settings.component.SettingsDivider
@@ -242,6 +243,58 @@ fun PrivacySubScreen(
                     subtitle = "Pulse glow the drawer icon when an app inside has a notification until acknowledged",
                     checked = uiState.drawerNotificationGlow,
                     onCheckedChange = { viewModel.setDrawerNotificationGlow(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Text(
+                    text = "Notification Swipe Right",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Action when swiping notification card from left to right",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsSegmentedRow(
+                    options = listOf(
+                        "MARK_AS_READ" to "Mark Read",
+                        "DISMISS" to "Dismiss",
+                        "OPEN" to "Open",
+                        "NONE" to "None"
+                    ),
+                    selected = uiState.notificationSwipeRightAction.name,
+                    onSelect = { viewModel.setNotificationSwipeRightAction(NotificationSwipeAction.valueOf(it)) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Text(
+                    text = "Notification Swipe Left",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Action when swiping notification card from right to left",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsSegmentedRow(
+                    options = listOf(
+                        "DISMISS" to "Dismiss",
+                        "MARK_AS_READ" to "Mark Read",
+                        "OPEN" to "Open",
+                        "NONE" to "None"
+                    ),
+                    selected = uiState.notificationSwipeLeftAction.name,
+                    onSelect = { viewModel.setNotificationSwipeLeftAction(NotificationSwipeAction.valueOf(it)) }
                 )
 
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))

@@ -144,4 +144,14 @@ class NotificationRepositoryTest {
         val active = repository.activeNotifications.first()
         assertTrue(active.isEmpty())
     }
+
+    @Test
+    fun rebindService_triggersWithoutException() {
+        repository.rebindService()
+    }
+
+    @Test
+    fun openOemBackgroundSettings_executesSafely() {
+        repository.openOemBackgroundSettings()
+    }
 }

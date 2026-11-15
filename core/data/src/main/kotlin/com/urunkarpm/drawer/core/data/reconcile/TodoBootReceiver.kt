@@ -28,6 +28,7 @@ class TodoBootReceiver : BroadcastReceiver() {
                 )
                 entryPoint.todoReconciler().reconcile()
                 TodoWatchdogWorker.enqueuePeriodic(context.applicationContext)
+                com.urunkarpm.drawer.core.data.worker.AppUpdateCheckWorker.enqueuePeriodic(context.applicationContext)
             } finally {
                 pendingResult.finish()
             }

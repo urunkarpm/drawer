@@ -89,6 +89,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -350,6 +351,9 @@ fun NotificationDrawer(
                             ) {
                                 // ponytail: crisp native tactile feedback on notification drawer snap/toggle
                                 crispHaptics.tick()
+                                if (!uiState.isServiceConnected && uiState.isPermissionGranted) {
+                                    viewModel.rebindService()
+                                }
                                 onExpandedChange(!isExpanded)
                             }
                             .pointerInput(isExpanded) {
@@ -406,10 +410,13 @@ fun NotificationDrawer(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (forVaultOnly) Icons.Default.Security else Icons.Default.NotificationsNone,
+                                    imageVector = if (forVaultOnly) Icons.Default.Security
+                                    else if (!uiState.isServiceConnected) Icons.Default.NotificationsOff
+                                    else Icons.Default.NotificationsNone,
                                     contentDescription = null,
                                     tint = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel)
-                                           else MaterialTheme.colorScheme.primary,
+                                    else if (!uiState.isServiceConnected) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -429,7 +436,13 @@ fun NotificationDrawer(
                             )
                             val count = displayedNotifications.size
                             Text(
-                                text = if (!hasNotifications) "All caught up"
+                                text = if (!hasNotifications) {
+                                    if (uiState.isPermissionGranted && !uiState.isServiceConnected && !forVaultOnly) {
+                                        "Listener paused • Tap to reconnect"
+                                    } else {
+                                        "All caught up"
+                                    }
+                                }
                                 else if (isExpanded) {
                                     "$count alert${if (count != 1) "s" else ""} • Tap to collapse"
                                 }
@@ -529,43 +542,91 @@ fun NotificationDrawer(
                             )
 
                             if (!hasNotifications) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .pointerInput(isExpanded) {
-                                            if (isExpanded) {
-                                                var dragY = 0f
-                                                detectVerticalDragGestures(
-                                                    onDragStart = { dragY = 0f },
-                                                    onVerticalDrag = { change, dragAmount ->
-                                                        dragY += dragAmount
-                                                        if (dragY < -30f) {
-                                                            onExpandedChange(false)
-                                                            change.consume()
-                                                        }
-                                                    }
-                                                )
+                                val isOemAggressive = remember {
+                                    val m = android.os.Build.MANUFACTURER.lowercase()
+                                    listOf("xiaomi", "redmi", "poco", "oppo", "vivo", "realme", "huawei", "honor").any { m.contains(it) }
+                                }
+                                if (uiState.isPermissionGranted && !uiState.isServiceConnected && !forVaultOnly) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 20.dp, horizontal = 16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.NotificationsOff,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Notification Listener Paused",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (stealthTheme) StealthColors.titleColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = if (isOemAggressive) {
+                                                "System paused background notifications. Tap Reconnect or allow Autostart."
+                                            } else {
+                                                "Android disconnected the listener. Tap Reconnect to resume live alerts."
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (stealthTheme) StealthColors.bodyColor(stealthContrastLevel) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Button(onClick = { viewModel.rebindService() }) {
+                                                Text("Reconnect")
+                                            }
+                                            if (isOemAggressive) {
+                                                OutlinedButton(onClick = { viewModel.openOemBackgroundSettings() }) {
+                                                    Text("Autostart")
+                                                }
                                             }
                                         }
-                                        .padding(vertical = 24.dp, horizontal = 16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "No notifications\nYou're all caught up!",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
-                                    )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .pointerInput(isExpanded) {
+                                                if (isExpanded) {
+                                                    var dragY = 0f
+                                                    detectVerticalDragGestures(
+                                                        onDragStart = { dragY = 0f },
+                                                        onVerticalDrag = { change, dragAmount ->
+                                                            dragY += dragAmount
+                                                            if (dragY < -30f) {
+                                                                onExpandedChange(false)
+                                                                change.consume()
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                            .padding(vertical = 24.dp, horizontal = 16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "No notifications\nYou're all caught up!",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
                                 }
                             } else {
                                 LazyColumn(
                                     state = listState,
-                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(max = 380.dp)
-                                        .padding(vertical = 4.dp)
                                 ) {
                                     items(
                                         items = displayedNotifications,
@@ -589,10 +650,11 @@ fun NotificationDrawer(
                             }
 
                             // Footer actions row: Privacy mode, Clear all, & Mute rules
+                            // ponytail: 8dp horizontal padding with 8dp button contentPadding aligns icon/text at 16dp flush with header and cards
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {

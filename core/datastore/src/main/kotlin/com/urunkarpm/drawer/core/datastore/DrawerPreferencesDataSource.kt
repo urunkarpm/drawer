@@ -85,6 +85,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val DUO_STATUS_POSITION = stringPreferencesKey("duo_status_position")
         val HAS_COMPLETED_WALKTHROUGH = booleanPreferencesKey("has_completed_walkthrough")
         val HIDE_DRAWER_ICONS = booleanPreferencesKey("hide_drawer_icons")
+        val MONOCHROME_ICONS = booleanPreferencesKey("monochrome_icons")
         val STEALTH_THEME = booleanPreferencesKey("stealth_theme")
         val STEALTH_CONTRAST_LEVEL = stringPreferencesKey("stealth_contrast_level")
         val STEALTH_LIMIT_BRIGHTNESS = booleanPreferencesKey("stealth_limit_brightness")
@@ -328,6 +329,7 @@ class DrawerPreferencesDataSource @Inject constructor(
     val openDrawerFromDockOnly: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] ?: false }
     val duoStatusPosition: Flow<String> = dataStore.data.map { it[PreferencesKeys.DUO_STATUS_POSITION] ?: "TEMP" }
     val hideDrawerIcons: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.HIDE_DRAWER_ICONS] ?: false }
+    val monochromeIcons: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.MONOCHROME_ICONS] ?: false }
     val drawerNotificationGlow: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.DRAWER_NOTIFICATION_GLOW] ?: true }
     val stealthTheme: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.STEALTH_THEME] ?: false }
     val stealthContrastLevel: Flow<String> = dataStore.data.map { it[PreferencesKeys.STEALTH_CONTRAST_LEVEL] ?: "LOW" }
@@ -713,6 +715,10 @@ class DrawerPreferencesDataSource @Inject constructor(
         dataStore.edit { it[PreferencesKeys.HIDE_DRAWER_ICONS] = hide }
     }
 
+    suspend fun setMonochromeIcons(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.MONOCHROME_ICONS] = enabled }
+    }
+
     suspend fun setStealthTheme(enabled: Boolean) {
         dataStore.edit { it[PreferencesKeys.STEALTH_THEME] = enabled }
     }
@@ -973,6 +979,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             openDrawerFromDockOnly = p[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] ?: false,
             duoStatusPosition = p[PreferencesKeys.DUO_STATUS_POSITION] ?: "TEMP",
             hideDrawerIcons = p[PreferencesKeys.HIDE_DRAWER_ICONS] ?: false,
+            monochromeIcons = p[PreferencesKeys.MONOCHROME_ICONS] ?: false,
             stealthTheme = p[PreferencesKeys.STEALTH_THEME] ?: false,
             stealthContrastLevel = p[PreferencesKeys.STEALTH_CONTRAST_LEVEL] ?: "LOW",
             stealthLimitBrightness = p[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] ?: false,
@@ -1057,6 +1064,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             p[PreferencesKeys.OPEN_DRAWER_FROM_DOCK_ONLY] = prefs.openDrawerFromDockOnly
             p[PreferencesKeys.DUO_STATUS_POSITION] = prefs.duoStatusPosition
             p[PreferencesKeys.HIDE_DRAWER_ICONS] = prefs.hideDrawerIcons
+            p[PreferencesKeys.MONOCHROME_ICONS] = prefs.monochromeIcons
             p[PreferencesKeys.STEALTH_THEME] = prefs.stealthTheme
             p[PreferencesKeys.STEALTH_CONTRAST_LEVEL] = prefs.stealthContrastLevel
             p[PreferencesKeys.STEALTH_LIMIT_BRIGHTNESS] = prefs.stealthLimitBrightness

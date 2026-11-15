@@ -94,6 +94,7 @@ class SettingsViewModelTest {
     private val showDrawerSuggestionsFlow = MutableStateFlow(true)
     private val hapticFeedbackEnabledFlow = MutableStateFlow(true)
     private val autoCheckUpdatesFlow = MutableStateFlow(true)
+    private val monochromeIconsFlow = MutableStateFlow(false)
     private val appVaultEnabledFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: SettingsViewModel
@@ -167,6 +168,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
         every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow
         every { preferencesDataSource.autoCheckUpdates } returns autoCheckUpdatesFlow
+        every { preferencesDataSource.monochromeIcons } returns monochromeIconsFlow
         every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow
 
         viewModel = SettingsViewModel(
@@ -232,6 +234,13 @@ class SettingsViewModelTest {
         viewModel.setAppDrawerColumns(5)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setAppDrawerColumns(5) }
+    }
+
+    @Test
+    fun setMonochromeIcons_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setMonochromeIcons(true)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setMonochromeIcons(true) }
     }
 
     @Test

@@ -775,6 +775,9 @@ fun AllAppsDrawer(
                         } else {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 val scrubProvider = rememberUpdatedState(activeScrubLetter)
+                                val hasIndexBar = searchQuery.isBlank() && displayedApps.size > 8
+                                // ponytail: add 20dp end clearance when alphabet scrub rail (28dp) is active so rightmost icons never collide or clip
+                                val gridEndPadding = if (hasIndexBar) horizontalPadding + 20.dp else horizontalPadding
 
                                 LazyVerticalGrid(
                                     state = gridState,
@@ -782,7 +785,7 @@ fun AllAppsDrawer(
                                     contentPadding = PaddingValues(
                                         start = horizontalPadding,
                                         top = 8.dp,
-                                        end = horizontalPadding,
+                                        end = gridEndPadding,
                                         bottom = 12.dp
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(gridVerticalSpacing),
@@ -812,7 +815,7 @@ fun AllAppsDrawer(
 
                                 var lastTargetIndex by remember { mutableIntStateOf(-1) }
 
-                                if (searchQuery.isBlank() && displayedApps.size > 8) {
+                                if (hasIndexBar) {
                                     AlphabetIndexBar(
                                         onLetterScrolled = { letter ->
                                             activeScrubLetter = letter

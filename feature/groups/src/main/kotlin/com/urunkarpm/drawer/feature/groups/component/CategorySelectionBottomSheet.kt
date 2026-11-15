@@ -33,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
+import com.urunkarpm.drawer.core.designsystem.theme.toMonochrome
 import androidx.compose.ui.unit.dp
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppInfo
@@ -74,9 +76,11 @@ fun CategorySelectionBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(groups, key = { it.id }) { group ->
-                    val groupColor = remember(group.colorHex, group.name, group.id) {
+                    val isMonochrome = LocalMonochromeIcons.current
+                    val rawColor = remember(group.colorHex, group.name, group.id) {
                         GroupIcons.resolveGroupColor(group.colorHex, group.name, group.id)
                     }
+                    val groupColor = if (isMonochrome) rawColor.toMonochrome() else rawColor
                     val icon = GroupIcons.getIcon(group.iconName)
                     NavigationDrawerItem(
                         label = {

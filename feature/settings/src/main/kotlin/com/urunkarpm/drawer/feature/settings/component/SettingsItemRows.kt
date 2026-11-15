@@ -165,7 +165,7 @@ fun SettingsSliderRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
                 if (subtitle != null) {
@@ -287,7 +287,7 @@ fun SettingsSwitchRow(
                 crispHaptics.click()
                 onCheckedChange(!checked)
             }
-            .padding(vertical = 6.dp, horizontal = 4.dp),
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {

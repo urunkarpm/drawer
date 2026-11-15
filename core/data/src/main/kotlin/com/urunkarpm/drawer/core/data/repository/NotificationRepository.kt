@@ -67,9 +67,15 @@ class NotificationRepository @Inject constructor(
         val ruleMap = rules.associateBy { it.packageName }
         val now = System.currentTimeMillis()
 
-        // ponytail: deduplicate identical (packageName, title, text) defensive pass; ceiling: drops twin alerts; upgrade path: time-bucketed dedup.
+        // ponytail: deduplicate identical (packageName, title, text) defensive pass; preserve distinct items with blank text; ceiling: drops twin alerts; upgrade path: time-bucketed dedup.
         val deduped = notifications
-            .groupBy { Triple(it.packageName, it.title.trim(), it.text.trim()) }
+            .groupBy {
+                if (it.text.isNotBlank()) {
+                    Triple(it.packageName, it.title.trim(), it.text.trim())
+                } else {
+                    Triple(it.packageName, it.title.trim(), it.key)
+                }
+            }
             .map { (_, duplicates) -> duplicates.maxByOrNull { it.postTimeMillis } ?: duplicates.first() }
             .distinctBy { it.key }
 
@@ -188,7 +194,7 @@ class NotificationRepository @Inject constructor(
     }
 
     fun rebindService() {
-        // ponytail: official requestRebind handles service reconnect; avoid setComponentEnabledSetting which sends PACKAGE_CHANGED and restarts the launcher; ceiling is requiring permission toggle if unbound; upgrade path is foreground listener service.
+        // ponytail: official requestRebind handles service reconnect; on OEM ROMs (Xiaomi MIUI/HyperOS, ColorOS), toggle component enabled setting with DONT_KILL_APP to kick NotificationManagerService into re-evaluating listeners without killing the launcher; ceiling: user having revoked Autostart; upgrade path: OEM security app intent dialog.
         try {
             notificationBridge.onRebindRequest?.invoke()
             val componentName = android.content.ComponentName(
@@ -196,6 +202,50 @@ class NotificationRepository @Inject constructor(
                 "com.urunkarpm.drawer.service.DrawerNotificationListener"
             )
             android.service.notification.NotificationListenerService.requestRebind(componentName)
+
+            val pm = context.packageManager
+            pm.setComponentEnabledSetting(
+                componentName,
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP
+            )
+            pm.setComponentEnabledSetting(
+                componentName,
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP
+            )
+        } catch (_: Throwable) {}
+    }
+
+    fun openOemBackgroundSettings() {
+        // ponytail: launch OEM autostart / battery management activity with fallbacks to avoid hard crashes; ceiling: private OEM activity names; upgrade path: standard battery optimization intent.
+        try {
+            val pkg = context.packageName ?: return
+            val candidates = listOf(
+                // Xiaomi / MIUI / HyperOS Autostart
+                Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity")),
+                // Xiaomi / MIUI / HyperOS Power center
+                Intent().setComponent(android.content.ComponentName("com.miui.securitycenter", "com.miui.powercenter.PowerSettings")),
+                // Battery optimization request
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    try {
+                        data = android.net.Uri.parse("package:$pkg")
+                    } catch (_: Throwable) {}
+                },
+                // App Details
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    try {
+                        data = android.net.Uri.parse("package:$pkg")
+                    } catch (_: Throwable) {}
+                }
+            )
+            for (intent in candidates) {
+                try {
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    context.startActivity(intent)
+                    return
+                } catch (_: Throwable) {}
+            }
         } catch (_: Throwable) {}
     }
 }

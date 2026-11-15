@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.AlertDialog
@@ -19,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import com.urunkarpm.drawer.core.designsystem.haptics.rememberCrispHaptics
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
@@ -51,12 +53,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         enableHighRefreshRate()
+        com.urunkarpm.drawer.core.data.worker.AppUpdateCheckWorker.enqueuePeriodic(applicationContext)
+
+        // ponytail: Home launcher is root of task stack; consume back press when no drawers/sheets open to prevent Android minimizing activity and exposing bare wallpaper; ceiling: no-op; upgrade path: scroll to home feed top.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // No-op: Home launcher is root, never finish or minimize to desktop
+            }
+        })
+
         setContent {
             val dynamicColor by preferencesDataSource.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
             val accentColor by preferencesDataSource.accentColor.collectAsStateWithLifecycle(initialValue = "DYNAMIC")
             val hideStatusBar by preferencesDataSource.hideStatusBar.collectAsStateWithLifecycle(initialValue = true)
             val wallpaperBlur by preferencesDataSource.wallpaperBlur.collectAsStateWithLifecycle(initialValue = true)
             val wallpaperBlurRadius by preferencesDataSource.wallpaperBlurRadius.collectAsStateWithLifecycle(initialValue = 25f)
+            val monochromeIcons by preferencesDataSource.monochromeIcons.collectAsStateWithLifecycle(initialValue = false)
             val hapticFeedbackEnabled by preferencesDataSource.hapticFeedbackEnabled.collectAsStateWithLifecycle(initialValue = true)
             val crispHaptics = rememberCrispHaptics(enabled = hapticFeedbackEnabled)
 
@@ -94,12 +106,14 @@ class MainActivity : ComponentActivity() {
             // ponytail: Launcher wallpaper overlay surfaces stay consistently dark; themeMode scopes only to SettingsScreen.
             DrawerTheme(
                 darkTheme = true,
-                isAmoled = false,
+                isAmoled = monochromeIcons,
                 dynamicColor = dynamicColor,
-                accentColor = accentColor
+                accentColor = accentColor,
+                monochromeMode = monochromeIcons
             ) {
                 CompositionLocalProvider(
-                    LocalCrispHaptics provides crispHaptics
+                    LocalCrispHaptics provides crispHaptics,
+                    LocalMonochromeIcons provides monochromeIcons
                 ) {
                     HomeScreen(
                         widgetHostManager = widgetHostManager,

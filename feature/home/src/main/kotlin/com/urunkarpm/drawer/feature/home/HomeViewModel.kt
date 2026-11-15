@@ -172,7 +172,8 @@ class HomeViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context? = null,
     private val widgetHostManager: DrawerWidgetHostManager? = null,
     private val todoRepository: com.urunkarpm.drawer.core.data.repository.TodoRepository? = null,
-    private val updateRepository: UpdateRepository? = null
+    private val updateRepository: UpdateRepository? = null,
+    private val updateNotificationHelper: com.urunkarpm.drawer.core.data.update.UpdateNotificationHelper? = null
 ) : ViewModel() {
 
     val staleTodoCount: StateFlow<Int> = if (todoRepository != null) {
@@ -221,6 +222,9 @@ class HomeViewModel @Inject constructor(
 
     val showDrawerSuggestions: StateFlow<Boolean> = preferencesDataSource.showDrawerSuggestions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val monochromeIcons: StateFlow<Boolean> = preferencesDataSource.monochromeIcons
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val autoArrangeApps: StateFlow<Boolean> = preferencesDataSource.autoArrangeApps
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -649,6 +653,14 @@ class HomeViewModel @Inject constructor(
     }
 
     fun checkForUpdateOnStartup(installedVersion: String) {
+        checkForUpdateInternal(installedVersion)
+    }
+
+    fun checkForPeriodicUpdate(installedVersion: String) {
+        checkForUpdateInternal(installedVersion)
+    }
+
+    private fun checkForUpdateInternal(installedVersion: String) {
         val repo = updateRepository ?: return
         viewModelScope.launch {
             val autoCheck = preferencesDataSource.autoCheckUpdates.first()
@@ -668,6 +680,7 @@ class HomeViewModel @Inject constructor(
                     val dismissed = preferencesDataSource.dismissedUpdateVersion.first()
                     if (info.latestVersionTag != dismissed) {
                         _availableUpdate.value = info
+                        updateNotificationHelper?.showUpdateNotification(info)
                     }
                 }
             }
@@ -676,6 +689,7 @@ class HomeViewModel @Inject constructor(
 
     fun dismissUpdate(versionTag: String) {
         _availableUpdate.value = null
+        updateNotificationHelper?.dismissUpdateNotification()
         viewModelScope.launch {
             preferencesDataSource.setDismissedUpdateVersion(versionTag)
         }
@@ -1355,6 +1369,12 @@ class HomeViewModel @Inject constructor(
     fun setHideDrawerIcons(hide: Boolean) {
         viewModelScope.launch {
             preferencesDataSource.setHideDrawerIcons(hide)
+        }
+    }
+
+    fun setMonochromeIcons(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setMonochromeIcons(enabled)
         }
     }
 

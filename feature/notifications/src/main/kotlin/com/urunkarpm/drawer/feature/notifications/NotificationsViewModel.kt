@@ -92,8 +92,9 @@ class NotificationsViewModel @Inject constructor(
         notificationRepository.activeNotifications,
         notificationRepository.mutedRules,
         notificationPreferencesFlow,
+        notificationRepository.isServiceConnected,
         uiControlsFlow
-    ) { notifications, rules, notifPrefs, controls ->
+    ) { notifications, rules, notifPrefs, isServiceConnected, controls ->
         val (selectedItem, showRules, permission) = controls
         val hiddenPackages = notifPrefs.hiddenAppPackages
 
@@ -135,7 +136,7 @@ class NotificationsViewModel @Inject constructor(
 
         NotificationsUiState(
             isPermissionGranted = permission,
-            isServiceConnected = notificationRepository.checkPermission(),
+            isServiceConnected = isServiceConnected,
             activeNotifications = visibleNotifications,
             groupedNotifications = grouped,
             hiddenNotifications = hiddenItems,
@@ -152,7 +153,8 @@ class NotificationsViewModel @Inject constructor(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = NotificationsUiState(
-            isPermissionGranted = notificationRepository.checkPermission()
+            isPermissionGranted = notificationRepository.checkPermission(),
+            isServiceConnected = false
         )
     )
 
@@ -165,9 +167,13 @@ class NotificationsViewModel @Inject constructor(
     }
 
     fun rebindService() {
-        if (_permissionGrantedState.value && !uiState.value.isServiceConnected) {
+        if (_permissionGrantedState.value) {
             notificationRepository.rebindService()
         }
+    }
+
+    fun openOemBackgroundSettings() {
+        notificationRepository.openOemBackgroundSettings()
     }
 
     fun openNotificationAccessSettings() {

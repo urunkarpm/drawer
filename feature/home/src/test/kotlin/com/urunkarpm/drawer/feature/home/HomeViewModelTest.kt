@@ -39,6 +39,7 @@ class HomeViewModelTest {
     private val preferencesDataSource: DrawerPreferencesDataSource = mockk(relaxed = true)
     private val widgetRepository: com.urunkarpm.drawer.core.data.repository.WidgetRepository = mockk(relaxed = true)
     private val updateRepository: UpdateRepository = mockk(relaxed = true)
+    private val updateNotificationHelper: com.urunkarpm.drawer.core.data.update.UpdateNotificationHelper = mockk(relaxed = true)
 
     private val appsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
     private val weatherFlow = MutableStateFlow<WeatherInfo?>(null)
@@ -206,7 +207,8 @@ class HomeViewModelTest {
             weatherRepository = weatherRepository,
             preferencesDataSource = preferencesDataSource,
             widgetRepository = widgetRepository,
-            updateRepository = updateRepository
+            updateRepository = updateRepository,
+            updateNotificationHelper = updateNotificationHelper
         )
     }
 
@@ -743,6 +745,7 @@ class HomeViewModelTest {
 
         assertEquals(updateInfo, viewModel.availableUpdate.value)
         coVerify { preferencesDataSource.setLastUpdateCheckTime(any()) }
+        io.mockk.verify { updateNotificationHelper.showUpdateNotification(updateInfo) }
     }
 
     @Test
@@ -807,6 +810,7 @@ class HomeViewModelTest {
 
         assertNull(viewModel.availableUpdate.value)
         coVerify { preferencesDataSource.setDismissedUpdateVersion("v2.9.0") }
+        io.mockk.verify { updateNotificationHelper.dismissUpdateNotification() }
     }
 
     @Test

@@ -17,6 +17,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFF3B82F6),
@@ -271,12 +273,119 @@ fun generateColorSchemeFromSeed(
     }
 }
 
+/**
+ * Desaturates a color to a neutral monochrome tone using standard Rec. 709 luminance.
+ */
+fun Color.toMonochrome(): Color {
+    // ponytail: standard Rec. 709 luminance desaturates any color to monochrome; ceiling: sRGB only; upgrade path: Oklab gamut mapping.
+    val lum = (0.2126f * red + 0.7152f * green + 0.0722f * blue).coerceIn(0f, 1f)
+    return Color(red = lum, green = lum, blue = lum, alpha = alpha)
+}
+
+/**
+ * Hand-tuned, high-contrast monochrome ColorScheme creating an intentional editorial/minimalist vibe.
+ */
+fun generateMonochromeColorScheme(
+    darkTheme: Boolean,
+    isAmoled: Boolean
+): ColorScheme {
+    // ponytail: curated grayscale tokens mimic native Android monochrome; ceiling: fixed grayscale ramps; upgrade path: customizable neutral tint temperature.
+    return if (darkTheme) {
+        if (isAmoled) {
+            darkColorScheme(
+                primary = Color(0xFFE5E5E5),
+                onPrimary = Color(0xFF121212),
+                primaryContainer = Color(0xFF2C2C2C),
+                onPrimaryContainer = Color(0xFFEDEDED),
+                secondary = Color(0xFFC7C7C7),
+                onSecondary = Color(0xFF121212),
+                secondaryContainer = Color(0xFF3A3A3A),
+                onSecondaryContainer = Color(0xFFEDEDED),
+                tertiary = Color(0xFFD1D1D1),
+                onTertiary = Color(0xFF121212),
+                tertiaryContainer = Color(0xFF2C2C2C),
+                onTertiaryContainer = Color(0xFFEDEDED),
+                background = AmoledBlack,
+                onBackground = Color(0xFFEDEDED),
+                surface = AmoledBlack,
+                onSurface = Color(0xFFEDEDED),
+                surfaceVariant = Color(0xFF1C1C1C),
+                onSurfaceVariant = Color(0xFFA1A1A1),
+                surfaceContainerLowest = Color(0xFF000000),
+                surfaceContainerLow = Color(0xFF0D0D0D),
+                surfaceContainer = AmoledBlack,
+                surfaceContainerHigh = Color(0xFF141414),
+                surfaceContainerHighest = Color(0xFF1F1F1F),
+                outline = Color(0xFF767676),
+                outlineVariant = Color(0xFF404040)
+            )
+        } else {
+            darkColorScheme(
+                primary = Color(0xFFE5E5E5),
+                onPrimary = Color(0xFF141414),
+                primaryContainer = Color(0xFF323232),
+                onPrimaryContainer = Color(0xFFEDEDED),
+                secondary = Color(0xFFC7C7C7),
+                onSecondary = Color(0xFF141414),
+                secondaryContainer = Color(0xFF3E3E3E),
+                onSecondaryContainer = Color(0xFFEDEDED),
+                tertiary = Color(0xFFD1D1D1),
+                onTertiary = Color(0xFF141414),
+                tertiaryContainer = Color(0xFF323232),
+                onTertiaryContainer = Color(0xFFEDEDED),
+                background = Color(0xFF141414),
+                onBackground = Color(0xFFE6E6E6),
+                surface = Color(0xFF141414),
+                onSurface = Color(0xFFE6E6E6),
+                surfaceVariant = Color(0xFF282828),
+                onSurfaceVariant = Color(0xFFA1A1A1),
+                surfaceContainerLowest = Color(0xFF0D0D0D),
+                surfaceContainerLow = Color(0xFF181818),
+                surfaceContainer = Color(0xFF1E1E1E),
+                surfaceContainerHigh = Color(0xFF272727),
+                surfaceContainerHighest = Color(0xFF323232),
+                outline = Color(0xFF767676),
+                outlineVariant = Color(0xFF404040)
+            )
+        }
+    } else {
+        lightColorScheme(
+            primary = Color(0xFF1F1F1F),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFE4E4E4),
+            onPrimaryContainer = Color(0xFF181818),
+            secondary = Color(0xFF3F3F3F),
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFF4F4F4),
+            onSecondaryContainer = Color(0xFF272727),
+            tertiary = Color(0xFF525252),
+            onTertiary = Color.White,
+            tertiaryContainer = Color(0xFFE4E4E4),
+            onTertiaryContainer = Color(0xFF181818),
+            background = Color(0xFFFAFAFA),
+            onBackground = Color(0xFF181818),
+            surface = Color(0xFFFFFFFF),
+            onSurface = Color(0xFF181818),
+            surfaceVariant = Color(0xFFF4F4F4),
+            onSurfaceVariant = Color(0xFF717171),
+            surfaceContainerLowest = Color(0xFFFFFFFF),
+            surfaceContainerLow = Color(0xFFF4F4F4),
+            surfaceContainer = Color(0xFFE4E4E4),
+            surfaceContainerHigh = Color(0xFFD4D4D4),
+            surfaceContainerHighest = Color(0xFFA1A1A1),
+            outline = Color(0xFF767676),
+            outlineVariant = Color(0xFFD4D4D4)
+        )
+    }
+}
+
 @Composable
 fun DrawerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     isAmoled: Boolean = false,
     dynamicColor: Boolean = true,
     accentColor: String = "DYNAMIC",
+    monochromeMode: Boolean = LocalMonochromeIcons.current,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -309,7 +418,11 @@ fun DrawerTheme(
         null
     }
 
+    // ponytail: monochromeMode overrides dynamic/custom accents with curated grayscale scheme; ceiling: global binary toggle; upgrade path: per-surface custom monochrome tint levels.
     val colorScheme = when {
+        monochromeMode -> {
+            generateMonochromeColorScheme(darkTheme, isAmoled)
+        }
         selectedCustomColor != null -> {
             generateColorSchemeFromSeed(selectedCustomColor, darkTheme, isAmoled)
         }
@@ -328,9 +441,13 @@ fun DrawerTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalMonochromeIcons provides (monochromeMode || LocalMonochromeIcons.current)
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }

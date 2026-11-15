@@ -149,10 +149,18 @@ private data class GradientVisuals(
     val angle: String
 )
 
+private data class TypographyParts(
+    val font: String,
+    val scale: String,
+    val autoCheckUpdates: Boolean,
+    val monochromeIcons: Boolean
+)
+
 private data class TypographyAndAction(
     val headerFontFamily: String,
     val appLabelScale: String,
     val autoCheckUpdates: Boolean,
+    val monochromeIcons: Boolean,
     val action: SettingsActionState
 )
 
@@ -201,6 +209,7 @@ data class SettingsUiState(
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
     val hideDrawerIcons: Boolean = false,
+    val monochromeIcons: Boolean = false,
     val headerFontFamily: String = "GOOGLE_SANS",
     val appLabelScale: String = "NORMAL",
     val openDrawerFromDockOnly: Boolean = false,
@@ -236,7 +245,8 @@ class SettingsViewModel @Inject constructor(
     private val backupRepository: BackupRepository,
     private val updateRepository: UpdateRepository,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
-    private val iconPackRepository: IconPackRepository? = null
+    private val iconPackRepository: IconPackRepository? = null,
+    private val updateNotificationHelper: com.urunkarpm.drawer.core.data.update.UpdateNotificationHelper? = null
 ) : ViewModel() {
 
     private val actionState = MutableStateFlow(SettingsActionState())
@@ -417,13 +427,14 @@ class SettingsViewModel @Inject constructor(
     private val typographyFlow = combine(
         preferencesDataSource.headerFontFamily,
         preferencesDataSource.appLabelScale,
-        preferencesDataSource.autoCheckUpdates
-    ) { font, scale, autoCheckUpdates ->
-        Triple(font, scale, autoCheckUpdates)
+        preferencesDataSource.autoCheckUpdates,
+        preferencesDataSource.monochromeIcons
+    ) { font, scale, autoCheckUpdates, monochromeIcons ->
+        TypographyParts(font, scale, autoCheckUpdates, monochromeIcons)
     }
 
-    private val typographyAndActionFlow = combine(typographyFlow, actionState) { (font, scale, autoCheckUpdates), action ->
-        TypographyAndAction(font, scale, autoCheckUpdates, action)
+    private val typographyAndActionFlow = combine(typographyFlow, actionState) { typo, action ->
+        TypographyAndAction(typo.font, typo.scale, typo.autoCheckUpdates, typo.monochromeIcons, action)
     }
 
     private val wallpaperVisualsFlow = combine(
@@ -460,7 +471,7 @@ class SettingsViewModel @Inject constructor(
         dockAndSurfaceFlow,
         miscFlow,
         typographyAndActionFlow
-    ) { (theme, wallpaper), glance, (dock, surface), misc, (headerFontFamily, appLabelScale, autoCheckUpdates, action) ->
+    ) { (theme, wallpaper), glance, (dock, surface), misc, (headerFontFamily, appLabelScale, autoCheckUpdates, monochromeIcons, action) ->
         SettingsUiState(
             themeMode = theme.themeMode,
             drawerThemeMode = theme.drawerThemeMode,
@@ -507,6 +518,7 @@ class SettingsViewModel @Inject constructor(
             lockLayout = misc.lockLayout,
             autoArrangeApps = misc.autoArrangeApps,
             hideDrawerIcons = misc.hideDrawerIcons,
+            monochromeIcons = monochromeIcons,
             headerFontFamily = headerFontFamily,
             appLabelScale = appLabelScale,
             openDrawerFromDockOnly = dock.openDrawerFromDockOnly,
@@ -853,6 +865,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setMonochromeIcons(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setMonochromeIcons(enabled)
+        }
+    }
+
     fun setStealthTheme(enabled: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setStealthTheme(enabled)
@@ -970,6 +988,9 @@ class SettingsViewModel @Inject constructor(
                         userMessage = if (!info.isUpdateAvailable) "You're on the latest version ($currentVersion)" else null
                     )
                 }
+                if (info.isUpdateAvailable) {
+                    updateNotificationHelper?.showUpdateNotification(info)
+                }
             }.onFailure { error ->
                 actionState.update {
                     it.copy(
@@ -983,6 +1004,7 @@ class SettingsViewModel @Inject constructor(
 
     fun dismissUpdateDialog() {
         actionState.update { it.copy(updateInfo = null) }
+        updateNotificationHelper?.dismissUpdateNotification()
     }
 
     fun clearUserMessage() {

@@ -54,6 +54,14 @@ fun HomeDrawersSubScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
+                    text = "Category Drawers",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
                     text = "Category Alignment",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
@@ -120,6 +128,41 @@ fun HomeDrawersSubScreen(
                     onCheckedChange = { viewModel.setAutoCategorizeNewApps(it) }
                 )
 
+                if (uiState.autoCategorizeNewApps) {
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Text(
+                        text = "AI Suggestion Strictness",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Confidence threshold for automatic category suggestions",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "BALANCED" to "Balanced",
+                            "STRICT" to "Strict",
+                            "RELAXED" to "Creative"
+                        ),
+                        selected = uiState.aiCategorizationStrictness,
+                        onSelect = { viewModel.setAiCategorizationStrictness(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Force Work Profile Category",
+                        subtitle = "Always place work profile applications in the Work drawer",
+                        checked = uiState.aiForceWorkProfile,
+                        onCheckedChange = { viewModel.setAiForceWorkProfile(it) }
+                    )
+                }
+
                 SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                 Text(
@@ -146,6 +189,71 @@ fun HomeDrawersSubScreen(
                     ),
                     selected = uiState.drawerTitleAnimation,
                     onSelect = { viewModel.setDrawerTitleAnimation(it) }
+                )
+            }
+        }
+
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "All Apps Drawer",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "App Drawer Columns",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Number of app icons per row in the all apps drawer",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsSegmentedRow(
+                    options = listOf(
+                        "4" to "4 Icons",
+                        "5" to "5 Icons",
+                        "6" to "6 Icons"
+                    ),
+                    selected = uiState.appDrawerColumns.toString(),
+                    onSelect = { viewModel.setAppDrawerColumns(it.toIntOrNull() ?: 4) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                SettingsSwitchRow(
+                    title = "Show Suggested Apps",
+                    subtitle = "Surface relevant apps based on your routine and context",
+                    checked = uiState.showDrawerSuggestions,
+                    onCheckedChange = { viewModel.setShowDrawerSuggestions(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
+                    title = "Auto-Open Keyboard in Drawer",
+                    subtitle = "Focus search bar and pop up keyboard immediately upon opening All Apps",
+                    checked = uiState.autoOpenKeyboardInDrawer,
+                    onCheckedChange = { viewModel.setAutoOpenKeyboardInDrawer(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
+                    title = "Blur App List on Open",
+                    subtitle = "Obscure apps with a blur when opening All Apps until tapped",
+                    checked = uiState.blurAppListOnOpen,
+                    onCheckedChange = { viewModel.setBlurAppListOnOpen(it) }
                 )
             }
         }

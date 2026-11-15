@@ -109,8 +109,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.urunkarpm.drawer.core.designsystem.animation.FluidSpringPhysics
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
 import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
+import com.urunkarpm.drawer.core.designsystem.theme.toMonochrome
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.AppInfo
 import com.urunkarpm.drawer.core.model.GroupViewType
@@ -230,6 +233,8 @@ fun GroupsAccordion(
             }
         }
 
+        val anyGroupExpanded = uiState.groups.any { it.group.isExpanded }
+
         if (twoDrawersSideBySide) {
             val leftColumnGroups = remember(uiState.groups) {
                 uiState.groups.mapIndexed { index, group -> index to group }.filterIndexed { idx, _ -> idx % 2 == 0 }
@@ -256,6 +261,7 @@ fun GroupsAccordion(
                                 totalGroups = uiState.groups.size,
                                 isCompact = isCompactEffective,
                                 twoDrawersSideBySide = true,
+                                anyGroupExpanded = anyGroupExpanded,
                                 isDropTarget = hoveredGroupId == group.group.id,
                                 hasNotification = group.apps.any { it.packageName in notificationPackages },
                                 drawerNotificationGlow = uiState.drawerNotificationGlow,
@@ -301,6 +307,7 @@ fun GroupsAccordion(
                                 totalGroups = uiState.groups.size,
                                 isCompact = isCompactEffective,
                                 twoDrawersSideBySide = true,
+                                anyGroupExpanded = anyGroupExpanded,
                                 isDropTarget = hoveredGroupId == group.group.id,
                                 hasNotification = group.apps.any { it.packageName in notificationPackages },
                                 drawerNotificationGlow = uiState.drawerNotificationGlow,
@@ -342,6 +349,7 @@ fun GroupsAccordion(
                         totalGroups = uiState.groups.size,
                         isCompact = false,
                         twoDrawersSideBySide = false,
+                        anyGroupExpanded = anyGroupExpanded,
                         isDropTarget = hoveredGroupId == resolvedGroup.group.id,
                         hasNotification = resolvedGroup.apps.any { it.packageName in notificationPackages },
                         drawerNotificationGlow = uiState.drawerNotificationGlow,
@@ -499,14 +507,17 @@ private fun GroupCard(
     surfaceStrokeOpacity: Float = 0.40f,
     drawerTitleAnimation: String = "ACCENT_POP",
     cinematicPaletteId: String = "DEFAULT",
+    anyGroupExpanded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val group = resolvedGroup.group
     val isExpanded = group.isExpanded
     val crispHaptics = LocalCrispHaptics.current
-    val groupColor = remember(group.colorHex, group.name, group.id) {
+    val isMonochrome = LocalMonochromeIcons.current
+    val rawGroupColor = remember(group.colorHex, group.name, group.id) {
         GroupIcons.resolveGroupColor(group.colorHex, group.name, group.id)
     }
+    val groupColor = if (isMonochrome) rawGroupColor.toMonochrome() else rawGroupColor
     val groupIcon = GroupIcons.getIcon(group.iconName)
 
     // ponytail: Drawer title lateral slide animation options. When expanded, titles glide smoothly to the right edge.
@@ -627,9 +638,19 @@ private fun GroupCard(
     )
     var showMenu by remember { mutableStateOf(false) }
 
+    // ponytail: Spatial Depth & Focus Dimming - when any drawer is expanded, non-expanded siblings smoothly dim to 42% opacity and subtly contract to 0.98 scale; ceiling: uniform sibling dimming without distance weighting; upgrade path: distance-from-active-drawer staggered blur and alpha falloff.
+    val isDimmedSibling = anyGroupExpanded && !isExpanded
+    val targetAlpha = if (isDimmedSibling) 0.42f else 1.0f
+    val targetScale = if (isDropTarget) 1.03f else if (isDimmedSibling) 0.98f else 1f
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = targetAlpha,
+        animationSpec = FluidSpringPhysics.fluidSpring(),
+        label = "groupAlpha"
+    )
     val animatedScale by animateFloatAsState(
-        targetValue = if (isDropTarget) 1.03f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        targetValue = targetScale,
+        animationSpec = FluidSpringPhysics.fluidSpring(),
         label = "groupScale"
     )
     val animatedBorderWidth by animateDpAsState(
@@ -665,7 +686,7 @@ private fun GroupCard(
         modifier = modifier
             .fillMaxWidth()
             .bringIntoViewRequester(bringIntoViewRequester)
-            .graphicsLayer { scaleX = animatedScale; scaleY = animatedScale }
+            .graphicsLayer { scaleX = animatedScale; scaleY = animatedScale; alpha = animatedAlpha }
             .onGloballyPositioned { coords -> onPositioned?.invoke(coords.boundsInRoot()) }
     ) {
         DrawerSurfaceBackground(
@@ -715,7 +736,7 @@ private fun GroupCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(
-                            horizontal = if (isCompact) 10.dp else 14.dp,
+                            horizontal = if (isCompact) 10.dp else 16.dp,
                             vertical = if (isCompact) 10.dp else 12.dp
                         ),
                     verticalAlignment = Alignment.CenterVertically
@@ -911,7 +932,7 @@ private fun GroupCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                            .padding(horizontal = if (isCompact) 10.dp else 16.dp, vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(

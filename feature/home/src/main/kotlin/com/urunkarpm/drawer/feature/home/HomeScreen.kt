@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -107,6 +108,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
+import com.urunkarpm.drawer.core.designsystem.theme.AmoledBlack
 import com.urunkarpm.drawer.feature.home.component.FrontCameraPreview
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -188,6 +191,7 @@ fun HomeScreen(
     val suggestedApps by viewModel.suggestedApps.collectAsStateWithLifecycle()
     val showDrawerSuggestions by viewModel.showDrawerSuggestions.collectAsStateWithLifecycle()
     val autoArrangeApps by viewModel.autoArrangeApps.collectAsStateWithLifecycle()
+    val monochromeIcons by viewModel.monochromeIcons.collectAsStateWithLifecycle()
     val dockShowLabels by viewModel.dockShowLabels.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
@@ -330,6 +334,14 @@ fun HomeScreen(
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
         }.getOrDefault("0.0.0")
         viewModel.checkForUpdateOnStartup(installedVersion)
+        com.urunkarpm.drawer.core.data.worker.AppUpdateCheckWorker.enqueuePeriodic(context.applicationContext)
+    }
+
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+        val installedVersion = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
+        }.getOrDefault("0.0.0")
+        viewModel.checkForPeriodicUpdate(installedVersion)
     }
 
     LaunchedEffect(uiState.userMessage) {
@@ -846,16 +858,25 @@ fun HomeScreen(
     CompositionLocalProvider(
         LocalContentColor provides MaterialTheme.colorScheme.onBackground,
         LocalHeaderFontFamily provides headerFont,
-        LocalAppLabelScale provides labelScale
+        LocalAppLabelScale provides labelScale,
+        LocalMonochromeIcons provides monochromeIcons
     ) {
+        val targetWallpaperColor = if (monochromeIcons) AmoledBlack else Color.Transparent
+        // ponytail: Animate wallpaper transition to/from AMOLED pitch black when monochrome mode toggles; ceiling: 350ms crossfade; upgrade path: circular reveal from toggle coordinate.
+        val animatedWallpaperColor by animateColorAsState(
+            targetValue = targetWallpaperColor,
+            animationSpec = tween(durationMillis = 350),
+            label = "monochromeWallpaperColor"
+        )
+
         Box(
             modifier = modifier
                 .fillMaxSize()
-                // Transparent so the wallpaper shows through cleanly with zero theme tint overlay
+                // Transparent so the wallpaper shows through cleanly with zero theme tint overlay (or AmoledBlack when monochrome)
                 // ponytail: native window.setBackgroundBlurRadius blurs wallpaper on Android 12+ without flat surface scrims covering wallpaper; ceiling: Android < 12 shows clean transparent wallpaper; upgrade path: RenderEffect-based RenderNode blur.
-                .background(Color.Transparent)
+                .background(animatedWallpaperColor)
         ) {
-            if (uiState.dynamicWallpaperEnabled) {
+            if (uiState.dynamicWallpaperEnabled && !monochromeIcons) {
                 val dynamicBlur = if (!uiState.wallpaperBlur) {
                     val rawOffset = (pagerState.currentPage - todoPageIndex) + pagerState.currentPageOffsetFraction
                     val p = (1f - kotlin.math.abs(rawOffset)).coerceIn(0f, 1f)
@@ -1097,7 +1118,7 @@ fun HomeScreen(
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .padding(vertical = 2.dp)
                                 .clickable {
                                     crispHaptics.click()
                                     coroutineScope.launch {

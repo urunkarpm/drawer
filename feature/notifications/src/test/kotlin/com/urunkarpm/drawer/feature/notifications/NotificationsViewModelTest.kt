@@ -35,6 +35,7 @@ class NotificationsViewModelTest {
 
     private val notificationsFlow = MutableStateFlow<List<NotificationItem>>(emptyList())
     private val rulesFlow = MutableStateFlow<List<MutedAppRule>>(emptyList())
+    private val isServiceConnectedFlow = MutableStateFlow(true)
     private val privacyModeFlow = MutableStateFlow(false)
     private val swipeRightFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ)
     private val swipeLeftFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS)
@@ -76,6 +77,7 @@ class NotificationsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         every { notificationRepository.activeNotifications } returns notificationsFlow
         every { notificationRepository.mutedRules } returns rulesFlow
+        every { notificationRepository.isServiceConnected } returns isServiceConnectedFlow
         every { notificationRepository.checkPermission() } returns true
         every { preferencesDataSource.notificationsPrivacyMode } returns privacyModeFlow
         every { preferencesDataSource.notificationSwipeRightAction } returns swipeRightFlow
@@ -198,5 +200,48 @@ class NotificationsViewModelTest {
             assertEquals(2, restoredState.groupedNotifications.size)
             assertEquals(0, restoredState.hiddenNotifications.size)
         }
+    }
+
+    @Test
+    fun uiState_reflectsServiceConnectedState() = runTest {
+        isServiceConnectedFlow.value = false
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            val state = expectMostRecentItem()
+            assertFalse(state.isServiceConnected)
+
+            isServiceConnectedFlow.value = true
+            testScheduler.advanceUntilIdle()
+
+            val updatedState = expectMostRecentItem()
+            assertTrue(updatedState.isServiceConnected)
+        }
+    }
+
+    @Test
+    fun rebindService_delegatesToRepository() = runTest {
+        viewModel.rebindService()
+        verify { notificationRepository.rebindService() }
+    }
+
+    @Test
+    fun checkPermission_whenDisconnected_triggersRebind() = runTest {
+        isServiceConnectedFlow.value = false
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            viewModel.checkPermission()
+            verify { notificationRepository.rebindService() }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun openOemBackgroundSettings_delegatesToRepository() = runTest {
+        viewModel.openOemBackgroundSettings()
+        verify { notificationRepository.openOemBackgroundSettings() }
     }
 }

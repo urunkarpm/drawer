@@ -80,6 +80,16 @@ fun ThemesSubScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                // ponytail: Unified monochrome vibe switches icons, colors, surfaces, and wallpaper to AMOLED pitch black; ceiling: global binary toggle; upgrade path: per-surface custom monochrome tint levels.
+                SettingsSwitchRow(
+                    title = "Monochrome Vibe",
+                    subtitle = "Mute all colors, app icons, and wallpaper to an editorial AMOLED monochrome aesthetic",
+                    checked = uiState.monochromeIcons,
+                    onCheckedChange = { viewModel.setMonochromeIcons(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
                 Text(
                     text = "Theme Mode",
                     style = MaterialTheme.typography.titleSmall,
@@ -257,6 +267,40 @@ fun ThemesSubScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "App Drawer Columns",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Number of app icons per row in the all apps drawer",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsSegmentedRow(
+                    options = listOf(
+                        "4" to "4 Icons",
+                        "5" to "5 Icons",
+                        "6" to "6 Icons"
+                    ),
+                    selected = uiState.appDrawerColumns.toString(),
+                    onSelect = { viewModel.setAppDrawerColumns(it.toIntOrNull() ?: 4) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                SettingsSwitchRow(
+                    title = "Show Suggested Apps",
+                    subtitle = "Surface relevant apps based on your routine and context",
+                    checked = uiState.showDrawerSuggestions,
+                    onCheckedChange = { viewModel.setShowDrawerSuggestions(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
                 SettingsSwitchRow(
                     title = "Auto-Open Keyboard in Drawer",
                     subtitle = "Focus search bar and pop up keyboard immediately upon opening All Apps",
@@ -533,6 +577,7 @@ fun SurfacesSubScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 SettingsSegmentedRow(
                     options = listOf(
+                        "HAIRLINE" to "Hairline",
                         "LIQUID_GLASS" to "Glass",
                         "BLUR" to "Blur",
                         "SOLID" to "Solid",
@@ -853,6 +898,36 @@ fun TypographyIconsSubScreen(
                     ),
                     selected = uiState.adaptiveIconShape,
                     onSelect = { viewModel.setAdaptiveIconShape(it) }
+                )
+            }
+        }
+
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "App Drawer Columns",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Number of app icons per row in the all apps drawer",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsSegmentedRow(
+                    options = listOf(
+                        "4" to "4 Icons",
+                        "5" to "5 Icons",
+                        "6" to "6 Icons"
+                    ),
+                    selected = uiState.appDrawerColumns.toString(),
+                    onSelect = { viewModel.setAppDrawerColumns(it.toIntOrNull() ?: 4) }
                 )
             }
         }

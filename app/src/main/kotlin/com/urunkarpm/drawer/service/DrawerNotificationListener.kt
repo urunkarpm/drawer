@@ -139,6 +139,7 @@ class DrawerNotificationListener : NotificationListenerService() {
             } catch (_: Throwable) {}
         }
         refreshNotifications()
+        scheduleRefresh()
     }
 
     override fun onListenerDisconnected() {
@@ -158,19 +159,23 @@ class DrawerNotificationListener : NotificationListenerService() {
 
     private fun refreshNotifications() {
         try {
-            val sbnList = activeNotifications ?: return
+            val sbnList = try {
+                activeNotifications ?: return
+            } catch (_: Throwable) {
+                return
+            }
 
-            // Filter out redundant group summary notifications when child notifications exist
-            val nonSummarySbns = sbnList.filter { (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 }
-            val nonSummaryGroupKeys = nonSummarySbns.mapNotNull { it.groupKey }.toSet()
-            val nonSummaryPackages = nonSummarySbns.map { it.packageName }.toSet()
+            // Filter out redundant group summary notifications ONLY when child notifications for that specific group exist
+            val nonSummaryGroupKeys = sbnList
+                .filter { (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 }
+                .mapNotNull { it.groupKey }
+                .toSet()
 
             val filteredSbns = sbnList.filter { sbn ->
                 val isSummary = (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
                 if (isSummary) {
                     val hasChildrenInGroup = sbn.groupKey?.let { it in nonSummaryGroupKeys } ?: false
-                    val hasChildrenInPkg = sbn.packageName in nonSummaryPackages
-                    !(hasChildrenInGroup || hasChildrenInPkg)
+                    !hasChildrenInGroup
                 } else {
                     true
                 }
@@ -187,10 +192,31 @@ class DrawerNotificationListener : NotificationListenerService() {
                         }
                     }
                     val extras = sbn.notification.extras
-                    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: appName
-                    val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-                        ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+                    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
+                        ?: extras.getCharSequence(Notification.EXTRA_TITLE_BIG)?.toString()?.takeIf { it.isNotBlank() }
+                        ?: extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()?.takeIf { it.isNotBlank() }
+                        ?: sbn.notification.tickerText?.toString()?.takeIf { it.isNotBlank() }
+                        ?: appName
+
+                    val textLines = try {
+                        extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+                            ?.filterNotNull()
+                            ?.map { it.toString().trim() }
+                            ?.filter { it.isNotBlank() }
+                            ?.joinToString("\n")
+                    } catch (_: Exception) {
+                        null
+                    }
+
+                    val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.takeIf { it.isNotBlank() }
+                        ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.takeIf { it.isNotBlank() }
+                        ?: textLines?.takeIf { it.isNotBlank() }
+                        ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()?.takeIf { it.isNotBlank() }
+                        ?: extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)?.toString()?.takeIf { it.isNotBlank() }
+                        ?: extras.getCharSequence(Notification.EXTRA_INFO_TEXT)?.toString()?.takeIf { it.isNotBlank() }
+                        ?: sbn.notification.tickerText?.toString()?.takeIf { it.isNotBlank() }
                         ?: ""
+
                     NotificationItem(
                         key = sbn.key,
                         packageName = sbn.packageName,
@@ -205,9 +231,15 @@ class DrawerNotificationListener : NotificationListenerService() {
                 }
             }
 
-            // ponytail: deduplicate notifications with identical (packageName, title, text) by picking newest; ceiling: drops intentional twin alerts from same app; upgrade path: match sub-second postTime window.
+            // ponytail: deduplicate notifications with identical (packageName, title, text) by picking newest; if text is blank, preserve distinct items by key; ceiling: drops intentional twin alerts from same app; upgrade path: match sub-second postTime window.
             val distinctItems = items
-                .groupBy { Triple(it.packageName, it.title.trim(), it.text.trim()) }
+                .groupBy {
+                    if (it.text.isNotBlank()) {
+                        Triple(it.packageName, it.title.trim(), it.text.trim())
+                    } else {
+                        Triple(it.packageName, it.title.trim(), it.key)
+                    }
+                }
                 .map { (_, duplicates) -> duplicates.maxByOrNull { it.postTimeMillis } ?: duplicates.first() }
                 .distinctBy { it.key }
 

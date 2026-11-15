@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.urunkarpm.drawer.core.designsystem.theme.toMonochrome
 import kotlinx.coroutines.delay
 
 /**
@@ -207,20 +208,24 @@ fun DynamicPantoneWallpaper(
         }
     }
 
+    val isMonochrome = LocalMonochromeIcons.current
     val currentTriple = steps[currentStepIndex]
+    val target1 = if (isMonochrome) currentTriple.first.toMonochrome() else currentTriple.first
+    val target2 = if (isMonochrome) currentTriple.second.toMonochrome() else currentTriple.second
+    val target3 = if (isMonochrome) currentTriple.third.toMonochrome() else currentTriple.third
 
     val color1 by animateColorAsState(
-        targetValue = currentTriple.first,
+        targetValue = target1,
         animationSpec = tween(durationMillis = animDurationMs, easing = FastOutSlowInEasing),
         label = "pantoneColor1"
     )
     val color2 by animateColorAsState(
-        targetValue = currentTriple.second,
+        targetValue = target2,
         animationSpec = tween(durationMillis = animDurationMs, easing = FastOutSlowInEasing),
         label = "pantoneColor2"
     )
     val color3 by animateColorAsState(
-        targetValue = currentTriple.third,
+        targetValue = target3,
         animationSpec = tween(durationMillis = animDurationMs, easing = FastOutSlowInEasing),
         label = "pantoneColor3"
     )

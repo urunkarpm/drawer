@@ -285,6 +285,14 @@ class DrawerPreferencesDataSourceTest {
     }
 
     @Test
+    fun defaultMonochromeIconsIsFalseAndCanBeUpdated() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(false, dataSource.monochromeIcons.first())
+        dataSource.setMonochromeIcons(true)
+        assertEquals(true, dataSource.monochromeIcons.first())
+    }
+
+    @Test
     fun getPreferencesBackupAndRestorePreferencesRoundTrip() = runTest {
         val dataSource = createDataSource(backgroundScope)
         val initialBackup = dataSource.getPreferencesBackup()

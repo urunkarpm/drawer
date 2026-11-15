@@ -77,6 +77,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
 import com.urunkarpm.drawer.core.designsystem.theme.CinematicPalettes
 import com.urunkarpm.drawer.core.designsystem.theme.DrawerTheme
 import com.urunkarpm.drawer.core.designsystem.theme.GoogleSansFontFamily
@@ -197,10 +198,12 @@ fun SettingsScreen(
         darkTheme = isSettingsDark,
         isAmoled = isSettingsAmoled,
         dynamicColor = uiState.dynamicColor,
-        accentColor = uiState.accentColor
+        accentColor = uiState.accentColor,
+        monochromeMode = uiState.monochromeIcons
     ) {
         CompositionLocalProvider(
-            LocalHeaderFontFamily provides GoogleSansFontFamily
+            LocalHeaderFontFamily provides GoogleSansFontFamily,
+            LocalMonochromeIcons provides uiState.monochromeIcons
         ) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -495,7 +498,7 @@ private fun MainSettingsHub(
                         onClick = { onSelectSection(SettingsSection.THEMES) }
                     )
 
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 14.dp))
+                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
                         title = SettingsSection.WALLPAPER.title,
@@ -504,7 +507,7 @@ private fun MainSettingsHub(
                         onClick = { onSelectSection(SettingsSection.WALLPAPER) }
                     )
 
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 14.dp))
+                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
                         title = SettingsSection.SURFACES.title,
@@ -513,7 +516,7 @@ private fun MainSettingsHub(
                         onClick = { onSelectSection(SettingsSection.SURFACES) }
                     )
 
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 14.dp))
+                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
                         title = SettingsSection.TYPOGRAPHY_ICONS.title,
@@ -535,12 +538,12 @@ private fun MainSettingsHub(
                 Column {
                     SettingsNavTileRow(
                         title = SettingsSection.HOME_DRAWERS.title,
-                        subtitle = "${if (uiState.categoryAlignment == "BOTTOM") "Bottom thumb-zone" else "Top stack"} • ${if (uiState.twoDrawersSideBySide) "Dual column" else "Single column"}",
+                        subtitle = "${uiState.appDrawerColumns} icons/row • ${if (uiState.categoryAlignment == "BOTTOM") "Bottom thumb-zone" else "Top stack"} • ${if (uiState.twoDrawersSideBySide) "Dual column" else "Single column"}",
                         icon = Icons.Default.ViewCarousel,
                         onClick = { onSelectSection(SettingsSection.HOME_DRAWERS) }
                     )
 
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 14.dp))
+                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
                         title = SettingsSection.DOCK.title,
@@ -549,7 +552,7 @@ private fun MainSettingsHub(
                         onClick = { onSelectSection(SettingsSection.DOCK) }
                     )
 
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 14.dp))
+                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
                         title = SettingsSection.GLANCE.title,
@@ -576,7 +579,7 @@ private fun MainSettingsHub(
                         onClick = { onSelectSection(SettingsSection.PRIVACY) }
                     )
 
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 14.dp))
+                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
                         title = SettingsSection.ABOUT.title,
