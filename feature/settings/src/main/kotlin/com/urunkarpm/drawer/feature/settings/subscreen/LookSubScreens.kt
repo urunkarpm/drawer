@@ -908,36 +908,6 @@ fun TypographyIconsSubScreen(
             }
         }
 
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "App Drawer Columns",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Number of app icons per row in the all apps drawer",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsSegmentedRow(
-                    options = listOf(
-                        "4" to "4 Icons",
-                        "5" to "5 Icons",
-                        "6" to "6 Icons"
-                    ),
-                    selected = uiState.appDrawerColumns.toString(),
-                    onSelect = { viewModel.setAppDrawerColumns(it.toIntOrNull() ?: 4) }
-                )
-            }
-        }
-
         Spacer(modifier = Modifier.height(16.dp))
     }
 }

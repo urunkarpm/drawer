@@ -886,6 +886,23 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun vaultApps_neverAppearInSuggestedApps() = runTest {
+        viewModel.openAllApps()
+        testScheduler.advanceUntilIdle()
+        assertTrue(viewModel.suggestedApps.value.any { it.packageName == "com.google.android.youtube" })
+
+        // Adding youtube to vault excludes it from suggestions immediately
+        viewModel.addHiddenApp("com.google.android.youtube")
+        testScheduler.advanceUntilIdle()
+        assertFalse(viewModel.suggestedApps.value.any { it.packageName == "com.google.android.youtube" })
+
+        // Even after manual refresh, vault apps remain excluded from suggestions
+        viewModel.refreshSuggestions()
+        testScheduler.advanceUntilIdle()
+        assertFalse(viewModel.suggestedApps.value.any { it.packageName == "com.google.android.youtube" })
+    }
+
+    @Test
     fun onUserUnlocked_decrementsHiddenNotifUnlockCount() = runTest {
         viewModel.onUserUnlocked()
         testScheduler.advanceUntilIdle()

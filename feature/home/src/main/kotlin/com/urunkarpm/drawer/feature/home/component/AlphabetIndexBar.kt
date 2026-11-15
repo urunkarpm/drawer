@@ -6,8 +6,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,29 +61,56 @@ fun AlphabetIndexBar(
     var draggingLetter by remember { mutableStateOf<String?>(null) }
     var dragYOffsetPx by remember { mutableFloatStateOf(0f) }
 
-    fun updateLetter(y: Float) {
-        if (barHeightPx <= 0f) return
-        val clampedY = y.coerceIn(0f, barHeightPx - 1f)
-        val itemHeight = barHeightPx / ALPHABET.size
+    val currentOnLetterScrolled by rememberUpdatedState(onLetterScrolled)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
+
+    fun updateLetter(y: Float, currentHeight: Float) {
+        if (currentHeight <= 0f) return
+        val clampedY = y.coerceIn(0f, currentHeight - 1f)
+        val itemHeight = currentHeight / ALPHABET.size
         val index = (clampedY / itemHeight).toInt().coerceIn(0, ALPHABET.lastIndex)
         val letter = ALPHABET[index]
         dragYOffsetPx = clampedY
         if (letter != draggingLetter) {
             draggingLetter = letter
             crispHaptics.tick()
-            onLetterScrolled(letter)
+            currentOnLetterScrolled(letter)
         }
     }
 
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .width(28.dp),
+            .width(32.dp)
+            .onGloballyPositioned { coordinates ->
+                barHeightPx = coordinates.size.height.toFloat()
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    val totalHeight = if (barHeightPx > 0f) barHeightPx else size.height.toFloat()
+                    updateLetter(down.position.y, totalHeight)
+                    val pointerId = down.id
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                        if (!change.pressed) break
+                        change.consume()
+                        val liveHeight = if (barHeightPx > 0f) barHeightPx else size.height.toFloat()
+                        updateLetter(change.position.y, liveHeight)
+                    }
+
+                    draggingLetter = null
+                    currentOnDragEnd()
+                }
+            },
         contentAlignment = Alignment.CenterEnd
     ) {
         // Active letter squircle badge indicator appearing to the left of the drag position
         val density = LocalDensity.current
-        val bubbleOffsetXPx = with(density) { 52.dp.roundToPx() }
+        val bubbleOffsetXPx = with(density) { 54.dp.roundToPx() }
         val bubbleHalfHeightPx = with(density) { 18.dp.toPx() }
 
         AnimatedVisibility(
@@ -107,9 +135,10 @@ fun AlphabetIndexBar(
                     shadowElevation = 4.dp,
                     modifier = Modifier
                         .offset {
+                            val maxY = (barHeightPx - bubbleHalfHeightPx * 2).roundToInt().coerceAtLeast(0)
                             IntOffset(
                                 x = -bubbleOffsetXPx,
-                                y = (dragYOffsetPx - bubbleHalfHeightPx).roundToInt().coerceAtLeast(0)
+                                y = (dragYOffsetPx - bubbleHalfHeightPx).roundToInt().coerceIn(0, maxY)
                             )
                         }
                         .size(36.dp)
@@ -131,27 +160,7 @@ fun AlphabetIndexBar(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(24.dp)
-                .padding(vertical = 4.dp)
-                .onGloballyPositioned { coordinates ->
-                    barHeightPx = coordinates.size.height.toFloat()
-                }
-                .pointerInput(barHeightPx) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            updateLetter(down.position.y)
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull() ?: break
-                                if (!change.pressed) break
-                                change.consume()
-                                updateLetter(change.position.y)
-                            }
-                            draggingLetter = null
-                            onDragEnd()
-                        }
-                    }
-                },
+                .padding(vertical = 4.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

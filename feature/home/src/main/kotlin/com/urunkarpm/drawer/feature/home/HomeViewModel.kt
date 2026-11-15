@@ -258,6 +258,8 @@ class HomeViewModel @Inject constructor(
     private var currentMindfulApps: Set<String> = emptySet()
     private var currentDockedPackages: Set<String> = emptySet()
     private var currentInstalledApps: List<AppInfo> = emptyList()
+    private var currentHiddenPackages: Set<String> = emptySet()
+    private var currentVaultEnabled: Boolean = true
 
     private val glancePrefsFlow = combine<Any, GlancePrefs>(
         preferencesDataSource.is24Hour,
@@ -615,6 +617,24 @@ class HomeViewModel @Inject constructor(
                 currentInstalledApps = apps
             }
         }
+        viewModelScope.launch(Dispatchers.Unconfined) {
+            preferencesDataSource.hiddenAppPackages.collect {
+                currentHiddenPackages = it
+                _suggestedApps.value = _suggestedApps.value.filter { app ->
+                    !currentVaultEnabled || app.packageName !in currentHiddenPackages
+                }
+                refreshSuggestions()
+            }
+        }
+        viewModelScope.launch(Dispatchers.Unconfined) {
+            preferencesDataSource.appVaultEnabled.collect {
+                currentVaultEnabled = it
+                _suggestedApps.value = _suggestedApps.value.filter { app ->
+                    !currentVaultEnabled || app.packageName !in currentHiddenPackages
+                }
+                refreshSuggestions()
+            }
+        }
         viewModelScope.launch(Dispatchers.IO) {
             dockRepository.dockItems.collect { dockItems ->
                 val apps = appRepository.installedApps.first()
@@ -842,18 +862,21 @@ class HomeViewModel @Inject constructor(
         dockedPackages: Set<String> = currentDockedPackages,
         activeNotificationPackages: Set<String> = emptySet()
     ) {
-        val installed = currentInstalledApps.ifEmpty { uiState.value.installedApps }
+        // ponytail: vault apps are filtered out of recommendations at source; ceiling: in-memory package set exclusion; upgrade path: database-level vault predicate in AppPredictor.
+        val effectiveHidden = if (currentVaultEnabled) currentHiddenPackages else emptySet()
+        val installed = (currentInstalledApps.ifEmpty { uiState.value.installedApps })
+            .filter { it.packageName !in effectiveHidden }
         val now = System.currentTimeMillis()
-        val recentExited = if (now - lastLaunchTimestamp <= 60_000L) lastLaunchedPackage else null
+        val recentExited = if (now - lastLaunchTimestamp <= 60_000L && lastLaunchedPackage !in effectiveHidden) lastLaunchedPackage else null
         _suggestedApps.value = appPredictor.predictTopApps(
             installedApps = installed,
             usageProfiles = currentProfiles,
             dockedPackages = dockedPackages,
-            blacklistedPackages = currentBlacklist,
+            blacklistedPackages = currentBlacklist + effectiveHidden,
             activeNotificationPackages = activeNotificationPackages,
             lastExitedPackage = recentExited,
             currentTimeMs = now
-        )
+        ).filter { it.packageName !in effectiveHidden }
     }
 
     fun freezeSuggestionsForDrawerOpen(
@@ -895,21 +918,29 @@ class HomeViewModel @Inject constructor(
     }
 
     fun addHiddenApp(packageName: String) {
+        currentHiddenPackages = currentHiddenPackages + packageName
+        _suggestedApps.value = _suggestedApps.value.filter { it.packageName != packageName }
         viewModelScope.launch {
             preferencesDataSource.addHiddenApp(packageName)
+            refreshSuggestions()
         }
     }
 
     fun addHiddenApps(packageNames: Collection<String>) {
         if (packageNames.isEmpty()) return
+        currentHiddenPackages = currentHiddenPackages + packageNames
+        _suggestedApps.value = _suggestedApps.value.filter { it.packageName !in packageNames }
         viewModelScope.launch {
             preferencesDataSource.addHiddenApps(packageNames)
+            refreshSuggestions()
         }
     }
 
     fun removeHiddenApp(packageName: String) {
+        currentHiddenPackages = currentHiddenPackages - packageName
         viewModelScope.launch {
             preferencesDataSource.removeHiddenApp(packageName)
+            refreshSuggestions()
         }
     }
 

@@ -765,16 +765,15 @@ fun AllAppsDrawer(
                             Box(modifier = Modifier.fillMaxSize()) {
                                 val scrubProvider = rememberUpdatedState(activeScrubLetter)
                                 val hasIndexBar = searchQuery.isBlank() && displayedApps.size > 8
-                                // ponytail: add 20dp end clearance when alphabet scrub rail (28dp) is active so rightmost icons never collide or clip
-                                val gridEndPadding = if (hasIndexBar) horizontalPadding + 20.dp else horizontalPadding
 
+                                // ponytail: symmetrical horizontal padding matches FrequentAppsRow exactly so 4, 5, and 6 column layouts remain perfectly balanced; ceiling: screen edge margin; upgrade path: adaptive padding based on window size classes.
                                 LazyVerticalGrid(
                                     state = gridState,
                                     columns = GridCells.Fixed(gridColumns),
                                     contentPadding = PaddingValues(
                                         start = horizontalPadding,
                                         top = 8.dp,
-                                        end = gridEndPadding,
+                                        end = horizontalPadding,
                                         bottom = 12.dp
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(gridVerticalSpacing),
@@ -809,11 +808,12 @@ fun AllAppsDrawer(
                                         onLetterScrolled = { letter ->
                                             activeScrubLetter = letter
                                             val targetIndex = letterIndexMap[letter] ?: 0
-                                            if (targetIndex != lastTargetIndex) {
-                                                lastTargetIndex = targetIndex
+                                            val rowStartIndex = (targetIndex / gridColumns) * gridColumns
+                                            if (rowStartIndex != lastTargetIndex) {
+                                                lastTargetIndex = rowStartIndex
                                                 scrollJob?.cancel()
                                                 scrollJob = coroutineScope.launch {
-                                                    gridState.scrollToItem(targetIndex)
+                                                    gridState.scrollToItem(rowStartIndex)
                                                 }
                                             }
                                         },
@@ -878,7 +878,7 @@ fun AllAppsDrawer(
                 }
 
                 // 2. Suggested Apps Row (NOT blurred, always visible, interactive, and aligned below app grid)
-                if (frequentApps.isNotEmpty() && searchQuery.isBlank() && activeScrubLetter == null) {
+                if (frequentApps.isNotEmpty() && searchQuery.isBlank()) {
                     FrequentAppsRow(
                         frequentApps = frequentApps,
                         horizontalPadding = horizontalPadding,
@@ -1057,28 +1057,15 @@ private fun FrequentAppsRow(
     onDragDropResult: ((DragDropResult) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
-    val itemsToShow = remember(frequentApps, gridColumns) { frequentApps.take(gridColumns) }
+    // ponytail: suggested row always displays exactly 6 apps for consistent visual grounding across all grid density preferences; ceiling: fixed 6 slots; upgrade path: customizable suggestions count in look settings.
+    val itemsToShow = remember(frequentApps) { frequentApps.take(6) }
     if (itemsToShow.isEmpty()) return
 
     val configuration = LocalConfiguration.current
     val isSmallScreen = configuration.screenWidthDp < 360
-    val (iconSize, suggestedFontSize, suggestedSpacing) = when {
-        gridColumns <= 4 -> Triple(
-            if (isSmallScreen) 38.dp else 42.dp,
-            11.sp * LocalAppLabelScale.current,
-            12.dp
-        )
-        gridColumns == 5 -> Triple(
-            if (isSmallScreen) 34.dp else 38.dp,
-            10.5.sp * LocalAppLabelScale.current,
-            8.dp
-        )
-        else -> Triple(
-            if (isSmallScreen) 30.dp else 34.dp,
-            10.sp * LocalAppLabelScale.current,
-            6.dp
-        )
-    }
+    val iconSize = if (isSmallScreen) 30.dp else 34.dp
+    val suggestedFontSize = 10.sp * LocalAppLabelScale.current
+    val suggestedSpacing = 6.dp
 
     Row(
         modifier = modifier
@@ -1094,6 +1081,13 @@ private fun FrequentAppsRow(
         horizontalArrangement = Arrangement.spacedBy(suggestedSpacing, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val emptySlots = (6 - itemsToShow.size).coerceAtLeast(0)
+        val leftSpacers = emptySlots / 2
+        val rightSpacers = emptySlots - leftSpacers
+
+        repeat(leftSpacers) {
+            Spacer(modifier = Modifier.weight(1f))
+        }
         for (app in itemsToShow) {
             Box(
                 modifier = Modifier.weight(1f),
@@ -1105,13 +1099,16 @@ private fun FrequentAppsRow(
                     onAppLongClick = onAppLongClick,
                     iconLoader = iconLoader,
                     iconSize = iconSize,
-                    itemHorizontalPadding = if (gridColumns >= 6) 1.dp else 2.dp,
+                    itemHorizontalPadding = 1.dp,
                     labelFontSize = suggestedFontSize,
                     iconShape = iconShape,
                     dragDropState = dragDropState,
                     onDragDropResult = onDragDropResult
                 )
             }
+        }
+        repeat(rightSpacers) {
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }

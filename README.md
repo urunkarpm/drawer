@@ -111,9 +111,9 @@ Everything you need to get things done is reachable in under a second; everythin
   * Added user-customizable app drawer column density: choose between **4, 5, or 6 columns** to match your device screen size and personal density preference.
   * Configurable in **Settings -> Surface & Appearance -> App Drawer Columns**.
   * Intelligently scales icon sizes, text labels, and grid gutters so higher densities remain legible, balanced, and easy to tap.
-* **✨ Harmonized Suggested Apps Alignment:**
-  * Suggested / frequent apps at the top of the app drawer now dynamically match your selected column count (4, 5, or 6 apps).
-  * Equalized horizontal spacing and item widths guarantee that suggested apps align symmetrically with the drawer grid below.
+* **✨ Harmonized Suggested Apps Alignment & Symmetry:**
+  * Suggested / frequent apps at the bottom of the app drawer consistently present a grounded 6-icon shelf.
+  * Equalized horizontal margins and spacing guarantee that suggested apps align symmetrically with 4, 5, or 6 column drawer grids.
 * **☀️ High-Contrast Duo Status Pill on White Wallpapers:**
   * Resolved status icon legibility issues on pure white and high-luminance wallpapers.
   * Added adaptive wallpaper luminance detection, dual-layer outline shadow passes on canvas arcs, and an ultra-subtle protective glass capsule backing in collapsed mode.

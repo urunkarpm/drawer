@@ -1,11 +1,12 @@
 package com.urunkarpm.drawer.feature.todo.component
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.content.Context
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,36 +17,50 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.Medication
+import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
-import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,11 +72,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import com.urunkarpm.drawer.core.model.TodoItem
 import com.urunkarpm.drawer.core.model.TodoPriority
 import java.time.Instant
@@ -70,6 +93,16 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+
+// ponytail: modern unified task canvas with cohesive pill tokens, contextual cursor positioning, and direct preset triggers.
+// ceiling: manual dialog-based scheduling without natural language parser;
+// upgrade path: on-device natural language parsing (e.g. "dentist next Tuesday at 4pm").
+private data class QuickIdea(
+    val id: String,
+    val label: String,
+    val prefix: String,
+    val icon: ImageVector
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,10 +132,17 @@ fun AddTodoBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val crispHaptics = LocalCrispHaptics.current
-    val context = LocalContext.current
     val isEditMode = editingTodo != null
 
-    var title by remember(editingTodo) { mutableStateOf(editingTodo?.title.orEmpty()) }
+    var titleValue by remember(editingTodo) {
+        val initialText = editingTodo?.title.orEmpty()
+        mutableStateOf(
+            TextFieldValue(
+                text = initialText,
+                selection = TextRange(initialText.length)
+            )
+        )
+    }
     var note by remember(editingTodo) { mutableStateOf(editingTodo?.note.orEmpty()) }
 
     var selectedPlaceName by remember(editingTodo, presetPlaceName) {
@@ -121,6 +161,7 @@ fun AddTodoBottomSheet(
     var deadlineUtc by remember(editingTodo) { mutableStateOf(editingTodo?.deadlineUtc) }
     var priority by remember(editingTodo) { mutableStateOf(editingTodo?.priority ?: TodoPriority.NORMAL) }
     var repeatRule by remember(editingTodo) { mutableStateOf(editingTodo?.repeatRule) }
+    var showDateTimePicker by remember { mutableStateOf(false) }
 
     val focusRequester = remember { FocusRequester() }
 
@@ -131,17 +172,16 @@ fun AddTodoBottomSheet(
     }
 
     fun openDateTimePicker() {
-        showNativeDateTimePicker(context, deadlineUtc) { newUtc ->
-            deadlineUtc = newUtc
-        }
+        crispHaptics.click()
+        showDateTimePicker = true
     }
 
     fun submitForm() {
-        val trimmedTitle = title.trim()
+        val trimmedTitle = titleValue.text.trim()
         if (trimmedTitle.isBlank()) return
         crispHaptics.confirm()
 
-        if (isEditMode && editingTodo != null) {
+        if (editingTodo != null) {
             val updated = editingTodo.copy(
                 title = trimmedTitle,
                 note = note.trim().takeIf { it.isNotBlank() },
@@ -172,6 +212,32 @@ fun AddTodoBottomSheet(
         onDismiss()
     }
 
+    val quickIdeas = remember {
+        listOf(
+            QuickIdea("call", "Call", "Call ", Icons.Outlined.Phone),
+            QuickIdea("buy", "Buy", "Buy ", Icons.Outlined.ShoppingCart),
+            QuickIdea("pay", "Pay", "Pay ", Icons.Outlined.Payments),
+            QuickIdea("meds", "Meds", "Take ", Icons.Outlined.Medication),
+            QuickIdea("email", "Email", "Email ", Icons.Outlined.Email),
+            QuickIdea("meet", "Meet", "Meeting with ", Icons.Outlined.Groups)
+        )
+    }
+
+    val activeIdea = quickIdeas.firstOrNull { idea ->
+        titleValue.text.startsWith(idea.prefix, ignoreCase = true)
+    }
+
+    if (showDateTimePicker) {
+        TaskDateTimePickerDialog(
+            initialUtc = deadlineUtc,
+            onConfirm = { newUtc ->
+                crispHaptics.confirm()
+                deadlineUtc = newUtc
+            },
+            onDismiss = { showDateTimePicker = false }
+        )
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -183,10 +249,10 @@ fun AddTodoBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 6.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
                 .imePadding()
                 .navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Header
             Row(
@@ -201,9 +267,10 @@ fun AddTodoBottomSheet(
                 )
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isEditMode && onDeleteTodo != null && editingTodo != null) {
+                    if (editingTodo != null && onDeleteTodo != null) {
                         IconButton(
                             onClick = {
+                                crispHaptics.reject()
                                 onDeleteTodo(editingTodo)
                                 onDismiss()
                             }
@@ -225,74 +292,271 @@ fun AddTodoBottomSheet(
                 }
             }
 
-            // 1. Title field
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("What needs to be done?") },
-                placeholder = { Text("e.g. Buy groceries") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { submitForm() }),
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-            )
-
-            // Optional note
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                label = { Text("Note (optional)") },
-                maxLines = 2,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
-                ),
+            // 1. Unified Task Canvas (Fluid borderless card)
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
-            )
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TextField(
+                        value = titleValue,
+                        onValueChange = { titleValue = it },
+                        placeholder = {
+                            Text(
+                                "What needs to be done?",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { submitForm() }),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester)
+                    )
 
-            // 2. Place & Deadline Interactive Chips (Both Optional)
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                        thickness = 0.75.dp
+                    )
+
+                    TextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        placeholder = {
+                            Text(
+                                "Add details, notes or steps... (optional)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        maxLines = 3,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // 2. Proactive Quick Ideas (Toggleable & swappable, vector icons, no emojis)
+            if (!isEditMode) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (activeIdea != null) "Idea selected (tap to swap or remove):" else "Quick ideas:",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (activeIdea != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        quickIdeas.forEach { idea ->
+                            val isSelected = activeIdea?.id == idea.id
+                            Surface(
+                                onClick = {
+                                    val currentText = titleValue.text
+                                    if (isSelected) {
+                                        crispHaptics.tick()
+                                        val newText = currentText.substring(idea.prefix.length).trimStart()
+                                        titleValue = TextFieldValue(
+                                            text = newText,
+                                            selection = TextRange(0)
+                                        )
+                                    } else {
+                                        crispHaptics.click()
+                                        val suffix = if (activeIdea != null) {
+                                            currentText.substring(activeIdea.prefix.length)
+                                        } else {
+                                            currentText.trimStart()
+                                        }
+                                        val newText = idea.prefix + suffix
+                                        // Cursor is placed immediately after the clicked idea word
+                                        val cursorPosition = idea.prefix.length
+                                        titleValue = TextFieldValue(
+                                            text = newText,
+                                            selection = TextRange(cursorPosition)
+                                        )
+                                        focusRequester.requestFocus()
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                                else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.50f)
+                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                                )
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = idea.icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp),
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = idea.label,
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                                        ),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Symmetrical Contextual Triggers: Date & Time, and Location
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Place Chip
-                val hasPlace = !selectedPlaceName.isNullOrBlank()
-                InputChip(
-                    selected = hasPlace,
-                    onClick = onPickPlaceClick,
-                    label = {
-                        Text(
-                            text = selectedPlaceName ?: "Add place",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.LocationOn,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = if (hasPlace) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingIcon = if (hasPlace) {
-                        {
+                // Date & Time Picker Trigger
+                val hasDeadline = deadlineUtc != null
+                Surface(
+                    onClick = { openDateTimePicker() },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (hasDeadline) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                    else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (hasDeadline) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (hasDeadline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (hasDeadline) formatDeadlineLabel(deadlineUtc!!) else "Date & Time",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (hasDeadline) FontWeight.SemiBold else FontWeight.Normal
+                                ),
+                                color = if (hasDeadline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (hasDeadline) {
                             IconButton(
                                 onClick = {
+                                    crispHaptics.tick()
+                                    deadlineUtc = null
+                                },
+                                modifier = Modifier.size(18.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Close,
+                                    contentDescription = "Clear deadline",
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Location Picker Trigger
+                val hasPlace = !selectedPlaceName.isNullOrBlank()
+                Surface(
+                    onClick = {
+                        crispHaptics.click()
+                        onPickPlaceClick()
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (hasPlace) MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
+                    else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (hasPlace) MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                    ),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.LocationOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (hasPlace) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (hasPlace) selectedPlaceName.orEmpty() else "Location",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (hasPlace) FontWeight.SemiBold else FontWeight.Normal
+                                ),
+                                color = if (hasPlace) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (hasPlace) {
+                            IconButton(
+                                onClick = {
+                                    crispHaptics.tick()
                                     selectedPlaceName = null
                                     selectedLat = null
                                     selectedLon = null
@@ -301,200 +565,131 @@ fun AddTodoBottomSheet(
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Close,
-                                    contentDescription = "Clear place",
-                                    modifier = Modifier.size(14.dp)
+                                    contentDescription = "Clear location",
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.secondary
                                 )
                             }
                         }
-                    } else null,
-                    colors = InputChipDefaults.inputChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-                        selectedLabelColor = MaterialTheme.colorScheme.primary
-                    )
+                    }
+                }
+            }
+
+            // 4. Priority Selector Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Priority",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                // Deadline Time Chip
-                val formattedDeadline = remember(deadlineUtc) {
-                    deadlineUtc?.let { formatDeadlineLabel(it) }
-                }
-                val hasDeadline = deadlineUtc != null
-
-                InputChip(
-                    selected = hasDeadline,
-                    onClick = { openDateTimePicker() },
-                    label = {
-                        Text(
-                            text = formattedDeadline ?: "Add date & time",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Schedule,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = if (hasDeadline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingIcon = if (hasDeadline) {
-                        {
-                            IconButton(
-                                onClick = { deadlineUtc = null },
-                                modifier = Modifier.size(18.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TodoPriority.entries.forEach { p ->
+                        val isSelected = priority == p
+                        val priorityColor = when (p) {
+                            TodoPriority.HIGH -> MaterialTheme.colorScheme.error
+                            TodoPriority.NORMAL -> MaterialTheme.colorScheme.primary
+                            TodoPriority.LOW -> MaterialTheme.colorScheme.outline
+                        }
+                        Surface(
+                            onClick = {
+                                crispHaptics.tick()
+                                priority = p
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) priorityColor.copy(alpha = 0.20f)
+                            else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) priorityColor.copy(alpha = 0.50f)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                            )
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Close,
-                                    contentDescription = "Clear deadline",
-                                    modifier = Modifier.size(14.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(
+                                            color = if (isSelected) priorityColor else priorityColor.copy(alpha = 0.5f),
+                                            shape = CircleShape
+                                        )
+                                )
+                                Text(
+                                    text = p.name.lowercase().replaceFirstChar { it.uppercase() },
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                                    ),
+                                    color = if (isSelected) priorityColor else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
-                    } else null,
-                    colors = InputChipDefaults.inputChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-                        selectedLabelColor = MaterialTheme.colorScheme.primary
-                    )
-                )
+                    }
+                }
             }
 
-            // Quick Deadline Shortcuts row
+            // 5. Repeat Selector Row
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Quick time:",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = "Repeat",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Surface(
-                    onClick = {
-                        val nowZdt = ZonedDateTime.now(ZoneId.systemDefault())
-                        val later = nowZdt.plusHours(3).withMinute(0).withSecond(0)
-                        deadlineUtc = later.toInstant().toEpochMilli()
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                ) {
-                    Text(
-                        text = "+3 Hours",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val repeatOptions = listOf(
+                        "Never" to null,
+                        "Daily" to "DAILY",
+                        "Weekdays" to "WEEKDAYS",
+                        "Weekly" to "WEEKLY"
                     )
-                }
-
-                Surface(
-                    onClick = {
-                        val zoneId = ZoneId.systemDefault()
-                        val tonight = ZonedDateTime.of(LocalDate.now(), LocalTime.of(21, 0), zoneId)
-                        deadlineUtc = tonight.toInstant().toEpochMilli()
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                ) {
-                    Text(
-                        text = "Tonight (21:00)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-
-                Surface(
-                    onClick = {
-                        val zoneId = ZoneId.systemDefault()
-                        val tomorrowMorning = ZonedDateTime.of(LocalDate.now().plusDays(1), LocalTime.of(9, 0), zoneId)
-                        deadlineUtc = tomorrowMorning.toInstant().toEpochMilli()
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                ) {
-                    Text(
-                        text = "Tomorrow (09:00)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-
-                Surface(
-                    onClick = { openDateTimePicker() },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
-                ) {
-                    Text(
-                        text = "Pick Custom...",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                    repeatOptions.forEach { (label, rule) ->
+                        val isSelected = repeatRule == rule
+                        Surface(
+                            onClick = {
+                                crispHaptics.tick()
+                                repeatRule = rule
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.20f)
+                            else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.50f)
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                            )
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+                                ),
+                                color = if (isSelected) MaterialTheme.colorScheme.tertiary
+                                else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            // Priority and Repeat row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Priority:",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TodoPriority.entries.forEach { p ->
-                    FilterChip(
-                        selected = priority == p,
-                        onClick = {
-                            crispHaptics.tick()
-                            priority = p
-                        },
-                        label = { Text(p.name, fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = when (p) {
-                                TodoPriority.HIGH -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)
-                                else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            }
-                        )
-                    )
-                }
+            Spacer(modifier = Modifier.height(2.dp))
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Text(
-                    text = "Repeat:",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                listOf("None" to null, "Daily" to "DAILY", "Weekdays" to "WEEKDAYS", "Weekly" to "WEEKLY").forEach { (label, rule) ->
-                    FilterChip(
-                        selected = repeatRule == rule,
-                        onClick = {
-                            crispHaptics.tick()
-                            repeatRule = rule
-                        },
-                        label = { Text(label, fontSize = 12.sp) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Submit Button
+            // 6. Submit Button
             Button(
                 onClick = { submitForm() },
-                enabled = title.isNotBlank(),
+                enabled = titleValue.text.trim().isNotBlank(),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -502,57 +697,268 @@ fun AddTodoBottomSheet(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(48.dp)
             ) {
                 Icon(
                     imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.Add,
-                    contentDescription = null
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (isEditMode) "Save Changes" else "Add Task",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
     }
 }
 
-private fun showNativeDateTimePicker(
-    context: Context,
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TaskDateTimePickerDialog(
     initialUtc: Long?,
-    onDateTimeSelected: (Long) -> Unit
+    onConfirm: (Long) -> Unit,
+    onDismiss: () -> Unit
 ) {
-    val currentZdt = if (initialUtc != null) {
-        ZonedDateTime.ofInstant(Instant.ofEpochMilli(initialUtc), ZoneId.systemDefault())
-    } else {
-        ZonedDateTime.now(ZoneId.systemDefault()).plusHours(1).withMinute(0).withSecond(0)
+    val context = LocalContext.current
+    val crispHaptics = LocalCrispHaptics.current
+
+    val initialZdt = remember(initialUtc) {
+        if (initialUtc != null) {
+            ZonedDateTime.ofInstant(Instant.ofEpochMilli(initialUtc), ZoneId.systemDefault())
+        } else {
+            ZonedDateTime.now(ZoneId.systemDefault()).plusHours(1).withMinute(0).withSecond(0)
+        }
     }
 
-    DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            TimePickerDialog(
-                context,
-                { _, hourOfDay, minute ->
-                    val chosenZdt = ZonedDateTime.of(
-                        LocalDate.of(year, month + 1, dayOfMonth),
-                        LocalTime.of(hourOfDay, minute),
-                        ZoneId.systemDefault()
-                    )
-                    onDateTimeSelected(chosenZdt.toInstant().toEpochMilli())
-                },
-                currentZdt.hour,
-                currentZdt.minute,
-                android.text.format.DateFormat.is24HourFormat(context)
-            ).show()
-        },
-        currentZdt.year,
-        currentZdt.monthValue - 1,
-        currentZdt.dayOfMonth
-    ).show()
+    var isPickingTime by remember { mutableStateOf(false) }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialZdt.toLocalDate()
+            .atStartOfDay(ZoneId.of("UTC"))
+            .toInstant()
+            .toEpochMilli()
+    )
+
+    val timePickerState = rememberTimePickerState(
+        initialHour = initialZdt.hour,
+        initialMinute = initialZdt.minute,
+        is24Hour = android.text.format.DateFormat.is24HourFormat(context)
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+            modifier = Modifier
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .fillMaxWidth()
+                .wrapContentHeight()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Header Tabs: Date & Time step switchers
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(
+                            onClick = {
+                                crispHaptics.tick()
+                                isPickingTime = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (!isPickingTime) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CalendarToday,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (!isPickingTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Date",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (!isPickingTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            onClick = {
+                                crispHaptics.tick()
+                                isPickingTime = true
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isPickingTime) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Schedule,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = if (isPickingTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Time",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (isPickingTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                    thickness = 0.8.dp
+                )
+
+                // Body: AnimatedContent between DatePicker and TimePicker
+                AnimatedContent(
+                    targetState = isPickingTime,
+                    label = "DatePickerStepTransition"
+                ) { pickingTime ->
+                    if (!pickingTime) {
+                        DatePicker(
+                            state = datePickerState,
+                            showModeToggle = false,
+                            title = null,
+                            headline = null,
+                            colors = DatePickerDefaults.colors(
+                                containerColor = Color.Transparent
+                            )
+                        )
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            TimePicker(
+                                state = timePickerState,
+                                colors = TimePickerDefaults.colors()
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                    thickness = 0.8.dp
+                )
+
+                // Footer Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (!isPickingTime) {
+                        TextButton(onClick = onDismiss) {
+                            Text("Cancel")
+                        }
+                        Button(
+                            onClick = {
+                                crispHaptics.click()
+                                isPickingTime = true
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.height(44.dp)
+                        ) {
+                            Text("Next: Time")
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                crispHaptics.click()
+                                isPickingTime = false
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.height(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Back")
+                        }
+                        Button(
+                            onClick = {
+                                crispHaptics.confirm()
+                                val selectedDate = datePickerState.selectedDateMillis?.let { utcMillis ->
+                                    Instant.ofEpochMilli(utcMillis).atZone(ZoneId.of("UTC")).toLocalDate()
+                                } ?: LocalDate.now()
+
+                                val finalZdt = ZonedDateTime.of(
+                                    selectedDate,
+                                    LocalTime.of(timePickerState.hour, timePickerState.minute),
+                                    ZoneId.systemDefault()
+                                )
+                                onConfirm(finalZdt.toInstant().toEpochMilli())
+                                onDismiss()
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.height(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Set Deadline")
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun formatDeadlineLabel(utc: Long): String {
