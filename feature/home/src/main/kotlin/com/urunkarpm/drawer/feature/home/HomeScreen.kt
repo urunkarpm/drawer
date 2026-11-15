@@ -807,10 +807,10 @@ fun HomeScreen(
                 } else if (!currentAnyCategoryExpanded && !currentIsAllAppsOpen && !currentIsNotificationExpanded && !isRecentCollapse && available.y < 0f) {
                     scrollDownAccumulator = 0f
                     // Apply resistance to upward drag so normal scrolling does not unintentionally trigger app drawer
-                    scrollUpAccumulator += available.y * 0.55f
+                    scrollUpAccumulator += available.y * 0.75f
                     if (!currentIsOpenDrawerFromDockOnly) {
-                        // Sane resistance threshold: requires deliberate upward pull (~180f accumulated)
-                        if (scrollUpAccumulator < -180f) {
+                        // Sane resistance threshold: requires deliberate upward pull (~100f accumulated)
+                        if (scrollUpAccumulator < -100f) {
                             viewModel.openAllApps(currentActiveNotificationPkgs)
                             scrollUpAccumulator = 0f
                             actionTriggeredInScroll = true
@@ -830,7 +830,7 @@ fun HomeScreen(
 
                 if (!currentAnyCategoryExpanded && !currentIsNotificationExpanded && !isRecentCollapse && !actionTriggeredInScroll && !currentIsOpenDrawerFromDockOnly && !currentIsAllAppsOpen) {
                     // Velocity handoff: quick upward flick directly triggers drawer opening
-                    if (available.y < -750f) {
+                    if (available.y < -450f) {
                         viewModel.openAllApps(currentActiveNotificationPkgs)
                         actionTriggeredInScroll = true
                         scrollUpAccumulator = 0f

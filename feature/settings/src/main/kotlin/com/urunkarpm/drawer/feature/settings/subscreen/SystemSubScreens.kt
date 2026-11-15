@@ -49,12 +49,14 @@ import com.urunkarpm.drawer.feature.settings.SettingsViewModel
 import com.urunkarpm.drawer.feature.settings.component.SettingsDivider
 import com.urunkarpm.drawer.feature.settings.component.SettingsSegmentedRow
 import com.urunkarpm.drawer.feature.settings.component.SettingsSwitchRow
+import com.urunkarpm.drawer.feature.settings.component.settingGlowEffect
 
 @Composable
 fun PrivacySubScreen(
     uiState: SettingsUiState,
     viewModel: SettingsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlightKey: String? = null
 ) {
     val context = LocalContext.current
 
@@ -67,7 +69,11 @@ fun PrivacySubScreen(
     ) {
         Card(
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            modifier = Modifier.settingGlowEffect(
+                isHighlighted = highlightKey == "APP_VAULT",
+                shape = RoundedCornerShape(20.dp)
+            )
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -179,7 +185,11 @@ fun PrivacySubScreen(
 
         Card(
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            modifier = Modifier.settingGlowEffect(
+                isHighlighted = highlightKey == "NOTIFICATIONS",
+                shape = RoundedCornerShape(20.dp)
+            )
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(

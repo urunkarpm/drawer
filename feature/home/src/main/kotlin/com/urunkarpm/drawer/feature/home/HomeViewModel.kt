@@ -69,7 +69,7 @@ data class GlancePrefs(
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
     val drawerTitleAnimation: String = "ACCENT_POP",
-    val blurAppListOnOpen: Boolean = true,
+    val blurAppListOnOpen: Boolean = false,
     val appDrawerColumns: Int = 4
 )
 
@@ -137,7 +137,7 @@ data class HomeUiState(
     val wallpaperGradientAngle: String = "DIAGONAL",
     val dockMesmerizingGlow: Boolean = true,
     val drawerTitleAnimation: String = "ACCENT_POP",
-    val blurAppListOnOpen: Boolean = true,
+    val blurAppListOnOpen: Boolean = false,
     val appDrawerColumns: Int = 4,
     val mindfulApps: Set<String> = emptySet(),
     val pendingMindfulApp: AppInfo? = null,

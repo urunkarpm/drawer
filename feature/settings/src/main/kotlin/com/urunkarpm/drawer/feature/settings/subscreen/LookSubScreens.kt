@@ -61,12 +61,14 @@ import com.urunkarpm.drawer.feature.settings.component.SettingsDivider
 import com.urunkarpm.drawer.feature.settings.component.SettingsSegmentedRow
 import com.urunkarpm.drawer.feature.settings.component.SettingsSliderRow
 import com.urunkarpm.drawer.feature.settings.component.SettingsSwitchRow
+import com.urunkarpm.drawer.feature.settings.component.settingGlowEffect
 
 @Composable
 fun ThemesSubScreen(
     uiState: SettingsUiState,
     viewModel: SettingsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlightKey: String? = null
 ) {
     Column(
         modifier = modifier
@@ -85,7 +87,11 @@ fun ThemesSubScreen(
                     title = "Monochrome Vibe",
                     subtitle = "Mute all colors, app icons, and wallpaper to an editorial AMOLED monochrome aesthetic",
                     checked = uiState.monochromeIcons,
-                    onCheckedChange = { viewModel.setMonochromeIcons(it) }
+                    onCheckedChange = { viewModel.setMonochromeIcons(it) },
+                    modifier = Modifier.settingGlowEffect(
+                        isHighlighted = highlightKey == "MONOCHROME",
+                        shape = RoundedCornerShape(12.dp)
+                    )
                 )
 
                 SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))

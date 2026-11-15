@@ -2,16 +2,21 @@ package com.urunkarpm.drawer.feature.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.BackEventCompat
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +37,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.FormatPaint
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Phone
@@ -71,8 +77,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -89,6 +97,7 @@ import com.urunkarpm.drawer.feature.settings.component.SettingsNavTileRow
 import com.urunkarpm.drawer.feature.settings.component.SettingsSectionHeader
 import com.urunkarpm.drawer.feature.settings.subscreen.AboutSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.DockSubScreen
+import com.urunkarpm.drawer.feature.settings.subscreen.FeaturesSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.GlanceSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.HomeDrawersSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.PrivacySubScreen
@@ -120,14 +129,49 @@ fun SettingsScreen(
     val screenWidth = configuration.screenWidthDp
     val horizontalPadding = if (screenWidth < 360) 12.dp else if (screenWidth >= 840) 24.dp else 16.dp
 
-    var currentSection by rememberSaveable { mutableStateOf<SettingsSection?>(null) }
+    var sectionNames by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    val sectionBackStack = remember(sectionNames) {
+        sectionNames.mapNotNull { name ->
+            runCatching { SettingsSection.valueOf(name) }.getOrNull()
+        }
+    }
+    val currentSection = sectionBackStack.lastOrNull()
+
+    var lastSelectedFeatureIndex by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    var targetHighlightKey by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val navigateBack: () -> Unit = {
+        if (sectionNames.isNotEmpty()) {
+            sectionNames = sectionNames.dropLast(1)
+            targetHighlightKey = null
+        } else {
+            onNavigateBack()
+        }
+    }
+
+    val navigateToSection: (SettingsSection) -> Unit = { section ->
+        sectionNames = sectionNames + section.name
+    }
+
     var showCityDialog by remember { mutableStateOf(false) }
     var showIconPicker by remember { mutableStateOf(false) }
     val iconSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Hardware and system back gesture handling
-    BackHandler(enabled = currentSection != null) {
-        currentSection = null
+    val predictiveBackProgress = remember { Animatable(0f) }
+    var predictiveBackSwipeEdge by remember { androidx.compose.runtime.mutableIntStateOf(BackEventCompat.EDGE_LEFT) }
+
+    // ponytail: Android 14+ Predictive Back gesture - scales, shifts, and rounds container corners during swipe-to-back, with smooth spring-cancel on release; ceiling: 1D scale/translation; upgrade path: full Material3 PredictiveBackHandler transitions.
+    PredictiveBackHandler(enabled = true) { progressFlow ->
+        try {
+            progressFlow.collect { backEvent ->
+                predictiveBackSwipeEdge = backEvent.swipeEdge
+                predictiveBackProgress.snapTo(backEvent.progress)
+            }
+            navigateBack()
+            predictiveBackProgress.animateTo(0f, animationSpec = tween(120))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            predictiveBackProgress.animateTo(0f, animationSpec = spring(stiffness = 500f, dampingRatio = 0.8f))
+        }
     }
 
     LaunchedEffect(uiState.userMessage) {
@@ -201,6 +245,9 @@ fun SettingsScreen(
         accentColor = uiState.accentColor,
         monochromeMode = uiState.monochromeIcons
     ) {
+        val density = LocalDensity.current
+        val isHub = currentSection == null
+
         CompositionLocalProvider(
             LocalHeaderFontFamily provides GoogleSansFontFamily,
             LocalMonochromeIcons provides uiState.monochromeIcons
@@ -217,13 +264,7 @@ fun SettingsScreen(
                             )
                         },
                         navigationIcon = {
-                            IconButton(onClick = {
-                                if (currentSection != null) {
-                                    currentSection = null
-                                } else {
-                                    onNavigateBack()
-                                }
-                            }) {
+                            IconButton(onClick = navigateBack) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back"
@@ -238,7 +279,21 @@ fun SettingsScreen(
                     )
                 },
                 snackbarHost = { SnackbarHost(snackbarHostState) },
-                modifier = modifier.fillMaxSize()
+                modifier = modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        if (isHub && predictiveBackProgress.value > 0.001f) {
+                            val p = predictiveBackProgress.value
+                            val scale = 1f - (p * 0.10f)
+                            scaleX = scale
+                            scaleY = scale
+                            val txMax = with(density) { 56.dp.toPx() }
+                            translationX = if (predictiveBackSwipeEdge == BackEventCompat.EDGE_LEFT) p * txMax else -p * txMax
+                            shadowElevation = p * 20f
+                            shape = RoundedCornerShape((p * 28f).dp)
+                            clip = true
+                        }
+                    }
             ) { paddingValues ->
                 Box(
                     modifier = Modifier
@@ -246,23 +301,59 @@ fun SettingsScreen(
                         .padding(paddingValues),
                     contentAlignment = Alignment.TopCenter
                 ) {
-                    AnimatedContent(
-                        targetState = currentSection,
-                        transitionSpec = {
-                            if (targetState != null) {
-                                (slideInHorizontally(animationSpec = tween(220)) { width -> width / 3 } + fadeIn(animationSpec = tween(220)))
-                                    .togetherWith(slideOutHorizontally(animationSpec = tween(200)) { width -> -width / 3 } + fadeOut(animationSpec = tween(200)))
-                            } else {
-                                (slideInHorizontally(animationSpec = tween(220)) { width -> -width / 3 } + fadeIn(animationSpec = tween(220)))
-                                    .togetherWith(slideOutHorizontally(animationSpec = tween(200)) { width -> width / 3 } + fadeOut(animationSpec = tween(200)))
+                    if (currentSection != null) {
+                        MainSettingsHub(
+                            uiState = uiState,
+                            onSelectSection = navigateToSection,
+                            horizontalPadding = horizontalPadding,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    val p = predictiveBackProgress.value
+                                    val scale = 0.94f + (p * 0.06f)
+                                    scaleX = scale
+                                    scaleY = scale
+                                    alpha = 0.5f + (p * 0.5f)
+                                }
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                if (!isHub && predictiveBackProgress.value > 0.001f) {
+                                    val p = predictiveBackProgress.value
+                                    val scale = 1f - (p * 0.10f)
+                                    scaleX = scale
+                                    scaleY = scale
+                                    val txMax = with(density) { 56.dp.toPx() }
+                                    translationX = if (predictiveBackSwipeEdge == BackEventCompat.EDGE_LEFT) p * txMax else -p * txMax
+                                    shadowElevation = p * 24f
+                                    shape = RoundedCornerShape((p * 28f).dp)
+                                    clip = true
+                                }
                             }
-                        },
-                        label = "SettingsSectionTransition"
-                    ) { targetSection ->
+                            .background(MaterialTheme.colorScheme.surface),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        AnimatedContent(
+                            targetState = currentSection,
+                            transitionSpec = {
+                                if (targetState != null) {
+                                    (slideInHorizontally(animationSpec = tween(220)) { width -> width / 3 } + fadeIn(animationSpec = tween(220)))
+                                        .togetherWith(slideOutHorizontally(animationSpec = tween(200)) { width -> -width / 3 } + fadeOut(animationSpec = tween(200)))
+                                } else {
+                                    (slideInHorizontally(animationSpec = tween(220)) { width -> -width / 3 } + fadeIn(animationSpec = tween(220)))
+                                        .togetherWith(slideOutHorizontally(animationSpec = tween(200)) { width -> width / 3 } + fadeOut(animationSpec = tween(200)))
+                                }
+                            },
+                            label = "SettingsSectionTransition"
+                        ) { targetSection ->
                         if (targetSection == null) {
                             MainSettingsHub(
                                 uiState = uiState,
-                                onSelectSection = { currentSection = it },
+                                onSelectSection = navigateToSection,
                                 horizontalPadding = horizontalPadding
                             )
                         } else {
@@ -274,7 +365,19 @@ fun SettingsScreen(
                                 contentAlignment = Alignment.TopCenter
                             ) {
                                 when (targetSection) {
-                                    SettingsSection.THEMES -> ThemesSubScreen(uiState, viewModel)
+                                    SettingsSection.FEATURES -> FeaturesSubScreen(
+                                        initialPageIndex = lastSelectedFeatureIndex,
+                                        onNavigateToSetting = { section, key, cardIndex ->
+                                            lastSelectedFeatureIndex = cardIndex
+                                            targetHighlightKey = key
+                                            navigateToSection(section)
+                                        }
+                                    )
+                                    SettingsSection.THEMES -> ThemesSubScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel,
+                                        highlightKey = targetHighlightKey
+                                    )
                                     SettingsSection.WALLPAPER -> WallpaperSubScreen(uiState, viewModel)
                                     SettingsSection.SURFACES -> SurfacesSubScreen(uiState, viewModel)
                                     SettingsSection.TYPOGRAPHY_ICONS -> TypographyIconsSubScreen(
@@ -282,14 +385,23 @@ fun SettingsScreen(
                                         viewModel = viewModel,
                                         onShowIconPicker = { showIconPicker = true }
                                     )
-                                    SettingsSection.HOME_DRAWERS -> HomeDrawersSubScreen(uiState, viewModel)
+                                    SettingsSection.HOME_DRAWERS -> HomeDrawersSubScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel,
+                                        highlightKey = targetHighlightKey
+                                    )
                                     SettingsSection.DOCK -> DockSubScreen(uiState, viewModel)
                                     SettingsSection.GLANCE -> GlanceSubScreen(
                                         uiState = uiState,
                                         viewModel = viewModel,
-                                        onShowCityDialog = { showCityDialog = true }
+                                        onShowCityDialog = { showCityDialog = true },
+                                        highlightKey = targetHighlightKey
                                     )
-                                    SettingsSection.PRIVACY -> PrivacySubScreen(uiState, viewModel)
+                                    SettingsSection.PRIVACY -> PrivacySubScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel,
+                                        highlightKey = targetHighlightKey
+                                    )
                                     SettingsSection.ABOUT -> AboutSubScreen(
                                         uiState = uiState,
                                         viewModel = viewModel,
@@ -313,6 +425,7 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    }
                     }
                 }
             }
@@ -483,6 +596,22 @@ private fun MainSettingsHub(
             .padding(horizontal = horizontalPadding, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Section: Features & Guides
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SettingsSectionHeader(title = "Features & Guides")
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                SettingsNavTileRow(
+                    title = SettingsSection.FEATURES.title,
+                    subtitle = "App vault, tasks, notification muting, power metrics & shortcuts",
+                    icon = Icons.Default.Explore,
+                    onClick = { onSelectSection(SettingsSection.FEATURES) }
+                )
+            }
+        }
+
         // Section 1: Personalisation & Look
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SettingsSectionHeader(title = "Personalisation & Look")

@@ -34,12 +34,14 @@ import com.urunkarpm.drawer.feature.settings.component.SettingsDivider
 import com.urunkarpm.drawer.feature.settings.component.SettingsSegmentedRow
 import com.urunkarpm.drawer.feature.settings.component.SettingsSliderRow
 import com.urunkarpm.drawer.feature.settings.component.SettingsSwitchRow
+import com.urunkarpm.drawer.feature.settings.component.settingGlowEffect
 
 @Composable
 fun HomeDrawersSubScreen(
     uiState: SettingsUiState,
     viewModel: SettingsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlightKey: String? = null
 ) {
     Column(
         modifier = modifier
@@ -50,7 +52,11 @@ fun HomeDrawersSubScreen(
     ) {
         Card(
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            modifier = Modifier.settingGlowEffect(
+                isHighlighted = highlightKey == "HOME_DRAWERS",
+                shape = RoundedCornerShape(20.dp)
+            )
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -355,7 +361,8 @@ fun GlanceSubScreen(
     uiState: SettingsUiState,
     viewModel: SettingsViewModel,
     onShowCityDialog: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlightKey: String? = null
 ) {
     Column(
         modifier = modifier
@@ -437,10 +444,14 @@ fun GlanceSubScreen(
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 SettingsSwitchRow(
-                    title = "Show Status Indicators",
-                    subtitle = "Show battery and Wi-Fi status indicator between time and weather",
+                    title = "DuoStatus Indicators",
+                    subtitle = "Show live power wattage, battery, speed test, and Wi-Fi indicator between time and weather",
                     checked = uiState.showDuoStatusWidget,
-                    onCheckedChange = { viewModel.setShowDuoStatusWidget(it) }
+                    onCheckedChange = { viewModel.setShowDuoStatusWidget(it) },
+                    modifier = Modifier.settingGlowEffect(
+                        isHighlighted = highlightKey == "DUO_STATUS",
+                        shape = RoundedCornerShape(12.dp)
+                    )
                 )
 
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -449,7 +460,11 @@ fun GlanceSubScreen(
                     title = "Front Camera Mirror Shortcut",
                     subtitle = "Tap front camera punch hole to quickly open front camera mirror",
                     checked = uiState.enableCameraMirror,
-                    onCheckedChange = { viewModel.setEnableCameraMirror(it) }
+                    onCheckedChange = { viewModel.setEnableCameraMirror(it) },
+                    modifier = Modifier.settingGlowEffect(
+                        isHighlighted = highlightKey == "CAMERA_MIRROR",
+                        shape = RoundedCornerShape(12.dp)
+                    )
                 )
 
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -458,7 +473,11 @@ fun GlanceSubScreen(
                     title = "Left-Hand Widget Page",
                     subtitle = "Enable dedicated full-page widget feed by swiping right from Home",
                     checked = uiState.enableWidgetsPage,
-                    onCheckedChange = { viewModel.setEnableWidgetsPage(it) }
+                    onCheckedChange = { viewModel.setEnableWidgetsPage(it) },
+                    modifier = Modifier.settingGlowEffect(
+                        isHighlighted = highlightKey == "WIDGETS",
+                        shape = RoundedCornerShape(12.dp)
+                    )
                 )
 
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))

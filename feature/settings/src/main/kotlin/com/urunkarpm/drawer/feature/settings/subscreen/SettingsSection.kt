@@ -4,6 +4,10 @@ enum class SettingsSection(
     val title: String,
     val subtitle: String
 ) {
+    FEATURES(
+        title = "Features & Gestures",
+        subtitle = "App vault, offline tasks, notification muting, power metrics, and shortcuts"
+    ),
     THEMES(
         title = "Themes & Accents",
         subtitle = "Theme mode, app drawer look, dynamic color, and vibrant accent hues"

@@ -1,6 +1,18 @@
 package com.urunkarpm.drawer.feature.settings.component
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -315,4 +327,51 @@ fun SettingsSwitchRow(
             }
         )
     }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.settingGlowEffect(
+    isHighlighted: Boolean,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp)
+): Modifier {
+    if (!isHighlighted) return this
+
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    var visible by remember { mutableStateOf(true) }
+
+    androidx.compose.runtime.LaunchedEffect(isHighlighted) {
+        bringIntoViewRequester.bringIntoView()
+        kotlinx.coroutines.delay(2600)
+        visible = false
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "settingGlowPulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (visible) pulseAlpha else 0f,
+        animationSpec = tween(400),
+        label = "fadeAlpha"
+    )
+
+    if (animatedAlpha <= 0.01f) return this
+
+    return this
+        .bringIntoViewRequester(bringIntoViewRequester)
+        .clip(shape)
+        .background(MaterialTheme.colorScheme.primary.copy(alpha = animatedAlpha * 0.18f))
+        .border(
+            width = 2.dp,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = animatedAlpha),
+            shape = shape
+        )
 }
