@@ -109,7 +109,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
-import com.urunkarpm.drawer.core.designsystem.theme.AmoledBlack
+import com.urunkarpm.drawer.core.designsystem.theme.MonochromeWallpaperOverlay
 import com.urunkarpm.drawer.feature.home.component.FrontCameraPreview
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -861,8 +861,8 @@ fun HomeScreen(
         LocalAppLabelScale provides labelScale,
         LocalMonochromeIcons provides monochromeIcons
     ) {
-        val targetWallpaperColor = if (monochromeIcons) AmoledBlack else Color.Transparent
-        // ponytail: Animate wallpaper transition to/from AMOLED pitch black when monochrome mode toggles; ceiling: 350ms crossfade; upgrade path: circular reveal from toggle coordinate.
+        val targetWallpaperColor = if (monochromeIcons) MonochromeWallpaperOverlay else Color.Transparent
+        // ponytail: Animate wallpaper transition to/from grey overlay when monochrome mode toggles so system wallpaper stays visible with muted monochrome vibe; ceiling: 350ms crossfade with 70% dark grey scrim; upgrade path: AGSL desaturation runtime shader.
         val animatedWallpaperColor by animateColorAsState(
             targetValue = targetWallpaperColor,
             animationSpec = tween(durationMillis = 350),
@@ -872,7 +872,7 @@ fun HomeScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                // Transparent so the wallpaper shows through cleanly with zero theme tint overlay (or AmoledBlack when monochrome)
+                // Transparent so the wallpaper shows through cleanly with zero theme tint overlay (or grey overlay when monochrome)
                 // ponytail: native window.setBackgroundBlurRadius blurs wallpaper on Android 12+ without flat surface scrims covering wallpaper; ceiling: Android < 12 shows clean transparent wallpaper; upgrade path: RenderEffect-based RenderNode blur.
                 .background(animatedWallpaperColor)
         ) {

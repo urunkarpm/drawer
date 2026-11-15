@@ -34,7 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,11 +78,12 @@ fun AlphabetIndexBar(
         }
     }
 
+    // ponytail: compact 22dp touch target prevents right-thumb grid scroll gestures from accidentally triggering alphabet scrub jumps; ceiling: 22dp strip; upgrade path: gesture velocity arbitration.
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .width(32.dp)
-            .onGloballyPositioned { coordinates ->
+            .width(22.dp)
+            .onPlaced { coordinates ->
                 barHeightPx = coordinates.size.height.toFloat()
             }
             .pointerInput(Unit) {
@@ -159,7 +160,7 @@ fun AlphabetIndexBar(
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(24.dp)
+                .width(20.dp)
                 .padding(vertical = 4.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally

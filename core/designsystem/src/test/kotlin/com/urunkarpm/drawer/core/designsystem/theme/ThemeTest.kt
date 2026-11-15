@@ -73,4 +73,12 @@ class ThemeTest {
         assertEquals(Color.White, scheme.onPrimary)
         assertTrue(scheme.surface.red > 0.95f)
     }
+
+    @Test
+    fun monochromeWallpaperOverlay_hasDarkNeutralGreyTonesAndSemiTransparency() {
+        assertEquals(0.702f, MonochromeWallpaperOverlay.alpha, 0.01f)
+        assertEquals(MonochromeWallpaperOverlay.red, MonochromeWallpaperOverlay.green, 0.001f)
+        assertEquals(MonochromeWallpaperOverlay.green, MonochromeWallpaperOverlay.blue, 0.001f)
+        assertTrue(MonochromeWallpaperOverlay.red in 0.10f..0.20f)
+    }
 }

@@ -103,10 +103,10 @@ class MainActivity : ComponentActivity() {
 
             var showAccessibilityPrompt by remember { mutableStateOf(false) }
 
-            // ponytail: Launcher wallpaper overlay surfaces stay consistently dark; themeMode scopes only to SettingsScreen.
+            // ponytail: Launcher wallpaper overlay surfaces stay consistently dark; monochrome uses curated dark-grey palette; themeMode scopes only to SettingsScreen.
             DrawerTheme(
                 darkTheme = true,
-                isAmoled = monochromeIcons,
+                isAmoled = false,
                 dynamicColor = dynamicColor,
                 accentColor = accentColor,
                 monochromeMode = monochromeIcons

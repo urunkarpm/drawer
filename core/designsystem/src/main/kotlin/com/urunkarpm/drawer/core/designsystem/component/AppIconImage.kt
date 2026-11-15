@@ -167,10 +167,11 @@ private fun AppIconContent(
                     )
                 } else null
             }
+            // ponytail: FilterQuality.Low uses native GPU hardware bilinear sampling; eliminates heavy bicubic shader passes on 120Hz displays with 30+ icons; ceiling: bilinear interpolation; upgrade path: mipmapped texture atlas.
             Image(
                 bitmap = bitmap,
                 contentDescription = label,
-                filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+                filterQuality = androidx.compose.ui.graphics.FilterQuality.Low,
                 colorFilter = colorFilter,
                 modifier = Modifier
                     .size(size)

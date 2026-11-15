@@ -14,7 +14,7 @@ import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationExceptio
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInRoot
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import kotlinx.coroutines.TimeoutCancellationException
@@ -36,8 +36,9 @@ fun Modifier.appDragSource(
     val crispHaptics = LocalCrispHaptics.current
     val coordsHolder = remember { arrayOfNulls<LayoutCoordinates>(1) }
 
+    // ponytail: onPlaced captures coordinates during placement without firing 30+ post-traversal callbacks on every frame during scrolling; ceiling: placement pass; upgrade path: Modifier.Node.
     this
-        .onGloballyPositioned { coords ->
+        .onPlaced { coords ->
             coordsHolder[0] = coords
         }
         .pointerInput(key, longPressRequired) {

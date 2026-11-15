@@ -630,31 +630,7 @@ fun HiddenVaultDrawer(
                             }
                         }
 
-                        // ── Vault-Exclusive Notification Drawer ─────────────────
-                        if (notificationsViewModel != null) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                NotificationDrawer(
-                                    viewModel = notificationsViewModel,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .onGloballyPositioned { coords ->
-                                            vaultNotificationBounds = coords.boundsInRoot()
-                                        },
-                                    isExpanded = isVaultNotificationExpanded,
-                                    onExpandedChange = { isVaultNotificationExpanded = it },
-                                    forVaultOnly = true,
-                                    iconLoader = if (iconLoader != null) {
-                                        { pkg ->
-                                            val app = allInstalledApps.find { it.packageName == pkg }
-                                            if (app != null) iconLoader(app) else null
-                                        }
-                                    } else null
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // ── Content: App Grid or Empty State ───────────────────
                         if (hiddenApps.isEmpty()) {
@@ -718,7 +694,7 @@ fun HiddenVaultDrawer(
                                     .fillMaxWidth()
                                     .weight(1f)
                                     .padding(horizontal = 16.dp),
-                                contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp),
+                                contentPadding = PaddingValues(top = 8.dp, bottom = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
@@ -735,6 +711,36 @@ fun HiddenVaultDrawer(
                                         onOpenAppDetails = { onOpenAppDetails(app.packageName) }
                                     )
                                 }
+                            }
+                        }
+
+                        // ── Vault-Exclusive Notification Drawer (Bottom-Anchored) ─
+                        // ponytail: vault notification drawer placed at bottom below apps for ergonomic thumb access; ceiling: bottom slot in Column; upgrade path: dockable floating card.
+                        if (notificationsViewModel != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .padding(bottom = 8.dp)
+                            ) {
+                                NotificationDrawer(
+                                    viewModel = notificationsViewModel,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onGloballyPositioned { coords ->
+                                            vaultNotificationBounds = coords.boundsInRoot()
+                                        },
+                                    isExpanded = isVaultNotificationExpanded,
+                                    onExpandedChange = { isVaultNotificationExpanded = it },
+                                    forVaultOnly = true,
+                                    iconLoader = if (iconLoader != null) {
+                                        { pkg ->
+                                            val app = allInstalledApps.find { it.packageName == pkg }
+                                            if (app != null) iconLoader(app) else null
+                                        }
+                                    } else null
+                                )
                             }
                         }
                     }

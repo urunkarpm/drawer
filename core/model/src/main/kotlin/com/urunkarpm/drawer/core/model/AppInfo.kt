@@ -1,6 +1,7 @@
 package com.urunkarpm.drawer.core.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 data class AppInfo(
@@ -12,5 +13,7 @@ data class AppInfo(
     val installTimeMillis: Long = 0L,
     val lastUpdateTimeMillis: Long = 0L
 ) {
-    val componentKey: String get() = "$packageName/$activityName#$userHandleId"
+    // ponytail: Precomputed component key avoids allocating string on every frame during grid bind/cache lookup; ceiling: memory of one string ref per app; upgrade path: inline value class.
+    @Transient
+    val componentKey: String = "$packageName/$activityName#$userHandleId"
 }

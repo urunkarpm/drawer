@@ -292,10 +292,15 @@ fun AllAppsDrawer(
                 gridColumns == 5 -> 2.dp
                 else -> 4.dp
             }
-            val gridLabelFontSize = when {
-                gridColumns >= 6 -> 10.sp * LocalAppLabelScale.current
-                gridColumns == 5 -> 11.sp * LocalAppLabelScale.current
-                else -> null
+            val labelScale = LocalAppLabelScale.current
+            val baseBodySmall = MaterialTheme.typography.bodySmall
+            val gridLabelStyle = remember(gridColumns, labelScale, baseBodySmall) {
+                val fontSize = when {
+                    gridColumns >= 6 -> 10.sp * labelScale
+                    gridColumns == 5 -> 11.sp * labelScale
+                    else -> baseBodySmall.fontSize * labelScale
+                }
+                baseBodySmall.copy(fontSize = fontSize, textAlign = TextAlign.Center)
             }
 
             val letterIndexMap = remember(displayedApps) {
@@ -763,17 +768,17 @@ fun AllAppsDrawer(
                             }
                         } else {
                             Box(modifier = Modifier.fillMaxSize()) {
-                                val scrubProvider = rememberUpdatedState(activeScrubLetter)
                                 val hasIndexBar = searchQuery.isBlank() && displayedApps.size > 8
+                                val gridEndPadding = if (hasIndexBar) horizontalPadding + 14.dp else horizontalPadding
 
-                                // ponytail: symmetrical horizontal padding matches FrequentAppsRow exactly so 4, 5, and 6 column layouts remain perfectly balanced; ceiling: screen edge margin; upgrade path: adaptive padding based on window size classes.
+                                // ponytail: 14dp right clearance when alphabet index rail is active ensures right-thumb scrolling never accidentally triggers scrub jumps; ceiling: 14dp offset; upgrade path: adaptive rail placement.
                                 LazyVerticalGrid(
                                     state = gridState,
                                     columns = GridCells.Fixed(gridColumns),
                                     contentPadding = PaddingValues(
                                         start = horizontalPadding,
                                         top = 8.dp,
-                                        end = horizontalPadding,
+                                        end = gridEndPadding,
                                         bottom = 12.dp
                                     ),
                                     verticalArrangement = Arrangement.spacedBy(gridVerticalSpacing),
@@ -792,11 +797,11 @@ fun AllAppsDrawer(
                                             iconLoader = iconLoader,
                                             iconSize = gridIconSize,
                                             itemHorizontalPadding = gridItemPadding,
-                                            labelFontSize = gridLabelFontSize,
+                                            labelStyle = gridLabelStyle,
                                             iconShape = iconShape,
                                             dragDropState = dragDropState,
                                             onDragDropResult = onDragDropResult,
-                                            activeScrubLetterProvider = { scrubProvider.value }
+                                            activeScrubLetter = activeScrubLetter
                                         )
                                     }
                                 }
@@ -1123,20 +1128,19 @@ private fun AppItemView(
     modifier: Modifier = Modifier,
     iconSize: androidx.compose.ui.unit.Dp = 54.dp,
     itemHorizontalPadding: androidx.compose.ui.unit.Dp = 4.dp,
+    labelStyle: androidx.compose.ui.text.TextStyle? = null,
     labelFontSize: androidx.compose.ui.unit.TextUnit? = null,
     iconShape: Shape = CircleShape,
     dragDropState: AppDragDropState? = null,
     onDragDropResult: ((DragDropResult) -> Unit)? = null,
-    activeScrubLetterProvider: () -> String? = { null }
+    activeScrubLetter: String? = null
 ) {
     val crispHaptics = LocalCrispHaptics.current
-    val labelScale = LocalAppLabelScale.current
     val firstChar = remember(app.label) { app.label.firstOrNull()?.uppercaseChar() }
 
-    // ponytail: Unified gesture detector combining instantaneous tap execution, list scroll passthrough, and long-press drag-to-drawer; ceiling is Compose pointer slop; upgrade path is native drag-and-drop transfer API.
+    // ponytail: Unified gesture detector without redundant clip layer; provides instant tap, drag-drop, and scroll; ceiling: Compose pointer slop; upgrade path: native drag-and-drop transfer API.
     val itemModifier = if (dragDropState != null) {
         modifier
-            .clip(RoundedCornerShape(12.dp))
             .appDragSource(
                 key = app.componentKey,
                 onAppClick = { onAppClick(app) },
@@ -1164,7 +1168,6 @@ private fun AppItemView(
             }
     } else {
         modifier
-            .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = {
                     crispHaptics.click()
@@ -1181,21 +1184,21 @@ private fun AppItemView(
             }
     }
 
+    // ponytail: only create hardware RenderNode graphicsLayer when alphabet scrub is active; eliminates 30+ hardware layer allocations during normal 120Hz scroll; ceiling: conditional layer; upgrade path: custom DrawScope modifier.
+    val columnModifier = if (activeScrubLetter != null) {
+        itemModifier.graphicsLayer {
+            val matches = if (activeScrubLetter == "#") !(firstChar?.isLetter() == true) else (firstChar == activeScrubLetter.firstOrNull())
+            alpha = if (matches) 1f else 0.35f
+            scaleX = if (matches) 1.05f else 0.98f
+            scaleY = if (matches) 1.05f else 0.98f
+        }
+    } else {
+        itemModifier
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = itemModifier.graphicsLayer {
-            val scrub = activeScrubLetterProvider()
-            if (scrub != null) {
-                val matches = if (scrub == "#") !(firstChar?.isLetter() == true) else (firstChar == scrub.firstOrNull())
-                alpha = if (matches) 1f else 0.35f
-                scaleX = if (matches) 1.05f else 0.98f
-                scaleY = if (matches) 1.05f else 0.98f
-            } else {
-                alpha = 1f
-                scaleX = 1f
-                scaleY = 1f
-            }
-        }
+        modifier = columnModifier
     ) {
         AppIconImage(
             key = app.componentKey,
@@ -1206,10 +1209,14 @@ private fun AppItemView(
             iconLoader = { iconLoader(app) }
         )
         Spacer(modifier = Modifier.height(4.dp))
-        val resolvedFontSize = labelFontSize ?: (MaterialTheme.typography.bodySmall.fontSize * labelScale)
+        val resolvedStyle = labelStyle ?: run {
+            val labelScale = LocalAppLabelScale.current
+            val resolvedFontSize = labelFontSize ?: (MaterialTheme.typography.bodySmall.fontSize * labelScale)
+            MaterialTheme.typography.bodySmall.copy(fontSize = resolvedFontSize, textAlign = TextAlign.Center)
+        }
         Text(
             text = app.label,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = resolvedFontSize),
+            style = resolvedStyle,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
