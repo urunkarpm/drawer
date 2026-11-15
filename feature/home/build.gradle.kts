@@ -27,7 +27,6 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:todo"))
 
-    implementation(libs.compose.material.icons.extended)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)

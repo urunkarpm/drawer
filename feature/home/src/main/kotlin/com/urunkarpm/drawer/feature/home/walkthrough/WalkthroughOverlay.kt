@@ -1022,8 +1022,8 @@ fun WalkthroughOverlay(
                                             onCheckedChange = onSetDockShowLabels
                                         )
                                         StudioSwitch(
-                                            title = "Mesmerizing Refraction Glow",
-                                            subtitle = "Iridescent chromatic sheen catching light along dock edge",
+                                            title = "Dock Edge Glow",
+                                            subtitle = "Displays a light highlight along the dock edge",
                                             checked = dockMesmerizingGlow,
                                             onCheckedChange = onSetDockMesmerizingGlow
                                         )

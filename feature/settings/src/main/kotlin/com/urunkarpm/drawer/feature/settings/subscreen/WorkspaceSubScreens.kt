@@ -344,8 +344,8 @@ fun DockSubScreen(
                 SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 SettingsSwitchRow(
-                    title = "Mesmerizing Dock Prismatic Glow",
-                    subtitle = "Iridescent glass sheen catching light along the dock boundary",
+                    title = "Dock Edge Glow",
+                    subtitle = "Displays a light highlight along the dock edge",
                     checked = uiState.dockMesmerizingGlow,
                     onCheckedChange = { viewModel.setDockMesmerizingGlow(it) }
                 )

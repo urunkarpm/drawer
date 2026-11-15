@@ -91,12 +91,12 @@ private val FEATURE_CARDS = listOf(
         badge = "Private Storage",
         icon = Icons.Default.Lock,
         description = "The App Vault hides sensitive apps. Hidden apps do not show in app drawers, categories, dock bar, or search results.",
-        howToOpen = "Swipe horizontally across the floating dock bar on your home screen, then verify with fingerprint, face unlock, or device PIN.",
+        howToOpen = "Swipe horizontally across the dock bar on your home screen. Then verify with biometric unlock or your device PIN.",
         capabilities = listOf(
             "Private Alerts: Notifications from hidden apps show only inside the vault.",
-            "Discreet Caret Glow: The notification chevron breathes softly when private alerts arrive.",
-            "Batch Selection: Multi-select apps with check boxes to hide them all simultaneously.",
-            "Unhide Apps: Long press any app icon inside the vault to restore it."
+            "Discreet Caret Glow: The notification icon glows softly when private alerts arrive.",
+            "Batch Selection: Select multiple apps with check boxes to hide them together.",
+            "Unhide Apps: Press and hold an app icon inside the vault to restore it."
         ),
         targetSection = SettingsSection.PRIVACY,
         targetKey = "APP_VAULT",
@@ -108,13 +108,13 @@ private val FEATURE_CARDS = listOf(
         shortChipTitle = "To-Do Tasks",
         badge = "Offline Tasks",
         icon = Icons.Default.Checklist,
-        description = "An offline task manager that respects your attention. Operates without internet access, user accounts, or background data tracking.",
+        description = "This offline task manager works without internet access, user accounts, or background data tracking.",
         howToOpen = "Swipe right from your home screen.",
         capabilities = listOf(
-            "Location Alerts: Set place-based reminders using offline maps (e.g. office, grocery store).",
+            "Location Alerts: Set location reminders using offline maps.",
             "Smart Filters: Quickly filter tasks by Due Today, Nearby, or Done.",
             "Priority Levels: Organize tasks by low, medium, or high urgency.",
-            "Task Analytics: Inspect punctuality scores and completion metrics."
+            "Task Statistics: Inspect punctuality scores and completion metrics."
         ),
         targetSection = null,
         targetKey = null,
@@ -126,12 +126,12 @@ private val FEATURE_CARDS = listOf(
         shortChipTitle = "Notification Hub",
         badge = "Distraction Defense",
         icon = Icons.Default.NotificationsOff,
-        description = "The Notification Hub groups incoming alerts by application so you stay in complete control of your focus.",
+        description = "The Notification Hub groups incoming alerts by application to reduce distractions.",
         howToOpen = "Swipe up from your home screen.",
         capabilities = listOf(
             "Home-Screen Quick Mute: Mute notifications for 1 hour, 24 hours, or permanently without opening system settings.",
-            "Privacy Mode: Censors notification previews and 2FA authentication codes on the home screen.",
-            "Instant Dismiss: Swipe to dismiss notifications with instant zero-lag animation."
+            "Privacy Mode: Hides notification previews and verification codes on the home screen.",
+            "Instant Dismiss: Swipe to dismiss notifications immediately."
         ),
         targetSection = SettingsSection.PRIVACY,
         targetKey = "NOTIFICATIONS",
@@ -143,12 +143,12 @@ private val FEATURE_CARDS = listOf(
         shortChipTitle = "DuoStatus",
         badge = "Live Telemetry",
         icon = Icons.Default.Bolt,
-        description = "The DuoStatus widget turns your status pill into a live hardware diagnostic and network tool directly on your home screen.",
+        description = "The DuoStatus widget displays live hardware metrics and network tools directly on your home screen.",
         howToOpen = "Tap the status pill between clock and weather in the glance header.",
         capabilities = listOf(
             "Power Telemetry: Inspect real-time charging power in watts, voltage, current in mA, and battery temperature.",
-            "Protocol Detection: Identifies fast charging protocols including USB-PD, Warp, Dart, and Turbo.",
-            "Built-in Speed Test: Run instant download speed tests powered directly by Cloudflare and Google Edge CDN.",
+            "Protocol Detection: Detects fast charging protocols such as USB-PD, Warp, Dart, and Turbo.",
+            "Built-in Speed Test: Run download speed tests powered directly by Cloudflare and Google Edge CDN.",
             "Network Status: View active Wi-Fi name, signal strength, and link speed."
         ),
         targetSection = SettingsSection.GLANCE,
@@ -161,11 +161,11 @@ private val FEATURE_CARDS = listOf(
         shortChipTitle = "Camera Mirror",
         badge = "Quick Tool",
         icon = Icons.Default.Face,
-        description = "Inspect your appearance in under a second before video meetings without opening a heavy camera application.",
+        description = "Check your appearance before video meetings without opening the camera application.",
         howToOpen = "Tap the camera punch hole or mirror icon in the glance header on your home screen.",
         capabilities = listOf(
-            "Instant Mirror Glance: Quick video preview of your front camera directly on the home screen.",
-            "Zero Delay: Bypasses camera app startup delays, modes, shutter sounds, and gallery loading.",
+            "Instant Mirror Glance: View a video preview of your front camera directly on the home screen.",
+            "Fast Startup: Skips camera startup delay, shutter sounds, and gallery loading.",
             "Punch-Hole Alignment: Integrates right at your phone's front camera cutout."
         ),
         targetSection = SettingsSection.GLANCE,
@@ -178,13 +178,13 @@ private val FEATURE_CARDS = listOf(
         shortChipTitle = "App Drawers",
         badge = "Intentional Layout",
         icon = Icons.Default.Folder,
-        description = "Organize apps into expandable mental workflow buckets to eliminate screen clutter and visual overwhelm.",
+        description = "Organize applications into expandable categories to remove screen clutter.",
         howToOpen = "Tap any category header on the home screen.",
         capabilities = listOf(
-            "Task Buckets: Group tools into Work, Finance, or Media. Only one drawer expands at a time.",
+            "Task Groups: Group tools into Work, Finance, or Media. Only one drawer expands at a time.",
             "Multi-Group Assignment: Place apps in multiple drawers without creating duplicate shortcuts.",
-            "0ms Outside-Tap Collapse: Tap anywhere outside an open drawer to shut it immediately.",
-            "Frecency Predictions: Surfaces your most relevant apps dynamically using frequency and recency.",
+            "Instant Outside-Tap Collapse: Tap outside an open drawer to close it immediately.",
+            "Frecency Predictions: Suggests relevant applications based on launch frequency and time.",
             "Alphabet Scrub Rail: Drag your thumb down the right screen edge to jump directly to any letter."
         ),
         targetSection = SettingsSection.HOME_DRAWERS,
@@ -200,9 +200,9 @@ private val FEATURE_CARDS = listOf(
         description = "Store standard interactive Android widgets in collapsible drawers without losing clean home screen space.",
         howToOpen = "Tap a widget drawer header on the home screen or swipe to the widget page.",
         capabilities = listOf(
-            "Collapsible Storage: Tuck heavy widgets (Calendar, Music, Notes) into drawers that close after use.",
-            "3D iPod Cover Flow: Flip horizontally through widgets with tactile physics and depth.",
-            "Smart Auto-Collapse: Automatically shuts drawers after interaction to keep your screen clean."
+            "Collapsible Storage: Place widgets into drawers that close after use.",
+            "3D Cover Flow: Swipe horizontally through widgets with depth animation.",
+            "Smart Auto-Collapse: Automatically closes drawers after interaction to keep your screen clean."
         ),
         targetSection = SettingsSection.GLANCE,
         targetKey = "WIDGETS",
@@ -212,14 +212,14 @@ private val FEATURE_CARDS = listOf(
         id = "MONOCHROME",
         title = "Monochrome Mode",
         shortChipTitle = "Monochrome",
-        badge = "Focus & Detox",
+        badge = "Focus & Calm",
         icon = Icons.Default.Palette,
-        description = "Strips away vibrant brand colors engineered by apps to grab your attention and cause compulsive checks.",
+        description = "Removes bright brand colors that cause distraction and compulsive checks.",
         howToOpen = null,
         capabilities = listOf(
-            "Editorial Vibe: Transforms app icons and launcher accents into a uniform monochrome palette.",
-            "Dopamine Detox: Removes color-based dopamine triggers so your phone feels like a calm tool.",
-            "High Contrast Legibility: Optimized for razor-sharp legibility on both Light and AMOLED black backgrounds."
+            "Monochrome Style: Converts application icons and launcher accents to a uniform monochrome palette.",
+            "Calm Interface: Removes bright colors so your device stays calm.",
+            "High Contrast: Provides clear text on both light and AMOLED black backgrounds."
         ),
         targetSection = SettingsSection.THEMES,
         targetKey = "MONOCHROME",

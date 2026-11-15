@@ -13,6 +13,7 @@ import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.provider.Settings
+import android.telephony.CellSignalStrength
 import android.telephony.PhoneStateListener
 import android.telephony.SignalStrength
 import android.telephony.SubscriptionManager
@@ -77,6 +78,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -629,19 +631,67 @@ internal fun resolveNetworkTypeLabel(networkType: Int, overrideType: Int): Strin
     }
 }
 
-// ponytail: Multi-RAT cellular signal strength extractor resolving 5G NR, LTE CA on Q+, single level on P+, and safe 0 fallback on API 26-27 where getLevel() is absent; ceiling: no raw dBm extraction on Oreo; upgrade path: CarrierConfigManager signal threshold parsing.
+// ponytail: Converts cell signal metrics (dBm and ASU) to standard 0..4 signal levels to bypass OEM RIL calculation bugs; ceiling: uniform threshold boundaries across cell types; upgrade path: technology-specific carrier threshold overlays.
+internal fun cellSignalStrengthToLevel(css: CellSignalStrength): Int {
+    val reportedLevel = runCatching { css.level }.getOrDefault(0).coerceIn(0, 4)
+    val dbm = runCatching { css.dbm }.getOrDefault(Int.MAX_VALUE)
+    val dbmLevel = if (dbm != Int.MAX_VALUE && dbm < 0 && dbm >= -140) {
+        when {
+            dbm >= -90 -> 4
+            dbm >= -105 -> 3
+            dbm >= -115 -> 2
+            dbm >= -120 -> 1
+            else -> 0
+        }
+    } else 0
+
+    val asu = runCatching { css.asuLevel }.getOrDefault(0)
+    val asuLevel = if (asu > 0 && asu != 99 && asu != Int.MAX_VALUE) {
+        when {
+            asu >= 40 -> 4
+            asu >= 30 -> 3
+            asu >= 20 -> 2
+            asu >= 10 -> 1
+            else -> 0
+        }
+    } else 0
+
+    return maxOf(reportedLevel, dbmLevel, asuLevel)
+}
+
+// ponytail: Multi-RAT cellular signal strength extractor resolving 5G NR, LTE CA on Q+, single level on P+, dBm/ASU fallback for Xiaomi/MIUI RIL threshold bugs, and safe 0 fallback on API 26-27; ceiling: standard 3GPP dBm thresholds without carrier-specific CarrierConfigManager overrides; upgrade path: parse CarrierConfigManager.KEY_LTE_RSRP_THRESHOLDS_INT_ARRAY dynamically per carrier.
 internal fun extractSignalLevel(signalStrength: SignalStrength?): Int {
     if (signalStrength == null) return 0
     return runCatching {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val cellLevels = signalStrength.cellSignalStrengths.map { it.level }.filter { it in 0..4 }
-            val maxCell = cellLevels.maxOrNull() ?: 0
-            maxOf(signalStrength.level.coerceIn(0, 4), maxCell)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P || Build.VERSION.SDK_INT == 0) {
-            signalStrength.level.coerceIn(0, 4)
-        } else {
-            0
+        var bestLevel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P || Build.VERSION.SDK_INT == 0) {
+            runCatching { signalStrength.level }.getOrDefault(0).coerceIn(0, 4)
+        } else 0
+
+        // Extract metrics from individual cell signal strengths (Android Q+ or mocked SDK)
+        val cells = runCatching { signalStrength.cellSignalStrengths }.getOrNull()
+        if (!cells.isNullOrEmpty()) {
+            for (css in cells) {
+                val lvl = cellSignalStrengthToLevel(css)
+                if (lvl > bestLevel) bestLevel = lvl
+            }
         }
+
+        // Xiaomi and legacy RIL ASU extraction fallback when level is unpopulated or clamped to 1
+        if (bestLevel <= 1) {
+            val asu = runCatching { signalStrength.gsmSignalStrength }.getOrDefault(0)
+            if (asu in 1..31) {
+                val asuLvl = when {
+                    asu >= 16 -> 4
+                    asu >= 12 -> 3
+                    asu >= 8 -> 2
+                    asu >= 4 -> 1
+                    else -> 0
+                }
+                if (asuLvl > bestLevel) bestLevel = asuLvl
+            }
+        }
+
+        bestLevel.coerceIn(0, 4)
     }.getOrDefault(0)
 }
 
@@ -1638,44 +1688,82 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     val wm = remember(context) { context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager }
     val tm = remember(context) { context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager }
 
-    // Resolve primary TelephonyManager instance pinned to active data/default SIM for multi-SIM / Dual-SIM
-    val activeTm = remember(context, tm) {
-        runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && tm != null) {
-                val dataSubId = SubscriptionManager.getDefaultDataSubscriptionId()
-                if (dataSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                    tm.createForSubscriptionId(dataSubId)
-                } else {
-                    val defaultSubId = SubscriptionManager.getDefaultSubscriptionId()
-                    if (defaultSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                        tm.createForSubscriptionId(defaultSubId)
-                    } else tm
-                }
-            } else tm
-        }.getOrNull() ?: tm
+    val sm = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+        } else null
     }
 
-    val initialSignal = remember(activeTm, tm) {
+    // ponytail: Multi-SIM and Dual-SIM manager collector across default data, voice, SMS, and slot IDs for Xiaomi/MIUI dual standby; ceiling: static subscription snapshot; upgrade path: OnSubscriptionsChangedListener with dynamic callback rebuild.
+    val candidateTms = remember(context, tm, sm) {
         runCatching {
-            // TelephonyManager.getSignalStrength is API 28+; minSdk is 26.
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-                0
-            } else {
-                val s1 = activeTm?.signalStrength
-                val s2 = if (activeTm != tm) tm?.signalStrength else null
-                maxOf(extractSignalLevel(s1), extractSignalLevel(s2))
+            val list = mutableListOf<TelephonyManager>()
+            if (tm != null) {
+                list.add(tm)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    val subIds = mutableSetOf<Int>()
+                    val dataSub = SubscriptionManager.getDefaultDataSubscriptionId()
+                    if (dataSub != SubscriptionManager.INVALID_SUBSCRIPTION_ID) subIds.add(dataSub)
+                    val voiceSub = SubscriptionManager.getDefaultVoiceSubscriptionId()
+                    if (voiceSub != SubscriptionManager.INVALID_SUBSCRIPTION_ID) subIds.add(voiceSub)
+                    val smsSub = SubscriptionManager.getDefaultSmsSubscriptionId()
+                    if (smsSub != SubscriptionManager.INVALID_SUBSCRIPTION_ID) subIds.add(smsSub)
+                    val defSub = SubscriptionManager.getDefaultSubscriptionId()
+                    if (defSub != SubscriptionManager.INVALID_SUBSCRIPTION_ID) subIds.add(defSub)
+
+                    // Resolve slot-specific subscriptions via reflection across Android versions
+                    runCatching {
+                        val getSubIdMethod = SubscriptionManager::class.java.getMethod("getSubscriptionId", Int::class.javaPrimitiveType)
+                        val s0 = getSubIdMethod.invoke(null, 0) as? Int
+                        if (s0 != null && s0 != SubscriptionManager.INVALID_SUBSCRIPTION_ID) subIds.add(s0)
+                        val s1 = getSubIdMethod.invoke(null, 1) as? Int
+                        if (s1 != null && s1 != SubscriptionManager.INVALID_SUBSCRIPTION_ID) subIds.add(s1)
+                    }
+                    runCatching {
+                        val getSubIdsMethod = SubscriptionManager::class.java.getMethod("getSubscriptionIds", Int::class.javaPrimitiveType)
+                        (getSubIdsMethod.invoke(null, 0) as? IntArray)?.forEach { if (it != SubscriptionManager.INVALID_SUBSCRIPTION_ID) subIds.add(it) }
+                        (getSubIdsMethod.invoke(null, 1) as? IntArray)?.forEach { if (it != SubscriptionManager.INVALID_SUBSCRIPTION_ID) subIds.add(it) }
+                    }
+
+                    runCatching {
+                        sm?.activeSubscriptionInfoList?.forEach {
+                            if (it.subscriptionId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                                subIds.add(it.subscriptionId)
+                            }
+                        }
+                    }
+
+                    for (subId in subIds) {
+                        runCatching {
+                            list.add(tm.createForSubscriptionId(subId))
+                        }
+                    }
+                }
+            }
+            list.distinct()
+        }.getOrNull() ?: listOfNotNull(tm)
+    }
+
+    val activeTm = candidateTms.firstOrNull() ?: tm
+
+    val initialSignal = remember(candidateTms) {
+        runCatching {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) 0
+            else {
+                candidateTms.mapNotNull { it.signalStrength }
+                    .map { extractSignalLevel(it) }
+                    .maxOrNull() ?: 0
             }
         }.getOrDefault(0)
     }
 
-    val initialCellularConnected = remember(context, activeTm, tm, cm, initialSignal) {
+    val initialCellularConnected = remember(context, candidateTms, cm, initialSignal) {
         runCatching {
             val isAirplane = Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) != 0
             if (isAirplane) false
             else {
                 initialSignal > 0 ||
-                activeTm?.simState == TelephonyManager.SIM_STATE_READY ||
-                tm?.simState == TelephonyManager.SIM_STATE_READY ||
+                candidateTms.any { it.simState == TelephonyManager.SIM_STATE_READY } ||
                 cm?.getNetworkCapabilities(cm.activeNetwork)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
             }
         }.getOrDefault(false)
@@ -1693,6 +1781,8 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     var cellularLevel by remember { mutableIntStateOf(initialSignal) }
     var networkType by remember { mutableStateOf<String?>(null) }
 
+    val simLevels = remember { mutableStateMapOf<Int, Int>() }
+
     fun refreshCellularConnected() {
         runCatching {
             val isAirplane = Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) != 0
@@ -1702,36 +1792,38 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             }
 
             val hasCell = cm?.getNetworkCapabilities(cm.activeNetwork)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
-            val isSimReady = activeTm?.simState == TelephonyManager.SIM_STATE_READY ||
-                    tm?.simState == TelephonyManager.SIM_STATE_READY
-            val hasOperator = !activeTm?.networkOperatorName.isNullOrBlank() || !tm?.networkOperatorName.isNullOrBlank()
+            val isSimReady = candidateTms.any { it.simState == TelephonyManager.SIM_STATE_READY }
+            val hasOperator = candidateTms.any { !it.networkOperatorName.isNullOrBlank() }
 
             isCellularConnected = hasCell || cellularLevel > 0 || !networkType.isNullOrBlank() || (isSimReady && hasOperator)
         }
     }
 
-    fun updateFromSignal(signalStrength: SignalStrength?) {
+    fun updateFromSignal(subIndex: Int, signalStrength: SignalStrength?) {
         val level = extractSignalLevel(signalStrength)
-        cellularLevel = level
+        simLevels[subIndex] = level
+        val bestLevel = simLevels.values.filter { it > 0 }.maxOrNull()
+            ?: simLevels.values.maxOrNull()
+            ?: 0
+        cellularLevel = bestLevel
         refreshCellularConnected()
     }
 
     fun queryCellularSignal() {
         runCatching {
-            // TelephonyManager.getSignalStrength is API 28+; minSdk is 26.
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
-            val s1 = activeTm?.signalStrength
-            val s2 = if (activeTm != tm) tm?.signalStrength else null
-            val bestSignal = when {
-                s1 == null -> s2
-                s2 == null -> s1
-                else -> {
-                    val l1 = extractSignalLevel(s1)
-                    val l2 = extractSignalLevel(s2)
-                    if (l2 > l1) s2 else s1
+            candidateTms.forEachIndexed { index, targetTm ->
+                val sig = targetTm.signalStrength
+                if (sig != null) {
+                    val lvl = extractSignalLevel(sig)
+                    simLevels[index] = lvl
                 }
             }
-            updateFromSignal(bestSignal)
+            val bestLevel = simLevels.values.filter { it > 0 }.maxOrNull()
+                ?: simLevels.values.maxOrNull()
+                ?: 0
+            cellularLevel = bestLevel
+            refreshCellularConnected()
         }
     }
 
@@ -1748,7 +1840,7 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
     }
 
     // Periodic telemetry sync loop preventing stale/unresponsive cellular icons when stationary
-    LaunchedEffect(lifecycleOwner, activeTm, tm) {
+    LaunchedEffect(lifecycleOwner, candidateTms) {
         while (true) {
             delay(5000L)
             if (lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
@@ -1757,12 +1849,12 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
         }
     }
 
-    DisposableEffect(lifecycleOwner, context, activeTm) {
+    DisposableEffect(lifecycleOwner, context, candidateTms) {
         var batteryReceiver: BroadcastReceiver? = null
         var networkCallback: ConnectivityManager.NetworkCallback? = null
-        var signalCallback: Any? = null
-        var displayCallback: Any? = null
-        var phoneStateListener: Any? = null
+        val signalCallbacks = mutableListOf<Pair<TelephonyManager, TelephonyCallback>>()
+        val phoneListeners = mutableListOf<Pair<TelephonyManager, PhoneStateListener>>()
+        var displayCallback: TelephonyCallback? = null
 
         fun updateBattery(intent: Intent) {
             val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
@@ -1855,17 +1947,16 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // 1. Signal strength listener (Does NOT require READ_PHONE_STATE)
-                runCatching {
-                    val callback = object : TelephonyCallback(), TelephonyCallback.SignalStrengthsListener {
-                        override fun onSignalStrengthsChanged(signalStrength: SignalStrength) {
-                            updateFromSignal(signalStrength)
+                // 1. Signal strength listeners across all SIM managers
+                candidateTms.forEachIndexed { index, targetTm ->
+                    runCatching {
+                        val callback = object : TelephonyCallback(), TelephonyCallback.SignalStrengthsListener {
+                            override fun onSignalStrengthsChanged(signalStrength: SignalStrength) {
+                                updateFromSignal(index, signalStrength)
+                            }
                         }
-                    }
-                    signalCallback = callback
-                    activeTm?.registerTelephonyCallback(context.mainExecutor, callback)
-                    if (activeTm != tm) {
-                        tm?.registerTelephonyCallback(context.mainExecutor, callback)
+                        signalCallbacks.add(Pair(targetTm, callback))
+                        targetTm.registerTelephonyCallback(context.mainExecutor, callback)
                     }
                 }
 
@@ -1880,19 +1971,17 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
                     activeTm?.registerTelephonyCallback(context.mainExecutor, callback)
                 }
             } else {
-                runCatching {
-                    val listener = object : PhoneStateListener() {
-                        @Deprecated("Deprecated in Java")
-                        override fun onSignalStrengthsChanged(signalStrength: SignalStrength?) {
-                            updateFromSignal(signalStrength)
+                candidateTms.forEachIndexed { index, targetTm ->
+                    runCatching {
+                        val listener = object : PhoneStateListener() {
+                            @Deprecated("Deprecated in Java")
+                            override fun onSignalStrengthsChanged(signalStrength: SignalStrength?) {
+                                updateFromSignal(index, signalStrength)
+                            }
                         }
-                    }
-                    phoneStateListener = listener
-                    @Suppress("DEPRECATION")
-                    activeTm?.listen(listener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
-                    if (activeTm != tm) {
+                        phoneListeners.add(Pair(targetTm, listener))
                         @Suppress("DEPRECATION")
-                        tm?.listen(listener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
+                        targetTm.listen(listener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS)
                     }
                 }
             }
@@ -1909,25 +1998,18 @@ fun rememberDuoSystemStatus(context: Context): DuoSystemStatus {
             }
             runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    (signalCallback as? TelephonyCallback)?.let {
-                        activeTm?.unregisterTelephonyCallback(it)
-                        if (activeTm != tm) tm?.unregisterTelephonyCallback(it)
+                    for ((manager, cb) in signalCallbacks) {
+                        runCatching { manager.unregisterTelephonyCallback(cb) }
                     }
-                    signalCallback = null
-                    (displayCallback as? TelephonyCallback)?.let {
-                        activeTm?.unregisterTelephonyCallback(it)
-                    }
+                    signalCallbacks.clear()
+                    displayCallback?.let { activeTm?.unregisterTelephonyCallback(it) }
                     displayCallback = null
                 } else {
-                    (phoneStateListener as? PhoneStateListener)?.let {
+                    for ((manager, listener) in phoneListeners) {
                         @Suppress("DEPRECATION")
-                        activeTm?.listen(it, PhoneStateListener.LISTEN_NONE)
-                        if (activeTm != tm) {
-                            @Suppress("DEPRECATION")
-                            tm?.listen(it, PhoneStateListener.LISTEN_NONE)
-                        }
+                        runCatching { manager.listen(listener, PhoneStateListener.LISTEN_NONE) }
                     }
-                    phoneStateListener = null
+                    phoneListeners.clear()
                 }
             }
         }
