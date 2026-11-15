@@ -4,13 +4,13 @@
 
 <h1 align="center">Drawer</h1>
 
-<p align="center"><strong>The intentional Android home screen built for peak focus, fluid speed, and zero clutter.</strong></p>
+<p align="center"><strong>A minimal Android launcher designed for focus, speed, and privacy.</strong></p>
 <p align="center">
-  <em>Stop doom-scrolling through icon grids. Turn your phone back into a high-leverage productivity tool.</em>
+  <em>Replace grid layouts with categorized drawers and fast navigation.</em>
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.10.2-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.10.9-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -19,234 +19,185 @@
 
 ---
 
-## 🎯 The 24-Hour Productivity Challenge
+## Overview
 
-> **Install Drawer and use it for just one single day.**  
-> If your phone doesn’t feel noticeably faster, less stressful, and dramatically less distracting within 24 hours, you can switch back with two taps. But once you experience a home screen that respects your attention and works at the speed of thought, you will never look at a standard launcher the same way again.
+<!-- ponytail: Concise technical summary without promotional copy. Ceiling: lacks narrative marketing prose. Upgrade path: add a dedicated product landing page if the project requires marketing copy. -->
 
-Most mobile launchers are designed like digital billboards: cluttered screens, recommended apps, unprompted news feeds, and chaotic notification badges competing for your dopaminergic attention.
+Standard mobile launchers display advertisements, news feeds, and notification badges. These items cause distractions.
 
-**Drawer was built on a different philosophy: Intentionality.**  
-Everything you need to get things done is reachable in under a second; everything else stays effortlessly out of your line of sight.
+Drawer uses a simple structure. You can access tools in less than one second. The interface hides unused applications.
 
 ---
 
-## 🌟 What's New in v2.10.2
+## What's New in v2.10.9
 
-* **⚡ Instantaneous Outside-Touch Drawer Collapse (0ms Latency):**
-  * Tapping or swiping anywhere outside an expanded category drawer, notification drawer, or hidden vault drawer now closes it instantaneously on touch-down (`ACTION_DOWN`) without waiting for finger release, double-tap delays, or 3-second timers.
-  * Consumes outside touches to prevent unintended app launches from the dock or wallpaper while cleanly allowing direct switching between category drawer headers.
-
-* **🛡️ Dynamic Vault Apps Restoration & Safe Disable:**
-  * Disabling the App Vault feature now immediately restores all hidden apps back to the main app drawer, dock, and category groups. Notifications from previously hidden apps flow back to the normal notification drawer seamlessly.
-
-* **✨ Multi-Select Batch Vault Hiding:**
-  * Added batch multi-selection in the Vault: select multiple apps with interactive checkboxes and hide them all with a single tap.
-
-* **🔔 Dedicated Vault Notification Drawer & Discreet Caret Indicator:**
-  * Embedded a dedicated, private notification drawer inside the Vault that exclusively displays alerts from hidden apps.
-  * Main notification drawer features a discreet ambient glow indicator on the chevron caret when private notifications are pending, with no identifiable app badges on the lockscreen or homescreen.
-  * Added guide cards in Settings under Privacy & System explaining Vault access gestures and notification privacy.
-
-* **🚀 120 FPS Jank & Recomposition Optimization:**
-  * Moved caret glow and glass specular sweep animations to GPU draw phase via `.drawBehind`, eliminating continuous composition churn and ensuring buttery smooth 120 FPS rendering.
-  * Added item content-type recycling in the Vault grid.
+* **Contextual Task Creation:**
+  * Redesigned the task creation sheet with responsive selectors for dates, times, and priority levels.
+* **Geofence Distance Presets:**
+  * Added distance preset buttons (50m, 100m, 250m, 500m, 1km) in the place picker for rapid location alerts.
+* **App Vault Privacy Filtering:**
+  * The launcher excludes vaulted apps from the main app drawer, search results, and alphabet scrub rail.
+* **Alphabet Scrub Rail Improvements:**
+  * Added continuous pointer input tracking and row-aligned scrolling in the alphabet index bar.
 
 ---
 
-* **🛡️ Calibrated Elastic Vault Swipe & Zero-Flick Trigger:**
-  * Recalibrated the dock elastic resistance to trigger effortlessly with a natural ~28dp thumb swipe (reduced from 170dp), complete with dual haptic ticks and crisp confirmation pop.
-  * Resolved an issue where triggering the vault mid-swipe caused the biometric prompt or vault drawer to flash for nanoseconds and immediately disappear due to finger lift-off touch collision.
-  * Triggering now fires cleanly on swipe completion (`onDragEnd`), ensuring hands are off the glass before authentication opens.
-  * Added touch event consumption (`clickable`) on the vault card surface to prevent clicks inside the vault from leaking through to the dismiss scrim.
-  * Added a 250ms guard against accidental scrim touches during the entrance transition.
-  * Locked `HorizontalPager` user scroll while the vault is active to eliminate page interference.
+## What's New in v2.10.4
+
+* **Interactive Features Discovery:**
+  * Added an interactive feature guide and gesture overview in **Settings -> Features**.
+* **Predictive Back Navigation:**
+  * Integrated Android 14 predictive back gesture support for closing drawers and bottom sheets.
+* **120Hz Drawer Rendering:**
+  * Tuned scroll velocity handoff and reduced drag thresholds for 120Hz displays.
 
 ---
 
-## 🌟 What's New in v2.10.0
+## What's New in v2.10.3
 
-* **🛡️ Hidden Drawer (Private Vault):**
-  * Introduced a discreet, encrypted app vault triggered by swiping horizontally from the last app in the dock.
-  * Elastic pull resistance physics with logarithmic damping and progressive tactile haptic ticks as you pull, confirming at the threshold breakpoint.
-  * Secured via native Android `BiometricPrompt` with `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` (fingerprint, face unlock, or device lock PIN/pattern).
-  * Styled in Frosted Liquid Glass with hardware-conforming border radii, app launch, unhide, and app details actions.
-* **🔒 Zero-Trace Privacy & Global App Isolation:**
-  * Apps placed inside the vault are completely scrubbed from All-Apps drawers, category accordions, dock bars, and search queries.
-* **🔔 Discreet Notification Privacy & Material You Ambient Glow:**
-  * Notifications belonging to vaulted apps are suppressed from both the Notification Drawer and DuoStatus badges.
-  * Subtle Material You breathing halo illuminates the drawer's notification bell icon for the first two device unlocks, alerting you discreetly without disclosing details or sender identities.
-* **📱 Physical Display Curve Auto-Detection & Fine-Tuning:**
-  * Automatically detects physical hardware display corner radius via Android 12+ `RoundedCorner` API (`WindowManager.currentWindowMetrics`).
-  * "Match Device Screen Curve" toggle with live hardware detection telemetry in Settings.
-  * Manual curve offset slider (`-12dp` to `+12dp`) to align drawer borders with phone cases and screen protectors.
-* **🎨 App Drawer Visual Looks:**
-  * Added selectable drawer look presets in **Settings -> Surface & Appearance -> App Drawer Look**: choose between **Solid**, **Liquid Glass**, and **Frosted Glass** satin diffusion.
-* **🔙 Widget Drawer Outside-Swipe Return:**
-  * Fixed an issue where swiping outside an expanded widget drawer did not return to the home screen.
+* **Monochrome Theme:**
+  * Added a unified monochrome high-contrast theme for minimal visual distractions.
+* **Notification Listener Recovery:**
+  * Added automatic service re-binding to recover notification access on devices with aggressive battery managers.
+* **Automated Background Updates:**
+  * Added periodic 24-hour update checks using WorkManager with system alerts when a release is available.
 
 ---
 
-## 🌟 What's New in v2.9.3
+## What's New in v2.10.2
 
-* **🧩 Widget Drawer Swipe Isolation:**
-  * Fixed an issue where swiping horizontally through CoverFlow widgets inside an expanded widget drawer inadvertently triggered the root pager or page resistance and navigated back to the Home screen.
-  * Nested horizontal drag and fling gestures are now cleanly isolated while any widget drawer is expanded.
-* **🌊 Silky Smooth Drawer Expand & Collapse Animations:**
-  * Resolved hitching, jitter, and abrupt snapping when expanding or collapsing category accordion drawers (such as Media and Notifications).
-  * Replaced jarring hyper-stiff exit springs with fluid medium stiffness (`Spring.StiffnessMedium`) and synchronized 150ms alpha transitions.
-  * Eliminated redundant double `bringIntoView` jumps and abrupt scroll clamping on collapse.
-* **🔍 Search Bar Input Text Clipping Fix:**
-  * Fixed an issue in the All-Apps drawer where text entered in the search bar had ascenders and descenders vertically cropped.
-  * Configured explicit font styling, line-height constraints, and flexible minimum height to prevent clipping across all device densities and font scales.
-* **📝 To-Do Sheet Keyboard Inset Handling:**
-  * Fixed an issue in the To-Do task creation bottom sheet where the "+ Add Task" submit button was cropped behind the on-screen soft keyboard.
-  * Added keyboard inset padding (`imePadding`) and scroll support (`verticalScroll`), allowing all form controls and actions to remain fully visible and accessible.
-
----
-
-## 🌟 What's New in v2.9.2
-
-* **📐 5 & 6 Column App Drawer (Enhanced Personalization):**
-  * Added user-customizable app drawer column density: choose between **4, 5, or 6 columns** to match your device screen size and personal density preference.
-  * Configurable in **Settings -> Surface & Appearance -> App Drawer Columns**.
-  * Intelligently scales icon sizes, text labels, and grid gutters so higher densities remain legible, balanced, and easy to tap.
-* **✨ Harmonized Suggested Apps Alignment & Symmetry:**
-  * Suggested / frequent apps at the bottom of the app drawer consistently present a grounded 6-icon shelf.
-  * Equalized horizontal margins and spacing guarantee that suggested apps align symmetrically with 4, 5, or 6 column drawer grids.
-* **☀️ High-Contrast Duo Status Pill on White Wallpapers:**
-  * Resolved status icon legibility issues on pure white and high-luminance wallpapers.
-  * Added adaptive wallpaper luminance detection, dual-layer outline shadow passes on canvas arcs, and an ultra-subtle protective glass capsule backing in collapsed mode.
-  * Battery gauge, charging lightning bolt, volume meter, and percentage indicators stay razor-sharp and legible against any background.
-* **⚡ Instant Notification Dismissal & Swipe Handling:**
-  * Enhanced swipe-to-dismiss notification responsiveness with immediate optimistic state removal, preventing UI animation hitching.
+* **Fast Outside-Touch Drawer Collapse:**
+  * Touching or swiping outside an open drawer closes the drawer on `ACTION_DOWN`. You do not need to wait for finger release or timers.
+  * The touch handler prevents unintended app launches from the dock or wallpaper.
+* **Vault App Restoration and Safe Disable:**
+  * Disabling the Vault feature restores all hidden apps to the main drawer, dock, and category groups.
+  * Notifications from restored apps return to the primary notification drawer.
+* **Multi-Select Vault Hiding:**
+  * Added multi-selection in the Vault. Select multiple apps with checkboxes and hide them with one tap.
+* **Dedicated Vault Notification Drawer:**
+  * Added a dedicated notification drawer inside the Vault. This drawer displays alerts from hidden apps only.
+  * The main notification drawer displays a subtle glow indicator on the caret when private notifications wait.
+* **Performance Optimization:**
+  * Moved caret glow animations to the GPU draw phase with `.drawBehind` to maintain 120 frames per second.
+  * Added content-type recycling to the Vault grid.
+* **Calibrated Elastic Vault Swipe:**
+  * Calibrated dock elastic resistance to trigger with a 28dp thumb swipe.
+  * Authentication triggers on swipe completion (`onDragEnd`).
+  * Added touch event consumption on the Vault card to prevent touches from leaking to the background scrim.
+  * Locked `HorizontalPager` scrolling while the Vault is open to eliminate page interference.
 
 ---
 
-## 🌟 What's New in v2.9.1
+## What's New in v2.10.0
 
-* **⚡ Instantaneous Outside-Click Drawer Collapse (0ms Latency):**
-  * Eliminated the legacy 300ms–400ms double-tap gesture timeout delay when tapping outside to close expanded accordion drawers.
-  * Added high-priority pointer-down interceptors across root bounds and columns, dismissing open category and notification drawers the exact millisecond the screen is touched outside.
-  * Full-surface hit testing: tapping anywhere outside the active drawer (dock, glance clock/weather, empty wallpaper space, or other drawer headers) instantly snaps the drawer shut.
-* **🧠 Synchronous In-Memory Optimistic State Engine:**
-  * Replaced asynchronous SQLite disk I/O wait with immediate in-memory state overrides in `GroupsViewModel` and `HomeViewModel`, eliminating 100ms–200ms of database round-trip lag.
-  * Room database updates now synchronize cleanly in the background.
-* **🏎️ Snappy 3800f Spring Collapse Physics:**
-  * Redesigned exit animations with high-stiffness springs (`stiffness = 3800f`) and fast 80ms fadeouts for razor-sharp, butter-smooth collapse transitions across category drawers, notifications, and widget stacks.
-
----
-
-## 🌟 What's New in v2.9.0
-
-* **📳 CrispHaptics Engine Across All High Touch Points:**
-  * Native haptic feedback engine leveraging Android 11+ (API 30+) vibration primitives (`PRIMITIVE_CLICK`, `PRIMITIVE_TICK`, `PRIMITIVE_THUD`, `PRIMITIVE_QUICK_RISE`, `PRIMITIVE_QUICK_FALL`) with API 29 predefined effects and legacy View haptic fallbacks.
-  * Tactile feedback integrated across the entire launcher: dock icon drags & slot boundary ticks, app drawer letter scrub rail, category drawer accordion toggles & casino reel shuffle, To-Do swipes & checkmarks, notification drawer gestures, status duo expand/collapse, and settings switches.
-  * Master **Crisp Haptic Feedback** toggle in Settings under General to enable or silence haptics system-wide.
-* **🔔 In-App Update Notifications & Smart Auto-Check:**
-  * Automated background check on launcher startup, intelligently throttled to 24-hour intervals to preserve battery and respect GitHub API limits.
-  * Clean in-app Material 3 update dialog displaying the latest release name, version tag, and full markdown release notes.
-  * Non-intrusive **Later** option with version-specific dismissal memory so users are never repeatedly prompted for the same version.
-  * One-tap **Download APK** / **Open Release** actions with instant browser or package installer redirection.
-  * User-controllable **Auto-Check for Updates** switch in Settings under About Drawer / GitHub Updates.
-* **✅ Native To-Do Engine, Location Alerts & Liquid Glass Task Analytics:**
-  * Right-page gesture-driven to-do organizer with quick filter chips (*All*, *Nearby*, *Due today*, *Done*), custom deadline pickers, priority badges, and done task archives.
-  * 100% de-Googled geofence & location alerts using native Android sensors and an offline-capable OpenStreetMap place picker.
-  * Interactive Liquid Glass task completion & punctuality analytics.
-* **🎨 Material You Dynamic Theming & Vibrant Color Palettes:**
-  * Wallpaper-extracted dynamic theming with vibrant high-chroma palette options (Electric Amber, Vivid Cyan, Hot Rose, Violet, Neon Lime, Royal Azure, Sunset Orange) ensuring bold contrast on neutral wallpapers.
-  * Edge-to-edge frosted glass backdrop blur behind the To-Do screen with zero separator line artifacts.
+* **Hidden Drawer (App Vault):**
+  * Added an encrypted app vault. Swipe horizontally from the last app in the dock to open the vault.
+  * Includes elastic resistance physics and progressive haptic feedback.
+  * Protects apps with the Android `BiometricPrompt` API using `BIOMETRIC_STRONG` or `DEVICE_CREDENTIAL`.
+* **Zero-Trace Privacy:**
+  * The launcher removes hidden apps from the main app drawer, categories, dock, and search results.
+* **Notification Privacy:**
+  * The launcher hides notifications for vaulted apps from the notification drawer and status badges.
+  * A subtle glow indicator on the bell icon alerts you to pending private notifications during device unlock.
+* **Screen Curve Detection:**
+  * Detects physical screen corner radii on Android 12 and higher with the `RoundedCorner` API.
+  * Added a toggle in Settings to match the device screen curve.
+  * Added a manual offset slider (`-12dp` to `+12dp`) to align drawer borders with phone cases and screen protectors.
+* **App Drawer Visual Styles:**
+  * Added visual style presets in **Settings -> Surface and Appearance -> App Drawer Look**.
+  * Choose **Solid**, **Translucent**, or **Frosted** styles.
+* **Widget Drawer Gestures:**
+  * Fixed an issue where swiping outside an open widget drawer failed to return to the home screen.
 
 ---
 
-## 🧠 How Drawer Reclaims Your Focus & Time
+## Core Features
 
 ```
   Traditional Launchers                     Drawer Launcher
  ┌──────────────────────┐                  ┌──────────────────────┐
  │ [App] [App] [App]  🔴│  Visual Clutter  │      09:41 AM        │  Glance Header &
- │ [App] [App] [App]  🔴│  Badge Overload  │  22°C ☀️  45W Turbo  │  Live Charging Stats
+ │ [App] [App] [App]  🔴│  Badge Overload  │  22°C ☀️  45W Turbo  │  Battery Statistics
  │ [App] [App] [App]  🔴│  News Feed       │                      │
- │ ── Page 1 of 6 ──────│  Endless Swiping │ ┌──────────────────┐ │  Single Focus Area
+ │ ── Page 1 of 6 ──────│  Excessive Pages │ ┌──────────────────┐ │  Single Focus Area
  │ 🔍 Sponsored search  │  Ad Tracking     │ │ 📁 Work (4 apps) │ │  Expandable Drawer
  └──────────────────────┘                  │ └──────────────────┘ │
-                                           │   [ 📞  💬  🌐 ]     │  Floating Glass Dock
+                                           │   [ 📞  💬  🌐 ]     │  Dock Bar
                                            └──────────────────────┘
 ```
 
-### 1. 🗂️ Accordion Drawers — Context-Driven Organization
-Instead of spreading 80+ apps across 5 sprawling home screen pages, group your tools by your mental workflow:
-* **Workflow Buckets:** Group apps into expandable categories like **`Deep Work`**, **`Communication`**, **`Finance`**, **`Learning`**, and **`Essentials`**.
-* **One Tap Expands, One Tap Closes:** Expand only the drawer you need right now. Everything else stays collapsed, shielding your brain from visual overwhelm.
-* **Multi-Drawer Versatility:** Need an app like Slack in both *Work* and *Chat*? Add it to both without duplicating shortcuts or wrestling with folder restrictions.
-* **Smart Auto-Collapse:** Keeps your screen pristine automatically so you're never greeted by yesterday's mess.
+### 1. Accordion Drawers
+Organize tools by task workflow instead of spreading apps across multiple screen pages:
+* **Workflow Groups:** Group apps into expandable categories such as **Work**, **Communication**, **Finance**, and **Tools**.
+* **Single-Tap Actions:** Tap once to expand a category. Tap again to collapse it. Other drawers stay closed.
+* **Multi-Drawer Placement:** You can add an app to multiple categories without creating duplicate shortcuts.
+* **Auto-Collapse:** Drawers collapse automatically when you navigate away from them.
 
-### 2. 🪟 3D iPod Cover Flow & Expandable Widget Drawers
-Widgets are powerful for productivity, but standard launchers force you to dedicate entire screen pages to them.
-* **Cover Flow 3D Stacking:** Flip smoothly through interactive productivity widgets (Calendar, Tasks, Notes, Music) with tactile, physics-based depth.
-* **Widget Accordion Drawers:** Tuck widgets into collapsible drawers. Pull up your day's schedule or task list with a tap, take action, and let it auto-collapse in 5 seconds.
-* **Interactive Resizing:** Customize widget heights and grid spans to fit your exact information density requirements.
-* **Bulletproof Engine:** Engineered with robust lifecycle hooks to prevent widget freezing and host memory leaks.
+### 2. Widget Drawers and 3D Cover Flow
+Widgets remain accessible without filling your primary screen:
+* **Cover Flow Stacking:** Swipe horizontally through interactive widgets with hardware-accelerated depth effects.
+* **Collapsible Widget Drawers:** Place widgets inside collapsible drawers. Open a widget with one tap and let it collapse automatically.
+* **Widget Resizing:** Adjust widget heights and column spans to match your layout requirements.
+* **Lifecycle Management:** Custom lifecycle hooks prevent widget freezing and memory leaks.
 
-### 3. ⚡ Zero-Lag Launching & Smart Frecency Suggestions
-When you know what you want to do, every millisecond of friction matters.
-* **Frecency Predictive Row:** Surfaces your most relevant apps dynamically based on a smart frequency + recency calculation.
-* **Instant Type-to-Filter:** Press a key and launch target apps in sub-milliseconds.
-* **Thumb-Glide Alphabet Rail:** Slide your thumb down the screen edge to jump instantly to any letter index—effortless single-handed navigation on large devices.
-* **Hidden Apps Vault:** Conceal apps you rarely need (or apps that trigger unhealthy habits) so you aren’t tempted by idle dopamine loops.
+### 3. Rapid App Launching
+* **Frecency Engine:** Displays frequent apps dynamically using launch frequency and recency calculations.
+* **Type-to-Filter Search:** Type a letter to filter and launch target apps immediately.
+* **Alphabet Scroll Rail:** Slide your thumb along the screen edge to navigate directly to any letter index.
+* **Hidden App Vault:** Hide sensitive apps behind biometric authentication.
 
-### 4. 🔕 Distraction Firewall — Notification Hub with Quick Mute
-Notifications are the single biggest killer of deep work and flow state. Drawer puts you firmly in control:
-* **Swipe-Up Notification Hub:** See incoming alerts neatly grouped by application—no chaotic notification shade pulling down over your workspace.
-* **Home-Screen Quick Mute:** A chat group or noisy app breaking your concentration? Mute it for **1 hour**, **24 hours**, or **permanently** right from the launcher—without digging through system settings menus.
-* **Privacy Mask Mode:** Instantly masks message previews on your home screen to keep sensitive work emails, two-factor codes, and private messages hidden from passersby.
+### 4. Notification Hub and Quick Mute
+* **Swipe-Up Notification Hub:** Displays notifications grouped by application.
+* **Quick Mute:** Mute noisy apps for 1 hour, 24 hours, or indefinitely directly from the launcher.
+* **Privacy Mask Mode:** Masks message previews on the home screen to protect private communications.
 
-### 5. 🔋 Live Power Stats, Quick Speed Test & Frosted Glass Dock
-* **Live Battery & Fast-Charging Telemetry:** Tap the status icon to see real-time charging wattage (`W`), voltage (`V`), current (`mA`), battery temperature, and OEM fast-charging brand detection.
-* **Dual-Stream Speed Test:** Run an instantaneous download speed test powered by Google Edge CDN and Cloudflare directly from the status popup.
-* **Floating Glass Dock:** Pin 1 to 5 vital daily drivers (Phone, Browser, Notes, Terminal) in an elegant, blurred frosted glass bar.
-* **Mirror Glance Widget:** Heading into an important video call? Tap the discreet front-camera glance right on your home screen to check your appearance without opening a heavy camera application.
+### 5. Power Telemetry and Speed Test
+* **Battery Telemetry:** Tap the status icon to see real-time charging wattage, voltage, current, and temperature.
+* **Network Speed Test:** Run download speed tests using Google Edge CDN and Cloudflare from the status panel.
+* **Dock Bar:** Pin 1 to 5 primary apps in a bottom navigation bar.
+* **Mirror Glance:** Tap the front-camera glance widget to inspect your video feed quickly without launching the camera app.
 
-### 6. 🛡️ 100% Offline, Ad-Free, & Zero Battery Drain
-* **Zero Analytics & Trackers:** No cloud telemetry, no background pings, no accounts, and no data harvesting. 100% of your data stays on your device.
-* **Pure 120Hz Smoothness:** Crafted in modern Jetpack Compose with optimized redraw cycles, true AMOLED black themes, and zero background battery drain.
+### 6. Offline Privacy and Performance
+* **No Analytics:** Drawer contains zero telemetry, zero analytics tracking, and zero cloud synchronization. All data remains on the device.
+* **Low Resource Usage:** Built with Jetpack Compose for fast redraw cycles, AMOLED black themes, and minimal battery consumption.
 
 ---
 
-## 📊 Stock Launchers vs. Drawer
+## Feature Comparison
 
-| Capability | Stock / OEM Launchers | Nova / Third-Party | ✨ **Drawer** |
-| :--- | :---: | :---: | :---: |
-| **Mindset** | App Storefront & Feeds | Tweaker's Sandbox | **Intentional Productivity** |
-| **Organization** | Rigid icons & nested folders | Complex grid layouts | **Accordion Drawers & 3D Stacks** |
-| **App Predictions** | Ad/sponsored recommendations | Static recent apps | **On-Device Frecency Engine** |
-| **Power Telemetry** | Basic percentage only | Requires 3rd-party apps | **Live Wattage, V/mA & OEM Turbo** |
-| **Speed Benchmark** | ❌ None (ad-laden apps) | ❌ None | **Built-in Google Edge Speed Test** |
-| **Distraction Defense** | Badges & push alerts | Basic badge toggles | **Home Screen Quick Mute & Privacy Mask** |
-| **Widget Handling** | Screen hogging | Static placement | **Collapsible Widget Drawers & Cover Flow** |
-| **Wallpapers & Fonts** | Fixed system defaults | Limited fonts | **Pantone Studio & Typography Packs** |
-| **Privacy & Telemetry** | Cloud sync & ad analytics | Often tracks crash analytics | **100% Offline & Zero Telemetry** |
-| **Setup Time** | Cluttered by default | 30+ minutes configuring | **Productive in under 60 seconds** |
+| Capability | Stock Launchers | Other Third-Party | Drawer |
+| :--- | :--- | :--- | :--- |
+| **Design Goal** | Content feeds and store links | Layout customization | Task focus and speed |
+| **Organization** | Fixed icon grids and folders | Multi-page grid layouts | Accordion drawers and widget stacks |
+| **App Suggestions** | Sponsored recommendations | Recent app list | Local frecency calculation |
+| **Battery Telemetry** | Percentage indicator only | Requires separate apps | Real-time wattage, voltage, and current |
+| **Speed Test** | None | None | Integrated network speed test |
+| **Notification Control** | Notification badges | Basic badge settings | Quick mute and preview masking |
+| **Widget Support** | Full-page grid placement | Static placement | Collapsible widget drawers |
+| **Custom Styling** | System defaults | Limited font options | Dynamic palettes and custom typography |
+| **Data Privacy** | Cloud analytics and tracking | Crash analytics tracking | 100% offline with zero telemetry |
+| **Configuration Time** | Variable | 30 or more minutes | Under 60 seconds |
 
 ---
 
-## 🚀 Get Started in Under 60 Seconds
+## Installation and Setup
 
-You don't need an hour to configure Drawer. It comes with an intuitive, guided onboarding tour and takes less than a minute to set up:
+You can configure Drawer in less than one minute using the guided setup tour:
 
 ```
-Step 1: Download & Install ───► Step 2: Set as Default ───► Step 3: Group by Intent
-Download app-release.apk         Press Home → Drawer → Always       Create 3-4 Focus Drawers
+Step 1: Download and Install ───► Step 2: Set Default ───► Step 3: Organize Apps
+Download app-release.apk          Press Home → Drawer      Create categories
 ```
 
-### Option A: Install Pre-Built APK (Fastest)
-1. Download the latest [`app-release.apk`](app-release.apk) directly from this repository or from the [GitHub Releases](https://github.com/urunkarpm/drawer/releases) page.
-2. Open the downloaded file on your Android device and tap **Install**.
-3. Press your **Home** button, select **Drawer**, and choose **Always**.
-4. Follow the brief built-in welcome tour to configure your first drawers!
+### Option A: Install Pre-Built APK
+1. Download [`app-release.apk`](app-release.apk) from this repository or the [GitHub Releases](https://github.com/urunkarpm/drawer/releases) page.
+2. Open the file on your Android device and tap **Install**.
+3. Press the **Home** button on your device.
+4. Select **Drawer** and tap **Always**.
+5. Complete the setup tour to configure your initial drawers.
 
 ### Option B: Build from Source
-If you are a developer and want to inspect the code or build it yourself:
+To build the application from source code:
 
 ```bash
 # Clone the repository
@@ -256,73 +207,72 @@ cd Drawer
 # Build the release APK with Gradle
 ./gradlew assembleRelease
 
-# The compiled APK will be generated at:
+# Gradle outputs the APK at:
 # app/build/outputs/apk/release/app-release.apk
 ```
 
-To install directly to a connected device via ADB:
+Install to a connected device with ADB:
 ```bash
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 ---
 
-## 🎨 Visual Customization Options
+## Visual Customization Options
 
-Make your productivity workspace match your personal aesthetic:
-* **Dynamic Pantone Wallpaper Studio:** Procedural wallpaper generator with customizable harmonies, duotones, and analog grain.
-* **Curated Typography Packs:** Select your clock font from Google Sans, DS-Digital, Evil Empire, Hypik, Spookyy, and Texas Troupe.
-* **App Label Scaling:** Fine-tune label text size across groups, dock, and all-apps drawer with `LocalAppLabelScale`.
-* **Deep AMOLED Pitch Black:** Ultra-battery-efficient, high-contrast black styling.
-* **Material You Dynamic Theming:** Automatically adapts accent colors based on your wallpaper.
-* **Third-Party Icon Packs:** Full compatibility with icon packs from Google Play, plus per-app icon overrides.
-* **Adaptive Shapes:** Choose squircle, circle, teardrop, or rounded square icons to maintain uniform geometry.
-* **Double-Tap to Lock:** Double-tap any blank area to sleep your device cleanly without interfering with biometric face or fingerprint unlock.
-* **One-Tap Backup & Restore:** Export your complete setup (drawers, widgets, icons, dock layout) to a portable file and restore it in seconds.
+Customize the launcher appearance in Settings:
+* **Wallpaper Studio:** Generate procedural wallpapers with color harmonies, duotones, and grain effects.
+* **Typography Packs:** Select clock fonts including Google Sans, DS-Digital, Evil Empire, Hypik, Spookyy, and Texas Troupe.
+* **App Label Scaling:** Adjust label text sizes across groups, the dock, and the app drawer using `LocalAppLabelScale`.
+* **AMOLED Black Theme:** High-contrast dark theme designed to minimize battery usage.
+* **Material You Theming:** Automatically adapts accent colors based on the current wallpaper.
+* **Icon Packs:** Supports icon packs from Google Play and individual per-app icon overrides.
+* **Adaptive Shapes:** Select squircle, circle, teardrop, or rounded square shapes for app icons.
+* **Double-Tap Sleep:** Double-tap empty screen space to lock the device without breaking biometric unlock.
+* **Backup and Restore:** Export your layout settings to a backup file and restore configuration in seconds.
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## Architecture and Tech Stack
 
-For engineers and contributors, Drawer is engineered according to Google's official Modern Android Development (MAD) architecture:
+Drawer follows Google's Modern Android Development (MAD) architecture guidelines:
 
 ```
 ├── app/                  # Main application module, navigation & initialization
 ├── core/
 │   ├── common/           # Coroutine dispatchers, DrawerWidgetHostManager, utilities
 │   ├── model/            # Pure domain models (AppDrawer, WidgetItem, DockItem)
-│   ├── designsystem/     # Glassmorphic components, Pantone wallpaper, typography
+│   ├── designsystem/     # UI components, Pantone wallpaper, typography
 │   ├── database/         # Room database, DAOs, and persistence entities
 │   ├── datastore/        # Jetpack Preferences DataStore for user preferences
 │   └── data/             # Repositories reconciling DB, installed apps & frecency state
 └── feature/
     ├── home/             # Main screen orchestrator, DuoStatusIcon, speed test & walkthrough
     ├── groups/           # App drawer accordion management & categorized grouping
-    ├── dock/             # Floating frosted glass dock & fast action bar
+    ├── dock/             # Dock bar and fast action bar
     ├── notifications/    # System notification listener, quick-mute & privacy masking
     ├── iconpacks/        # Icon pack parsing, caching & custom shape masking
     ├── todo/             # Gesture to-do engine, location alerts & task analytics
     └── settings/         # Visual customization, typography packs, backup & tour
 ```
 
-* **UI Layer:** 100% Jetpack Compose with Material 3 design tokens.
-* **Asynchronous Streams:** Kotlin Coroutines and reactive `StateFlow` / `SharedFlow`.
-* **Predictive Algorithm:** On-device Frecency ranking reconciling launch count and timestamps.
-* **Persistence:** AndroidX Room DB + Jetpack DataStore (zero raw SQLite/SharedPreferences).
-* **Performance:** Hardware-accelerated graphics with RenderEffect runtime blur shaders (Android 12+) and legacy-safe fallbacks.
-* **Network:** Standard platform `HttpURLConnection` for lightweight weather and update checks with zero third-party client bloat.
+* **UI Layer:** Jetpack Compose with Material 3 design tokens.
+* **Asynchronous Streams:** Kotlin Coroutines and reactive `StateFlow` and `SharedFlow`.
+* **App Ranking:** On-device frecency ranking calculated from launch counts and timestamps.
+* **Persistence:** AndroidX Room database and Jetpack DataStore.
+* **Performance:** Hardware-accelerated graphics using `RenderEffect` runtime shaders on Android 12 and higher.
+* **Networking:** Platform `HttpURLConnection` for weather and update checks with zero external dependencies.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-We welcome community feedback, pull requests, and ideas!
-* Found a bug or have a feature idea? Open an [Issue](https://github.com/urunkarpm/drawer/issues).
-* Want to contribute code? Fork the repo, create a feature branch (`git checkout -b feat/my-enhancement`), and submit a Pull Request.
+We welcome feedback, issues, and code contributions:
+* Report defects or request features by opening an [Issue](https://github.com/urunkarpm/drawer/issues).
+* Fork the repository, create a branch (`git checkout -b feat/my-enhancement`), and submit a pull request.
 
 ---
 
-## 📜 License
+## License
 
-Drawer is open-source software licensed under the [Apache License 2.0](LICENSE).
-Your device, your data, your launcher.
+Drawer is open-source software under the [Apache License 2.0](LICENSE).
