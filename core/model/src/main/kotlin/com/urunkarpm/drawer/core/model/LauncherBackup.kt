@@ -51,6 +51,8 @@ data class LauncherPreferencesBackup(
     val openDrawerFromDockOnly: Boolean = false,
     val duoStatusPosition: String = "TEMP",
     val hideDrawerIcons: Boolean = false,
+    val drawerIconStyle: String = "NEUTRAL",
+    val categoryAutoCollapseSeconds: Int = 3,
     val monochromeIcons: Boolean = false,
     val stealthTheme: Boolean = false,
     val stealthContrastLevel: String = "LOW",

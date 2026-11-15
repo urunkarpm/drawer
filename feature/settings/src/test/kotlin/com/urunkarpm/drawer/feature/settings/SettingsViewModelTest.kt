@@ -75,6 +75,8 @@ class SettingsViewModelTest {
     private val openDrawerFromDockOnlyFlow = MutableStateFlow(false)
     private val duoStatusPositionFlow = MutableStateFlow("TEMP")
     private val hideDrawerIconsFlow = MutableStateFlow(false)
+    private val drawerIconStyleFlow = MutableStateFlow("NEUTRAL")
+    private val categoryAutoCollapseSecondsFlow = MutableStateFlow(3)
     private val stealthThemeFlow = MutableStateFlow(false)
     private val stealthContrastLevelFlow = MutableStateFlow("LOW")
     private val stealthLimitBrightnessFlow = MutableStateFlow(false)
@@ -150,6 +152,8 @@ class SettingsViewModelTest {
         every { preferencesDataSource.openDrawerFromDockOnly } returns openDrawerFromDockOnlyFlow
         every { preferencesDataSource.duoStatusPosition } returns duoStatusPositionFlow
         every { preferencesDataSource.hideDrawerIcons } returns hideDrawerIconsFlow
+        every { preferencesDataSource.drawerIconStyle } returns drawerIconStyleFlow
+        every { preferencesDataSource.categoryAutoCollapseSeconds } returns categoryAutoCollapseSecondsFlow
         every { preferencesDataSource.stealthTheme } returns stealthThemeFlow
         every { preferencesDataSource.stealthContrastLevel } returns stealthContrastLevelFlow
         every { preferencesDataSource.stealthLimitBrightness } returns stealthLimitBrightnessFlow
@@ -530,5 +534,19 @@ class SettingsViewModelTest {
         viewModel.setAppVaultEnabled(false)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { preferencesDataSource.setAppVaultEnabled(false) }
+    }
+
+    @Test
+    fun setDrawerIconStyle_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setDrawerIconStyle("DYNAMIC")
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setDrawerIconStyle("DYNAMIC") }
+    }
+
+    @Test
+    fun setCategoryAutoCollapseSeconds_callsPreferencesDataSource() = runTest(testDispatcher) {
+        viewModel.setCategoryAutoCollapseSeconds(5)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { preferencesDataSource.setCategoryAutoCollapseSeconds(5) }
     }
 }

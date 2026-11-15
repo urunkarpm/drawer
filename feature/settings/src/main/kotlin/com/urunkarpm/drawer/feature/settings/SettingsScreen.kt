@@ -96,16 +96,20 @@ import com.urunkarpm.drawer.feature.settings.component.SettingsDivider
 import com.urunkarpm.drawer.feature.settings.component.SettingsNavTileRow
 import com.urunkarpm.drawer.feature.settings.component.SettingsSectionHeader
 import com.urunkarpm.drawer.feature.settings.subscreen.AboutSubScreen
+import com.urunkarpm.drawer.feature.settings.subscreen.AppearanceSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.DockSubScreen
+import com.urunkarpm.drawer.feature.settings.subscreen.DrawersSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.FeaturesSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.GlanceSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.HomeDrawersSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.PrivacySubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.SettingsSection
 import com.urunkarpm.drawer.feature.settings.subscreen.SurfacesSubScreen
+import com.urunkarpm.drawer.feature.settings.subscreen.SystemSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.ThemesSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.TypographyIconsSubScreen
 import com.urunkarpm.drawer.feature.settings.subscreen.WallpaperSubScreen
+import com.urunkarpm.drawer.feature.settings.subscreen.WorkspaceSubScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -132,7 +136,13 @@ fun SettingsScreen(
     var sectionNames by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     val sectionBackStack = remember(sectionNames) {
         sectionNames.mapNotNull { name ->
-            runCatching { SettingsSection.valueOf(name) }.getOrNull()
+            when (name) {
+                "THEMES", "WALLPAPER", "SURFACES", "TYPOGRAPHY_ICONS" -> SettingsSection.APPEARANCE
+                "HOME_DRAWERS" -> SettingsSection.DRAWERS
+                "DOCK", "GLANCE" -> SettingsSection.WORKSPACE
+                "PRIVACY", "ABOUT" -> SettingsSection.SYSTEM
+                else -> runCatching { SettingsSection.valueOf(name) }.getOrNull()
+            }
         }
     }
     val currentSection = sectionBackStack.lastOrNull()
@@ -373,36 +383,33 @@ fun SettingsScreen(
                                             navigateToSection(section)
                                         }
                                     )
-                                    SettingsSection.THEMES -> ThemesSubScreen(
+                                    SettingsSection.APPEARANCE,
+                                    @Suppress("DEPRECATION") SettingsSection.THEMES,
+                                    @Suppress("DEPRECATION") SettingsSection.WALLPAPER,
+                                    @Suppress("DEPRECATION") SettingsSection.SURFACES,
+                                    @Suppress("DEPRECATION") SettingsSection.TYPOGRAPHY_ICONS -> AppearanceSubScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel,
+                                        onShowIconPicker = { showIconPicker = true },
+                                        highlightKey = targetHighlightKey
+                                    )
+                                    SettingsSection.DRAWERS,
+                                    @Suppress("DEPRECATION") SettingsSection.HOME_DRAWERS -> DrawersSubScreen(
                                         uiState = uiState,
                                         viewModel = viewModel,
                                         highlightKey = targetHighlightKey
                                     )
-                                    SettingsSection.WALLPAPER -> WallpaperSubScreen(uiState, viewModel)
-                                    SettingsSection.SURFACES -> SurfacesSubScreen(uiState, viewModel)
-                                    SettingsSection.TYPOGRAPHY_ICONS -> TypographyIconsSubScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel,
-                                        onShowIconPicker = { showIconPicker = true }
-                                    )
-                                    SettingsSection.HOME_DRAWERS -> HomeDrawersSubScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel,
-                                        highlightKey = targetHighlightKey
-                                    )
-                                    SettingsSection.DOCK -> DockSubScreen(uiState, viewModel)
-                                    SettingsSection.GLANCE -> GlanceSubScreen(
+                                    SettingsSection.WORKSPACE,
+                                    @Suppress("DEPRECATION") SettingsSection.DOCK,
+                                    @Suppress("DEPRECATION") SettingsSection.GLANCE -> WorkspaceSubScreen(
                                         uiState = uiState,
                                         viewModel = viewModel,
                                         onShowCityDialog = { showCityDialog = true },
                                         highlightKey = targetHighlightKey
                                     )
-                                    SettingsSection.PRIVACY -> PrivacySubScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel,
-                                        highlightKey = targetHighlightKey
-                                    )
-                                    SettingsSection.ABOUT -> AboutSubScreen(
+                                    SettingsSection.SYSTEM,
+                                    @Suppress("DEPRECATION") SettingsSection.PRIVACY,
+                                    @Suppress("DEPRECATION") SettingsSection.ABOUT -> SystemSubScreen(
                                         uiState = uiState,
                                         viewModel = viewModel,
                                         onExportBackup = {
@@ -420,7 +427,8 @@ fun SettingsScreen(
                                                 )
                                             )
                                         },
-                                        onOpenWalkthrough = onOpenWalkthrough
+                                        onOpenWalkthrough = onOpenWalkthrough,
+                                        highlightKey = targetHighlightKey
                                     )
                                 }
                             }
@@ -598,7 +606,7 @@ private fun MainSettingsHub(
     ) {
         // Section: Features & Guides
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SettingsSectionHeader(title = "Features & Guides")
+            SettingsSectionHeader(title = "Guides")
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
@@ -612,109 +620,46 @@ private fun MainSettingsHub(
             }
         }
 
-        // Section 1: Personalisation & Look
+        // Section: Core Settings (The Big 4 Hubs)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SettingsSectionHeader(title = "Personalisation & Look")
+            SettingsSectionHeader(title = "Settings")
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 Column {
                     SettingsNavTileRow(
-                        title = SettingsSection.THEMES.title,
-                        subtitle = "$themeLabel Theme • ${uiState.surfaceThemeStyle.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }}",
+                        title = SettingsSection.APPEARANCE.title,
+                        subtitle = "$themeLabel Theme • ${if (uiState.dynamicColor) "Material You" else "Custom Accent"} • ${uiState.surfaceThemeStyle.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }}",
                         icon = Icons.Default.Palette,
-                        onClick = { onSelectSection(SettingsSection.THEMES) }
+                        onClick = { onSelectSection(SettingsSection.APPEARANCE) }
                     )
 
                     SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
-                        title = SettingsSection.WALLPAPER.title,
-                        subtitle = "${selectedPalette.name} • ${if (uiState.dynamicWallpaperEnabled) "Pantone active" else if (uiState.wallpaperBlur) "Blur active" else "Default"}",
-                        icon = Icons.Default.FormatPaint,
-                        onClick = { onSelectSection(SettingsSection.WALLPAPER) }
-                    )
-
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
-
-                    SettingsNavTileRow(
-                        title = SettingsSection.SURFACES.title,
-                        subtitle = "${uiState.surfaceThemeStyle.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }} • ${(uiState.surfaceOpacity * 100).toInt()}% opacity • ${uiState.surfaceCornerRadius.toInt()}dp radius",
-                        icon = Icons.Outlined.ColorLens,
-                        onClick = { onSelectSection(SettingsSection.SURFACES) }
-                    )
-
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
-
-                    SettingsNavTileRow(
-                        title = SettingsSection.TYPOGRAPHY_ICONS.title,
-                        subtitle = "${uiState.headerFontFamily.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }} • ${uiState.appLabelScale.lowercase().replaceFirstChar { it.uppercase() }} Labels",
-                        icon = Icons.Outlined.TextFields,
-                        onClick = { onSelectSection(SettingsSection.TYPOGRAPHY_ICONS) }
-                    )
-                }
-            }
-        }
-
-        // Section 2: Workspace & Layout
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SettingsSectionHeader(title = "Workspace & Layout")
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                Column {
-                    SettingsNavTileRow(
-                        title = SettingsSection.HOME_DRAWERS.title,
-                        subtitle = "${uiState.appDrawerColumns} icons/row • ${if (uiState.categoryAlignment == "BOTTOM") "Bottom thumb-zone" else "Top stack"} • ${if (uiState.twoDrawersSideBySide) "Dual column" else "Single column"}",
+                        title = SettingsSection.DRAWERS.title,
+                        subtitle = "${uiState.appDrawerColumns} cols • ${if (uiState.twoDrawersSideBySide) "Dual column" else "Single column"} • ${uiState.categoryAutoCollapseSeconds}s auto-collapse",
                         icon = Icons.Default.ViewCarousel,
-                        onClick = { onSelectSection(SettingsSection.HOME_DRAWERS) }
+                        onClick = { onSelectSection(SettingsSection.DRAWERS) }
                     )
 
                     SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
-                        title = SettingsSection.DOCK.title,
-                        subtitle = "${uiState.dockIconSize.toInt()}dp icons • ${if (uiState.dockShowLabels) "Labels on" else "Labels off"}",
+                        title = SettingsSection.WORKSPACE.title,
+                        subtitle = "${uiState.dockIconSize.toInt()}dp dock • ${if (uiState.showWeather) "Weather on" else "Weather off"} • ${if (uiState.is24Hour) "24h" else "12h"}",
                         icon = Icons.Default.Phone,
-                        onClick = { onSelectSection(SettingsSection.DOCK) }
+                        onClick = { onSelectSection(SettingsSection.WORKSPACE) }
                     )
 
                     SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
 
                     SettingsNavTileRow(
-                        title = SettingsSection.GLANCE.title,
-                        subtitle = "${if (uiState.is24Hour) "24h clock" else "12h clock"} • ${if (uiState.showWeather) "Weather on" else "Weather off"}",
-                        icon = Icons.Default.Schedule,
-                        onClick = { onSelectSection(SettingsSection.GLANCE) }
-                    )
-                }
-            }
-        }
-
-        // Section 3: Privacy & System
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SettingsSectionHeader(title = "Privacy & System")
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                Column {
-                    SettingsNavTileRow(
-                        title = SettingsSection.PRIVACY.title,
-                        subtitle = "${if (uiState.appVaultEnabled) "App Vault on" else "App Vault off"} • ${if (uiState.notificationsPrivacyMode) "Private" else "Standard"}",
+                        title = SettingsSection.SYSTEM.title,
+                        subtitle = "${if (uiState.appVaultEnabled) "App Vault on" else "App Vault off"} • Backup & Restore • v$installedVersion",
                         icon = Icons.Default.Security,
-                        onClick = { onSelectSection(SettingsSection.PRIVACY) }
-                    )
-
-                    SettingsDivider(modifier = Modifier.padding(horizontal = 12.dp))
-
-                    SettingsNavTileRow(
-                        title = SettingsSection.ABOUT.title,
-                        subtitle = "Version $installedVersion • Offline & Private",
-                        icon = Icons.Outlined.Info,
-                        onClick = { onSelectSection(SettingsSection.ABOUT) }
+                        onClick = { onSelectSection(SettingsSection.SYSTEM) }
                     )
                 }
             }

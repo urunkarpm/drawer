@@ -293,18 +293,42 @@ class DrawerPreferencesDataSourceTest {
     }
 
     @Test
+    fun defaultDrawerIconStyleIsNeutralAndPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals("NEUTRAL", dataSource.drawerIconStyle.first())
+        dataSource.setDrawerIconStyle("EDITORIAL")
+        assertEquals("EDITORIAL", dataSource.drawerIconStyle.first())
+        dataSource.setDrawerIconStyle("DYNAMIC")
+        assertEquals("DYNAMIC", dataSource.drawerIconStyle.first())
+    }
+
+    @Test
+    fun defaultCategoryAutoCollapseSecondsIsThreeAndPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(3, dataSource.categoryAutoCollapseSeconds.first())
+        dataSource.setCategoryAutoCollapseSeconds(0)
+        assertEquals(0, dataSource.categoryAutoCollapseSeconds.first())
+        dataSource.setCategoryAutoCollapseSeconds(5)
+        assertEquals(5, dataSource.categoryAutoCollapseSeconds.first())
+    }
+
+    @Test
     fun getPreferencesBackupAndRestorePreferencesRoundTrip() = runTest {
         val dataSource = createDataSource(backgroundScope)
         val initialBackup = dataSource.getPreferencesBackup()
         assertEquals("SYSTEM", initialBackup.themeMode)
         assertEquals("ACCENT_POP", initialBackup.drawerTitleAnimation)
         assertEquals(true, initialBackup.dynamicColor)
+        assertEquals("NEUTRAL", initialBackup.drawerIconStyle)
+        assertEquals(3, initialBackup.categoryAutoCollapseSeconds)
 
         val customBackup = initialBackup.copy(
             themeMode = "DARK",
             drawerThemeMode = "AMOLED",
             drawerLiquidGlass = true,
             drawerTitleAnimation = "KINETIC_DECEL",
+            drawerIconStyle = "EDITORIAL",
+            categoryAutoCollapseSeconds = 5,
             dynamicColor = false,
             hideStatusBar = false,
             dockBackground = "SOLID",
@@ -330,6 +354,8 @@ class DrawerPreferencesDataSourceTest {
         assertEquals("AMOLED", restoredBackup.drawerThemeMode)
         assertEquals(true, restoredBackup.drawerLiquidGlass)
         assertEquals("KINETIC_DECEL", restoredBackup.drawerTitleAnimation)
+        assertEquals("EDITORIAL", restoredBackup.drawerIconStyle)
+        assertEquals(5, restoredBackup.categoryAutoCollapseSeconds)
         assertEquals(false, restoredBackup.dynamicColor)
         assertEquals(false, restoredBackup.hideStatusBar)
         assertEquals("SOLID", restoredBackup.dockBackground)

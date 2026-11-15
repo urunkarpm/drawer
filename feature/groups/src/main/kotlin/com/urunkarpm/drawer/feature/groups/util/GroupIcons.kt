@@ -55,24 +55,24 @@ object GroupIcons {
         }
     }
 
-    // High-contrast, fresh and vibrant category palette (zero dull grays / mud)
+    // ponytail: Curated executive editorial palette (zero neon toy primaries; muted slate, sage, terracotta, sand, amethyst, mineral teal).
     val availableColors: List<String> = listOf(
-        "#3B82F6", // Electric Blue
-        "#10B981", // Fresh Emerald Green
-        "#F43F5E", // Radiant Rose / Coral
-        "#F59E0B", // Solar Amber
-        "#8B5CF6", // Electric Violet
-        "#06B6D4", // Fresh Cyan
-        "#F97316", // Vibrant Tangerine
-        "#D946EF", // Vibrant Fuchsia
-        "#6366F1", // Vivid Indigo
-        "#14B8A6"  // Luminous Teal
+        "#64748B", // Slate Steel
+        "#5F8575", // Sage Green
+        "#A35D6A", // Dusty Rose
+        "#B8864E", // Warm Sand
+        "#7E6E9B", // Muted Amethyst
+        "#5A8288", // Mineral Teal
+        "#B36A5E", // Terracotta
+        "#8E6B88", // Muted Plum
+        "#6B728E", // Nordic Indigo
+        "#608078"  // Olive Slate
     )
 
     // ponytail: preserves user-selected color hex directly; only falls back to category-aware palette when unspecified; ceiling: hex string only; upgrade path: full Material ColorScheme integration.
     fun isDullOrGrey(hex: String?): Boolean = hex.isNullOrBlank()
 
-    fun parseColor(hex: String?, fallback: Color = Color(0xFF3B82F6)): Color {
+    fun parseColor(hex: String?, fallback: Color = Color(0xFF64748B)): Color {
         if (hex.isNullOrBlank()) return fallback
         return try {
             val formatted = hex.trim().let { if (it.startsWith("#")) it else "#$it" }
@@ -82,12 +82,46 @@ object GroupIcons {
         }
     }
 
-    fun resolveGroupColor(colorHex: String?, name: String, id: String = ""): Color {
-        return if (colorHex.isNullOrBlank()) {
-            resolveCategoryColor(name, id)
+    fun resolveGroupColor(colorHex: String?, name: String, id: String = "", style: String = "NEUTRAL"): Color {
+        return if (style == "EDITORIAL") {
+            if (colorHex.isNullOrBlank()) {
+                resolveEditorialCategoryColor(name, id)
+            } else {
+                parseColor(colorHex, fallback = resolveEditorialCategoryColor(name, id))
+            }
         } else {
-            parseColor(colorHex, fallback = resolveCategoryColor(name, id))
+            if (colorHex.isNullOrBlank()) {
+                resolveCategoryColor(name, id)
+            } else {
+                parseColor(colorHex, fallback = resolveCategoryColor(name, id))
+            }
         }
+    }
+
+    fun resolveEditorialCategoryColor(name: String, id: String = ""): Color {
+        val lower = name.lowercase().trim()
+        val hex = when {
+            lower.contains("finance") || lower.contains("bank") || lower.contains("money") || lower.contains("pay") -> "#5F8575" // Sage Green
+            lower.contains("media") || lower.contains("music") || lower.contains("audio") || lower.contains("song") -> "#8E6B88" // Muted Plum
+            lower.contains("video") || lower.contains("stream") || lower.contains("movie") || lower.contains("tv") -> "#A35D6A" // Dusty Rose
+            lower.contains("chat") || lower.contains("social") || lower.contains("message") || lower.contains("talk") -> "#5A8288" // Mineral Teal
+            lower.contains("work") || lower.contains("office") || lower.contains("business") || lower.contains("task") -> "#64748B" // Slate Steel
+            lower.contains("tool") || lower.contains("util") || lower.contains("system") -> "#7E6E9B" // Muted Amethyst
+            lower.contains("fit") || lower.contains("health") || lower.contains("gym") || lower.contains("run") -> "#608078" // Olive Slate
+            lower.contains("star") || lower.contains("fav") -> "#B8864E" // Warm Sand
+            lower.contains("dev") || lower.contains("code") || lower.contains("git") -> "#6B728E" // Nordic Indigo
+            lower.contains("shop") || lower.contains("cart") || lower.contains("store") -> "#B36A5E" // Terracotta
+            lower.contains("game") || lower.contains("play") -> "#7E6E9B" // Muted Amethyst
+            lower.contains("photo") || lower.contains("camera") || lower.contains("image") -> "#A35D6A" // Dusty Rose
+            lower.contains("mail") || lower.contains("email") -> "#64748B" // Slate Steel
+            else -> {
+                val colors = availableColors
+                val hash = if (id.isNotEmpty()) id.hashCode() else name.hashCode()
+                val index = kotlin.math.abs(hash % colors.size)
+                colors[index]
+            }
+        }
+        return parseColor(hex)
     }
 
     fun resolveCategoryColor(name: String, id: String = ""): Color {

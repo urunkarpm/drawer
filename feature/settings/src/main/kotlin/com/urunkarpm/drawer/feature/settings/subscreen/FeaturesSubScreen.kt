@@ -98,7 +98,7 @@ private val FEATURE_CARDS = listOf(
             "Batch Selection: Select multiple apps with check boxes to hide them together.",
             "Unhide Apps: Press and hold an app icon inside the vault to restore it."
         ),
-        targetSection = SettingsSection.PRIVACY,
+        targetSection = SettingsSection.SYSTEM,
         targetKey = "APP_VAULT",
         actionLabel = "Open App Vault Settings"
     ),
@@ -133,7 +133,7 @@ private val FEATURE_CARDS = listOf(
             "Privacy Mode: Hides notification previews and verification codes on the home screen.",
             "Instant Dismiss: Swipe to dismiss notifications immediately."
         ),
-        targetSection = SettingsSection.PRIVACY,
+        targetSection = SettingsSection.SYSTEM,
         targetKey = "NOTIFICATIONS",
         actionLabel = "Open Notification Settings"
     ),
@@ -151,7 +151,7 @@ private val FEATURE_CARDS = listOf(
             "Built-in Speed Test: Run download speed tests powered directly by Cloudflare and Google Edge CDN.",
             "Network Status: View active Wi-Fi name, signal strength, and link speed."
         ),
-        targetSection = SettingsSection.GLANCE,
+        targetSection = SettingsSection.WORKSPACE,
         targetKey = "DUO_STATUS",
         actionLabel = "Open DuoStatus Settings"
     ),
@@ -168,7 +168,7 @@ private val FEATURE_CARDS = listOf(
             "Fast Startup: Skips camera startup delay, shutter sounds, and gallery loading.",
             "Punch-Hole Alignment: Integrates right at your phone's front camera cutout."
         ),
-        targetSection = SettingsSection.GLANCE,
+        targetSection = SettingsSection.WORKSPACE,
         targetKey = "CAMERA_MIRROR",
         actionLabel = "Open Mirror Settings"
     ),
@@ -187,7 +187,7 @@ private val FEATURE_CARDS = listOf(
             "Frecency Predictions: Suggests relevant applications based on launch frequency and time.",
             "Alphabet Scrub Rail: Drag your thumb down the right screen edge to jump directly to any letter."
         ),
-        targetSection = SettingsSection.HOME_DRAWERS,
+        targetSection = SettingsSection.DRAWERS,
         targetKey = "HOME_DRAWERS",
         actionLabel = "Open Drawer Settings"
     ),
@@ -204,7 +204,7 @@ private val FEATURE_CARDS = listOf(
             "3D Cover Flow: Swipe horizontally through widgets with depth animation.",
             "Smart Auto-Collapse: Automatically closes drawers after interaction to keep your screen clean."
         ),
-        targetSection = SettingsSection.GLANCE,
+        targetSection = SettingsSection.WORKSPACE,
         targetKey = "WIDGETS",
         actionLabel = "Open Widget Settings"
     ),
@@ -221,7 +221,7 @@ private val FEATURE_CARDS = listOf(
             "Calm Interface: Removes bright colors so your device stays calm.",
             "High Contrast: Provides clear text on both light and AMOLED black backgrounds."
         ),
-        targetSection = SettingsSection.THEMES,
+        targetSection = SettingsSection.APPEARANCE,
         targetKey = "MONOCHROME",
         actionLabel = "Open Theme Settings"
     )

@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
 import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
@@ -43,8 +44,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // ponytail: Android Home gesture triggers onNewIntent with ACTION_MAIN or CATEGORY_HOME; resets UI to clean home; ceiling is custom multi-instance task affinities; upgrade path is intent action dispatch routing.
-        if (intent.action == Intent.ACTION_MAIN || intent.hasCategory(Intent.CATEGORY_HOME)) {
+        // ponytail: Android Home gesture triggers onNewIntent with ACTION_MAIN or CATEGORY_HOME; only reset when already resumed in foreground to prevent flinching on unlock & app exits; ceiling is custom multi-instance task affinities; upgrade path is intent action dispatch routing.
+        if (lifecycle.currentState == Lifecycle.State.RESUMED &&
+            (intent.action == Intent.ACTION_MAIN || intent.hasCategory(Intent.CATEGORY_HOME))) {
             homeResetTrigger = SystemClock.uptimeMillis()
         }
     }

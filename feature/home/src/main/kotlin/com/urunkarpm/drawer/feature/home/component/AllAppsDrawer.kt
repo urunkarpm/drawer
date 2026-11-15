@@ -182,7 +182,7 @@ fun AllAppsDrawer(
     }
 
     val isLiquidGlassActive = (drawerLook == "LIQUID_GLASS" || (drawerLook == "SOLID" && drawerLiquidGlass))
-    val isFrostedGlassActive = (drawerLook == "FROSTED_GLASS")
+    val isFrostedGlassActive = (drawerLook == "FROSTED_GLASS" || drawerLook == "FROSTED")
     val isAnyGlassActive = isLiquidGlassActive || isFrostedGlassActive
 
     // Wrap the entire app drawer with DrawerTheme so all typography, search bars, and app labels use correct theme contrast

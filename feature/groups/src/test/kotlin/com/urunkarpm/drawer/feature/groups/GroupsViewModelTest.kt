@@ -47,6 +47,8 @@ class GroupsViewModelTest {
     private val lockLayoutFlow = MutableStateFlow(false)
     private val drawerNotificationGlowFlow = MutableStateFlow(true)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
+    private val drawerIconStyleFlow = MutableStateFlow("NEUTRAL")
+    private val categoryAutoCollapseSecondsFlow = MutableStateFlow(3)
     private val mindfulAppsFlow = MutableStateFlow<Set<String>>(emptySet())
     private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
     private val appVaultEnabledFlow = MutableStateFlow(true)
@@ -82,6 +84,8 @@ class GroupsViewModelTest {
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.drawerNotificationGlow } returns drawerNotificationGlowFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
+        every { preferencesDataSource.drawerIconStyle } returns drawerIconStyleFlow
+        every { preferencesDataSource.categoryAutoCollapseSeconds } returns categoryAutoCollapseSecondsFlow
         every { preferencesDataSource.mindfulApps } returns mindfulAppsFlow
         every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
         every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow

@@ -158,9 +158,10 @@ fun GroupsAccordion(
     val hasExpandedGroup = uiState.groups.any { it.group.isExpanded }
     var lastInteractionTime by remember { mutableLongStateOf(0L) }
 
-    LaunchedEffect(hasExpandedGroup, lastInteractionTime) {
-        if (hasExpandedGroup) {
-            delay(3000L)
+    // ponytail: Auto-collapse category app drawers after configured inactivity delay (0s = Never, 3s, 5s); resets countdown on touch.
+    LaunchedEffect(hasExpandedGroup, lastInteractionTime, uiState.categoryAutoCollapseSeconds) {
+        if (hasExpandedGroup && uiState.categoryAutoCollapseSeconds > 0) {
+            delay(uiState.categoryAutoCollapseSeconds * 1000L)
             viewModel.collapseAllGroups()
         }
     }
@@ -288,6 +289,7 @@ fun GroupsAccordion(
                                 surfaceOpacity = surfaceOpacity,
                                 surfaceStrokeOpacity = surfaceStrokeOpacity,
                                 drawerTitleAnimation = uiState.drawerTitleAnimation,
+                                drawerIconStyle = uiState.drawerIconStyle,
                                 cinematicPaletteId = cinematicPaletteId
                             )
                         }
@@ -334,6 +336,7 @@ fun GroupsAccordion(
                                 surfaceOpacity = surfaceOpacity,
                                 surfaceStrokeOpacity = surfaceStrokeOpacity,
                                 drawerTitleAnimation = uiState.drawerTitleAnimation,
+                                drawerIconStyle = uiState.drawerIconStyle,
                                 cinematicPaletteId = cinematicPaletteId
                             )
                         }
@@ -379,7 +382,8 @@ fun GroupsAccordion(
                         isMesmerizingGlow = isMesmerizingGlow,
                         surfaceOpacity = surfaceOpacity,
                         surfaceStrokeOpacity = surfaceStrokeOpacity,
-                        drawerTitleAnimation = uiState.drawerTitleAnimation
+                        drawerTitleAnimation = uiState.drawerTitleAnimation,
+                        drawerIconStyle = uiState.drawerIconStyle
                     )
                 }
             }
@@ -506,6 +510,7 @@ private fun GroupCard(
     surfaceOpacity: Float = 0.65f,
     surfaceStrokeOpacity: Float = 0.40f,
     drawerTitleAnimation: String = "ACCENT_POP",
+    drawerIconStyle: String = "NEUTRAL",
     cinematicPaletteId: String = "DEFAULT",
     anyGroupExpanded: Boolean = false,
     modifier: Modifier = Modifier
@@ -514,11 +519,39 @@ private fun GroupCard(
     val isExpanded = group.isExpanded
     val crispHaptics = LocalCrispHaptics.current
     val isMonochrome = LocalMonochromeIcons.current
+    val rawEditorialColor = remember(group.colorHex, group.name, group.id) {
+        GroupIcons.resolveEditorialCategoryColor(group.name, group.id)
+    }
     val rawGroupColor = remember(group.colorHex, group.name, group.id) {
-        GroupIcons.resolveGroupColor(group.colorHex, group.name, group.id)
+        GroupIcons.resolveGroupColor(group.colorHex, group.name, group.id, drawerIconStyle)
     }
     val groupColor = if (isMonochrome) rawGroupColor.toMonochrome() else rawGroupColor
     val groupIcon = GroupIcons.getIcon(group.iconName)
+
+    // ponytail: 3 executive drawer icon styles: NEUTRAL (frosted glass), DYNAMIC (Material You), EDITORIAL (muted stone/earth palette); ceiling: static icon mapping; upgrade path: per-category custom badge shader.
+    val (badgeBg, badgeBorder, badgeTint) = when (drawerIconStyle) {
+        "DYNAMIC" -> Triple(
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.40f),
+            if (hasNotification) MaterialTheme.colorScheme.primary.copy(alpha = 0.60f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+            MaterialTheme.colorScheme.primary
+        )
+        "EDITORIAL" -> {
+            val editorialColor = if (isMonochrome) rawGroupColor.toMonochrome() else rawGroupColor
+            Triple(
+                editorialColor.copy(alpha = 0.14f),
+                if (hasNotification) editorialColor.copy(alpha = 0.60f)
+                else editorialColor.copy(alpha = 0.25f),
+                editorialColor
+            )
+        }
+        else -> Triple( // "NEUTRAL"
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+            if (hasNotification) MaterialTheme.colorScheme.primary.copy(alpha = 0.50f)
+            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 
     // ponytail: Drawer title lateral slide animation options. When expanded, titles glide smoothly to the right edge.
     // Ceiling: fixed 5 animation modes; Upgrade path: custom user spring stiffness and physics sliders.
@@ -545,7 +578,7 @@ private fun GroupCard(
 
     val titleColor by animateColorAsState(
         targetValue = if (isExpanded && drawerTitleAnimation == "ACCENT_POP") {
-            groupColor
+            if (drawerIconStyle == "NEUTRAL") MaterialTheme.colorScheme.primary else badgeTint
         } else {
             MaterialTheme.colorScheme.onSurface
         },
@@ -751,18 +784,17 @@ private fun GroupCard(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(groupColor.copy(alpha = 0.12f))
+                                    .background(badgeBg)
                                     .border(
                                         width = if (hasNotification) 1.5.dp else 1.dp,
-                                        color = if (hasNotification) groupColor.copy(alpha = 0.50f)
-                                                else groupColor.copy(alpha = 0.25f),
+                                        color = badgeBorder,
                                         shape = RoundedCornerShape(10.dp)
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 CategoryReelBadge(
                                     groupIcon = groupIcon,
-                                    groupColor = groupColor,
+                                    groupColor = badgeTint,
                                     groupName = group.name,
                                     apps = resolvedGroup.apps,
                                     isExpanded = isExpanded,
@@ -793,7 +825,7 @@ private fun GroupCard(
                             modifier = Modifier
                                 .size(if (isCompact) 7.dp else 8.dp)
                                 .clip(CircleShape)
-                                .background(groupColor)
+                                .background(badgeTint)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }

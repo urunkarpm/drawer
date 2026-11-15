@@ -102,6 +102,7 @@ fun WidgetsPage(
     lockLayout: Boolean = false,
     hideDrawerIcons: Boolean = false,
     drawerTitleAnimation: String = "ACCENT_POP",
+    drawerIconStyle: String = "NEUTRAL",
     surfaceThemeStyle: String = "LIQUID_GLASS",
     isMesmerizingGlow: Boolean = true,
     surfaceOpacity: Float = 0.65f,
@@ -368,7 +369,8 @@ fun WidgetsPage(
                             isMesmerizingGlow = isMesmerizingGlow,
                             surfaceOpacity = surfaceOpacity,
                             surfaceStrokeOpacity = surfaceStrokeOpacity,
-                            drawerTitleAnimation = drawerTitleAnimation
+                            drawerTitleAnimation = drawerTitleAnimation,
+                            drawerIconStyle = drawerIconStyle
                         )
                     }
 

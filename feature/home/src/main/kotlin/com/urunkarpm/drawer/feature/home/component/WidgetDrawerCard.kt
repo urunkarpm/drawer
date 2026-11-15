@@ -95,6 +95,8 @@ import com.urunkarpm.drawer.core.designsystem.component.DrawerSurfaceBackground
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.model.WidgetDrawer
 import com.urunkarpm.drawer.core.model.WidgetItem
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
+import com.urunkarpm.drawer.core.designsystem.theme.toMonochrome
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -117,6 +119,7 @@ fun WidgetDrawerCard(
     lockLayout: Boolean = false,
     hideDrawerIcons: Boolean = false,
     drawerTitleAnimation: String = "ACCENT_POP",
+    drawerIconStyle: String = "NEUTRAL",
     surfaceThemeStyle: String = "LIQUID_GLASS",
     isMesmerizingGlow: Boolean = true,
     surfaceOpacity: Float = 0.65f,
@@ -126,8 +129,35 @@ fun WidgetDrawerCard(
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    val drawerColor = remember(drawer.colorHex, drawer.title, drawer.id) {
-        GroupIcons.resolveGroupColor(drawer.colorHex, drawer.title, drawer.id)
+    val isMonochrome = LocalMonochromeIcons.current
+    val rawEditorialColor = remember(drawer.colorHex, drawer.title, drawer.id) {
+        GroupIcons.resolveEditorialCategoryColor(drawer.title, drawer.id)
+    }
+    val rawDrawerColor = remember(drawer.colorHex, drawer.title, drawer.id) {
+        GroupIcons.resolveGroupColor(drawer.colorHex, drawer.title, drawer.id, drawerIconStyle)
+    }
+    val drawerColor = if (isMonochrome) rawDrawerColor.toMonochrome() else rawDrawerColor
+
+    // ponytail: 3 executive drawer icon styles: NEUTRAL (frosted glass), DYNAMIC (Material You), EDITORIAL (muted stone/earth palette).
+    val (badgeBg, badgeBorder, badgeTint) = when (drawerIconStyle) {
+        "DYNAMIC" -> Triple(
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.40f),
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+            MaterialTheme.colorScheme.primary
+        )
+        "EDITORIAL" -> {
+            val editorialColor = if (isMonochrome) rawEditorialColor.toMonochrome() else rawEditorialColor
+            Triple(
+                editorialColor.copy(alpha = 0.14f),
+                editorialColor.copy(alpha = 0.25f),
+                editorialColor
+            )
+        }
+        else -> Triple( // "NEUTRAL"
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
     val drawerIcon = remember(drawer.iconName, drawer.title) {
         if (drawer.iconName.isNotBlank() && drawer.iconName != "folder") {
@@ -251,10 +281,10 @@ fun WidgetDrawerCard(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(drawerColor.copy(alpha = 0.12f))
+                                .background(badgeBg)
                                 .border(
                                     width = 1.dp,
-                                    color = drawerColor.copy(alpha = 0.25f),
+                                    color = badgeBorder,
                                     shape = RoundedCornerShape(10.dp)
                                 ),
                             contentAlignment = Alignment.Center
@@ -262,7 +292,7 @@ fun WidgetDrawerCard(
                             Icon(
                                 imageVector = drawerIcon,
                                 contentDescription = drawer.title,
-                                tint = drawerColor,
+                                tint = badgeTint,
                                 modifier = Modifier.size(18.dp)
                             )
                         }

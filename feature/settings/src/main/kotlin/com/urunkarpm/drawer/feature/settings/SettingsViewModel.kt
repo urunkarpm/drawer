@@ -88,6 +88,8 @@ data class MiscSettings(
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
     val hideDrawerIcons: Boolean = false,
+    val drawerIconStyle: String = "NEUTRAL",
+    val categoryAutoCollapseSeconds: Int = 3,
     val notificationSwipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
     val notificationSwipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
     val stealthTheme: Boolean = false,
@@ -123,7 +125,9 @@ private data class MiscPart2(
     val twoDrawersSideBySide: Boolean,
     val lockLayout: Boolean,
     val autoArrangeApps: Boolean,
-    val hideDrawerIcons: Boolean
+    val hideDrawerIcons: Boolean,
+    val drawerIconStyle: String,
+    val categoryAutoCollapseSeconds: Int
 )
 
 private data class MiscPart3(
@@ -209,6 +213,8 @@ data class SettingsUiState(
     val lockLayout: Boolean = false,
     val autoArrangeApps: Boolean = true,
     val hideDrawerIcons: Boolean = false,
+    val drawerIconStyle: String = "NEUTRAL",
+    val categoryAutoCollapseSeconds: Int = 3,
     val monochromeIcons: Boolean = false,
     val headerFontFamily: String = "GOOGLE_SANS",
     val appLabelScale: String = "NORMAL",
@@ -369,14 +375,24 @@ class SettingsViewModel @Inject constructor(
         MiscPart1(multiGroupApps, notificationsPrivacyMode, activeIconPack, swipeRight, swipeLeft)
     }
 
-    private val miscFlowPart2 = combine(
+    private val miscFlowPart2 = combine<Any, MiscPart2>(
         preferencesDataSource.adaptiveIconShape,
         preferencesDataSource.twoDrawersSideBySide,
         preferencesDataSource.lockLayout,
         preferencesDataSource.autoArrangeApps,
-        preferencesDataSource.hideDrawerIcons
-    ) { adaptiveIconShape, twoDrawersSideBySide, lockLayout, autoArrangeApps, hideDrawerIcons ->
-        MiscPart2(adaptiveIconShape, twoDrawersSideBySide, lockLayout, autoArrangeApps, hideDrawerIcons)
+        preferencesDataSource.hideDrawerIcons,
+        preferencesDataSource.drawerIconStyle,
+        preferencesDataSource.categoryAutoCollapseSeconds
+    ) { values ->
+        MiscPart2(
+            adaptiveIconShape = values[0] as String,
+            twoDrawersSideBySide = values[1] as Boolean,
+            lockLayout = values[2] as Boolean,
+            autoArrangeApps = values[3] as Boolean,
+            hideDrawerIcons = values[4] as Boolean,
+            drawerIconStyle = values[5] as String,
+            categoryAutoCollapseSeconds = values[6] as Int
+        )
     }
 
     private val miscFlowPart3 = combine(
@@ -409,6 +425,8 @@ class SettingsViewModel @Inject constructor(
             lockLayout = p2.lockLayout,
             autoArrangeApps = p2.autoArrangeApps,
             hideDrawerIcons = p2.hideDrawerIcons,
+            drawerIconStyle = p2.drawerIconStyle,
+            categoryAutoCollapseSeconds = p2.categoryAutoCollapseSeconds,
             notificationSwipeRightAction = p1.swipeRight,
             notificationSwipeLeftAction = p1.swipeLeft,
             stealthTheme = p3.stealthTheme,
@@ -518,6 +536,8 @@ class SettingsViewModel @Inject constructor(
             lockLayout = misc.lockLayout,
             autoArrangeApps = misc.autoArrangeApps,
             hideDrawerIcons = misc.hideDrawerIcons,
+            drawerIconStyle = misc.drawerIconStyle,
+            categoryAutoCollapseSeconds = misc.categoryAutoCollapseSeconds,
             monochromeIcons = monochromeIcons,
             headerFontFamily = headerFontFamily,
             appLabelScale = appLabelScale,
@@ -862,6 +882,18 @@ class SettingsViewModel @Inject constructor(
     fun setHideDrawerIcons(hide: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setHideDrawerIcons(hide)
+        }
+    }
+
+    fun setDrawerIconStyle(style: String) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setDrawerIconStyle(style)
+        }
+    }
+
+    fun setCategoryAutoCollapseSeconds(seconds: Int) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setCategoryAutoCollapseSeconds(seconds)
         }
     }
 

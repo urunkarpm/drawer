@@ -43,6 +43,16 @@ fun HomeDrawersSubScreen(
     modifier: Modifier = Modifier,
     highlightKey: String? = null
 ) {
+    DrawersSubScreen(uiState, viewModel, modifier, highlightKey)
+}
+
+@Composable
+fun DrawersSubScreen(
+    uiState: SettingsUiState,
+    viewModel: SettingsViewModel,
+    modifier: Modifier = Modifier,
+    highlightKey: String? = null
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -98,6 +108,31 @@ fun HomeDrawersSubScreen(
                     onCheckedChange = { viewModel.setTwoDrawersSideBySide(it) }
                 )
 
+                SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                Text(
+                    text = "Auto-Collapse On Inactivity",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Automatically snap category folders shut when idle",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsSegmentedRow(
+                    options = listOf(
+                        "0" to "Never",
+                        "3" to "3 Seconds",
+                        "5" to "5 Seconds"
+                    ),
+                    selected = uiState.categoryAutoCollapseSeconds.toString(),
+                    onSelect = { viewModel.setCategoryAutoCollapseSeconds(it.toIntOrNull() ?: 3) }
+                )
+
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 SettingsSwitchRow(
@@ -124,6 +159,42 @@ fun HomeDrawersSubScreen(
                     checked = uiState.hideDrawerIcons,
                     onCheckedChange = { viewModel.setHideDrawerIcons(it) }
                 )
+
+                if (!uiState.hideDrawerIcons) {
+                    SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                    Text(
+                        text = "Drawer Icon Style",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Visual theme for category and drawer icon badges on your home screen",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "NEUTRAL" to "Frosted Glass",
+                            "DYNAMIC" to "Material You",
+                            "EDITORIAL" to "Muted Palette"
+                        ),
+                        selected = uiState.drawerIconStyle,
+                        onSelect = { viewModel.setDrawerIconStyle(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    SettingsSwitchRow(
+                        title = "Glowing Drawer Icon",
+                        subtitle = "Pulse glow the drawer icon when an app inside has a notification until acknowledged",
+                        checked = uiState.drawerNotificationGlow,
+                        onCheckedChange = { viewModel.setDrawerNotificationGlow(it) }
+                    )
+                }
 
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -213,6 +284,56 @@ fun HomeDrawersSubScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
+                    text = "App Drawer Look",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Choose solid, crystalline liquid glass, or frosted satin diffusion",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsSegmentedRow(
+                    options = listOf(
+                        "SOLID" to "Solid",
+                        "LIQUID_GLASS" to "Liquid Glass",
+                        "FROSTED_GLASS" to "Frosted Glass"
+                    ),
+                    selected = uiState.drawerLook,
+                    onSelect = { viewModel.setDrawerLook(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                Text(
+                    text = "App Drawer Theme",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Background style for the full app drawer",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsSegmentedRow(
+                    options = listOf(
+                        "WHITE" to "White",
+                        "DARK" to "Dark",
+                        "SYSTEM" to "System"
+                    ),
+                    selected = if (uiState.drawerThemeMode == "LIGHT") "WHITE" else uiState.drawerThemeMode,
+                    onSelect = { viewModel.setDrawerThemeMode(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                Text(
                     text = "App Drawer Columns",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
@@ -247,6 +368,15 @@ fun HomeDrawersSubScreen(
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 SettingsSwitchRow(
+                    title = "Open Drawer From Dock Only",
+                    subtitle = "Only open the app drawer when swiping up on the dock, disabling home screen swipe up",
+                    checked = uiState.openDrawerFromDockOnly,
+                    onCheckedChange = { viewModel.setOpenDrawerFromDockOnly(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
                     title = "Auto-Open Keyboard in Drawer",
                     subtitle = "Focus search bar and pop up keyboard immediately upon opening All Apps",
                     checked = uiState.autoOpenKeyboardInDrawer,
@@ -260,6 +390,265 @@ fun HomeDrawersSubScreen(
                     subtitle = "Obscure apps with a blur when opening All Apps until tapped",
                     checked = uiState.blurAppListOnOpen,
                     onCheckedChange = { viewModel.setBlurAppListOnOpen(it) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun WorkspaceSubScreen(
+    uiState: SettingsUiState,
+    viewModel: SettingsViewModel,
+    onShowCityDialog: () -> Unit,
+    modifier: Modifier = Modifier,
+    highlightKey: String? = null
+) {
+    val context = LocalContext.current
+    val isFoldableOrTablet = remember(context) {
+        DevicePostureUtils.isFoldableOrTablet(context)
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Card 1: Dock Bar
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Dock Bar",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                SettingsSliderRow(
+                    title = "Dock Icon Size",
+                    subtitle = "Scaled proportionally across all dock slots (smaller size allows up to 8 dock apps)",
+                    value = uiState.dockIconSize,
+                    onValueChange = { viewModel.setDockIconSize(it) },
+                    valueRange = 40f..72f,
+                    steps = 7,
+                    valueLabel = "${uiState.dockIconSize.toInt()} dp"
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                SettingsSwitchRow(
+                    title = "Show App Labels",
+                    subtitle = "Display app names beneath dock icons",
+                    checked = uiState.dockShowLabels,
+                    onCheckedChange = { viewModel.setDockShowLabels(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                SettingsSwitchRow(
+                    title = "Free Drag & Auto-Arrange",
+                    subtitle = "Freely slide apps left or right with instant auto-rearrangement",
+                    checked = uiState.autoArrangeApps,
+                    onCheckedChange = { viewModel.setAutoArrangeApps(it) }
+                )
+
+                if (isFoldableOrTablet) {
+                    SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    SettingsSliderRow(
+                        title = "Foldable / Tablet Dock Capacity",
+                        subtitle = "Number of app slots in unfolded posture",
+                        value = uiState.dockExpandedMaxApps.toFloat(),
+                        onValueChange = { viewModel.setDockExpandedMaxApps(it.toInt()) },
+                        valueRange = 6f..10f,
+                        steps = 3,
+                        valueLabel = "${uiState.dockExpandedMaxApps} apps"
+                    )
+                }
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                SettingsSwitchRow(
+                    title = "Dock Edge Glow",
+                    subtitle = "Displays a light highlight along the dock edge",
+                    checked = uiState.dockMesmerizingGlow,
+                    onCheckedChange = { viewModel.setDockMesmerizingGlow(it) }
+                )
+            }
+        }
+
+        // Card 2: Glance Header
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Glance Header",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                SettingsSwitchRow(
+                    title = "24-Hour Clock",
+                    subtitle = "Use 24-hour format instead of 12-hour AM/PM",
+                    checked = uiState.is24Hour,
+                    onCheckedChange = { viewModel.setIs24Hour(it) }
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
+                    title = "Show Weather",
+                    subtitle = "Display current temperature and weather conditions",
+                    checked = uiState.showWeather,
+                    onCheckedChange = { viewModel.setShowWeather(it) }
+                )
+
+                if (uiState.showWeather) {
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Text(
+                        text = "Temperature Unit",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "CELSIUS" to "Celsius (°C)",
+                            "FAHRENHEIT" to "Fahrenheit (°F)"
+                        ),
+                        selected = uiState.weatherUnit,
+                        onSelect = { viewModel.setWeatherUnit(it) }
+                    )
+
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onShowCityDialog() }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Weather Location",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = uiState.manualCityName?.let { "Manual: $it" } ?: "Auto (GPS Fused Location)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.LightMode,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
+                    title = "DuoStatus Indicators",
+                    subtitle = "Show live power wattage, battery, speed test, and Wi-Fi indicator between time and weather",
+                    checked = uiState.showDuoStatusWidget,
+                    onCheckedChange = { viewModel.setShowDuoStatusWidget(it) },
+                    modifier = Modifier.settingGlowEffect(
+                        isHighlighted = highlightKey == "DUO_STATUS",
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                )
+
+                if (uiState.showDuoStatusWidget) {
+                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    Text(
+                        text = "DuoStatus Position",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Placement in glance header row",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingsSegmentedRow(
+                        options = listOf(
+                            "TEMP" to "Weather",
+                            "CENTER" to "Center Pill",
+                            "TIME" to "Time"
+                        ),
+                        selected = uiState.duoStatusPosition,
+                        onSelect = { viewModel.setDuoStatusPosition(it) }
+                    )
+                }
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
+                    title = "Front Camera Mirror Shortcut",
+                    subtitle = "Tap front camera punch hole to quickly open front camera mirror",
+                    checked = uiState.enableCameraMirror,
+                    onCheckedChange = { viewModel.setEnableCameraMirror(it) },
+                    modifier = Modifier.settingGlowEffect(
+                        isHighlighted = highlightKey == "CAMERA_MIRROR",
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                )
+            }
+        }
+
+        // Card 3: Screen & Feed Layout
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Screen & Feed Layout",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                SettingsSwitchRow(
+                    title = "Left-Hand Widget Page",
+                    subtitle = "Enable dedicated full-page widget feed by swiping right from Home",
+                    checked = uiState.enableWidgetsPage,
+                    onCheckedChange = { viewModel.setEnableWidgetsPage(it) },
+                    modifier = Modifier.settingGlowEffect(
+                        isHighlighted = highlightKey == "WIDGETS",
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
+                    title = "Hide Status Bar",
+                    subtitle = "Maximize screen real estate by hiding the system status bar",
+                    checked = uiState.hideStatusBar,
+                    onCheckedChange = { viewModel.setHideStatusBar(it) }
                 )
             }
         }

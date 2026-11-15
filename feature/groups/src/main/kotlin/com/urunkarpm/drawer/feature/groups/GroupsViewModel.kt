@@ -45,6 +45,8 @@ data class GroupsUiState(
     val lockLayout: Boolean = false,
     val drawerNotificationGlow: Boolean = true,
     val drawerTitleAnimation: String = "ACCENT_POP",
+    val drawerIconStyle: String = "NEUTRAL",
+    val categoryAutoCollapseSeconds: Int = 3,
     val allApps: List<AppInfo> = emptyList(), // ponytail: exposed for bulk add
     val isAiCategorizing: Boolean = false,
     val aiSuggestions: List<CategorizationSuggestion>? = null,
@@ -96,6 +98,8 @@ class GroupsViewModel @Inject constructor(
         val lockLayout: Boolean,
         val drawerGlow: Boolean,
         val drawerTitleAnimation: String,
+        val drawerIconStyle: String,
+        val categoryAutoCollapseSeconds: Int,
         val mindfulApps: Set<String>,
         val hiddenApps: Set<String> = emptySet()
     )
@@ -105,6 +109,8 @@ class GroupsViewModel @Inject constructor(
         preferencesDataSource.lockLayout,
         preferencesDataSource.drawerNotificationGlow,
         preferencesDataSource.drawerTitleAnimation,
+        preferencesDataSource.drawerIconStyle,
+        preferencesDataSource.categoryAutoCollapseSeconds,
         preferencesDataSource.mindfulApps,
         preferencesDataSource.hiddenAppPackages,
         preferencesDataSource.appVaultEnabled
@@ -113,17 +119,21 @@ class GroupsViewModel @Inject constructor(
         val lockLayout = args[1] as Boolean
         val drawerGlow = args[2] as Boolean
         val titleAnim = args[3] as String
+        val iconStyle = args[4] as String
+        val collapseSec = args[5] as Int
         @Suppress("UNCHECKED_CAST")
-        val mindful = args[4] as Set<String>
+        val mindful = args[6] as Set<String>
         @Suppress("UNCHECKED_CAST")
-        val hiddenApps = args[5] as Set<String>
-        val appVaultEnabled = args[6] as Boolean
+        val hiddenApps = args[7] as Set<String>
+        val appVaultEnabled = args[8] as Boolean
         // ponytail: restore hidden group apps when vault disabled; ceiling: in-memory flow filtering; upgrade path: unified effectiveHiddenAppsFlow.
         GroupPrefs(
             multiGroup = multiGroup,
             lockLayout = lockLayout,
             drawerGlow = drawerGlow,
             drawerTitleAnimation = titleAnim,
+            drawerIconStyle = iconStyle,
+            categoryAutoCollapseSeconds = collapseSec,
             mindfulApps = mindful,
             hiddenApps = if (appVaultEnabled) hiddenApps else emptySet()
         )
@@ -177,6 +187,8 @@ class GroupsViewModel @Inject constructor(
             lockLayout = groupPrefs.lockLayout,
             drawerNotificationGlow = groupPrefs.drawerGlow,
             drawerTitleAnimation = groupPrefs.drawerTitleAnimation,
+            drawerIconStyle = groupPrefs.drawerIconStyle,
+            categoryAutoCollapseSeconds = groupPrefs.categoryAutoCollapseSeconds,
             allApps = visibleInstalledApps.sortedBy { it.label.lowercase() },
             isAiCategorizing = isCategorizing,
             aiSuggestions = suggestions,

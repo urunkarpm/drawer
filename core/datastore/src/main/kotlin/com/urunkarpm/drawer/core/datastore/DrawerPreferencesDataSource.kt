@@ -106,6 +106,8 @@ class DrawerPreferencesDataSource @Inject constructor(
         val AI_CATEGORIZE_ALL_APPS = booleanPreferencesKey("ai_categorize_all_apps")
         val AI_FORCE_WORK_PROFILE = booleanPreferencesKey("ai_force_work_profile")
         val DRAWER_TITLE_ANIMATION = stringPreferencesKey("drawer_title_animation")
+        val DRAWER_ICON_STYLE = stringPreferencesKey("drawer_icon_style")
+        val CATEGORY_AUTO_COLLAPSE_SECONDS = intPreferencesKey("category_auto_collapse_seconds")
         val APP_USAGE_PROFILES = stringPreferencesKey("app_usage_profiles")
         val SUGGESTION_BLACKLIST = stringPreferencesKey("suggestion_blacklist")
         val SHOW_DRAWER_SUGGESTIONS = booleanPreferencesKey("show_drawer_suggestions")
@@ -452,6 +454,9 @@ class DrawerPreferencesDataSource @Inject constructor(
     val adaptiveIconShape: Flow<String> = dataStore.data.map { it[PreferencesKeys.ADAPTIVE_ICON_SHAPE] ?: "CIRCLE" }
     // ponytail: drawer title animation mode on open/close (ACCENT_POP, FLUID_SPRING, KINETIC_DECEL, SNAPPY, OFF)
     val drawerTitleAnimation: Flow<String> = dataStore.data.map { it[PreferencesKeys.DRAWER_TITLE_ANIMATION] ?: "ACCENT_POP" }
+    // ponytail: drawer icon style (NEUTRAL = Frosted Glass, DYNAMIC = Material You, EDITORIAL = Muted Palette)
+    val drawerIconStyle: Flow<String> = dataStore.data.map { it[PreferencesKeys.DRAWER_ICON_STYLE] ?: "NEUTRAL" }
+    val categoryAutoCollapseSeconds: Flow<Int> = dataStore.data.map { it[PreferencesKeys.CATEGORY_AUTO_COLLAPSE_SECONDS] ?: 3 }
     val twoDrawersSideBySide: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.TWO_DRAWERS_SIDE_BY_SIDE] ?: false }
     val wallpaperBlur: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR] ?: true }
     val wallpaperBlurRadius: Flow<Float> = dataStore.data.map { it[PreferencesKeys.WALLPAPER_BLUR_RADIUS] ?: 25f }
@@ -501,6 +506,13 @@ class DrawerPreferencesDataSource @Inject constructor(
         dataStore.edit {
             it[PreferencesKeys.DRAWER_LOOK] = look
             it[PreferencesKeys.DRAWER_LIQUID_GLASS] = (look == "LIQUID_GLASS" || look == "FROSTED_GLASS")
+            val mappedSurface = when (look) {
+                "FROSTED_GLASS" -> "FROSTED"
+                "LIQUID_GLASS" -> "LIQUID_GLASS"
+                else -> "SOLID"
+            }
+            it[PreferencesKeys.SURFACE_THEME_STYLE] = mappedSurface
+            it[PreferencesKeys.DOCK_BACKGROUND] = mappedSurface
         }
     }
 
@@ -573,6 +585,12 @@ class DrawerPreferencesDataSource @Inject constructor(
         dataStore.edit {
             it[PreferencesKeys.SURFACE_THEME_STYLE] = style
             it[PreferencesKeys.DOCK_BACKGROUND] = style
+            it[PreferencesKeys.DRAWER_LOOK] = when (style) {
+                "FROSTED" -> "FROSTED_GLASS"
+                "LIQUID_GLASS" -> "LIQUID_GLASS"
+                else -> "SOLID"
+            }
+            it[PreferencesKeys.DRAWER_LIQUID_GLASS] = (style == "LIQUID_GLASS" || style == "FROSTED")
         }
     }
 
@@ -644,6 +662,14 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setDrawerTitleAnimation(mode: String) {
         dataStore.edit { it[PreferencesKeys.DRAWER_TITLE_ANIMATION] = mode }
+    }
+
+    suspend fun setDrawerIconStyle(style: String) {
+        dataStore.edit { it[PreferencesKeys.DRAWER_ICON_STYLE] = style }
+    }
+
+    suspend fun setCategoryAutoCollapseSeconds(seconds: Int) {
+        dataStore.edit { it[PreferencesKeys.CATEGORY_AUTO_COLLAPSE_SECONDS] = seconds }
     }
 
     suspend fun setTwoDrawersSideBySide(enabled: Boolean) {
@@ -962,6 +988,8 @@ class DrawerPreferencesDataSource @Inject constructor(
             activeIconPack = p[PreferencesKeys.ACTIVE_ICON_PACK],
             adaptiveIconShape = p[PreferencesKeys.ADAPTIVE_ICON_SHAPE] ?: "CIRCLE",
             drawerTitleAnimation = p[PreferencesKeys.DRAWER_TITLE_ANIMATION] ?: "ACCENT_POP",
+            drawerIconStyle = p[PreferencesKeys.DRAWER_ICON_STYLE] ?: "NEUTRAL",
+            categoryAutoCollapseSeconds = p[PreferencesKeys.CATEGORY_AUTO_COLLAPSE_SECONDS] ?: 3,
             twoDrawersSideBySide = p[PreferencesKeys.TWO_DRAWERS_SIDE_BY_SIDE] ?: false,
             wallpaperBlur = p[PreferencesKeys.WALLPAPER_BLUR] ?: true,
             wallpaperBlurRadius = p[PreferencesKeys.WALLPAPER_BLUR_RADIUS] ?: 25f,
@@ -1047,6 +1075,8 @@ class DrawerPreferencesDataSource @Inject constructor(
             if (activePack != null) p[PreferencesKeys.ACTIVE_ICON_PACK] = activePack else p.remove(PreferencesKeys.ACTIVE_ICON_PACK)
             p[PreferencesKeys.ADAPTIVE_ICON_SHAPE] = prefs.adaptiveIconShape
             p[PreferencesKeys.DRAWER_TITLE_ANIMATION] = prefs.drawerTitleAnimation
+            p[PreferencesKeys.DRAWER_ICON_STYLE] = prefs.drawerIconStyle
+            p[PreferencesKeys.CATEGORY_AUTO_COLLAPSE_SECONDS] = prefs.categoryAutoCollapseSeconds
             p[PreferencesKeys.TWO_DRAWERS_SIDE_BY_SIDE] = prefs.twoDrawersSideBySide
             p[PreferencesKeys.WALLPAPER_BLUR] = prefs.wallpaperBlur
             p[PreferencesKeys.WALLPAPER_BLUR_RADIUS] = prefs.wallpaperBlurRadius
