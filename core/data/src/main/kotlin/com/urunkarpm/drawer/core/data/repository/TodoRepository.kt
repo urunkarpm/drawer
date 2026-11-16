@@ -25,44 +25,8 @@ import java.time.ZonedDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
-interface TodoRepository {
-    fun observeOpenTodos(): Flow<List<TodoItem>>
-    fun observeDoneTodos(): Flow<List<TodoItem>>
-    fun observeAllTodos(): Flow<List<TodoItem>>
-    suspend fun getTodoById(id: Long): TodoItem?
-    suspend fun createTodo(todo: TodoItem): Long
-    suspend fun updateTodo(todo: TodoItem)
-    suspend fun deleteTodo(id: Long)
-    suspend fun completeTask(id: Long, now: Long = System.currentTimeMillis()): TodoItem?
-    suspend fun restoreTask(id: Long)
-    suspend fun clearAllDone(): Int
-    suspend fun deleteOldDoneTasks(days: Int? = null): Int
-
-    // Settings
-    val settings: Flow<TodoSettings>
-    suspend fun updateSettings(settings: TodoSettings)
-    suspend fun setLocationEnabled(enabled: Boolean)
-    suspend fun snoozeAllLocationAlerts(until: Long)
-    val locationAlertsSnoozedUntil: Flow<Long>
-
-    // Saved places
-    fun observeSavedPlaces(): Flow<List<SavedPlace>>
-    suspend fun getSavedPlacesList(): List<SavedPlace>
-    suspend fun savePlace(place: SavedPlace): Long
-    suspend fun deletePlace(id: Long)
-
-    // Recent searches
-    fun observeRecentSearches(limit: Int = 5): Flow<List<RecentSearch>>
-    suspend fun addRecentSearch(query: String)
-
-    // Event logs
-    fun observeRecentEventLogs(limit: Int = 20): Flow<List<EventLog>>
-    suspend fun logEvent(type: String, text: String): Long
-    suspend fun pruneOldEventLogs()
-}
-
 @Singleton
-class DefaultTodoRepository @Inject constructor(
+class TodoRepository @Inject constructor(
     private val todoDao: TodoDao,
     private val savedPlaceDao: SavedPlaceDao,
     private val recentSearchDao: RecentSearchDao,
@@ -71,21 +35,21 @@ class DefaultTodoRepository @Inject constructor(
     private val deadlineAlarmScheduler: com.urunkarpm.drawer.core.data.reminder.DeadlineAlarmScheduler,
     private val deadlineNotificationHelper: com.urunkarpm.drawer.core.data.reminder.DeadlineNotificationHelper,
     private val locationEngineManager: javax.inject.Provider<com.urunkarpm.drawer.core.data.location.LocationEngineManager>
-) : TodoRepository {
+) {
 
-    override fun observeOpenTodos(): Flow<List<TodoItem>> =
+    fun observeOpenTodos(): Flow<List<TodoItem>> =
         todoDao.getOpenTodos().map { list -> list.map { it.toDomain() } }
 
-    override fun observeDoneTodos(): Flow<List<TodoItem>> =
+    fun observeDoneTodos(): Flow<List<TodoItem>> =
         todoDao.getDoneTodos().map { list -> list.map { it.toDomain() } }
 
-    override fun observeAllTodos(): Flow<List<TodoItem>> =
+    fun observeAllTodos(): Flow<List<TodoItem>> =
         todoDao.getAllTodos().map { list -> list.map { it.toDomain() } }
 
-    override suspend fun getTodoById(id: Long): TodoItem? =
+    suspend fun getTodoById(id: Long): TodoItem? =
         todoDao.getTodoById(id)?.toDomain()
 
-    override suspend fun createTodo(todo: TodoItem): Long {
+    suspend fun createTodo(todo: TodoItem): Long {
         val entity = TodoEntity.fromDomain(todo)
         val id = todoDao.insert(entity)
         val saved = todo.copy(id = id)
@@ -95,7 +59,7 @@ class DefaultTodoRepository @Inject constructor(
         return id
     }
 
-    override suspend fun updateTodo(todo: TodoItem) {
+    suspend fun updateTodo(todo: TodoItem) {
         todoDao.update(TodoEntity.fromDomain(todo))
         deadlineAlarmScheduler.cancelAlarms(todo.id)
         if (todo.status == TodoStatus.OPEN && todo.deadlineUtc != null) {
@@ -105,7 +69,7 @@ class DefaultTodoRepository @Inject constructor(
         logEvent("TODO_UPDATED", "Updated task: ${todo.title} (id: ${todo.id})")
     }
 
-    override suspend fun deleteTodo(id: Long) {
+    suspend fun deleteTodo(id: Long) {
         val existing = todoDao.getTodoById(id)
         if (existing != null) {
             todoDao.deleteById(id)
@@ -116,7 +80,7 @@ class DefaultTodoRepository @Inject constructor(
         }
     }
 
-    override suspend fun completeTask(id: Long, now: Long): TodoItem? {
+    suspend fun completeTask(id: Long, now: Long = System.currentTimeMillis()): TodoItem? {
         val existing = todoDao.getTodoById(id) ?: return null
         if (existing.status == TodoStatus.DONE.name) return existing.toDomain()
 
@@ -155,7 +119,7 @@ class DefaultTodoRepository @Inject constructor(
         return todoDao.getTodoById(id)?.toDomain()
     }
 
-    override suspend fun restoreTask(id: Long) {
+    suspend fun restoreTask(id: Long) {
         val existing = todoDao.getTodoById(id) ?: return
         val restored = existing.copy(
             status = TodoStatus.OPEN.name,
@@ -170,13 +134,13 @@ class DefaultTodoRepository @Inject constructor(
         logEvent("TODO_RESTORED", "Restored task: ${existing.title} (id: $id)")
     }
 
-    override suspend fun clearAllDone(): Int {
+    suspend fun clearAllDone(): Int {
         val deleted = todoDao.clearAllDone()
         logEvent("TODO_CLEARED_ALL_DONE", "Cleared $deleted completed tasks")
         return deleted
     }
 
-    override suspend fun deleteOldDoneTasks(days: Int?): Int {
+    suspend fun deleteOldDoneTasks(days: Int? = null): Int {
         val autoDeleteDays = days ?: preferencesDataSource.todoSettings.first().doneAutoDeleteDays
         if (autoDeleteDays <= 0) return 0 // <=0 means Never
 
@@ -188,53 +152,53 @@ class DefaultTodoRepository @Inject constructor(
         return deleted
     }
 
-    override val settings: Flow<TodoSettings> = preferencesDataSource.todoSettings
+    val settings: Flow<TodoSettings> = preferencesDataSource.todoSettings
 
-    override suspend fun updateSettings(settings: TodoSettings) {
+    suspend fun updateSettings(settings: TodoSettings) {
         preferencesDataSource.updateTodoSettings(settings)
     }
 
-    override suspend fun setLocationEnabled(enabled: Boolean) {
+    suspend fun setLocationEnabled(enabled: Boolean) {
         preferencesDataSource.setTodoLocationFeaturesEnabled(enabled)
         locationEngineManager.get().updateTargetsAndEvaluate()
     }
 
-    override suspend fun snoozeAllLocationAlerts(until: Long) {
+    suspend fun snoozeAllLocationAlerts(until: Long) {
         preferencesDataSource.snoozeAllLocationAlerts(until)
     }
 
-    override val locationAlertsSnoozedUntil: Flow<Long> =
+    val locationAlertsSnoozedUntil: Flow<Long> =
         preferencesDataSource.todoLocationAlertsSnoozedUntil
 
-    override fun observeSavedPlaces(): Flow<List<SavedPlace>> =
+    fun observeSavedPlaces(): Flow<List<SavedPlace>> =
         savedPlaceDao.getAll().map { list -> list.map { it.toDomain() } }
 
-    override suspend fun getSavedPlacesList(): List<SavedPlace> =
+    suspend fun getSavedPlacesList(): List<SavedPlace> =
         savedPlaceDao.getAllList().map { it.toDomain() }
 
-    override suspend fun savePlace(place: SavedPlace): Long =
+    suspend fun savePlace(place: SavedPlace): Long =
         savedPlaceDao.insert(SavedPlaceEntity.fromDomain(place))
 
-    override suspend fun deletePlace(id: Long) =
+    suspend fun deletePlace(id: Long) =
         savedPlaceDao.deleteById(id)
 
-    override fun observeRecentSearches(limit: Int): Flow<List<RecentSearch>> =
+    fun observeRecentSearches(limit: Int = 5): Flow<List<RecentSearch>> =
         recentSearchDao.getRecent(limit).map { list -> list.map { it.toDomain() } }
 
-    override suspend fun addRecentSearch(query: String) {
+    suspend fun addRecentSearch(query: String) {
         if (query.isNotBlank()) {
             recentSearchDao.saveAndPrune(RecentSearchEntity(query = query.trim(), createdAt = System.currentTimeMillis()))
         }
     }
 
-    override fun observeRecentEventLogs(limit: Int): Flow<List<EventLog>> =
+    fun observeRecentEventLogs(limit: Int = 20): Flow<List<EventLog>> =
         eventLogDao.getRecent(limit).map { list -> list.map { it.toDomain() } }
 
-    override suspend fun logEvent(type: String, text: String): Long {
+    suspend fun logEvent(type: String, text: String): Long {
         return eventLogDao.insert(EventLogEntity(type = type, text = text))
     }
 
-    override suspend fun pruneOldEventLogs() {
+    suspend fun pruneOldEventLogs() {
         val cutoff = System.currentTimeMillis() - (7L * 24L * 60L * 60L * 1000L) // 7 days
         eventLogDao.pruneOlderThan(cutoff)
     }

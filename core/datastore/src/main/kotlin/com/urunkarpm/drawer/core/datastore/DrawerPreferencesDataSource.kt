@@ -55,8 +55,6 @@ class DrawerPreferencesDataSource @Inject constructor(
         val SURFACE_CORNER_RADIUS = floatPreferencesKey("surface_corner_radius")
         val CINEMATIC_PALETTE = stringPreferencesKey("cinematic_palette")
 
-        val MULTI_GROUP_APPS = booleanPreferencesKey("multi_group_apps")
-
         val NOTIFICATIONS_PRIVACY_MODE = booleanPreferencesKey("notifications_privacy_mode")
         val NOTIFICATION_SWIPE_RIGHT_ACTION = stringPreferencesKey("notification_swipe_right_action")
         val NOTIFICATION_SWIPE_LEFT_ACTION = stringPreferencesKey("notification_swipe_left_action")
@@ -421,8 +419,6 @@ class DrawerPreferencesDataSource @Inject constructor(
     }
     val cinematicPalette: Flow<String> = dataStore.data.map { it[PreferencesKeys.CINEMATIC_PALETTE] ?: "DEFAULT" }
 
-    val multiGroupApps: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.MULTI_GROUP_APPS] ?: false }
-
     val notificationsPrivacyMode: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] ?: false }
     val notificationSwipeRightAction: Flow<NotificationSwipeAction> = dataStore.data.map { prefs ->
         val raw = prefs[PreferencesKeys.NOTIFICATION_SWIPE_RIGHT_ACTION]
@@ -631,10 +627,6 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setDockExpandedMaxApps(maxApps: Int) {
         dataStore.edit { it[PreferencesKeys.DOCK_EXPANDED_MAX_APPS] = maxApps.coerceIn(6, 10) }
-    }
-
-    suspend fun setMultiGroupApps(multi: Boolean) {
-        dataStore.edit { it[PreferencesKeys.MULTI_GROUP_APPS] = multi }
     }
 
     suspend fun setNotificationsPrivacyMode(privacy: Boolean) {
@@ -981,7 +973,7 @@ class DrawerPreferencesDataSource @Inject constructor(
             surfaceStrokeOpacity = p[PreferencesKeys.SURFACE_STROKE_OPACITY] ?: 0.40f,
             surfaceCornerRadius = p[PreferencesKeys.SURFACE_CORNER_RADIUS] ?: p[PreferencesKeys.DOCK_CORNER_RADIUS] ?: 24f,
             cinematicPalette = p[PreferencesKeys.CINEMATIC_PALETTE] ?: "DEFAULT",
-            multiGroupApps = p[PreferencesKeys.MULTI_GROUP_APPS] ?: false,
+            multiGroupApps = false,
             notificationsPrivacyMode = p[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] ?: false,
             notificationSwipeRightAction = p[PreferencesKeys.NOTIFICATION_SWIPE_RIGHT_ACTION] ?: "MARK_AS_READ",
             notificationSwipeLeftAction = p[PreferencesKeys.NOTIFICATION_SWIPE_LEFT_ACTION] ?: "DISMISS",
@@ -1066,7 +1058,6 @@ class DrawerPreferencesDataSource @Inject constructor(
             p[PreferencesKeys.SURFACE_CORNER_RADIUS] = prefs.surfaceCornerRadius
             p[PreferencesKeys.CINEMATIC_PALETTE] = prefs.cinematicPalette
 
-            p[PreferencesKeys.MULTI_GROUP_APPS] = prefs.multiGroupApps
             p[PreferencesKeys.NOTIFICATIONS_PRIVACY_MODE] = prefs.notificationsPrivacyMode
             p[PreferencesKeys.NOTIFICATION_SWIPE_RIGHT_ACTION] = prefs.notificationSwipeRightAction
             p[PreferencesKeys.NOTIFICATION_SWIPE_LEFT_ACTION] = prefs.notificationSwipeLeftAction

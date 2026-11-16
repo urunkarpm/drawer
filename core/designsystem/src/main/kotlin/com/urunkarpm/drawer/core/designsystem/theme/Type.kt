@@ -17,17 +17,11 @@ val HelveticaFontFamily = FontFamily(
     Font(R.font.helvetica_fp, FontWeight.Normal)
 )
 
-val RobotoFontFamily = FontFamily(
-    Font(R.font.roboto_fp, FontWeight.Normal)
-)
+val RobotoFontFamily = FontFamily.SansSerif
 
-val TimesNewRomanFontFamily = FontFamily(
-    Font(R.font.times_new_roman_fp, FontWeight.Normal)
-)
+val TimesNewRomanFontFamily = FontFamily.Serif
 
-val ArialFontFamily = FontFamily(
-    Font(R.font.arial_fp, FontWeight.Normal)
-)
+val ArialFontFamily = FontFamily.SansSerif
 
 // ponytail: Google Sans font family with Regular, Medium, and Bold weights applied globally across MaterialTheme Typography; ceiling: local TTF bundle; upgrade path: downloadable fonts via Play Services FontsContract.
 val GoogleSansFontFamily = FontFamily(

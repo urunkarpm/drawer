@@ -2,8 +2,6 @@ package com.urunkarpm.drawer.core.data.repository
 
 import com.urunkarpm.drawer.core.common.network.Dispatcher
 import com.urunkarpm.drawer.core.common.network.DrawerDispatchers
-import com.urunkarpm.drawer.core.data.ai.AppCategorizer
-import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.database.dao.AppGroupDao
 import com.urunkarpm.drawer.core.database.entity.AppGroupEntity
 import com.urunkarpm.drawer.core.database.entity.AppGroupItemEntity
@@ -30,7 +28,6 @@ import javax.inject.Singleton
 class AppGroupRepository @Inject constructor(
     private val appGroupDao: AppGroupDao,
     private val appRepositoryProvider: Provider<AppRepository>,
-    private val appCategorizerProvider: Provider<AppCategorizer>,
     @param:Dispatcher(DrawerDispatchers.IO) private val ioDispatcher: CoroutineDispatcher,
     private val preferencesDataSourceProvider: Provider<DrawerPreferencesDataSource>? = null
 ) {
@@ -297,15 +294,13 @@ class AppGroupRepository @Inject constructor(
     }
 
     // ponytail: bulk assignment for edit group dialog. ceiling: deletes all and re-inserts. upgrade path: proper diffing if performance suffers.
-    suspend fun setGroupApps(groupId: String, apps: List<AppInfo>, allowMultiGroup: Boolean) = withContext(ioDispatcher) {
+    suspend fun setGroupApps(groupId: String, apps: List<AppInfo>) = withContext(ioDispatcher) {
         val currentItems = appGroupDao.getItemsForGroup(groupId).first()
         currentItems.forEach { item ->
             appGroupDao.deleteGroupItem(groupId, item.packageName, item.activityName)
         }
         val newEntities = apps.mapIndexed { index, app ->
-            if (!allowMultiGroup) {
-                appGroupDao.deleteItemsByComponent(app.packageName, app.activityName)
-            }
+            appGroupDao.deleteItemsByComponent(app.packageName, app.activityName)
             AppGroupItemEntity(
                 id = UUID.randomUUID().toString(),
                 groupId = groupId,
@@ -322,7 +317,6 @@ class AppGroupRepository @Inject constructor(
     suspend fun assignAppToGroup(
         groupId: String,
         app: AppInfo,
-        allowMultiGroup: Boolean = false,
         targetIndex: Int? = null
     ) = withContext(ioDispatcher) {
         val currentItems = appGroupDao.getItemsForGroup(groupId).first().toMutableList()
@@ -332,12 +326,8 @@ class AppGroupRepository @Inject constructor(
             currentItems.remove(existingItem)
         }
         
-        if (!allowMultiGroup) {
-            // Delete from ALL other groups in DB if multi-group is disabled
-            appGroupDao.deleteItemsByComponent(app.packageName, app.activityName)
-        } else {
-            appGroupDao.deleteGroupItem(groupId, app.packageName, app.activityName)
-        }
+        // Single group mode: Delete from ALL other groups in DB
+        appGroupDao.deleteItemsByComponent(app.packageName, app.activityName)
         
         val insertIndex = targetIndex?.coerceIn(0, currentItems.size) ?: currentItems.size
         
@@ -372,7 +362,7 @@ class AppGroupRepository @Inject constructor(
         targetIndex: Int? = null
     ) = withContext(ioDispatcher) {
         if (sourceGroupId == targetGroupId) {
-            assignAppToGroup(targetGroupId, app, allowMultiGroup = true, targetIndex = targetIndex)
+            assignAppToGroup(targetGroupId, app, targetIndex = targetIndex)
             return@withContext
         }
 
@@ -421,99 +411,13 @@ class AppGroupRepository @Inject constructor(
         appGroupDao.deleteGroupItemById(itemId)
     }
 
-    suspend fun suggestCategorization(unassignedOnly: Boolean): List<CategorizationSuggestion> = withContext(ioDispatcher) {
-        val appRepo = appRepositoryProvider.get()
-        var apps = appRepo.installedApps.first()
-        if (apps.isEmpty()) {
-            appRepo.refreshApps()
-            apps = appRepo.installedApps.first()
-        }
-        val currentGroups = groups.first()
-        val categorizer = appCategorizerProvider.get()
-        val prefs = preferencesDataSourceProvider?.get()
-
-        val categorizeAll = prefs?.aiCategorizeAllApps?.first() ?: false
-        val effectiveUnassignedOnly = if (categorizeAll) false else unassignedOnly
-        val strictness = prefs?.aiCategorizationStrictness?.first() ?: "BALANCED"
-        val forceWorkProfile = prefs?.aiForceWorkProfile?.first() ?: true
-
-        categorizer.categorizeApps(
-            apps = apps,
-            existingGroups = currentGroups,
-            unassignedOnly = effectiveUnassignedOnly,
-            strictness = strictness,
-            forceWorkProfile = forceWorkProfile
-        )
-    }
-
     suspend fun suggestDrawerForApp(app: AppInfo): AppGroup? = withContext(ioDispatcher) {
         val currentGroups = groups.first()
         if (currentGroups.isEmpty()) return@withContext null
-        val categorizer = appCategorizerProvider.get()
-        val prefs = preferencesDataSourceProvider?.get()
-        val strictness = prefs?.aiCategorizationStrictness?.first() ?: "BALANCED"
-        val forceWorkProfile = prefs?.aiForceWorkProfile?.first() ?: true
-
-        val suggestions = categorizer.categorizeApps(
-            apps = listOf(app),
-            existingGroups = currentGroups,
-            unassignedOnly = false,
-            strictness = strictness,
-            forceWorkProfile = forceWorkProfile
-        )
-        suggestions.firstOrNull { it.suggestedApps.any { a -> a.packageName == app.packageName } }?.group
-    }
-
-    suspend fun applyCategorization(suggestions: List<CategorizationSuggestion>) = withContext(ioDispatcher) {
-        if (suggestions.isEmpty()) return@withContext
-
-        val existingGroups = appGroupDao.getAllGroups().first()
-        val knownGroupIds = existingGroups.map { it.id }.toMutableSet()
-        var maxOrderIndex = existingGroups.maxOfOrNull { it.orderIndex } ?: -1
-
-        for (suggestion in suggestions) {
-            if (suggestion.group.id !in knownGroupIds) {
-                // ponytail: dynamically created category drawers are assigned strictly sequential order indices to prevent order index fragmentation
-                val groupToInsert = suggestion.group.copy(
-                    orderIndex = ++maxOrderIndex
-                )
-                appGroupDao.insertGroup(AppGroupEntity.fromDomain(groupToInsert))
-                knownGroupIds.add(suggestion.group.id)
-            }
-        }
-
-        val existingItems = appGroupDao.getAllGroupItems().first()
-        val itemsByGroup = existingItems.groupBy { it.groupId }.mapValues { it.value.toMutableList() }
-        val itemsToInsert = mutableListOf<AppGroupItemEntity>()
-
-        for (suggestion in suggestions) {
-            val groupId = suggestion.group.id
-            val currentGroupItems = itemsByGroup[groupId] ?: mutableListOf()
-            var nextOrder = (currentGroupItems.maxOfOrNull { it.orderIndex } ?: -1) + 1
-            // ponytail: tracking set is updated in-memory on every insertion to prevent duplicate records within the same batch.
-            val currentGroupKeys = currentGroupItems.map { "${it.packageName}/${it.activityName}#${it.userHandleId}" }.toMutableSet()
-
-            for (app in suggestion.suggestedApps) {
-                val key = "${app.packageName}/${app.activityName}#${app.userHandleId}"
-                if (key in currentGroupKeys) continue
-
-                val newItem = AppGroupItemEntity(
-                    id = UUID.randomUUID().toString(),
-                    groupId = groupId,
-                    packageName = app.packageName,
-                    activityName = app.activityName,
-                    userHandleId = app.userHandleId,
-                    orderIndex = nextOrder++,
-                    customLabel = app.label
-                )
-                currentGroupItems.add(newItem)
-                currentGroupKeys.add(key)
-                itemsToInsert.add(newItem)
-            }
-        }
-
-        if (itemsToInsert.isNotEmpty()) {
-            appGroupDao.insertGroupItems(itemsToInsert)
+        val targetCategoryId = determineCategory(app) ?: return@withContext null
+        val categoryName = targetCategoryId.removePrefix("group_")
+        currentGroups.firstOrNull { g ->
+            g.id == targetCategoryId || g.name.equals(categoryName, ignoreCase = true) || g.id.contains(categoryName, ignoreCase = true)
         }
     }
 }

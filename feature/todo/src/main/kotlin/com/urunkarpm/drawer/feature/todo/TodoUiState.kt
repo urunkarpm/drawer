@@ -5,8 +5,9 @@ import com.urunkarpm.drawer.core.model.TodoSettings
 
 enum class TodoFilter {
     ALL,
-    NEARBY,
+    HIGH_PRIORITY,
     DUE_TODAY,
+    NEARBY,
     DONE,
     STATS
 }

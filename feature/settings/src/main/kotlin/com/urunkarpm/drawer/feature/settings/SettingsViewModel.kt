@@ -80,7 +80,6 @@ data class SurfaceSettings(
 )
 
 data class MiscSettings(
-    val multiGroupApps: Boolean = false,
     val notificationsPrivacyMode: Boolean = false,
     val activeIconPack: String? = null,
     val adaptiveIconShape: String = "CIRCLE",
@@ -113,7 +112,6 @@ data class SettingsActionState(
 )
 
 private data class MiscPart1(
-    val multiGroupApps: Boolean,
     val notificationsPrivacyMode: Boolean,
     val activeIconPack: String?,
     val swipeRight: NotificationSwipeAction,
@@ -203,7 +201,6 @@ data class SettingsUiState(
     val dockIconSize: Float = 56f,
     val dockShowLabels: Boolean = false,
     val dockCornerRadius: Float = 24f,
-    val multiGroupApps: Boolean = false,
     val notificationsPrivacyMode: Boolean = false,
     val notificationSwipeRightAction: NotificationSwipeAction = NotificationSwipeAction.MARK_AS_READ,
     val notificationSwipeLeftAction: NotificationSwipeAction = NotificationSwipeAction.DISMISS,
@@ -366,13 +363,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     private val miscFlowPart1 = combine(
-        preferencesDataSource.multiGroupApps,
         preferencesDataSource.notificationsPrivacyMode,
         preferencesDataSource.activeIconPack,
         preferencesDataSource.notificationSwipeRightAction,
         preferencesDataSource.notificationSwipeLeftAction
-    ) { multiGroupApps, notificationsPrivacyMode, activeIconPack, swipeRight, swipeLeft ->
-        MiscPart1(multiGroupApps, notificationsPrivacyMode, activeIconPack, swipeRight, swipeLeft)
+    ) { notificationsPrivacyMode, activeIconPack, swipeRight, swipeLeft ->
+        MiscPart1(notificationsPrivacyMode, activeIconPack, swipeRight, swipeLeft)
     }
 
     private val miscFlowPart2 = combine<Any, MiscPart2>(
@@ -417,7 +413,6 @@ class SettingsViewModel @Inject constructor(
 
     private val miscFlow = combine(miscFlowPart1, miscFlowPart2, miscFlowPart3, miscFlowPart4) { p1, p2, p3, p4 ->
         MiscSettings(
-            multiGroupApps = p1.multiGroupApps,
             notificationsPrivacyMode = p1.notificationsPrivacyMode,
             activeIconPack = p1.activeIconPack,
             adaptiveIconShape = p2.adaptiveIconShape,
@@ -526,7 +521,6 @@ class SettingsViewModel @Inject constructor(
             dockShowLabels = dock.dockShowLabels,
             dockCornerRadius = surface.surfaceCornerRadius,
             dockExpandedMaxApps = dock.dockExpandedMaxApps,
-            multiGroupApps = misc.multiGroupApps,
             notificationsPrivacyMode = misc.notificationsPrivacyMode,
             notificationSwipeRightAction = misc.notificationSwipeRightAction,
             notificationSwipeLeftAction = misc.notificationSwipeLeftAction,
@@ -809,12 +803,6 @@ class SettingsViewModel @Inject constructor(
     fun setDockExpandedMaxApps(maxApps: Int) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setDockExpandedMaxApps(maxApps)
-        }
-    }
-
-    fun setMultiGroupApps(multi: Boolean) {
-        viewModelScope.launch(ioDispatcher) {
-            preferencesDataSource.setMultiGroupApps(multi)
         }
     }
 

@@ -42,12 +42,12 @@ class TodoRepositoryTest {
     private val locationEngineManager: com.urunkarpm.drawer.core.data.location.LocationEngineManager = mockk(relaxed = true)
 
     private val settingsFlow = MutableStateFlow(TodoSettings())
-    private lateinit var repository: DefaultTodoRepository
+    private lateinit var repository: TodoRepository
 
     @Before
     fun setUp() {
         every { preferencesDataSource.todoSettings } returns settingsFlow
-        repository = DefaultTodoRepository(
+        repository = TodoRepository(
             todoDao = todoDao,
             savedPlaceDao = savedPlaceDao,
             recentSearchDao = recentSearchDao,
@@ -65,7 +65,7 @@ class TodoRepositoryTest {
         val currentZdt = ZonedDateTime.of(LocalDate.of(2026, 11, 12), LocalTime.of(15, 0), zoneId)
         val currentUtc = currentZdt.toInstant().toEpochMilli()
 
-        val nextUtc = DefaultTodoRepository.calculateNextDeadline(
+        val nextUtc = TodoRepository.calculateNextDeadline(
             currentDeadlineUtc = currentUtc,
             zoneIdString = "UTC",
             repeatRule = "DAILY",
@@ -84,7 +84,7 @@ class TodoRepositoryTest {
         val friday = ZonedDateTime.of(LocalDate.of(2026, 11, 13), LocalTime.of(10, 0), zoneId)
         val fridayUtc = friday.toInstant().toEpochMilli()
 
-        val nextUtc = DefaultTodoRepository.calculateNextDeadline(
+        val nextUtc = TodoRepository.calculateNextDeadline(
             currentDeadlineUtc = fridayUtc,
             zoneIdString = "UTC",
             repeatRule = "WEEKDAYS",

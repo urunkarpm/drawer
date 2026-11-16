@@ -96,6 +96,7 @@ class TodoViewModel @Inject constructor(
         // Filter and sort open tasks
         val filteredList = when (filter) {
             TodoFilter.ALL, TodoFilter.STATS -> openList
+            TodoFilter.HIGH_PRIORITY -> openList.filter { it.priority == TodoPriority.HIGH }
             TodoFilter.NEARBY -> {
                 if (location != null) {
                     val (uLat, uLon) = location
@@ -298,6 +299,16 @@ class TodoViewModel @Inject constructor(
         viewModelScope.launch {
             todoRepository.updateTodo(todo)
         }
+    }
+
+    // ponytail: single-tap priority cycling with optimistic update; ceiling: 3 fixed levels; upgrade path: custom user-defined priority levels.
+    fun cyclePriority(todo: TodoItem) {
+        val nextPriority = when (todo.priority) {
+            TodoPriority.NORMAL -> TodoPriority.HIGH
+            TodoPriority.HIGH -> TodoPriority.LOW
+            TodoPriority.LOW -> TodoPriority.NORMAL
+        }
+        updateTodo(todo.copy(priority = nextPriority))
     }
 
     fun updateSettings(settings: TodoSettings) {

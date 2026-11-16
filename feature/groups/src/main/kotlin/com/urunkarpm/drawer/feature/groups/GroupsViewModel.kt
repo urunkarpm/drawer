@@ -3,7 +3,6 @@ package com.urunkarpm.drawer.feature.groups
 import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.data.repository.AppGroupRepository
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
@@ -38,7 +37,6 @@ data class GroupsDialogsState(
 
 data class GroupsUiState(
     val groups: List<ResolvedAppGroup> = emptyList(),
-    val multiGroupEnabled: Boolean = false,
     val selectedAppForAction: Pair<AppInfo, AppGroup>? = null,
     val groupBeingEdited: AppGroup? = null,
     val showCreateDialog: Boolean = false,
@@ -48,8 +46,6 @@ data class GroupsUiState(
     val drawerIconStyle: String = "NEUTRAL",
     val categoryAutoCollapseSeconds: Int = 3,
     val allApps: List<AppInfo> = emptyList(), // ponytail: exposed for bulk add
-    val isAiCategorizing: Boolean = false,
-    val aiSuggestions: List<CategorizationSuggestion>? = null,
     val installSuggestion: Pair<AppInfo, AppGroup>? = null,
     val mindfulApps: Set<String> = emptySet()
 )
@@ -64,18 +60,12 @@ class GroupsViewModel @Inject constructor(
     private val _selectedAppForAction = MutableStateFlow<Pair<AppInfo, AppGroup>?>(null)
     private val _groupBeingEdited = MutableStateFlow<AppGroup?>(null)
     private val _showCreateDialog = MutableStateFlow(false)
-    private val _isAiCategorizing = MutableStateFlow(false)
-    private val _aiSuggestions = MutableStateFlow<List<CategorizationSuggestion>?>(null)
     private val _installSuggestion = MutableStateFlow<Pair<AppInfo, AppGroup>?>(null)
     // ponytail: Immediate in-memory optimistic tracking for instantaneous 0ms drawer toggles & outside-click collapse without waiting for Room SQLite disk I/O.
     // null = use DB state; "NONE" = explicitly collapsed; "<groupId>" = explicitly expanded
     private val _userExpandedGroupOverride = MutableStateFlow<String?>(null)
 
-    val isAiCategorizing: StateFlow<Boolean> = _isAiCategorizing.asStateFlow()
-    val aiSuggestions: StateFlow<List<CategorizationSuggestion>?> = _aiSuggestions.asStateFlow()
     val installSuggestion: StateFlow<Pair<AppInfo, AppGroup>?> = _installSuggestion.asStateFlow()
-
-    private var aiCategorizationJob: Job? = null
 
     private val dialogsState = combine(
         _selectedAppForAction,
@@ -86,15 +76,7 @@ class GroupsViewModel @Inject constructor(
         GroupsDialogsState(selectedApp, groupBeingEdited, showCreate, installSuggestion)
     }
 
-    private val aiState = combine(
-        _isAiCategorizing,
-        _aiSuggestions
-    ) { isCategorizing, suggestions ->
-        Pair(isCategorizing, suggestions)
-    }
-
     private data class GroupPrefs(
-        val multiGroup: Boolean,
         val lockLayout: Boolean,
         val drawerGlow: Boolean,
         val drawerTitleAnimation: String,
@@ -105,7 +87,6 @@ class GroupsViewModel @Inject constructor(
     )
 
     private val groupPrefsFlow = combine(
-        preferencesDataSource.multiGroupApps,
         preferencesDataSource.lockLayout,
         preferencesDataSource.drawerNotificationGlow,
         preferencesDataSource.drawerTitleAnimation,
@@ -115,20 +96,18 @@ class GroupsViewModel @Inject constructor(
         preferencesDataSource.hiddenAppPackages,
         preferencesDataSource.appVaultEnabled
     ) { args: Array<Any?> ->
-        val multiGroup = args[0] as Boolean
-        val lockLayout = args[1] as Boolean
-        val drawerGlow = args[2] as Boolean
-        val titleAnim = args[3] as String
-        val iconStyle = args[4] as String
-        val collapseSec = args[5] as Int
+        val lockLayout = args[0] as Boolean
+        val drawerGlow = args[1] as Boolean
+        val titleAnim = args[2] as String
+        val iconStyle = args[3] as String
+        val collapseSec = args[4] as Int
         @Suppress("UNCHECKED_CAST")
-        val mindful = args[6] as Set<String>
+        val mindful = args[5] as Set<String>
         @Suppress("UNCHECKED_CAST")
-        val hiddenApps = args[7] as Set<String>
-        val appVaultEnabled = args[8] as Boolean
+        val hiddenApps = args[6] as Set<String>
+        val appVaultEnabled = args[7] as Boolean
         // ponytail: restore hidden group apps when vault disabled; ceiling: in-memory flow filtering; upgrade path: unified effectiveHiddenAppsFlow.
         GroupPrefs(
-            multiGroup = multiGroup,
             lockLayout = lockLayout,
             drawerGlow = drawerGlow,
             drawerTitleAnimation = titleAnim,
@@ -158,9 +137,8 @@ class GroupsViewModel @Inject constructor(
         groupsWithOptimisticExpanded,
         appRepository.installedApps,
         groupPrefsFlow,
-        dialogsState,
-        aiState
-    ) { groups, installedApps, groupPrefs, dialogs, (isCategorizing, suggestions) ->
+        dialogsState
+    ) { groups, installedApps, groupPrefs, dialogs ->
         val visibleInstalledApps = installedApps.filter { it.packageName !in groupPrefs.hiddenApps }
         // Primary lookup: packageName/activityName
         val appMap = visibleInstalledApps.associateBy { "${it.packageName}/${it.activityName}" }
@@ -180,7 +158,6 @@ class GroupsViewModel @Inject constructor(
         }
         GroupsUiState(
             groups = resolvedGroups,
-            multiGroupEnabled = groupPrefs.multiGroup,
             selectedAppForAction = dialogs.selectedAppForAction,
             groupBeingEdited = dialogs.groupBeingEdited,
             showCreateDialog = dialogs.showCreateDialog,
@@ -190,8 +167,6 @@ class GroupsViewModel @Inject constructor(
             drawerIconStyle = groupPrefs.drawerIconStyle,
             categoryAutoCollapseSeconds = groupPrefs.categoryAutoCollapseSeconds,
             allApps = visibleInstalledApps.sortedBy { it.label.lowercase() },
-            isAiCategorizing = isCategorizing,
-            aiSuggestions = suggestions,
             installSuggestion = dialogs.installSuggestion,
             mindfulApps = groupPrefs.mindfulApps
         )
@@ -251,7 +226,7 @@ class GroupsViewModel @Inject constructor(
         viewModelScope.launch {
             val group = appGroupRepository.createGroup(name, iconName, colorHex, viewType, columnCount, sortOrder)
             if (selectedApps.isNotEmpty()) {
-                appGroupRepository.setGroupApps(group.id, selectedApps, preferencesDataSource.multiGroupApps.first())
+                appGroupRepository.setGroupApps(group.id, selectedApps)
             }
             _showCreateDialog.value = false
         }
@@ -261,7 +236,7 @@ class GroupsViewModel @Inject constructor(
         viewModelScope.launch {
             appGroupRepository.updateGroup(group)
             if (selectedApps != null) {
-                appGroupRepository.setGroupApps(group.id, selectedApps, preferencesDataSource.multiGroupApps.first())
+                appGroupRepository.setGroupApps(group.id, selectedApps)
             }
             _groupBeingEdited.value = null
         }
@@ -321,8 +296,7 @@ class GroupsViewModel @Inject constructor(
 
     fun assignAppToGroup(groupId: String, app: AppInfo, targetIndex: Int? = null) {
         viewModelScope.launch {
-            val allowMulti = preferencesDataSource.multiGroupApps.first()
-            appGroupRepository.assignAppToGroup(groupId, app, allowMulti, targetIndex)
+            appGroupRepository.assignAppToGroup(groupId, app, targetIndex)
         }
     }
 
@@ -342,8 +316,7 @@ class GroupsViewModel @Inject constructor(
             val resolvedGroup = uiState.value.groups.find { it.group.id == groupId } ?: return@launch
             val currentIndex = resolvedGroup.apps.indexOfFirst { it.componentKey == app.componentKey }
             if (currentIndex > 0) {
-                val allowMulti = preferencesDataSource.multiGroupApps.first()
-                appGroupRepository.assignAppToGroup(groupId, app, allowMulti, currentIndex - 1)
+                appGroupRepository.assignAppToGroup(groupId, app, currentIndex - 1)
             }
             _selectedAppForAction.value = null
         }
@@ -354,8 +327,7 @@ class GroupsViewModel @Inject constructor(
             val resolvedGroup = uiState.value.groups.find { it.group.id == groupId } ?: return@launch
             val currentIndex = resolvedGroup.apps.indexOfFirst { it.componentKey == app.componentKey }
             if (currentIndex in 0 until resolvedGroup.apps.size - 1) {
-                val allowMulti = preferencesDataSource.multiGroupApps.first()
-                appGroupRepository.assignAppToGroup(groupId, app, allowMulti, currentIndex + 1)
+                appGroupRepository.assignAppToGroup(groupId, app, currentIndex + 1)
             }
             _selectedAppForAction.value = null
         }
@@ -419,14 +391,12 @@ class GroupsViewModel @Inject constructor(
             sortOrder = group.sortOrder
         )
         if (apps.isNotEmpty()) {
-            val allowMulti = preferencesDataSource.multiGroupApps.first()
-            appGroupRepository.setGroupApps(created.id, apps, allowMulti)
+            appGroupRepository.setGroupApps(created.id, apps)
         }
     }
 
     suspend fun assignAppToGroupDirectly(groupId: String, app: AppInfo) {
-        val allowMulti = preferencesDataSource.multiGroupApps.first()
-        appGroupRepository.assignAppToGroup(groupId, app, allowMulti)
+        appGroupRepository.assignAppToGroup(groupId, app)
     }
 
     suspend fun removeAppFromGroupDirectly(groupId: String, packageName: String, activityName: String) {
@@ -455,42 +425,6 @@ class GroupsViewModel @Inject constructor(
 
     fun setShowCreateDialog(show: Boolean) {
         _showCreateDialog.value = show
-    }
-
-    fun startAiCategorization(unassignedOnly: Boolean = true) {
-        aiCategorizationJob?.cancel()
-        aiCategorizationJob = viewModelScope.launch {
-            _isAiCategorizing.value = true
-            try {
-                val suggestions = appGroupRepository.suggestCategorization(unassignedOnly)
-                _aiSuggestions.value = suggestions
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                _aiSuggestions.value = emptyList()
-            } finally {
-                _isAiCategorizing.value = false
-            }
-        }
-    }
-
-    fun applyAiSuggestions(approvedSuggestions: List<CategorizationSuggestion> = _aiSuggestions.value.orEmpty()) {
-        viewModelScope.launch {
-            appGroupRepository.applyCategorization(approvedSuggestions)
-            _aiSuggestions.value = null
-        }
-    }
-
-    fun dismissAiSuggestions() {
-        aiCategorizationJob?.cancel()
-        aiCategorizationJob = null
-        _aiSuggestions.value = null
-        _isAiCategorizing.value = false
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        aiCategorizationJob?.cancel()
     }
 
     fun launchApp(app: AppInfo): Boolean = appRepository.launchApp(app)

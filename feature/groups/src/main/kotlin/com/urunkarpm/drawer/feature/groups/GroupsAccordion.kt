@@ -392,9 +392,16 @@ fun GroupsAccordion(
 
     // Create Group Dialog
     if (uiState.showCreateDialog) {
+        // ponytail: filter out apps already assigned to other drawers by package name; ceiling: per-package filtering ignores multiple activities under same package; upgrade path: componentKey matching if launchers support multi-entry APKs.
+        val assignedPackages = remember(uiState.groups) {
+            uiState.groups.flatMap { it.apps }.map { it.packageName }.toSet()
+        }
+        val eligibleApps = remember(uiState.allApps, assignedPackages) {
+            uiState.allApps.filter { it.packageName !in assignedPackages }
+        }
         EditGroupDialog(
             group = null,
-            allApps = uiState.allApps,
+            allApps = eligibleApps,
             iconLoader = { app -> viewModel.getAppIcon(app) },
             twoDrawersSideBySide = twoDrawersSideBySide,
             onDismissRequest = { viewModel.setShowCreateDialog(false) },
@@ -406,9 +413,19 @@ fun GroupsAccordion(
 
     // Edit Group Dialog
     uiState.groupBeingEdited?.let { groupToEdit ->
+        val otherAssignedPackages = remember(uiState.groups, groupToEdit.id) {
+            uiState.groups
+                .filter { it.group.id != groupToEdit.id }
+                .flatMap { it.apps }
+                .map { it.packageName }
+                .toSet()
+        }
+        val eligibleApps = remember(uiState.allApps, otherAssignedPackages) {
+            uiState.allApps.filter { it.packageName !in otherAssignedPackages }
+        }
         EditGroupDialog(
             group = groupToEdit,
-            allApps = uiState.allApps,
+            allApps = eligibleApps,
             iconLoader = { app -> viewModel.getAppIcon(app) },
             twoDrawersSideBySide = twoDrawersSideBySide,
             onDismissRequest = { viewModel.dismissEditGroup() },
@@ -989,17 +1006,17 @@ private fun GroupCard(
                     Box(
                         modifier = contentModifier
                     ) {
-                        // When drawers are compact on small screens, default to LIST view mode
-                        val effectiveViewType = if (isCompact) {
+                        // ponytail: 1 drawer layout defaults to GRID, 2 drawer layout defaults to LIST; ceiling: view type derived from twoDrawersSideBySide; upgrade path: per-group view type override.
+                        val effectiveViewType = if (twoDrawersSideBySide || isCompact) {
                             GroupViewType.LIST
                         } else {
-                            group.viewType
+                            GroupViewType.GRID
                         }
                         when (effectiveViewType) {
                             GroupViewType.GRID -> {
                                 GroupGridLayout(
                                     apps = resolvedGroup.apps,
-                                    columnCount = group.columnCount,
+                                    columnCount = if (group.columnCount in 3..5) group.columnCount else 4,
                                     onAppClick = handleAppClick,
                                     onAppLongClick = onAppLongClick,
                                     iconLoader = iconLoader,

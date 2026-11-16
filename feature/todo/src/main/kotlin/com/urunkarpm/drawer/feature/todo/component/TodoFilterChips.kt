@@ -36,8 +36,9 @@ fun TodoFilterChips(
         TodoFilter.entries.forEach { filter ->
             val label = when (filter) {
                 TodoFilter.ALL -> "All"
-                TodoFilter.NEARBY -> "Nearby"
+                TodoFilter.HIGH_PRIORITY -> "High priority"
                 TodoFilter.DUE_TODAY -> "Due today"
+                TodoFilter.NEARBY -> "Nearby"
                 TodoFilter.DONE -> "Done"
                 TodoFilter.STATS -> "Stats"
             }

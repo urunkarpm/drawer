@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.10.12-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
+  <a href="https://github.com/urunkarpm/drawer/releases"><img src="https://img.shields.io/badge/Release-v2.10.13-blue.svg?style=for-the-badge&logo=android" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge" alt="License" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0+-orange.svg?style=for-the-badge&logo=android" alt="Android 8.0+" />
   <img src="https://img.shields.io/badge/Built%20With-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose" />
@@ -90,8 +90,8 @@ The home screen consists of five primary components:
 ### 5. Private Application Vault
 * **Biometric Protection:** Secure sensitive applications behind Android `BiometricPrompt` authentication.
 * **Complete Isolation:** The launcher excludes vaulted applications from the main drawer, search queries, and alphabet index.
-* **Private Notifications:** Notifications from vaulted applications appear only inside the unlocked vault drawer.
-* **Gesture Trigger:** Pull horizontally from the last dock application to open the vault prompt.
+* **Private Notifications:** Notifications from vaulted applications appear only inside the unlocked vault drawer; the notification drawer caret gently glows as a discreet cue when private alerts arrive.
+* **Gesture Trigger:** Swipe the rightmost dock application to the right to open the vault prompt.
 
 ### 6. Hardware Telemetry and Diagnostics
 * **Live Power Metrics:** Tap the status pill to inspect real-time charging wattage, voltage, current, and battery temperature.
@@ -119,7 +119,7 @@ The home screen consists of five primary components:
 | **Swipe Down** | Expands notifications or closes open drawers. |
 | **Swipe Right** | Opens the offline task organizer. |
 | **Swipe Left** | Opens the widget feed. |
-| **Swipe Dock Edge** | Triggers authentication for the private application vault. |
+| **Swipe Rightmost Dock Icon** | Triggers authentication for the private application vault. |
 | **Double Tap Wallpaper** | Puts the device to sleep without breaking biometric unlock. |
 
 ---

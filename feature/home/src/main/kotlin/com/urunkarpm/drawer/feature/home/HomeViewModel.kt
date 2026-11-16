@@ -244,9 +244,6 @@ class HomeViewModel @Inject constructor(
     val dockIconSize: StateFlow<Float> = preferencesDataSource.dockIconSize
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 56f)
 
-    val multiGroupApps: StateFlow<Boolean> = preferencesDataSource.multiGroupApps
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-
     val lockLayout: StateFlow<Boolean> = preferencesDataSource.lockLayout
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
@@ -1448,7 +1445,6 @@ class HomeViewModel @Inject constructor(
     fun setAppLabelScale(scale: String) { viewModelScope.launch { preferencesDataSource.setAppLabelScale(scale) } }
     fun setDrawerTitleAnimation(mode: String) { viewModelScope.launch { preferencesDataSource.setDrawerTitleAnimation(mode) } }
     fun setDockIconSize(sizeDp: Float) { viewModelScope.launch { preferencesDataSource.setDockIconSize(sizeDp) } }
-    fun setMultiGroupApps(multi: Boolean) { viewModelScope.launch { preferencesDataSource.setMultiGroupApps(multi) } }
     fun setLockLayout(locked: Boolean) { viewModelScope.launch { preferencesDataSource.setLockLayout(locked) } }
     fun setAutoCategorizeNewApps(enabled: Boolean) { viewModelScope.launch { preferencesDataSource.setAutoCategorizeNewApps(enabled) } }
     fun setBlurAppListOnOpen(enabled: Boolean) { viewModelScope.launch { preferencesDataSource.setBlurAppListOnOpen(enabled) } }

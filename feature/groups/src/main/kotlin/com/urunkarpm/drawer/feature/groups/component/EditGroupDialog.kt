@@ -36,7 +36,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -71,10 +70,9 @@ fun EditGroupDialog(
     var selectedColor by remember {
         mutableStateOf(group?.colorHex ?: GroupIcons.availableColors.first())
     }
-    var selectedViewType by remember {
-        mutableStateOf(group?.viewType ?: if (twoDrawersSideBySide) GroupViewType.LIST else GroupViewType.GRID)
-    }
-    var columnCount by remember { mutableIntStateOf(group?.columnCount ?: 4) }
+    // ponytail: hardcoded view type based on drawer count: 1 drawer -> GRID, 2 drawer -> LIST; ceiling: binary view type without per-drawer manual override; upgrade path: re-introduce per-drawer layout selector if requested.
+    val hardcodedViewType = if (twoDrawersSideBySide) GroupViewType.LIST else GroupViewType.GRID
+    val hardcodedColumnCount = if (twoDrawersSideBySide) 1 else (group?.columnCount?.takeIf { it in 3..5 } ?: 4)
     var selectedSortOrder by remember { mutableStateOf(group?.sortOrder ?: GroupSortOrder.MANUAL) }
 
     val initialSelectedKeys = remember(group) {
@@ -192,48 +190,6 @@ fun EditGroupDialog(
                                 contentDescription = iconKey,
                                 tint = if (isSelected) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                // Layout Style
-                Text(
-                    text = "Layout Style",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedViewType == GroupViewType.GRID,
-                        onClick = { selectedViewType = GroupViewType.GRID },
-                        label = { Text("Grid") }
-                    )
-                    FilterChip(
-                        selected = selectedViewType == GroupViewType.LIST,
-                        onClick = { selectedViewType = GroupViewType.LIST },
-                        label = { Text("List") }
-                    )
-                }
-
-                if (selectedViewType == GroupViewType.GRID) {
-                    Text(
-                        text = "Grid Columns",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(3, 4, 5).forEach { count ->
-                            FilterChip(
-                                selected = columnCount == count,
-                                onClick = { columnCount = count },
-                                label = { Text("$count") }
                             )
                         }
                     }
@@ -359,7 +315,7 @@ fun EditGroupDialog(
                 onClick = {
                     if (name.isNotBlank()) {
                         val finalApps = allApps.filter { "${it.packageName}/${it.activityName}" in selectedApps }
-                        onSave(name, selectedIcon, selectedColor, selectedViewType, columnCount, selectedSortOrder, finalApps)
+                        onSave(name, selectedIcon, selectedColor, hardcodedViewType, hardcodedColumnCount, selectedSortOrder, finalApps)
                     }
                 },
                 enabled = name.isNotBlank()

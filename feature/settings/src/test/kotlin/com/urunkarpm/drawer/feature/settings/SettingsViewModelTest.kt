@@ -46,7 +46,6 @@ class SettingsViewModelTest {
     private val dockIconSizeFlow = MutableStateFlow(56f)
     private val dockShowLabelsFlow = MutableStateFlow(false)
     private val dockCornerRadiusFlow = MutableStateFlow(24f)
-    private val multiGroupAppsFlow = MutableStateFlow(false)
     private val notificationsPrivacyModeFlow = MutableStateFlow(false)
     private val notificationSwipeRightActionFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.MARK_AS_READ)
     private val notificationSwipeLeftActionFlow = MutableStateFlow(com.urunkarpm.drawer.core.model.NotificationSwipeAction.DISMISS)
@@ -132,7 +131,6 @@ class SettingsViewModelTest {
         every { preferencesDataSource.deviceCurveOffsetDp } returns deviceCurveOffsetDpFlow
         every { preferencesDataSource.cinematicPalette } returns cinematicPaletteFlow
         every { preferencesDataSource.autoArrangeApps } returns autoArrangeAppsFlow
-        every { preferencesDataSource.multiGroupApps } returns multiGroupAppsFlow
         every { preferencesDataSource.notificationsPrivacyMode } returns notificationsPrivacyModeFlow
         every { preferencesDataSource.notificationSwipeRightAction } returns notificationSwipeRightActionFlow
         every { preferencesDataSource.notificationSwipeLeftAction } returns notificationSwipeLeftActionFlow

@@ -197,7 +197,6 @@ fun HomeScreen(
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
     val accentColor by viewModel.accentColor.collectAsStateWithLifecycle()
     val dockIconSize by viewModel.dockIconSize.collectAsStateWithLifecycle()
-    val multiGroupApps by viewModel.multiGroupApps.collectAsStateWithLifecycle()
     val lockLayout by viewModel.lockLayout.collectAsStateWithLifecycle()
     val autoCategorizeNewApps by viewModel.autoCategorizeNewApps.collectAsStateWithLifecycle()
     val staleTodoCount by viewModel.staleTodoCount.collectAsStateWithLifecycle()
@@ -1902,10 +1901,6 @@ fun HomeScreen(
                     showHomeMenu = false
                     groupsViewModel.setShowCreateDialog(true)
                 },
-                onOrganizeWithAi = {
-                    showHomeMenu = false
-                    groupsViewModel.startAiCategorization()
-                },
                 onAddWidget = {
                     showHomeMenu = false
                     launchAddWidgetFlow()
@@ -2016,8 +2011,6 @@ fun HomeScreen(
                 onSetOpenDrawerFromDockOnly = viewModel::setOpenDrawerFromDockOnly,
                 autoArrangeApps = autoArrangeApps,
                 onSetAutoArrangeApps = viewModel::setAutoArrangeApps,
-                multiGroupApps = multiGroupApps,
-                onSetMultiGroupApps = viewModel::setMultiGroupApps,
                 lockLayout = lockLayout,
                 onSetLockLayout = viewModel::setLockLayout,
                 autoCategorizeNewApps = autoCategorizeNewApps,

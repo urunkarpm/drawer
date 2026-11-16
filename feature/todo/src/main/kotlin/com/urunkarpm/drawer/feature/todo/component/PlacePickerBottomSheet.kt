@@ -7,12 +7,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +15,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,12 +27,13 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Adjust
@@ -92,6 +89,7 @@ import com.urunkarpm.drawer.core.model.PlaceSearchResult
 import com.urunkarpm.drawer.core.model.SavedPlace
 import com.urunkarpm.drawer.feature.todo.BuildConfig
 import com.urunkarpm.drawer.feature.todo.TodoViewModel
+import kotlinx.coroutines.delay
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -103,9 +101,7 @@ import org.osmdroid.views.overlay.Polygon
 import java.io.File
 import kotlin.math.roundToInt
 
-// ponytail: modern floating-overlay place picker sheet matching the AddTodoBottomSheet design philosophy.
-// ceiling: osmdroid MapView without vector tile rotation;
-// upgrade path: vector-based map renderer with 3D buildings and smooth camera bearing transitions.
+// ponytail: clean list-below-search place picker with non-conflicting MapView; ceiling: synchronous nominatim query with 400ms debounce; upgrade path: autocomplete session tokens with real-time vector map pin drop.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlacePickerBottomSheet(
@@ -130,6 +126,7 @@ fun PlacePickerBottomSheet(
     var isSearching by remember { mutableStateOf(false) }
     var searchResults by remember { mutableStateOf<List<PlaceSearchResult>>(emptyList()) }
     var isOfflineError by remember { mutableStateOf(false) }
+    var showResultsList by remember { mutableStateOf(false) }
 
     // Selected place state
     var selectedName by remember { mutableStateOf(initialPlaceName ?: "Selected point") }
@@ -143,6 +140,38 @@ fun PlacePickerBottomSheet(
     var circleRef by remember { mutableStateOf<Polygon?>(null) }
 
     val radiusPresets = remember { listOf(100f, 200f, 500f, 1000f, 2000f) }
+
+    LaunchedEffect(searchQuery) {
+        val trimmed = searchQuery.trim()
+        if (trimmed.length < 2) {
+            if (trimmed.isEmpty()) {
+                searchResults = emptyList()
+                showResultsList = false
+                isSearching = false
+                isOfflineError = false
+            }
+            return@LaunchedEffect
+        }
+        showResultsList = true
+        delay(400)
+        isSearching = true
+        isOfflineError = false
+        viewModel.searchPlaces(trimmed) { results, failed ->
+            isSearching = false
+            if (failed) {
+                isOfflineError = true
+                searchResults = emptyList()
+            } else {
+                isOfflineError = false
+                searchResults = results.take(6)
+            }
+        }
+    }
+
+    BackHandler(enabled = showResultsList) {
+        showResultsList = false
+        keyboardController?.hide()
+    }
 
     // Initialize osmdroid configuration
     LaunchedEffect(Unit) {
@@ -261,7 +290,7 @@ fun PlacePickerBottomSheet(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.85f)
+            .fillMaxHeight(0.90f)
     ) {
         Column(
             modifier = Modifier
@@ -311,7 +340,10 @@ fun PlacePickerBottomSheet(
                         searchQuery = it
                         if (it.isBlank()) {
                             searchResults = emptyList()
+                            showResultsList = false
                             isOfflineError = false
+                        } else {
+                            showResultsList = true
                         }
                     },
                     placeholder = {
@@ -336,7 +368,14 @@ fun PlacePickerBottomSheet(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         } else if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = ""; searchResults = emptyList() }) {
+                            IconButton(onClick = {
+                                searchQuery = ""
+                                searchResults = emptyList()
+                                showResultsList = false
+                                isSearching = false
+                                isOfflineError = false
+                                keyboardController?.hide()
+                            }) {
                                 Icon(
                                     imageVector = Icons.Outlined.Close,
                                     contentDescription = "Clear",
@@ -349,18 +388,19 @@ fun PlacePickerBottomSheet(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(
                         onSearch = {
-                            if (searchQuery.isNotBlank()) {
-                                keyboardController?.hide()
+                            val trimmed = searchQuery.trim()
+                            if (trimmed.isNotBlank()) {
+                                showResultsList = true
                                 isSearching = true
                                 isOfflineError = false
-                                viewModel.searchPlaces(searchQuery) { results, failed ->
+                                viewModel.searchPlaces(trimmed) { results, failed ->
                                     isSearching = false
                                     if (failed) {
                                         isOfflineError = true
                                         searchResults = emptyList()
                                     } else {
                                         isOfflineError = false
-                                        searchResults = results.take(5)
+                                        searchResults = results.take(6)
                                     }
                                 }
                             }
@@ -378,532 +418,568 @@ fun PlacePickerBottomSheet(
                 )
             }
 
-            // 2. Chips Row: Saved places & Recent searches
-            if (savedPlaces.isNotEmpty() || recentSearches.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    savedPlaces.forEach { place ->
-                        Surface(
-                            onClick = {
-                                crispHaptics.click()
-                                selectedName = place.name
-                                selectedLat = place.latitude
-                                selectedLon = place.longitude
-                                radiusM = place.radiusM.coerceIn(100f, 3000f)
-                                updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = true)
-                                searchResults = emptyList()
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Bookmark,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = place.name,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-
-                    recentSearches.forEach { recent ->
-                        Surface(
-                            onClick = {
-                                crispHaptics.click()
-                                searchQuery = recent.query
-                                keyboardController?.hide()
-                                isSearching = true
-                                viewModel.searchPlaces(recent.query) { results, failed ->
-                                    isSearching = false
-                                    if (failed) {
-                                        isOfflineError = true
-                                        searchResults = emptyList()
-                                    } else {
-                                        isOfflineError = false
-                                        searchResults = results.take(5)
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.History,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = recent.query,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. Map View with Floating Search Results Overlay & Floating Attribution
+            // Main Content Area: Map & Details OR Search Results List directly below Search Box
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(
-                        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-                        RoundedCornerShape(16.dp)
-                    )
             ) {
-                AndroidView(
+                // Underlying Map & Details (stays alive in memory so MapView is never torn down)
+                Column(
                     modifier = Modifier.fillMaxSize(),
-                    factory = { ctx ->
-                        MapView(ctx).apply {
-                            val tileSource = if (BuildConfig.DEBUG) {
-                                TileSourceFactory.MAPNIK
-                            } else {
-                                TileSourceFactory.OpenTopo
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // 2. Chips Row: Saved places & Recent searches
+                    if (savedPlaces.isNotEmpty() || recentSearches.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            savedPlaces.forEach { place ->
+                                Surface(
+                                    onClick = {
+                                        crispHaptics.click()
+                                        selectedName = place.name
+                                        selectedLat = place.latitude
+                                        selectedLon = place.longitude
+                                        radiusM = place.radiusM.coerceIn(100f, 3000f)
+                                        updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = true)
+                                        searchResults = emptyList()
+                                        showResultsList = false
+                                        searchQuery = ""
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Bookmark,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = place.name,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
                             }
-                            setTileSource(tileSource)
-                            setMultiTouchControls(true)
-                            isTilesScaledToDpi = true
-                            controller.setZoom(15.0)
 
-                            val center = GeoPoint(selectedLat, selectedLon)
-                            controller.setCenter(center)
-
-                            val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
-                                override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
-                                    p?.let {
-                                        crispHaptics.tick()
-                                        selectedLat = it.latitude
-                                        selectedLon = it.longitude
-                                        updateMapOverlays(it.latitude, it.longitude, radiusM, moveTo = false)
-                                        viewModel.reverseGeocode(it.latitude, it.longitude) { name ->
-                                            selectedName = name
+                            recentSearches.forEach { recent ->
+                                Surface(
+                                    onClick = {
+                                        crispHaptics.click()
+                                        searchQuery = recent.query
+                                        showResultsList = true
+                                        isSearching = true
+                                        viewModel.searchPlaces(recent.query) { results, failed ->
+                                            isSearching = false
+                                            if (failed) {
+                                                isOfflineError = true
+                                                searchResults = emptyList()
+                                            } else {
+                                                isOfflineError = false
+                                                searchResults = results.take(6)
+                                            }
                                         }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.History,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = recent.query,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
                                     }
-                                    return true
                                 }
-
-                                override fun longPressHelper(p: GeoPoint?): Boolean {
-                                    p?.let {
-                                        crispHaptics.confirm()
-                                        selectedLat = it.latitude
-                                        selectedLon = it.longitude
-                                        updateMapOverlays(it.latitude, it.longitude, radiusM, moveTo = false)
-                                        viewModel.reverseGeocode(it.latitude, it.longitude) { name ->
-                                            selectedName = name
-                                        }
-                                    }
-                                    return true
-                                }
-                            })
-                            overlays.add(eventsOverlay)
-
-                            mapViewRef = this
-                            updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = false)
+                            }
                         }
-                    },
-                    update = { map ->
-                        mapViewRef = map
-                        updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = false)
                     }
-                )
 
-                // Floating My Location Button
-                Surface(
-                    onClick = { fetchCurrentLocation() },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
-                    shadowElevation = 4.dp,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(12.dp)
-                        .size(42.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Outlined.MyLocation,
-                            contentDescription = "Use my location",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                    // 3. Map View (Clean, without floating search overlays)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(
+                                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                                RoundedCornerShape(16.dp)
+                            )
+                    ) {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { ctx ->
+                                MapView(ctx).apply {
+                                    val tileSource = if (BuildConfig.DEBUG) {
+                                        TileSourceFactory.MAPNIK
+                                    } else {
+                                        TileSourceFactory.OpenTopo
+                                    }
+                                    setTileSource(tileSource)
+                                    setMultiTouchControls(true)
+                                    isTilesScaledToDpi = true
+                                    controller.setZoom(15.0)
+
+                                    val center = GeoPoint(selectedLat, selectedLon)
+                                    controller.setCenter(center)
+
+                                    val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
+                                        override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
+                                            p?.let {
+                                                crispHaptics.tick()
+                                                selectedLat = it.latitude
+                                                selectedLon = it.longitude
+                                                updateMapOverlays(it.latitude, it.longitude, radiusM, moveTo = false)
+                                                viewModel.reverseGeocode(it.latitude, it.longitude) { name ->
+                                                    selectedName = name
+                                                }
+                                            }
+                                            return true
+                                        }
+
+                                        override fun longPressHelper(p: GeoPoint?): Boolean {
+                                            p?.let {
+                                                crispHaptics.confirm()
+                                                selectedLat = it.latitude
+                                                selectedLon = it.longitude
+                                                updateMapOverlays(it.latitude, it.longitude, radiusM, moveTo = false)
+                                                viewModel.reverseGeocode(it.latitude, it.longitude) { name ->
+                                                    selectedName = name
+                                                }
+                                            }
+                                            return true
+                                        }
+                                    })
+                                    overlays.add(eventsOverlay)
+
+                                    mapViewRef = this
+                                    updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = false)
+                                }
+                            },
+                            update = { map ->
+                                mapViewRef = map
+                                updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = false)
+                            }
                         )
+
+                        // Floating My Location Button
+                        Surface(
+                            onClick = { fetchCurrentLocation() },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
+                            shadowElevation = 4.dp,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(12.dp)
+                                .size(42.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.MyLocation,
+                                    contentDescription = "Use my location",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        // Attribution pill: "© OpenStreetMap contributors"
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.55f),
+                            shape = RoundedCornerShape(topStart = 8.dp),
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                        ) {
+                            Text(
+                                text = "© OpenStreetMap contributors",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
-                }
 
-                // Attribution pill: "© OpenStreetMap contributors"
-                Surface(
-                    color = Color.Black.copy(alpha = 0.55f),
-                    shape = RoundedCornerShape(topStart = 8.dp),
-                    modifier = Modifier.align(Alignment.BottomEnd)
-                ) {
-                    Text(
-                        text = "© OpenStreetMap contributors",
-                        color = Color.White,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-
-                // Smooth Floating Search Results Overlay (Prevents MapView resizing jumps)
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = searchResults.isNotEmpty(),
-                    enter = fadeIn(animationSpec = tween(180)) + slideInVertically(animationSpec = tween(220)) { -it / 3 },
-                    exit = fadeOut(animationSpec = tween(150)) + slideOutVertically(animationSpec = tween(180)) { -it / 3 },
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(10.dp)
-                        .fillMaxWidth()
-                ) {
+                    // 4. Unified Place Details & Trigger Radius Card
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.96f),
-                        tonalElevation = 8.dp,
-                        shadowElevation = 8.dp,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                            searchResults.forEachIndexed { index, result ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            crispHaptics.click()
-                                            selectedName = result.name
-                                            selectedLat = result.latitude
-                                            selectedLon = result.longitude
-                                            radiusM = result.defaultRadiusM.coerceIn(100f, 3000f)
-                                            searchResults = emptyList()
-                                            updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = true)
-                                        }
-                                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Place Name Input
+                            TextField(
+                                value = selectedName,
+                                onValueChange = { selectedName = it },
+                                placeholder = {
+                                    Text(
+                                        "Location label (e.g. Office, Grocery)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                },
+                                leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Outlined.LocationOn,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
+                                        tint = MaterialTheme.colorScheme.secondary,
                                         modifier = Modifier.size(20.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = result.name,
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                                thickness = 0.75.dp
+                            )
+
+                            // Alert Radius Controls
+                            val radiusText = if (radiusM >= 1000f) {
+                                "${"%.1f".format(radiusM / 1000f)} km"
+                            } else {
+                                "${radiusM.roundToInt()} m"
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Adjust,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Alert radius",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                ) {
+                                    Text(
+                                        text = radiusText,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+
+                            // Quick Radius Preset Chips (Hardcoded distances, slider removed per design spec)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                radiusPresets.forEach { preset ->
+                                    val isPresetSelected = (radiusM - preset).let { kotlin.math.abs(it) < 10f }
+                                    val label = if (preset >= 1000f) "${(preset / 1000f).roundToInt()} km" else "${preset.roundToInt()} m"
+                                    Surface(
+                                        onClick = {
+                                            crispHaptics.tick()
+                                            radiusM = preset
+                                            updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = false)
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isPresetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                                        else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.50f),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (isPresetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.50f)
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
                                         )
+                                    ) {
                                         Text(
-                                            text = result.displayName,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            text = label,
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = if (isPresetSelected) FontWeight.Bold else FontWeight.Medium
+                                            ),
+                                            color = if (isPresetSelected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                                         )
                                     }
                                 }
-                                if (index < searchResults.size - 1) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(horizontal = 14.dp),
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                            }
+
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
+                                thickness = 0.75.dp
+                            )
+
+                            // Save to favorite places switch
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (saveToSavedPlaces) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
+                                        contentDescription = null,
+                                        tint = if (saveToSavedPlaces) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
                                     )
+                                    Text(
+                                        text = "Save to favorite places",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Switch(
+                                    checked = saveToSavedPlaces,
+                                    onCheckedChange = {
+                                        crispHaptics.tick()
+                                        saveToSavedPlaces = it
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    // 5. Actions: Cancel and Confirm
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                crispHaptics.tick()
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Text(
+                                "Cancel",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                crispHaptics.confirm()
+                                val finalName = selectedName.trim().ifBlank { "Selected point" }
+                                if (saveToSavedPlaces) {
+                                    viewModel.savePlace(
+                                        SavedPlace(
+                                            name = finalName,
+                                            latitude = selectedLat,
+                                            longitude = selectedLon,
+                                            radiusM = radiusM
+                                        )
+                                    )
+                                }
+                                onConfirm(finalName, selectedLat, selectedLon, radiusM, saveToSavedPlaces)
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "Confirm",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                }
+
+                // 6. Search Results List directly below Search Box
+                if (showResultsList) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        when {
+                            isSearching && searchResults.isEmpty() -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "Searching places...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            isOfflineError -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.WarningAmber,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "Offline or search unavailable. Tap or drag map to drop pin manually.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                            searchResults.isEmpty() && searchQuery.trim().length >= 2 -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No matching locations found",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            else -> {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(vertical = 4.dp)
+                                ) {
+                                    itemsIndexed(searchResults) { index, result ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    crispHaptics.click()
+                                                    keyboardController?.hide()
+                                                    selectedName = result.name
+                                                    selectedLat = result.latitude
+                                                    selectedLon = result.longitude
+                                                    radiusM = result.defaultRadiusM.coerceIn(100f, 3000f)
+                                                    showResultsList = false
+                                                    searchQuery = ""
+                                                    searchResults = emptyList()
+                                                    updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = true)
+                                                }
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.LocationOn,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = result.name,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = result.displayName,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                        if (index < searchResults.size - 1) {
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(horizontal = 16.dp),
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-
-                // Smooth Floating Offline Error Banner
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = isOfflineError,
-                    enter = fadeIn(tween(180)),
-                    exit = fadeOut(tween(150)),
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(10.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.95f),
-                        tonalElevation = 4.dp,
-                        shadowElevation = 4.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.WarningAmber,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Offline. Drag or tap map to drop pin manually.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 4. Unified Place Details & Trigger Radius Card
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Place Name Input
-                    TextField(
-                        value = selectedName,
-                        onValueChange = { selectedName = it },
-                        placeholder = {
-                            Text(
-                                "Location label (e.g. Office, Grocery)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.LocationOn,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        singleLine = true,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                        thickness = 0.75.dp
-                    )
-
-                    // Alert Radius Controls
-                    val radiusText = if (radiusM >= 1000f) {
-                        "${"%.1f".format(radiusM / 1000f)} km"
-                    } else {
-                        "${radiusM.roundToInt()} m"
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Adjust,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Alert radius",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = radiusText,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
-                        }
-                    }
-
-                    // Quick Radius Preset Chips (Hardcoded distances, slider removed per design spec)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        radiusPresets.forEach { preset ->
-                            val isPresetSelected = (radiusM - preset).let { kotlin.math.abs(it) < 10f }
-                            val label = if (preset >= 1000f) "${(preset / 1000f).roundToInt()} km" else "${preset.roundToInt()} m"
-                            Surface(
-                                onClick = {
-                                    crispHaptics.tick()
-                                    radiusM = preset
-                                    updateMapOverlays(selectedLat, selectedLon, radiusM, moveTo = false)
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isPresetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                                else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.50f),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isPresetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.50f)
-                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                                )
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = if (isPresetSelected) FontWeight.Bold else FontWeight.Medium
-                                    ),
-                                    color = if (isPresetSelected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-                        thickness = 0.75.dp
-                    )
-
-                    // Save to favorite places switch
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (saveToSavedPlaces) Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,
-                                contentDescription = null,
-                                tint = if (saveToSavedPlaces) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Save to favorite places",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Switch(
-                            checked = saveToSavedPlaces,
-                            onCheckedChange = {
-                                crispHaptics.tick()
-                                saveToSavedPlaces = it
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
-                            )
-                        )
-                    }
-                }
-            }
-
-            // 5. Actions: Cancel and Confirm
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        crispHaptics.tick()
-                        onDismiss()
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                ) {
-                    Text(
-                        "Cancel",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
-                    )
-                }
-
-                Button(
-                    onClick = {
-                        crispHaptics.confirm()
-                        val finalName = selectedName.trim().ifBlank { "Selected point" }
-                        if (saveToSavedPlaces) {
-                            viewModel.savePlace(
-                                SavedPlace(
-                                    name = finalName,
-                                    latitude = selectedLat,
-                                    longitude = selectedLon,
-                                    radiusM = radiusM
-                                )
-                            )
-                        }
-                        onConfirm(finalName, selectedLat, selectedLon, radiusM, saveToSavedPlaces)
-                        onDismiss()
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "Confirm",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                    )
                 }
             }
         }

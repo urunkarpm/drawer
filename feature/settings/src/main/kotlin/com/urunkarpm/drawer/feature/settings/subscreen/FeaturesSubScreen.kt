@@ -91,10 +91,10 @@ private val FEATURE_CARDS = listOf(
         badge = "Private Storage",
         icon = Icons.Default.Lock,
         description = "The App Vault hides sensitive apps. Hidden apps do not show in app drawers, categories, dock bar, or search results.",
-        howToOpen = "Swipe horizontally across the dock bar on your home screen. Then verify with biometric unlock or your device PIN.",
+        howToOpen = "Swipe the rightmost dock icon to the right. Then verify with biometric unlock or your device PIN.",
         capabilities = listOf(
             "Private Alerts: Notifications from hidden apps show only inside the vault.",
-            "Discreet Caret Glow: The notification icon glows softly when private alerts arrive.",
+            "Discreet Caret Glow: When vault apps receive notifications, the notification drawer caret (chevron down) gently glows as a secret indicator.",
             "Batch Selection: Select multiple apps with check boxes to hide them together.",
             "Unhide Apps: Press and hold an app icon inside the vault to restore it."
         ),

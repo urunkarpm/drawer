@@ -442,6 +442,7 @@ fun AddTodoBottomSheet(
             }
 
             // 3. Symmetrical Contextual Triggers: Date & Time, and Location
+            // ponytail: centered trigger row with pinned end clear action; ceiling: fixed horizontal symmetry; upgrade path: adaptive layout for long custom place names.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -461,17 +462,16 @@ fun AddTodoBottomSheet(
                     ),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Row(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 8.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.weight(1f, fill = false)
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = if (hasDeadline) 18.dp else 0.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Schedule,
@@ -479,6 +479,7 @@ fun AddTodoBottomSheet(
                                 modifier = Modifier.size(16.dp),
                                 tint = if (hasDeadline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (hasDeadline) formatDeadlineLabel(deadlineUtc!!) else "Date & Time",
                                 style = MaterialTheme.typography.labelMedium.copy(
@@ -495,7 +496,9 @@ fun AddTodoBottomSheet(
                                     crispHaptics.tick()
                                     deadlineUtc = null
                                 },
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .align(Alignment.CenterEnd)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Close,
@@ -525,17 +528,16 @@ fun AddTodoBottomSheet(
                     ),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Row(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 8.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.weight(1f, fill = false)
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = if (hasPlace) 18.dp else 0.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.LocationOn,
@@ -543,6 +545,7 @@ fun AddTodoBottomSheet(
                                 modifier = Modifier.size(16.dp),
                                 tint = if (hasPlace) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (hasPlace) selectedPlaceName.orEmpty() else "Location",
                                 style = MaterialTheme.typography.labelMedium.copy(
@@ -561,7 +564,9 @@ fun AddTodoBottomSheet(
                                     selectedLat = null
                                     selectedLon = null
                                 },
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .align(Alignment.CenterEnd)
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Close,
@@ -576,6 +581,7 @@ fun AddTodoBottomSheet(
             }
 
             // 4. Priority Selector Row
+            // ponytail: semantic priority colors (low-blue, normal-green, high-red); ceiling: hardcoded tokens; upgrade path: theme-aware semantic color tokens.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -591,9 +597,9 @@ fun AddTodoBottomSheet(
                     TodoPriority.entries.forEach { p ->
                         val isSelected = priority == p
                         val priorityColor = when (p) {
-                            TodoPriority.HIGH -> MaterialTheme.colorScheme.error
-                            TodoPriority.NORMAL -> MaterialTheme.colorScheme.primary
-                            TodoPriority.LOW -> MaterialTheme.colorScheme.outline
+                            TodoPriority.HIGH -> Color(0xFFEF5350)   // Red
+                            TodoPriority.NORMAL -> Color(0xFF4CAF50) // Green
+                            TodoPriority.LOW -> Color(0xFF29B6F6)    // Blue
                         }
                         Surface(
                             onClick = {
@@ -605,7 +611,7 @@ fun AddTodoBottomSheet(
                             else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.50f),
                             border = BorderStroke(
                                 1.dp,
-                                if (isSelected) priorityColor.copy(alpha = 0.50f)
+                                if (isSelected) priorityColor.copy(alpha = 0.55f)
                                 else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
                             )
                         ) {
@@ -618,7 +624,7 @@ fun AddTodoBottomSheet(
                                     modifier = Modifier
                                         .size(6.dp)
                                         .background(
-                                            color = if (isSelected) priorityColor else priorityColor.copy(alpha = 0.5f),
+                                            color = if (isSelected) priorityColor else priorityColor.copy(alpha = 0.45f),
                                             shape = CircleShape
                                         )
                                 )

@@ -46,7 +46,6 @@ fun HomeContextMenuSheet(
     sheetState: SheetState,
     onOpenSettings: () -> Unit,
     onAddCategory: () -> Unit,
-    onOrganizeWithAi: (() -> Unit)? = null,
     onAddWidget: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -109,18 +108,6 @@ fun HomeContextMenuSheet(
                     onAddCategory()
                 }
             )
-
-            if (onOrganizeWithAi != null) {
-                HomeContextOption(
-                    icon = Icons.Default.Category,
-                    label = "Organize Drawers",
-                    description = "Categorize apps into drawers automatically",
-                    onClick = {
-                        onDismissRequest()
-                        onOrganizeWithAi()
-                    }
-                )
-            }
 
             HomeContextOption(
                 icon = Icons.Outlined.Settings,

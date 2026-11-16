@@ -136,15 +136,6 @@ fun DrawersSubScreen(
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 SettingsSwitchRow(
-                    title = "Multi-Group Apps",
-                    subtitle = "Allow a single app to be assigned to multiple categories",
-                    checked = uiState.multiGroupApps,
-                    onCheckedChange = { viewModel.setMultiGroupApps(it) }
-                )
-
-                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                SettingsSwitchRow(
                     title = "Lock Layout",
                     subtitle = "Prevent accidental dragging and category modifications",
                     checked = uiState.lockLayout,
@@ -200,45 +191,10 @@ fun DrawersSubScreen(
 
                 SettingsSwitchRow(
                     title = "Auto-Suggest Categories for New Apps",
-                    subtitle = "Suggest drawer categories when installing new apps using on-device intelligence",
+                    subtitle = "Suggest drawer categories when installing new apps",
                     checked = uiState.autoCategorizeNewApps,
                     onCheckedChange = { viewModel.setAutoCategorizeNewApps(it) }
                 )
-
-                if (uiState.autoCategorizeNewApps) {
-                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    Text(
-                        text = "AI Suggestion Strictness",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Confidence threshold for automatic category suggestions",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsSegmentedRow(
-                        options = listOf(
-                            "BALANCED" to "Balanced",
-                            "STRICT" to "Strict",
-                            "RELAXED" to "Creative"
-                        ),
-                        selected = uiState.aiCategorizationStrictness,
-                        onSelect = { viewModel.setAiCategorizationStrictness(it) }
-                    )
-
-                    SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    SettingsSwitchRow(
-                        title = "Force Work Profile Category",
-                        subtitle = "Always place work profile applications in the Work drawer",
-                        checked = uiState.aiForceWorkProfile,
-                        onCheckedChange = { viewModel.setAiForceWorkProfile(it) }
-                    )
-                }
 
                 SettingsDivider(modifier = Modifier.padding(vertical = 12.dp))
 

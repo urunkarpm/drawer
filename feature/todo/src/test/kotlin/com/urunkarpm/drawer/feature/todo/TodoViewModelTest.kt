@@ -112,6 +112,49 @@ class TodoViewModelTest {
     }
 
     @Test
+    fun cyclePriority_cyclesThroughNormalHighLow() = runTest(testDispatcher) {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        testScheduler.runCurrent()
+
+        val task = TodoItem(id = 1L, title = "Task", priority = TodoPriority.NORMAL, status = TodoStatus.OPEN)
+        viewModel.cyclePriority(task)
+        testScheduler.runCurrent()
+        coVerify { repository.updateTodo(match { it.priority == TodoPriority.HIGH }) }
+
+        val highTask = task.copy(priority = TodoPriority.HIGH)
+        viewModel.cyclePriority(highTask)
+        testScheduler.runCurrent()
+        coVerify { repository.updateTodo(match { it.priority == TodoPriority.LOW }) }
+
+        val lowTask = task.copy(priority = TodoPriority.LOW)
+        viewModel.cyclePriority(lowTask)
+        testScheduler.runCurrent()
+        coVerify { repository.updateTodo(match { it.priority == TodoPriority.NORMAL }) }
+    }
+
+    @Test
+    fun highPriorityFilter_filtersOnlyHighPriorityTasks() = runTest(testDispatcher) {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        testScheduler.runCurrent()
+
+        val normalTask = TodoItem(id = 1L, title = "Normal", priority = TodoPriority.NORMAL, status = TodoStatus.OPEN)
+        val highTask = TodoItem(id = 2L, title = "High", priority = TodoPriority.HIGH, status = TodoStatus.OPEN)
+        openTodosFlow.value = listOf(normalTask, highTask)
+        testScheduler.runCurrent()
+
+        viewModel.setFilter(TodoFilter.HIGH_PRIORITY)
+        testScheduler.runCurrent()
+
+        val openTasks = viewModel.uiState.value.openTasks
+        assertEquals(1, openTasks.size)
+        assertEquals(2L, openTasks[0].id)
+    }
+
+    @Test
     fun sorting_placesStaleAndNearbyAtTop() = runTest(testDispatcher) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()

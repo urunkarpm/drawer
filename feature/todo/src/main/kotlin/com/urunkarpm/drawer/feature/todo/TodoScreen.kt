@@ -36,10 +36,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -63,17 +67,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.urunkarpm.drawer.core.common.util.TodoUtils
 import com.urunkarpm.drawer.core.model.TodoItem
 import com.urunkarpm.drawer.feature.todo.component.AddTodoBottomSheet
 import com.urunkarpm.drawer.feature.todo.component.DoneListPage
 import com.urunkarpm.drawer.feature.todo.component.PlacePickerBottomSheet
 import com.urunkarpm.drawer.feature.todo.component.TodoFilterChips
+import com.urunkarpm.drawer.feature.todo.component.TodoHeroFocusCard
 import com.urunkarpm.drawer.feature.todo.component.TodoItemRow
 import com.urunkarpm.drawer.feature.todo.component.TodoStatsPage
 
@@ -372,95 +380,301 @@ fun TodoScreen(
                             )
                         }
                         else -> {
-                        if (uiState.openTasks.isEmpty() && uiState.nearbyNowTasks.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = when (uiState.filter) {
-                                            TodoFilter.NEARBY -> "No tasks near your location"
-                                            TodoFilter.DUE_TODAY -> "No tasks due today"
-                                            else -> "All tasks completed!"
-                                        },
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "Tap + to add a new task",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
+                            val now = remember { System.currentTimeMillis() }
+                            val heroTask = remember(uiState.openTasks, uiState.filter, nearbyNowTaskIds) {
+                                if (uiState.filter == TodoFilter.NEARBY) {
+                                    uiState.openTasks.firstOrNull()
+                                } else if (uiState.filter == TodoFilter.HIGH_PRIORITY) {
+                                    uiState.openTasks.firstOrNull { it.priority == com.urunkarpm.drawer.core.model.TodoPriority.HIGH }
+                                } else {
+                                    uiState.openTasks.firstOrNull { nearbyNowTaskIds.contains(it.id) }
+                                        ?: uiState.openTasks.firstOrNull()
                                 }
                             }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                // "Nearby now" section for open tasks inside current place
-                                if (uiState.nearbyNowTasks.isNotEmpty() && uiState.filter != TodoFilter.NEARBY) {
-                                    item(key = "header_nearby_now") {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+
+                            if (uiState.openTasks.isEmpty() && uiState.nearbyNowTasks.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                            modifier = Modifier.size(68.dp)
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.LocationOn,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Text(
-                                                text = "Nearby now",
-                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.CheckCircle,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(36.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Text(
+                                            text = when (uiState.filter) {
+                                                TodoFilter.NEARBY -> "No nearby tasks"
+                                                TodoFilter.DUE_TODAY -> "Clear for today"
+                                                TodoFilter.HIGH_PRIORITY -> "No high priority tasks"
+                                                else -> "All caught up"
+                                            },
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+
+                                        Text(
+                                            text = when (uiState.filter) {
+                                                TodoFilter.NEARBY -> "No tasks bound to places near you right now."
+                                                TodoFilter.DUE_TODAY -> "Nothing due before midnight. Breathe easy."
+                                                TodoFilter.HIGH_PRIORITY -> "No urgent high priority tasks. Breathe easy."
+                                                else -> "Your mind is clear. Tap + to add a task."
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                            textAlign = TextAlign.Center
+                                        )
+
+                                        if (uiState.doneTodayCount > 0) {
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
+                                                shape = RoundedCornerShape(16.dp),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
+                                                modifier = Modifier.padding(top = 8.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.CheckCircle,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFF4CAF50),
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Text(
+                                                        text = "${uiState.doneTodayCount} ${if (uiState.doneTodayCount == 1) "task" else "tasks"} completed today",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                val remainingTasks = remember(uiState.openTasks, heroTask) {
+                                    uiState.openTasks.filter { it.id != heroTask?.id }
+                                }
+
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    // 1. Hero Focus Card (single highest priority task anchor)
+                                    if (heroTask != null) {
+                                        item(key = "hero_focus_${heroTask.id}") {
+                                            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                                                TodoHeroFocusCard(
+                                                    task = heroTask,
+                                                    isNearby = nearbyNowTaskIds.contains(heroTask.id),
+                                                    onComplete = { viewModel.completeTask(it) },
+                                                    onClick = { editingTask = it },
+                                                    onCyclePriority = { viewModel.cyclePriority(it) }
+                                                )
+                                            }
                                         }
                                     }
 
-                                    items(uiState.nearbyNowTasks, key = { "nearby_${it.id}" }) { task ->
-                                        TodoItemRow(
-                                            task = task,
-                                            isStale = staleTaskIds.contains(task.id),
-                                            isNearbyNow = true,
-                                            onComplete = { viewModel.completeTask(it) },
-                                            onDelete = { viewModel.deleteTask(it) },
-                                            onClick = { editingTask = task }
-                                        )
+                                    // 2. Chrono-Stream Sections
+                                    if (uiState.filter == TodoFilter.ALL) {
+                                        // ponytail: chrono-flow stream partitioned in-memory via System.currentTimeMillis; ceiling: local partition without server sync; upgrade path: reactive database query with custom day-boundary triggers.
+                                        val otherNearbyTasks = remainingTasks.filter { nearbyNowTaskIds.contains(it.id) }
+                                        val otherNearbyIds = otherNearbyTasks.map { it.id }.toSet()
+                                        val nonNearby = remainingTasks.filter { !otherNearbyIds.contains(it.id) }
+
+                                        val todayAndOverdueTasks = nonNearby.filter { task ->
+                                            val deadline = task.deadlineUtc
+                                            deadline != null && deadline > 0 &&
+                                                (TodoUtils.isOverdue(deadline, now) ||
+                                                 TodoUtils.isDueToday(deadline, task.deadlineZoneId, now))
+                                        }
+                                        val todayAndOverdueIds = todayAndOverdueTasks.map { it.id }.toSet()
+
+                                        val upcomingTasks = nonNearby.filter { task ->
+                                            val deadline = task.deadlineUtc
+                                            deadline != null && deadline > 0 &&
+                                                !todayAndOverdueIds.contains(task.id)
+                                        }
+                                        val upcomingIds = upcomingTasks.map { it.id }.toSet()
+
+                                        val anytimeTasks = nonNearby.filter { task ->
+                                            !todayAndOverdueIds.contains(task.id) && !upcomingIds.contains(task.id)
+                                        }
+
+                                        // Nearby section (if any other nearby tasks beyond hero)
+                                        if (otherNearbyTasks.isNotEmpty()) {
+                                            item(key = "header_chrono_nearby") {
+                                                ChronoSectionHeader(
+                                                    title = "Nearby Now",
+                                                    count = otherNearbyTasks.size,
+                                                    icon = Icons.Outlined.LocationOn,
+                                                    iconTint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            items(otherNearbyTasks, key = { it.id }) { task ->
+                                                TodoItemRow(
+                                                    task = task,
+                                                    isStale = staleTaskIds.contains(task.id),
+                                                    isNearbyNow = true,
+                                                    onComplete = { viewModel.completeTask(it) },
+                                                    onDelete = { viewModel.deleteTask(it) },
+                                                    onCyclePriority = { viewModel.cyclePriority(it) },
+                                                    onClick = { editingTask = task }
+                                                )
+                                            }
+                                        }
+
+                                        // Today & Overdue section
+                                        if (todayAndOverdueTasks.isNotEmpty()) {
+                                            item(key = "header_chrono_today") {
+                                                ChronoSectionHeader(
+                                                    title = "Today & Overdue",
+                                                    count = todayAndOverdueTasks.size,
+                                                    icon = Icons.Outlined.Schedule,
+                                                    iconTint = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                            items(todayAndOverdueTasks, key = { it.id }) { task ->
+                                                TodoItemRow(
+                                                    task = task,
+                                                    isStale = staleTaskIds.contains(task.id),
+                                                    isNearbyNow = nearbyNowTaskIds.contains(task.id),
+                                                    onComplete = { viewModel.completeTask(it) },
+                                                    onDelete = { viewModel.deleteTask(it) },
+                                                    onCyclePriority = { viewModel.cyclePriority(it) },
+                                                    onClick = { editingTask = task }
+                                                )
+                                            }
+                                        }
+
+                                        // Upcoming section
+                                        if (upcomingTasks.isNotEmpty()) {
+                                            item(key = "header_chrono_upcoming") {
+                                                ChronoSectionHeader(
+                                                    title = "Upcoming",
+                                                    count = upcomingTasks.size,
+                                                    icon = Icons.Outlined.CalendarToday
+                                                )
+                                            }
+                                            items(upcomingTasks, key = { it.id }) { task ->
+                                                TodoItemRow(
+                                                    task = task,
+                                                    isStale = staleTaskIds.contains(task.id),
+                                                    isNearbyNow = nearbyNowTaskIds.contains(task.id),
+                                                    onComplete = { viewModel.completeTask(it) },
+                                                    onDelete = { viewModel.deleteTask(it) },
+                                                    onCyclePriority = { viewModel.cyclePriority(it) },
+                                                    onClick = { editingTask = task }
+                                                )
+                                            }
+                                        }
+
+                                        // Anytime section
+                                        if (anytimeTasks.isNotEmpty()) {
+                                            item(key = "header_chrono_anytime") {
+                                                ChronoSectionHeader(
+                                                    title = "Anytime",
+                                                    count = anytimeTasks.size,
+                                                    icon = Icons.Outlined.Checklist
+                                                )
+                                            }
+                                            items(anytimeTasks, key = { it.id }) { task ->
+                                                TodoItemRow(
+                                                    task = task,
+                                                    isStale = staleTaskIds.contains(task.id),
+                                                    isNearbyNow = nearbyNowTaskIds.contains(task.id),
+                                                    onComplete = { viewModel.completeTask(it) },
+                                                    onDelete = { viewModel.deleteTask(it) },
+                                                    onCyclePriority = { viewModel.cyclePriority(it) },
+                                                    onClick = { editingTask = task }
+                                                )
+                                            }
+                                        }
+                                    } else if (uiState.filter == TodoFilter.HIGH_PRIORITY) {
+                                        if (remainingTasks.isNotEmpty()) {
+                                            item(key = "header_chrono_high_priority") {
+                                                ChronoSectionHeader(
+                                                    title = "High Priority",
+                                                    count = remainingTasks.size,
+                                                    icon = Icons.Outlined.Checklist,
+                                                    iconTint = Color(0xFFEF5350)
+                                                )
+                                            }
+                                            items(remainingTasks, key = { it.id }) { task ->
+                                                TodoItemRow(
+                                                    task = task,
+                                                    isStale = staleTaskIds.contains(task.id),
+                                                    isNearbyNow = nearbyNowTaskIds.contains(task.id),
+                                                    onComplete = { viewModel.completeTask(it) },
+                                                    onDelete = { viewModel.deleteTask(it) },
+                                                    onCyclePriority = { viewModel.cyclePriority(it) },
+                                                    onClick = { editingTask = task }
+                                                )
+                                            }
+                                        }
+                                    } else if (uiState.filter == TodoFilter.DUE_TODAY) {
+                                        if (remainingTasks.isNotEmpty()) {
+                                            item(key = "header_chrono_duetoday") {
+                                                ChronoSectionHeader(
+                                                    title = "Due Today",
+                                                    count = remainingTasks.size,
+                                                    icon = Icons.Outlined.Schedule
+                                                )
+                                            }
+                                            items(remainingTasks, key = { it.id }) { task ->
+                                                TodoItemRow(
+                                                    task = task,
+                                                    isStale = staleTaskIds.contains(task.id),
+                                                    isNearbyNow = nearbyNowTaskIds.contains(task.id),
+                                                    onComplete = { viewModel.completeTask(it) },
+                                                    onDelete = { viewModel.deleteTask(it) },
+                                                    onCyclePriority = { viewModel.cyclePriority(it) },
+                                                    onClick = { editingTask = task }
+                                                )
+                                            }
+                                        }
+                                    } else if (uiState.filter == TodoFilter.NEARBY) {
+                                        if (remainingTasks.isNotEmpty()) {
+                                            item(key = "header_chrono_nearby_only") {
+                                                ChronoSectionHeader(
+                                                    title = "Nearby Places",
+                                                    count = remainingTasks.size,
+                                                    icon = Icons.Outlined.LocationOn,
+                                                    iconTint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            items(remainingTasks, key = { it.id }) { task ->
+                                                TodoItemRow(
+                                                    task = task,
+                                                    isStale = staleTaskIds.contains(task.id),
+                                                    isNearbyNow = true,
+                                                    onComplete = { viewModel.completeTask(it) },
+                                                    onDelete = { viewModel.deleteTask(it) },
+                                                    onCyclePriority = { viewModel.cyclePriority(it) },
+                                                    onClick = { editingTask = task }
+                                                )
+                                            }
+                                        }
                                     }
-
-                                    item(key = "divider_after_nearby") {
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                    }
-                                }
-
-                                // Open tasks list (excluding those already shown in nearby now if applicable, or showing all sorted)
-                                val remainingTasks = if (uiState.nearbyNowTasks.isNotEmpty() && uiState.filter != TodoFilter.NEARBY) {
-                                    uiState.openTasks.filter { !nearbyNowTaskIds.contains(it.id) }
-                                } else {
-                                    uiState.openTasks
-                                }
-
-                                items(remainingTasks, key = { it.id }) { task ->
-                                    TodoItemRow(
-                                        task = task,
-                                        isStale = staleTaskIds.contains(task.id),
-                                        isNearbyNow = nearbyNowTaskIds.contains(task.id),
-                                        onComplete = { viewModel.completeTask(it) },
-                                        onDelete = { viewModel.deleteTask(it) },
-                                        onClick = { editingTask = task }
-                                    )
                                 }
                             }
                         }
@@ -470,4 +684,50 @@ fun TodoScreen(
         }
     }
 }
+
+@Composable
+private fun ChronoSectionHeader(
+    title: String,
+    count: Int,
+    icon: ImageVector? = null,
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(15.dp)
+                )
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+            shape = RoundedCornerShape(10.dp)
+        ) {
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+    }
 }

@@ -1,7 +1,5 @@
 package com.urunkarpm.drawer.core.data.repository
 
-import com.urunkarpm.drawer.core.data.ai.AppCategorizer
-import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.database.dao.AppGroupDao
 import com.urunkarpm.drawer.core.database.entity.AppGroupEntity
 import com.urunkarpm.drawer.core.database.entity.AppGroupItemEntity
@@ -32,7 +30,6 @@ class AppGroupRepositoryTest {
     private val testDispatcher = StandardTestDispatcher()
     private val appGroupDao: AppGroupDao = mockk(relaxed = true)
     private val appRepository: AppRepository = mockk(relaxed = true)
-    private val appCategorizer: AppCategorizer = mockk(relaxed = true)
     private val groupsFlow = MutableStateFlow<List<AppGroupEntity>>(emptyList())
     private val itemsFlow = MutableStateFlow<List<AppGroupItemEntity>>(emptyList())
 
@@ -50,7 +47,7 @@ class AppGroupRepositoryTest {
         every { appGroupDao.getAllGroups() } returns groupsFlow
         every { appGroupDao.getAllGroupItems() } returns itemsFlow
         every { appGroupDao.getItemsForGroup(any()) } returns itemsFlow
-        repository = AppGroupRepository(appGroupDao, { appRepository }, { appCategorizer }, testDispatcher)
+        repository = AppGroupRepository(appGroupDao, { appRepository }, testDispatcher)
     }
 
     @Test
@@ -130,33 +127,19 @@ class AppGroupRepositoryTest {
     }
 
     @Test
-    fun assignAppToGroup_singleGroupModeDeletesFromOtherGroups() = runTest(testDispatcher) {
+    fun assignAppToGroup_deletesFromOtherGroupsAndAssigns() = runTest(testDispatcher) {
         itemsFlow.value = emptyList()
 
         val insertedItems = slot<List<AppGroupItemEntity>>()
         coEvery { appGroupDao.insertGroupItems(capture(insertedItems)) } returns Unit
 
-        repository.assignAppToGroup("group_social", sampleApp, allowMultiGroup = false)
+        repository.assignAppToGroup("group_social", sampleApp)
 
         coVerify { appGroupDao.deleteItemsByComponent(sampleApp.packageName, sampleApp.activityName) }
         coVerify { appGroupDao.insertGroupItems(any()) }
         assertEquals("group_social", insertedItems.captured.first().groupId)
         assertEquals(sampleApp.packageName, insertedItems.captured.first().packageName)
         assertEquals(0, insertedItems.captured.first().orderIndex)
-    }
-
-    @Test
-    fun assignAppToGroup_multiGroupModeDoesNotDeleteFromOtherGroups() = runTest(testDispatcher) {
-        itemsFlow.value = emptyList()
-
-        val insertedItems = slot<List<AppGroupItemEntity>>()
-        coEvery { appGroupDao.insertGroupItems(capture(insertedItems)) } returns Unit
-
-        repository.assignAppToGroup("group_social", sampleApp, allowMultiGroup = true)
-
-        coVerify(exactly = 0) { appGroupDao.deleteItemsByComponent(any(), any()) }
-        coVerify { appGroupDao.insertGroupItems(any()) }
-        assertEquals("group_social", insertedItems.captured.first().groupId)
     }
 
     @Test
@@ -215,121 +198,15 @@ class AppGroupRepositoryTest {
     }
 
     @Test
-    fun suggestCategorization_delegatesToAppCategorizerWithCurrentState() = runTest(testDispatcher) {
-        val app = AppInfo(packageName = "com.sample.app", activityName = "Act", label = "Sample")
-        every { appRepository.installedApps } returns MutableStateFlow(listOf(app))
-        val groupEntity = AppGroupEntity(id = "group_work", name = "Work", orderIndex = 0)
-        groupsFlow.value = listOf(groupEntity)
+    fun suggestDrawerForApp_returnsMatchingCategoryGroup() = runTest(testDispatcher) {
+        val app = AppInfo(packageName = "org.telegram.messenger", activityName = "Act", label = "Telegram")
+        val socialGroup = AppGroupEntity(id = "group_social", name = "Social", orderIndex = 0)
+        val workGroup = AppGroupEntity(id = "group_work", name = "Work", orderIndex = 1)
+        groupsFlow.value = listOf(socialGroup, workGroup)
 
-        val expectedSuggestions = listOf(
-            CategorizationSuggestion(group = groupEntity.toDomain(), suggestedApps = listOf(app))
-        )
-        coEvery { appCategorizer.categorizeApps(any(), any(), any(), any(), any()) } returns expectedSuggestions
+        val result = repository.suggestDrawerForApp(app)
 
-        val result = repository.suggestCategorization(unassignedOnly = true)
-
-        assertEquals(expectedSuggestions, result)
-        coVerify { appCategorizer.categorizeApps(listOf(app), any(), true, any(), any()) }
-    }
-
-    @Test
-    fun applyCategorization_insertsItemsPreservingOrderIndices() = runTest(testDispatcher) {
-        val group = AppGroup(id = "group_work", name = "Work")
-        val app1 = AppInfo(packageName = "com.app1", activityName = "Act1", label = "App1")
-        val app2 = AppInfo(packageName = "com.app2", activityName = "Act2", label = "App2")
-        val existingItem = AppGroupItemEntity(
-            id = "item_1",
-            groupId = "group_work",
-            packageName = "com.existing",
-            activityName = "ExistingAct",
-            orderIndex = 0
-        )
-        itemsFlow.value = listOf(existingItem)
-
-        val insertedItems = slot<List<AppGroupItemEntity>>()
-        coEvery { appGroupDao.insertGroupItems(capture(insertedItems)) } returns Unit
-
-        val suggestions = listOf(
-            CategorizationSuggestion(group = group, suggestedApps = listOf(app1, app2))
-        )
-
-        repository.applyCategorization(suggestions)
-
-        coVerify { appGroupDao.insertGroupItems(any()) }
-        assertEquals(2, insertedItems.captured.size)
-        assertEquals("group_work", insertedItems.captured[0].groupId)
-        assertEquals("com.app1", insertedItems.captured[0].packageName)
-        assertEquals(1, insertedItems.captured[0].orderIndex)
-        assertEquals("com.app2", insertedItems.captured[1].packageName)
-        assertEquals(2, insertedItems.captured[1].orderIndex)
-    }
-
-    @Test
-    fun applyCategorization_whenGroupDoesNotExist_insertsGroupFirst() = runTest(testDispatcher) {
-        val existingGroup = AppGroupEntity(id = "existing_group", name = "Existing", orderIndex = 0)
-        groupsFlow.value = listOf(existingGroup)
-        itemsFlow.value = emptyList()
-
-        val newGroup = AppGroup(
-            id = "group_finance",
-            name = "Finance",
-            iconName = "credit_card",
-            colorHex = "#10B981",
-            orderIndex = 0
-        )
-        val app = AppInfo(packageName = "com.splitwise.app", activityName = ".Main", label = "Splitwise")
-
-        val insertedGroup = slot<AppGroupEntity>()
-        coEvery { appGroupDao.insertGroup(capture(insertedGroup)) } returns Unit
-        val insertedItems = slot<List<AppGroupItemEntity>>()
-        coEvery { appGroupDao.insertGroupItems(capture(insertedItems)) } returns Unit
-
-        val suggestions = listOf(
-            CategorizationSuggestion(group = newGroup, suggestedApps = listOf(app))
-        )
-
-        repository.applyCategorization(suggestions)
-
-        coVerify { appGroupDao.insertGroup(any()) }
-        assertEquals("group_finance", insertedGroup.captured.id)
-        assertEquals("Finance", insertedGroup.captured.name)
-        assertEquals(1, insertedGroup.captured.orderIndex)
-
-        coVerify { appGroupDao.insertGroupItems(any()) }
-        assertEquals(1, insertedItems.captured.size)
-        assertEquals("group_finance", insertedItems.captured[0].groupId)
-        assertEquals("com.splitwise.app", insertedItems.captured[0].packageName)
-    }
-
-    @Test
-    fun suggestCategorization_passesPreferencesDownToCategorizer() = runTest(testDispatcher) {
-        val mockPrefs: DrawerPreferencesDataSource = mockk(relaxed = true)
-        every { mockPrefs.aiCategorizeAllApps } returns MutableStateFlow(true)
-        every { mockPrefs.aiCategorizationStrictness } returns MutableStateFlow("AGGRESSIVE")
-        every { mockPrefs.aiForceWorkProfile } returns MutableStateFlow(false)
-
-        val repoWithPrefs = AppGroupRepository(
-            appGroupDao = appGroupDao,
-            appRepositoryProvider = { appRepository },
-            appCategorizerProvider = { appCategorizer },
-            ioDispatcher = testDispatcher,
-            preferencesDataSourceProvider = { mockPrefs }
-        )
-
-        every { appRepository.installedApps } returns MutableStateFlow(listOf(sampleApp))
-        groupsFlow.value = listOf(AppGroupEntity(id = "group_1", name = "Test", orderIndex = 0))
-        coEvery { appCategorizer.categorizeApps(any(), any(), any(), any(), any()) } returns emptyList()
-
-        repoWithPrefs.suggestCategorization(unassignedOnly = true)
-
-        coVerify {
-            appCategorizer.categorizeApps(
-                apps = match { it.size == 1 && it[0].packageName == sampleApp.packageName },
-                existingGroups = any(),
-                unassignedOnly = false, // Overridden to false because aiCategorizeAllApps is true
-                strictness = "AGGRESSIVE",
-                forceWorkProfile = false
-            )
-        }
+        assertEquals("group_social", result?.id)
+        assertEquals("Social", result?.name)
     }
 }

@@ -1,9 +1,5 @@
 package com.urunkarpm.drawer.feature.todo.component
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -11,35 +7,28 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,43 +48,27 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ponytail: direct card without horizontal swipe gestures to avoid launcher drawer page-drag conflicts; ceiling: tap-to-complete only; upgrade path: long-press contextual action menu.
 @Composable
 fun TodoItemRow(
     task: TodoItem,
     isStale: Boolean,
     isNearbyNow: Boolean,
     onComplete: (TodoItem) -> Unit,
-    onDelete: (TodoItem) -> Unit,
+    onDelete: ((TodoItem) -> Unit)? = null,
+    onCyclePriority: ((TodoItem) -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val crispHaptics = LocalCrispHaptics.current
-    var isDismissed by remember { mutableStateOf(false) }
     val now = System.currentTimeMillis()
     val isOverdue = TodoUtils.isOverdue(task.deadlineUtc, now)
 
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> {
-                    // Swipe right -> complete
-                    crispHaptics.confirm()
-                    isDismissed = true
-                    onComplete(task)
-                    true
-                }
-                SwipeToDismissBoxValue.EndToStart -> {
-                    // Swipe left -> delete
-                    crispHaptics.reject()
-                    isDismissed = true
-                    onDelete(task)
-                    true
-                }
-                SwipeToDismissBoxValue.Settled -> false
-            }
-        }
-    )
+    val priorityColor = when (task.priority) {
+        TodoPriority.HIGH -> Color(0xFFEF5350)   // Red
+        TodoPriority.NORMAL -> Color(0xFF4CAF50) // Green
+        TodoPriority.LOW -> Color(0xFF29B6F6)    // Blue
+    }
 
     val formattedDeadline = remember(task.deadlineUtc, task.deadlineZoneId) {
         val utc = task.deadlineUtc ?: return@remember null
@@ -103,111 +76,70 @@ fun TodoItemRow(
         formatDeadline(utc, task.deadlineZoneId)
     }
 
-    AnimatedVisibility(
-        visible = !isDismissed,
-        exit = shrinkVertically(animationSpec = spring()) + fadeOut(),
-        modifier = modifier
-    ) {
-        SwipeToDismissBox(
-            state = dismissState,
-            enableDismissFromStartToEnd = task.status != TodoStatus.DONE,
-            enableDismissFromEndToStart = true,
-            backgroundContent = {
-                val direction = dismissState.dismissDirection
-                val color = when (direction) {
-                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
-                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
-                    else -> Color.Transparent
-                }
-                val icon = when (direction) {
-                    SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Check
-                    SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
-                    else -> null
-                }
-                val alignment = when (direction) {
-                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
-                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
-                    else -> Alignment.Center
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 4.dp, vertical = 3.dp)
-                        .background(color, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 20.dp),
-                    contentAlignment = alignment
-                ) {
-                    if (icon != null) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = if (direction == SwipeToDismissBoxValue.EndToStart) {
-                                MaterialTheme.colorScheme.onErrorContainer
-                            } else {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            }
-                        )
-                    }
-                }
+    Card(
+        onClick = {
+            crispHaptics.click()
+            onClick?.invoke()
+        },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                isNearbyNow -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f)
+                isStale || isOverdue -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.20f)
+                task.priority == TodoPriority.HIGH && task.status == TodoStatus.OPEN -> Color(0xFFEF5350).copy(alpha = 0.08f)
+                else -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.70f)
             }
-        ) {
-            Card(
-                onClick = {
-                    crispHaptics.click()
-                    onClick?.invoke()
-                },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = when {
-                        isNearbyNow -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f)
-                        isStale || isOverdue -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.20f)
-                        else -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.70f)
-                    }
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    when {
-                        isNearbyNow -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                        isStale || isOverdue -> MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
-                        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.22f)
-                    }
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 3.dp)
-            ) {
+        ),
+        border = BorderStroke(
+            1.dp,
+            when {
+                isNearbyNow -> MaterialTheme.colorScheme.primary.copy(alpha = 0.40f)
+                isStale || isOverdue -> MaterialTheme.colorScheme.error.copy(alpha = 0.40f)
+                task.status == TodoStatus.DONE -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+                task.priority == TodoPriority.HIGH -> priorityColor.copy(alpha = 0.45f)
+                else -> priorityColor.copy(alpha = 0.28f)
+            }
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 3.dp)
+    ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                        .padding(start = 10.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Checkbox
+                    // Left Priority Accent Stripe
+                    if (task.status == TodoStatus.OPEN) {
+                        Box(
+                            modifier = Modifier
+                                .width(3.5.dp)
+                                .height(32.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(priorityColor)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
+                    // Completion Checkmark
                     IconButton(
                         onClick = {
                             crispHaptics.confirm()
-                            isDismissed = true
                             onComplete(task)
                         },
                         modifier = Modifier.size(36.dp)
                     ) {
+                        // ponytail: simple check mark (red = open, green = done); ceiling: binary status without custom iconography; upgrade path: multi-state custom check animation.
                         Icon(
-                            imageVector = if (task.status == TodoStatus.DONE) {
-                                Icons.Outlined.CheckCircle
-                            } else {
-                                Icons.Outlined.RadioButtonUnchecked
-                            },
+                            imageVector = Icons.Default.Check,
                             contentDescription = "Complete task",
-                            tint = when {
-                                task.status == TodoStatus.DONE -> MaterialTheme.colorScheme.primary
-                                isOverdue || isStale -> MaterialTheme.colorScheme.error
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            }
+                            tint = if (task.status == TodoStatus.DONE) Color(0xFF4CAF50) else Color(0xFFEF5350),
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Column(
                         modifier = Modifier.weight(1f),
@@ -221,7 +153,11 @@ fun TodoItemRow(
                             Text(
                                 text = task.title,
                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = if (task.priority == TodoPriority.HIGH) FontWeight.Bold else FontWeight.Medium,
+                                    fontWeight = when (task.priority) {
+                                        TodoPriority.HIGH -> FontWeight.Bold
+                                        TodoPriority.NORMAL -> FontWeight.SemiBold
+                                        TodoPriority.LOW -> FontWeight.Medium
+                                    },
                                     textDecoration = if (task.status == TodoStatus.DONE) TextDecoration.LineThrough else TextDecoration.None
                                 ),
                                 color = when {
@@ -262,17 +198,39 @@ fun TodoItemRow(
                                 }
                             }
 
-                            if (task.priority == TodoPriority.HIGH && task.status == TodoStatus.OPEN) {
+                            // Interactive Priority Pill for all open tasks
+                            // ponytail: interactive priority pill cycling Normal -> High -> Low on tap; ceiling: in-row toggle; upgrade path: long-press priority picker menu.
+                            if (task.status == TodoStatus.OPEN) {
                                 Surface(
-                                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                                    shape = RoundedCornerShape(6.dp)
+                                    onClick = {
+                                        crispHaptics.tick()
+                                        onCyclePriority?.invoke(task)
+                                    },
+                                    color = priorityColor.copy(alpha = 0.16f),
+                                    border = BorderStroke(1.dp, priorityColor.copy(alpha = 0.45f)),
+                                    shape = RoundedCornerShape(8.dp)
                                 ) {
-                                    Text(
-                                        text = "High",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(priorityColor)
+                                        )
+                                        Text(
+                                            text = when (task.priority) {
+                                                TodoPriority.HIGH -> "High"
+                                                TodoPriority.NORMAL -> "Normal"
+                                                TodoPriority.LOW -> "Low"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                            color = priorityColor
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -337,10 +295,8 @@ fun TodoItemRow(
                         }
                     }
                 }
-            }
         }
     }
-}
 
 private fun formatDeadline(utc: Long, zoneIdStr: String?): String {
     val zoneId = zoneIdStr?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault()

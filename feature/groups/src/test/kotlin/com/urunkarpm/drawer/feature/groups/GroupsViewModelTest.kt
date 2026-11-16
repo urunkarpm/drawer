@@ -1,7 +1,6 @@
 package com.urunkarpm.drawer.feature.groups
 
 import app.cash.turbine.test
-import com.urunkarpm.drawer.core.data.ai.CategorizationSuggestion
 import com.urunkarpm.drawer.core.data.repository.AppGroupRepository
 import com.urunkarpm.drawer.core.data.repository.AppRepository
 import com.urunkarpm.drawer.core.datastore.DrawerPreferencesDataSource
@@ -43,7 +42,6 @@ class GroupsViewModelTest {
     private val groupsFlow = MutableStateFlow<List<AppGroup>>(emptyList())
     private val installedAppsFlow = MutableStateFlow<List<AppInfo>>(emptyList())
     private val newlyInstalledAppFlow = MutableSharedFlow<AppInfo>()
-    private val multiGroupFlow = MutableStateFlow(false)
     private val lockLayoutFlow = MutableStateFlow(false)
     private val drawerNotificationGlowFlow = MutableStateFlow(true)
     private val drawerTitleAnimationFlow = MutableStateFlow("ACCENT_POP")
@@ -80,7 +78,6 @@ class GroupsViewModelTest {
         every { appGroupRepository.groups } returns groupsFlow
         every { appRepository.installedApps } returns installedAppsFlow
         every { appRepository.newlyInstalledApp } returns newlyInstalledAppFlow
-        every { preferencesDataSource.multiGroupApps } returns multiGroupFlow
         every { preferencesDataSource.lockLayout } returns lockLayoutFlow
         every { preferencesDataSource.drawerNotificationGlow } returns drawerNotificationGlowFlow
         every { preferencesDataSource.drawerTitleAnimation } returns drawerTitleAnimationFlow
@@ -163,12 +160,11 @@ class GroupsViewModelTest {
     }
 
     @Test
-    fun assignAppToGroup_checksMultiGroupPreferenceAndDelegates() = runTest {
-        multiGroupFlow.value = false
+    fun assignAppToGroup_delegatesToRepository() = runTest {
         viewModel.assignAppToGroup("group_work", appA)
         testScheduler.advanceUntilIdle()
 
-        coVerify { appGroupRepository.assignAppToGroup("group_work", appA, false) }
+        coVerify { appGroupRepository.assignAppToGroup("group_work", appA) }
     }
 
     @Test
@@ -203,100 +199,6 @@ class GroupsViewModelTest {
             val updated = awaitItem()
             assertFalse(updated.drawerNotificationGlow)
         }
-    }
-
-    @Test
-    fun startAiCategorization_emitsSuggestionsAndSetsLoading() = runTest {
-        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
-        coEvery { appGroupRepository.suggestCategorization(any()) } coAnswers {
-            assertTrue(viewModel.isAiCategorizing.value)
-            listOf(suggestion)
-        }
-
-        assertFalse(viewModel.isAiCategorizing.value)
-        assertNull(viewModel.aiSuggestions.value)
-
-        viewModel.startAiCategorization(unassignedOnly = true)
-        testScheduler.advanceUntilIdle()
-
-        assertFalse(viewModel.isAiCategorizing.value)
-        assertEquals(listOf(suggestion), viewModel.aiSuggestions.value)
-        coVerify { appGroupRepository.suggestCategorization(true) }
-    }
-
-    @Test
-    fun applyAiSuggestions_callsRepositoryAndClearsState() = runTest {
-        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
-        coEvery { appGroupRepository.suggestCategorization(any()) } returns listOf(suggestion)
-
-        viewModel.startAiCategorization(unassignedOnly = true)
-        testScheduler.advanceUntilIdle()
-        assertEquals(listOf(suggestion), viewModel.aiSuggestions.value)
-
-        viewModel.applyAiSuggestions(listOf(suggestion))
-        testScheduler.advanceUntilIdle()
-
-        coVerify { appGroupRepository.applyCategorization(listOf(suggestion)) }
-        assertNull(viewModel.aiSuggestions.value)
-    }
-
-    @Test
-    fun dismissAiSuggestions_clearsSuggestionsState() = runTest {
-        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
-        coEvery { appGroupRepository.suggestCategorization(any()) } returns listOf(suggestion)
-
-        viewModel.startAiCategorization(unassignedOnly = true)
-        testScheduler.advanceUntilIdle()
-        assertEquals(listOf(suggestion), viewModel.aiSuggestions.value)
-
-        viewModel.dismissAiSuggestions()
-        assertNull(viewModel.aiSuggestions.value)
-        assertFalse(viewModel.isAiCategorizing.value)
-    }
-
-    @Test
-    fun uiState_reflectsAiCategorizationState() = runTest {
-        val suggestion = CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA))
-        coEvery { appGroupRepository.suggestCategorization(any()) } returns listOf(suggestion)
-
-        viewModel.uiState.test {
-            val initial = awaitItem()
-            assertFalse(initial.isAiCategorizing)
-            assertNull(initial.aiSuggestions)
-
-            viewModel.startAiCategorization()
-            testScheduler.advanceUntilIdle()
-
-            val updated = expectMostRecentItem()
-            assertFalse(updated.isAiCategorizing)
-            assertEquals(listOf(suggestion), updated.aiSuggestions)
-
-            viewModel.dismissAiSuggestions()
-            testScheduler.advanceUntilIdle()
-
-            val dismissed = expectMostRecentItem()
-            assertNull(dismissed.aiSuggestions)
-        }
-    }
-
-    @Test
-    fun startAiCategorization_whenDismissedWhileRunning_cancelsJobAndResetsState() = runTest {
-        coEvery { appGroupRepository.suggestCategorization(any()) } coAnswers {
-            delay(5000)
-            listOf(CategorizationSuggestion(group = sampleGroup, suggestedApps = listOf(appA)))
-        }
-
-        viewModel.startAiCategorization()
-        testScheduler.advanceTimeBy(100)
-        assertTrue(viewModel.isAiCategorizing.value)
-
-        viewModel.dismissAiSuggestions()
-        assertFalse(viewModel.isAiCategorizing.value)
-        assertNull(viewModel.aiSuggestions.value)
-
-        testScheduler.advanceUntilIdle()
-        assertFalse(viewModel.isAiCategorizing.value)
-        assertNull(viewModel.aiSuggestions.value)
     }
 
     @Test
