@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.urunkarpm.drawer.core.common.util.TodoUtils
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import com.urunkarpm.drawer.core.model.TodoItem
 import com.urunkarpm.drawer.core.model.TodoPriority
@@ -481,7 +482,7 @@ fun AddTodoBottomSheet(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (hasDeadline) formatDeadlineLabel(deadlineUtc!!) else "Date & Time",
+                                text = if (hasDeadline) TodoUtils.formatDeadline(deadlineUtc!!, editingTodo?.deadlineZoneId) else "Date & Time",
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = if (hasDeadline) FontWeight.SemiBold else FontWeight.Normal
                                 ),
@@ -967,15 +968,4 @@ private fun TaskDateTimePickerDialog(
     }
 }
 
-private fun formatDeadlineLabel(utc: Long): String {
-    val zoneId = ZoneId.systemDefault()
-    val zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(utc), zoneId)
-    val now = ZonedDateTime.now(zoneId)
-    val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
 
-    return when {
-        zdt.toLocalDate().isEqual(now.toLocalDate()) -> "Today ${zdt.format(timeFmt)}"
-        zdt.toLocalDate().isEqual(now.toLocalDate().plusDays(1)) -> "Tomorrow ${zdt.format(timeFmt)}"
-        else -> zdt.format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
-    }
-}

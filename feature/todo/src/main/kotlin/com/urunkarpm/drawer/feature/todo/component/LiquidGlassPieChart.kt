@@ -57,6 +57,8 @@ fun LiquidGlassPieChart(
                     style = Stroke(width = strokePx, cap = StrokeCap.Round)
                 )
             } else {
+                val activeSegmentCount = listOf(completedCount, pendingOnTrackCount, overdueOrStaleCount).count { it > 0 }
+                val strokeCap = if (activeSegmentCount > 1) StrokeCap.Butt else StrokeCap.Round
                 var startAngle = -90f
                 val sweepCompleted = (completedCount.toFloat() / total) * 360f
                 val sweepPending = (pendingOnTrackCount.toFloat() / total) * 360f
@@ -70,7 +72,7 @@ fun LiquidGlassPieChart(
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
-                        style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                        style = Stroke(width = strokePx, cap = strokeCap)
                     )
                     startAngle += sweepCompleted
                 }
@@ -83,7 +85,7 @@ fun LiquidGlassPieChart(
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
-                        style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                        style = Stroke(width = strokePx, cap = strokeCap)
                     )
                     startAngle += sweepPending
                 }
@@ -96,7 +98,7 @@ fun LiquidGlassPieChart(
                         useCenter = false,
                         topLeft = topLeft,
                         size = arcSize,
-                        style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                        style = Stroke(width = strokePx, cap = strokeCap)
                     )
                 }
             }

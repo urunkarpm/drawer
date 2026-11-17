@@ -6,6 +6,7 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 object TodoUtils {
 
@@ -66,6 +67,33 @@ object TodoUtils {
         now: Long = System.currentTimeMillis()
     ): Boolean {
         return deadlineUtc != null && deadlineUtc > 0 && deadlineUtc < now
+    }
+
+    /**
+     * Formats a deadline timestamp into a user-facing label (e.g., "Today 15:30", "Tomorrow 10:00", "Oct 24, 12:00").
+     * When [showOverdue] is true and the deadline has passed, returns "Overdue".
+     */
+    fun formatDeadline(
+        utc: Long,
+        zoneIdString: String? = null,
+        now: Long = System.currentTimeMillis(),
+        showOverdue: Boolean = false
+    ): String {
+        val zoneId = try {
+            if (!zoneIdString.isNullOrBlank()) ZoneId.of(zoneIdString) else ZoneId.systemDefault()
+        } catch (_: Exception) {
+            ZoneId.systemDefault()
+        }
+        val zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(utc), zoneId)
+        val nowDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(now), zoneId)
+        val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+
+        return when {
+            showOverdue && zdt.isBefore(nowDate) -> "Overdue"
+            zdt.toLocalDate().isEqual(nowDate.toLocalDate()) -> "Today ${zdt.format(timeFmt)}"
+            zdt.toLocalDate().isEqual(nowDate.toLocalDate().plusDays(1)) -> "Tomorrow ${zdt.format(timeFmt)}"
+            else -> zdt.format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
+        }
     }
 
     /**

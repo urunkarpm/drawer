@@ -20,7 +20,7 @@ class CrispHapticsTest {
 
     @Test
     fun defaultCrispHapticsWithNullContextViewExecutesSafely() {
-        val haptics = DefaultCrispHaptics(context = null, view = null, enabled = true)
+        val haptics = DefaultCrispHaptics(view = null, enabled = true)
         haptics.click()
         haptics.tick()
         haptics.heavyClick()
@@ -33,7 +33,7 @@ class CrispHapticsTest {
 
     @Test
     fun defaultCrispHapticsDisabledExecutesSafely() {
-        val haptics = DefaultCrispHaptics(context = null, view = null, enabled = false)
+        val haptics = DefaultCrispHaptics(view = null, enabled = false)
         haptics.click()
         haptics.tick()
         haptics.heavyClick()

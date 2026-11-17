@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,14 +37,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.urunkarpm.drawer.core.common.util.TodoUtils
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import com.urunkarpm.drawer.core.model.TodoItem
 import com.urunkarpm.drawer.core.model.TodoPriority
 import com.urunkarpm.drawer.core.model.TodoStatus
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 
 // ponytail: hero focus card prioritizing the single most urgent task; ceiling: statically bound hero calculation; upgrade path: ML contextual ranking.
 @Composable
@@ -62,7 +60,11 @@ fun TodoHeroFocusCard(
         TodoPriority.LOW -> Color(0xFF29B6F6)    // Blue
     }
 
-    val deadlineLabel = task.deadlineUtc?.let { formatHeroDeadline(it) }
+    val deadlineLabel = remember(task.deadlineUtc, task.deadlineZoneId) {
+        task.deadlineUtc?.takeIf { it > 0 }?.let {
+            TodoUtils.formatDeadline(it, task.deadlineZoneId, showOverdue = true)
+        }
+    }
 
     Card(
         shape = RoundedCornerShape(16.dp),
@@ -225,15 +227,4 @@ fun TodoHeroFocusCard(
     }
 }
 
-private fun formatHeroDeadline(utc: Long): String {
-    val zoneId = ZoneId.systemDefault()
-    val zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(utc), zoneId)
-    val now = ZonedDateTime.now(zoneId)
-    val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
-    return when {
-        zdt.toLocalDate().isEqual(now.toLocalDate()) -> "Due today at ${zdt.format(timeFmt)}"
-        zdt.toLocalDate().isEqual(now.toLocalDate().plusDays(1)) -> "Due tomorrow at ${zdt.format(timeFmt)}"
-        zdt.isBefore(now) -> "Overdue"
-        else -> "Due ${zdt.format(DateTimeFormatter.ofPattern("MMM d"))}"
-    }
-}
+

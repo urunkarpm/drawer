@@ -45,112 +45,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.urunkarpm.drawer.core.model.AppInfo
-import com.urunkarpm.drawer.core.model.WeatherInfo
 
 // ponytail: streamlined single-dialog welcome guide; replaces 1,450 lines of duplicate settings controls with essential gesture orientation.
 @Composable
 fun WalkthroughOverlay(
     onDismiss: () -> Unit,
-    // Stage 1: Layout & Ergonomics
-    twoDrawersSideBySide: Boolean = false,
-    onSetTwoDrawersSideBySide: (Boolean) -> Unit = {},
-    categoryAlignment: String = "BOTTOM",
-    onSetCategoryAlignment: (String) -> Unit = {},
-    enableWidgetsPage: Boolean = true,
-    onSetEnableWidgetsPage: (Boolean) -> Unit = {},
-    drawerTitleAnimation: String = "ACCENT_POP",
-    onSetDrawerTitleAnimation: (String) -> Unit = {},
-    openDrawerFromDockOnly: Boolean = false,
-    onSetOpenDrawerFromDockOnly: (Boolean) -> Unit = {},
-    autoArrangeApps: Boolean = true,
-    onSetAutoArrangeApps: (Boolean) -> Unit = {},
-    lockLayout: Boolean = false,
-    onSetLockLayout: (Boolean) -> Unit = {},
-    autoCategorizeNewApps: Boolean = true,
-    onSetAutoCategorizeNewApps: (Boolean) -> Unit = {},
-
-    // Stage 2: Colors, Surfaces & Palettes
-    themeMode: String = "SYSTEM",
-    onSetThemeMode: (String) -> Unit = {},
-    drawerThemeMode: String = "SYSTEM",
-    onSetDrawerThemeMode: (String) -> Unit = {},
-    dynamicColor: Boolean = true,
-    onSetDynamicColor: (Boolean) -> Unit = {},
-    accentColor: String = "DYNAMIC",
-    onSetAccentColor: (String) -> Unit = {},
-    cinematicPalette: String = "DEFAULT",
-    onSetCinematicPalette: (String) -> Unit = {},
-    surfaceThemeStyle: String = "LIQUID_GLASS",
-    onSetSurfaceThemeStyle: (String) -> Unit = {},
-    surfaceOpacity: Float = 0.65f,
-    onSetSurfaceOpacity: (Float) -> Unit = {},
-    surfaceBlurRadius: Float = 25f,
-    onSetSurfaceBlurRadius: (Float) -> Unit = {},
-    surfaceStrokeOpacity: Float = 0.40f,
-    onSetSurfaceStrokeOpacity: (Float) -> Unit = {},
-    surfaceCornerRadius: Float = 24f,
-    onSetSurfaceCornerRadius: (Float) -> Unit = {},
-
-    // Stage 3: Wallpaper & Ambiance
-    wallpaperBlur: Boolean = true,
-    onSetWallpaperBlur: (Boolean) -> Unit = {},
-    wallpaperBlurRadius: Float = 25f,
-    onSetWallpaperBlurRadius: (Float) -> Unit = {},
-    isDynamicWallpaper: Boolean = false,
-    onSelectDynamicWallpaper: (Boolean) -> Unit = {},
-    wallpaperGradientSpeedSeconds: Int = 3,
-    onSetWallpaperGradientSpeedSeconds: (Int) -> Unit = {},
-    wallpaperGradientPalette: String = "FULL_SPECTRUM",
-    onSetWallpaperGradientPalette: (String) -> Unit = {},
-    wallpaperGradientAngle: String = "DIAGONAL",
-    onSetWallpaperGradientAngle: (String) -> Unit = {},
-    wallpaperGradientBlurPercent: Int = 40,
-    onSetWallpaperGradientBlurPercent: (Int) -> Unit = {},
-    hideStatusBar: Boolean = true,
-    onSetHideStatusBar: (Boolean) -> Unit = {},
-
-    // Stage 4: Icons, Typography & Dock
-    adaptiveIconShape: String = "CIRCLE",
-    onSetAdaptiveIconShape: (String) -> Unit = {},
-    headerFontFamily: String = "SYSTEM",
-    onSetHeaderFontFamily: (String) -> Unit = {},
-    appLabelScale: String = "NORMAL",
-    onSetAppLabelScale: (String) -> Unit = {},
-    hideDrawerIcons: Boolean = false,
-    onSetHideDrawerIcons: (Boolean) -> Unit = {},
-    dockMesmerizingGlow: Boolean = true,
-    onSetDockMesmerizingGlow: (Boolean) -> Unit = {},
-    dockShowLabels: Boolean = false,
-    onSetDockShowLabels: (Boolean) -> Unit = {},
-    dockIconSize: Float = 56f,
-    onSetDockIconSize: (Float) -> Unit = {},
-
-    // Stage 5: Header, Interactions & Privacy
-    is24Hour: Boolean = true,
-    onSetIs24Hour: (Boolean) -> Unit = {},
-    showWeather: Boolean = true,
-    onSetShowWeather: (Boolean) -> Unit = {},
-    weatherUnit: String = "CELSIUS",
-    onSetWeatherUnit: (String) -> Unit = {},
-    showDuoStatusWidget: Boolean = true,
-    onSetShowDuoStatusWidget: (Boolean) -> Unit = {},
-    autoOpenKeyboardInDrawer: Boolean = false,
-    onSetAutoOpenKeyboardInDrawer: (Boolean) -> Unit = {},
-    blurAppListOnOpen: Boolean = false,
-    onSetBlurAppListOnOpen: (Boolean) -> Unit = {},
-    showDrawerSuggestions: Boolean = true,
-    onSetShowDrawerSuggestions: (Boolean) -> Unit = {},
-    stealthTheme: Boolean = false,
-    onSetStealthTheme: (Boolean) -> Unit = {},
-    stealthContrastLevel: String = "LOW",
-    onSetStealthContrastLevel: (String) -> Unit = {},
-
-    // Real App Data
-    sampleApps: List<AppInfo> = emptyList(),
-    iconLoader: (suspend (AppInfo) -> android.graphics.drawable.Drawable?)? = null,
-    weatherInfo: WeatherInfo? = null,
-
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current

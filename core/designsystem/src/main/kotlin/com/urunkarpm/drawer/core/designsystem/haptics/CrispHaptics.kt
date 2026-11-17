@@ -31,7 +31,6 @@ object NoOpCrispHaptics : CrispHaptics {
 
 // ponytail: Native View-based haptic feedback engine; uses standard Android platform constants without reflection or vibrator service handles.
 class DefaultCrispHaptics(
-    private val context: android.content.Context? = null,
     private val view: View? = null,
     private val enabled: Boolean = true
 ) : CrispHaptics {

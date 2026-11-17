@@ -42,11 +42,6 @@ import com.urunkarpm.drawer.core.common.util.TodoUtils
 import com.urunkarpm.drawer.core.model.TodoItem
 import com.urunkarpm.drawer.core.model.TodoPriority
 import com.urunkarpm.drawer.core.model.TodoStatus
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 
 // ponytail: direct card without horizontal swipe gestures to avoid launcher drawer page-drag conflicts; ceiling: tap-to-complete only; upgrade path: long-press contextual action menu.
 @Composable
@@ -73,7 +68,7 @@ fun TodoItemRow(
     val formattedDeadline = remember(task.deadlineUtc, task.deadlineZoneId) {
         val utc = task.deadlineUtc ?: return@remember null
         if (utc <= 0L) return@remember null
-        formatDeadline(utc, task.deadlineZoneId)
+        TodoUtils.formatDeadline(utc, task.deadlineZoneId)
     }
 
     Card(
@@ -298,15 +293,4 @@ fun TodoItemRow(
         }
     }
 
-private fun formatDeadline(utc: Long, zoneIdStr: String?): String {
-    val zoneId = zoneIdStr?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault()
-    val zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(utc), zoneId)
-    val now = ZonedDateTime.now(zoneId)
 
-    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-    return when {
-        zdt.toLocalDate().isEqual(now.toLocalDate()) -> "Today ${zdt.format(timeFormatter)}"
-        zdt.toLocalDate().isEqual(now.toLocalDate().plusDays(1)) -> "Tomorrow ${zdt.format(timeFormatter)}"
-        else -> zdt.format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
-    }
-}

@@ -2,6 +2,7 @@ package com.urunkarpm.drawer.core.common.util
 
 import com.urunkarpm.drawer.core.model.TodoItem
 import com.urunkarpm.drawer.core.model.TodoStatus
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -122,5 +123,46 @@ class TodoUtilsTest {
         assertTrue(TodoUtils.isInQuietHours(time0300, "22:00", "07:00", zoneId))
         assertFalse(TodoUtils.isInQuietHours(time1200, "22:00", "07:00", zoneId))
         assertFalse(TodoUtils.isInQuietHours(time2159, "22:00", "07:00", zoneId))
+    }
+
+    @Test
+    fun formatDeadline_today_returnsTodayTime() {
+        val today = LocalDate.of(2026, 11, 12)
+        val now = ZonedDateTime.of(today, LocalTime.of(10, 0), zoneId).toInstant().toEpochMilli()
+        val deadlineToday = ZonedDateTime.of(today, LocalTime.of(18, 30), zoneId).toInstant().toEpochMilli()
+
+        val result = TodoUtils.formatDeadline(deadlineToday, "UTC", now = now)
+        assertEquals("Today 18:30", result)
+    }
+
+    @Test
+    fun formatDeadline_tomorrow_returnsTomorrowTime() {
+        val today = LocalDate.of(2026, 11, 12)
+        val now = ZonedDateTime.of(today, LocalTime.of(10, 0), zoneId).toInstant().toEpochMilli()
+        val deadlineTomorrow = ZonedDateTime.of(today.plusDays(1), LocalTime.of(9, 15), zoneId).toInstant().toEpochMilli()
+
+        val result = TodoUtils.formatDeadline(deadlineTomorrow, "UTC", now = now)
+        assertEquals("Tomorrow 09:15", result)
+    }
+
+    @Test
+    fun formatDeadline_overdue_whenShowOverdueTrue_returnsOverdue() {
+        val today = LocalDate.of(2026, 11, 12)
+        val now = ZonedDateTime.of(today, LocalTime.of(14, 0), zoneId).toInstant().toEpochMilli()
+        // Due earlier today at 09:00
+        val deadlineEarlierToday = ZonedDateTime.of(today, LocalTime.of(9, 0), zoneId).toInstant().toEpochMilli()
+
+        val result = TodoUtils.formatDeadline(deadlineEarlierToday, "UTC", now = now, showOverdue = true)
+        assertEquals("Overdue", result)
+    }
+
+    @Test
+    fun formatDeadline_overdue_whenShowOverdueFalse_returnsFormattedTime() {
+        val today = LocalDate.of(2026, 11, 12)
+        val now = ZonedDateTime.of(today, LocalTime.of(14, 0), zoneId).toInstant().toEpochMilli()
+        val deadlineEarlierToday = ZonedDateTime.of(today, LocalTime.of(9, 0), zoneId).toInstant().toEpochMilli()
+
+        val result = TodoUtils.formatDeadline(deadlineEarlierToday, "UTC", now = now, showOverdue = false)
+        assertEquals("Today 09:00", result)
     }
 }

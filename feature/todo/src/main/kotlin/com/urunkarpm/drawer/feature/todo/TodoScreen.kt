@@ -380,7 +380,6 @@ fun TodoScreen(
                             )
                         }
                         else -> {
-                            val now = remember { System.currentTimeMillis() }
                             val heroTask = remember(uiState.openTasks, uiState.filter, nearbyNowTaskIds) {
                                 if (uiState.filter == TodoFilter.NEARBY) {
                                     uiState.openTasks.firstOrNull()
@@ -474,6 +473,37 @@ fun TodoScreen(
                                     uiState.openTasks.filter { it.id != heroTask?.id }
                                 }
 
+                                // ponytail: single-pass chrono-partitioning memoized by task and nearby set; ceiling: local partition without server sync; upgrade path: reactive database query with custom day-boundary triggers.
+                                val (otherNearbyTasks, todayAndOverdueTasks, upcomingTasks, anytimeTasks) = remember(remainingTasks, nearbyNowTaskIds, uiState.filter) {
+                                    if (uiState.filter != TodoFilter.ALL) {
+                                        ChronoPartitions(emptyList(), emptyList(), emptyList(), emptyList())
+                                    } else {
+                                        val now = System.currentTimeMillis()
+                                        val nearby = mutableListOf<TodoItem>()
+                                        val todayAndOverdue = mutableListOf<TodoItem>()
+                                        val upcoming = mutableListOf<TodoItem>()
+                                        val anytime = mutableListOf<TodoItem>()
+
+                                        for (task in remainingTasks) {
+                                            if (nearbyNowTaskIds.contains(task.id)) {
+                                                nearby.add(task)
+                                                continue
+                                            }
+                                            val deadline = task.deadlineUtc
+                                            if (deadline != null && deadline > 0) {
+                                                if (TodoUtils.isOverdue(deadline, now) || TodoUtils.isDueToday(deadline, task.deadlineZoneId, now)) {
+                                                    todayAndOverdue.add(task)
+                                                } else {
+                                                    upcoming.add(task)
+                                                }
+                                            } else {
+                                                anytime.add(task)
+                                            }
+                                        }
+                                        ChronoPartitions(nearby, todayAndOverdue, upcoming, anytime)
+                                    }
+                                }
+
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
                                     contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp),
@@ -496,29 +526,6 @@ fun TodoScreen(
 
                                     // 2. Chrono-Stream Sections
                                     if (uiState.filter == TodoFilter.ALL) {
-                                        // ponytail: chrono-flow stream partitioned in-memory via System.currentTimeMillis; ceiling: local partition without server sync; upgrade path: reactive database query with custom day-boundary triggers.
-                                        val otherNearbyTasks = remainingTasks.filter { nearbyNowTaskIds.contains(it.id) }
-                                        val otherNearbyIds = otherNearbyTasks.map { it.id }.toSet()
-                                        val nonNearby = remainingTasks.filter { !otherNearbyIds.contains(it.id) }
-
-                                        val todayAndOverdueTasks = nonNearby.filter { task ->
-                                            val deadline = task.deadlineUtc
-                                            deadline != null && deadline > 0 &&
-                                                (TodoUtils.isOverdue(deadline, now) ||
-                                                 TodoUtils.isDueToday(deadline, task.deadlineZoneId, now))
-                                        }
-                                        val todayAndOverdueIds = todayAndOverdueTasks.map { it.id }.toSet()
-
-                                        val upcomingTasks = nonNearby.filter { task ->
-                                            val deadline = task.deadlineUtc
-                                            deadline != null && deadline > 0 &&
-                                                !todayAndOverdueIds.contains(task.id)
-                                        }
-                                        val upcomingIds = upcomingTasks.map { it.id }.toSet()
-
-                                        val anytimeTasks = nonNearby.filter { task ->
-                                            !todayAndOverdueIds.contains(task.id) && !upcomingIds.contains(task.id)
-                                        }
 
                                         // Nearby section (if any other nearby tasks beyond hero)
                                         if (otherNearbyTasks.isNotEmpty()) {
@@ -731,3 +738,10 @@ private fun ChronoSectionHeader(
         }
     }
 }
+
+private data class ChronoPartitions(
+    val otherNearby: List<TodoItem>,
+    val todayAndOverdue: List<TodoItem>,
+    val upcoming: List<TodoItem>,
+    val anytime: List<TodoItem>
+)
