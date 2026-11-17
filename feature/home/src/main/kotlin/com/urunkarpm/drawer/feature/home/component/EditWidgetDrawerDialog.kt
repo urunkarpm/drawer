@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import com.urunkarpm.drawer.core.model.WidgetDrawer
 import com.urunkarpm.drawer.feature.groups.util.GroupIcons
@@ -49,9 +50,11 @@ fun EditWidgetDrawerDialog(
     drawer: WidgetDrawer?,
     onDismissRequest: () -> Unit,
     onSave: (title: String, iconName: String, colorHex: String) -> Unit,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    drawerIconStyle: String = "NEUTRAL"
 ) {
     val isEditing = drawer != null
+    val crispHaptics = LocalCrispHaptics.current
 
     var title by remember { mutableStateOf(drawer?.title ?: "") }
     var selectedIcon by remember { mutableStateOf(drawer?.iconName ?: "folder") }
@@ -102,44 +105,57 @@ fun EditWidgetDrawerDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Color Picker
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Accent Color",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        GroupIcons.availableColors.forEach { colorHex ->
-                            val color = GroupIcons.parseColor(colorHex)
-                            val isSelected = selectedColor.equals(colorHex, ignoreCase = true)
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .clickable { selectedColor = colorHex }
-                                    .then(
+                // ponytail: Color picker only shown when drawer icon style is EDITORIAL (Muted Palette); otherwise automatically styled.
+                if (drawerIconStyle == "EDITORIAL") {
+                    // Color Picker
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Accent Color",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            GroupIcons.availableColors.forEach { colorHex ->
+                                val color = GroupIcons.parseColor(colorHex)
+                                val isSelected = selectedColor.equals(colorHex, ignoreCase = true)
+                                // ponytail: 48dp WCAG AA touch target enclosing a 36dp visual swatch with micro-haptic feedback.
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clickable {
+                                            crispHaptics.tick()
+                                            selectedColor = colorHex
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                            .then(
+                                                if (isSelected) {
+                                                    Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                                } else Modifier
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         if (isSelected) {
-                                            Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                        } else Modifier
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -158,35 +174,46 @@ fun EditWidgetDrawerDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         GroupIcons.availableIcons.forEach { (iconKey, vector) ->
                             val isSelected = selectedIcon == iconKey
+                            val activeTint = if (drawerIconStyle == "EDITORIAL") GroupIcons.parseColor(selectedColor) else MaterialTheme.colorScheme.primary
+                            // ponytail: 48dp WCAG AA touch target enclosing a 40dp visual icon container with micro-haptic feedback.
                             Box(
                                 modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(
-                                        if (isSelected) GroupIcons.parseColor(selectedColor).copy(alpha = 0.22f)
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                    )
-                                    .border(
-                                        width = if (isSelected) 1.5.dp else 1.dp,
-                                        color = if (isSelected) GroupIcons.parseColor(selectedColor)
-                                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                                        shape = RoundedCornerShape(10.dp)
-                                    )
-                                    .clickable { selectedIcon = iconKey },
+                                    .size(48.dp)
+                                    .clickable {
+                                        crispHaptics.tick()
+                                        selectedIcon = iconKey
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = vector,
-                                    contentDescription = iconKey,
-                                    tint = if (isSelected) GroupIcons.parseColor(selectedColor)
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(22.dp)
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (isSelected) activeTint.copy(alpha = 0.22f)
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                        )
+                                        .border(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) activeTint
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = vector,
+                                        contentDescription = iconKey,
+                                        tint = if (isSelected) activeTint
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -197,6 +224,7 @@ fun EditWidgetDrawerDialog(
             Button(
                 onClick = {
                     if (title.isNotBlank()) {
+                        crispHaptics.click()
                         onSave(title.trim(), selectedIcon, selectedColor)
                     }
                 },

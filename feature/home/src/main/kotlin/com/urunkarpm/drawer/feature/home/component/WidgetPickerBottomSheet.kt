@@ -2,6 +2,7 @@ package com.urunkarpm.drawer.feature.home.component
 
 import android.appwidget.AppWidgetProviderInfo
 import android.graphics.drawable.Drawable
+import androidx.collection.LruCache
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -60,19 +61,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 import com.urunkarpm.drawer.core.common.widget.AppWidgetGroup
 import com.urunkarpm.drawer.core.common.widget.DrawerWidgetHostManager
 import com.urunkarpm.drawer.core.common.widget.InstalledWidgetInfo
+import com.urunkarpm.drawer.core.designsystem.component.AppIconCache
+import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
+import com.urunkarpm.drawer.core.designsystem.component.toImageBitmapSafe
 import com.urunkarpm.drawer.core.designsystem.theme.LocalHeaderFontFamily
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+// ponytail: in-memory LRU cache of rasterized widget preview ImageBitmaps; avoids repetitive IPC/disk reads during scroll; ceiling is 100 previews; upgrade path is disk-backed cache.
+private val widgetPreviewCache = LruCache<String, ImageBitmap>(100)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,7 +89,8 @@ fun WidgetPickerBottomSheet(
     onLaunchSystemPicker: () -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
-    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    // ponytail: skipPartiallyExpanded=true prevents bottom sheet nested-scroll gesture hijacking and eliminates LazyColumn scroll freezing.
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
@@ -93,7 +100,16 @@ fun WidgetPickerBottomSheet(
 
     LaunchedEffect(Unit) {
         val loaded = withContext(Dispatchers.IO) {
-            widgetHostManager.getInstalledWidgetProviders(context.packageManager)
+            val list = widgetHostManager.getInstalledWidgetProviders(context.packageManager)
+            // Pre-warm AppIconCache on background thread so scrolling is 120Hz buttery smooth
+            list.forEach { group ->
+                if (AppIconCache.get(group.packageName) == null) {
+                    group.appIcon?.toImageBitmapSafe(144)?.let { bmp ->
+                        AppIconCache.put(group.packageName, bmp)
+                    }
+                }
+            }
+            list
         }
         allGroups = loaded
         isLoading = false
@@ -328,56 +344,14 @@ private fun WidgetAppGroupCard(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // App Icon
-                val appIcon = group.appIcon
-                if (appIcon != null) {
-                    val bitmap = remember(appIcon) {
-                        try {
-                            appIcon.toBitmap(96, 96).asImageBitmap()
-                        } catch (_: Exception) {
-                            null
-                        }
-                    }
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap,
-                            contentDescription = group.appName,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Widgets,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Widgets,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                // ponytail: AppIconImage renders pre-cached ImageBitmaps from AppIconCache with 0ms UI delay; ceiling is 800 cached items; upgrade path is disk LRU.
+                AppIconImage(
+                    key = group.packageName,
+                    label = group.appName,
+                    size = 36.dp,
+                    iconShape = RoundedCornerShape(8.dp),
+                    iconLoader = { group.appIcon }
+                )
 
                 Spacer(modifier = Modifier.width(12.dp))
 
@@ -456,25 +430,37 @@ private fun WidgetItemRow(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Widget Preview or Icon
-            val previewDrawable: Drawable? = remember(widgetInfo.providerInfo) {
-                try {
-                    widgetInfo.providerInfo.loadPreviewImage(context, 0)
-                } catch (_: Exception) {
-                    null
-                }
+            val previewKey = remember(widgetInfo.providerInfo) {
+                widgetInfo.providerInfo.provider.flattenToString()
             }
-            val previewBitmap = remember(previewDrawable) {
-                try {
-                    previewDrawable?.toBitmap(120, 120)?.asImageBitmap()
-                } catch (_: Exception) {
-                    null
+            var previewBitmap by remember(previewKey) {
+                mutableStateOf(widgetPreviewCache.get(previewKey))
+            }
+
+            // ponytail: asynchronous background preview decoding on Dispatchers.IO; prevents IPC/disk resource decoding on UI thread during scroll; ceiling: 100 in-memory bitmaps; upgrade path: Coil image pipeline.
+            if (previewBitmap == null) {
+                LaunchedEffect(previewKey) {
+                    val bmp = withContext(Dispatchers.IO) {
+                        widgetPreviewCache.get(previewKey) ?: run {
+                            try {
+                                val drawable = widgetInfo.providerInfo.loadPreviewImage(context, 0)
+                                drawable?.toImageBitmapSafe(180)?.also {
+                                    widgetPreviewCache.put(previewKey, it)
+                                }
+                            } catch (_: Throwable) {
+                                null
+                            }
+                        }
+                    }
+                    if (bmp != null) {
+                        previewBitmap = bmp
+                    }
                 }
             }
 
             if (previewBitmap != null) {
                 Image(
-                    bitmap = previewBitmap,
+                    bitmap = previewBitmap!!,
                     contentDescription = widgetInfo.label,
                     modifier = Modifier
                         .size(52.dp)

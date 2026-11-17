@@ -102,6 +102,7 @@ class HomeViewModelTest {
     private val dismissedUpdateVersionFlow = MutableStateFlow("")
     private val hiddenAppPackagesFlow = MutableStateFlow<Set<String>>(emptySet())
     private val hiddenNotifUnlockCountFlow = MutableStateFlow(0)
+    private val glanceFrostedBackdropFlow = MutableStateFlow(false)
     private val appVaultEnabledFlow = MutableStateFlow(true)
 
     private val sampleApps = listOf(
@@ -194,6 +195,7 @@ class HomeViewModelTest {
         every { preferencesDataSource.dismissedUpdateVersion } returns dismissedUpdateVersionFlow
         every { preferencesDataSource.hiddenAppPackages } returns hiddenAppPackagesFlow
         every { preferencesDataSource.hiddenNotifUnlockCount } returns hiddenNotifUnlockCountFlow
+        every { preferencesDataSource.glanceFrostedBackdrop } returns glanceFrostedBackdropFlow
         every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow
         every { widgetRepository.getAllWidgets() } returns widgetsFlow
         every { widgetRepository.getAllDrawers() } returns drawersFlow

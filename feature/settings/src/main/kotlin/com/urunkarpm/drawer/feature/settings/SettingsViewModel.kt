@@ -56,7 +56,8 @@ data class GlanceSettings(
     val manualCityName: String? = null,
     val showDuoStatusWidget: Boolean = true,
     val enableCameraMirror: Boolean = true,
-    val duoStatusPosition: String = "TEMP"
+    val duoStatusPosition: String = "TEMP",
+    val glanceFrostedBackdrop: Boolean = false
 )
 
 data class DockSettings(
@@ -179,6 +180,7 @@ data class SettingsUiState(
     val showWeather: Boolean = true,
     val weatherUnit: String = "CELSIUS",
     val is24Hour: Boolean = true,
+    val glanceFrostedBackdrop: Boolean = false,
     val manualCityName: String? = null,
     val showDuoStatusWidget: Boolean = true,
     val enableCameraMirror: Boolean = true,
@@ -300,7 +302,8 @@ class SettingsViewModel @Inject constructor(
         preferencesDataSource.manualCityName,
         preferencesDataSource.showDuoStatusWidget,
         preferencesDataSource.enableCameraMirror,
-        preferencesDataSource.duoStatusPosition
+        preferencesDataSource.duoStatusPosition,
+        preferencesDataSource.glanceFrostedBackdrop
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         GlanceSettings(
@@ -310,7 +313,8 @@ class SettingsViewModel @Inject constructor(
             manualCityName = values[3] as? String,
             showDuoStatusWidget = values[4] as Boolean,
             enableCameraMirror = values[5] as Boolean,
-            duoStatusPosition = values[6] as String
+            duoStatusPosition = values[6] as String,
+            glanceFrostedBackdrop = values[7] as Boolean
         )
     }
 
@@ -498,6 +502,7 @@ class SettingsViewModel @Inject constructor(
             showWeather = glance.showWeather,
             weatherUnit = glance.weatherUnit,
             is24Hour = glance.is24Hour,
+            glanceFrostedBackdrop = glance.glanceFrostedBackdrop,
             manualCityName = glance.manualCityName,
             showDuoStatusWidget = glance.showDuoStatusWidget,
             enableCameraMirror = glance.enableCameraMirror,
@@ -719,6 +724,12 @@ class SettingsViewModel @Inject constructor(
     fun setIs24Hour(is24: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             preferencesDataSource.setIs24Hour(is24)
+        }
+    }
+
+    fun setGlanceFrostedBackdrop(enabled: Boolean) {
+        viewModelScope.launch(ioDispatcher) {
+            preferencesDataSource.setGlanceFrostedBackdrop(enabled)
         }
     }
 

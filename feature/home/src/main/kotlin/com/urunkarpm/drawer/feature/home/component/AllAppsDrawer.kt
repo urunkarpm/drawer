@@ -83,6 +83,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
@@ -760,6 +764,7 @@ fun AllAppsDrawer(
                                                     iconShape = iconShape,
                                                     dragDropState = dragDropState,
                                                     onDragDropResult = onDragDropResult,
+                                                    searchHighlightQuery = searchQuery,
                                                     modifier = Modifier.width(76.dp)
                                                 )
                                             }
@@ -801,7 +806,8 @@ fun AllAppsDrawer(
                                             iconShape = iconShape,
                                             dragDropState = dragDropState,
                                             onDragDropResult = onDragDropResult,
-                                            activeScrubLetter = activeScrubLetter
+                                            activeScrubLetter = activeScrubLetter,
+                                            searchHighlightQuery = searchQuery
                                         )
                                     }
                                 }
@@ -1133,7 +1139,8 @@ private fun AppItemView(
     iconShape: Shape = CircleShape,
     dragDropState: AppDragDropState? = null,
     onDragDropResult: ((DragDropResult) -> Unit)? = null,
-    activeScrubLetter: String? = null
+    activeScrubLetter: String? = null,
+    searchHighlightQuery: String = ""
 ) {
     val crispHaptics = LocalCrispHaptics.current
     val firstChar = remember(app.label) { app.label.firstOrNull()?.uppercaseChar() }
@@ -1214,8 +1221,29 @@ private fun AppItemView(
             val resolvedFontSize = labelFontSize ?: (MaterialTheme.typography.bodySmall.fontSize * labelScale)
             MaterialTheme.typography.bodySmall.copy(fontSize = resolvedFontSize, textAlign = TextAlign.Center)
         }
+        val primaryHighlightColor = MaterialTheme.colorScheme.primary
+        // ponytail: memoized matched query highlighting; transforms plain label to bold primary colored substring with zero allocation when search is empty; ceiling: first match only; upgrade path: multi-token regex fuzzy span.
+        val labelContent: AnnotatedString = remember(app.label, searchHighlightQuery, primaryHighlightColor) {
+            val q = searchHighlightQuery.trim()
+            if (q.isNotEmpty()) {
+                val idx = app.label.indexOf(q, ignoreCase = true)
+                if (idx >= 0) {
+                    buildAnnotatedString {
+                        append(app.label.substring(0, idx))
+                        withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold, color = primaryHighlightColor)) {
+                            append(app.label.substring(idx, idx + q.length))
+                        }
+                        append(app.label.substring(idx + q.length))
+                    }
+                } else {
+                    AnnotatedString(app.label)
+                }
+            } else {
+                AnnotatedString(app.label)
+            }
+        }
         Text(
-            text = app.label,
+            text = labelContent,
             style = resolvedStyle,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,

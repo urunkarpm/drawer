@@ -404,6 +404,7 @@ fun GroupsAccordion(
             allApps = eligibleApps,
             iconLoader = { app -> viewModel.getAppIcon(app) },
             twoDrawersSideBySide = twoDrawersSideBySide,
+            drawerIconStyle = uiState.drawerIconStyle,
             onDismissRequest = { viewModel.setShowCreateDialog(false) },
             onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder, selectedApps ->
                 viewModel.createGroup(name, iconName, colorHex, viewType, columnCount, sortOrder, selectedApps)
@@ -428,6 +429,7 @@ fun GroupsAccordion(
             allApps = eligibleApps,
             iconLoader = { app -> viewModel.getAppIcon(app) },
             twoDrawersSideBySide = twoDrawersSideBySide,
+            drawerIconStyle = uiState.drawerIconStyle,
             onDismissRequest = { viewModel.dismissEditGroup() },
             onSave = { name, iconName, colorHex, viewType, columnCount, sortOrder, selectedApps ->
                 viewModel.updateGroup(

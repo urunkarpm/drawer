@@ -244,4 +244,46 @@ class NotificationsViewModelTest {
         viewModel.openOemBackgroundSettings()
         verify { notificationRepository.openOemBackgroundSettings() }
     }
+
+    @Test
+    fun testHiddenNotifications_whenCleared_resetsHiddenNotifUnlockCountToZero() = runTest {
+        hiddenAppPackagesFlow.value = setOf("com.chat")
+        hiddenNotifUnlockCountFlow.value = 2
+
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            // Dismiss all chat notifications
+            notificationsFlow.value = listOf(notificationB1)
+            testScheduler.advanceUntilIdle()
+
+            coVerify { preferencesDataSource.setHiddenNotifUnlockCount(0) }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun testOngoingNotifications_doNotArmHiddenNotifUnlockCount() = runTest {
+        hiddenAppPackagesFlow.value = setOf("com.vpn")
+        val ongoingItem = NotificationItem(
+            key = "vpn1",
+            packageName = "com.vpn",
+            appName = "VPN",
+            title = "Connected",
+            text = "Active session",
+            postTimeMillis = 3000L,
+            isClearable = false
+        )
+        notificationsFlow.value = listOf(ongoingItem)
+
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            // Non-clearable/ongoing notification should NOT arm the alert count
+            coVerify(exactly = 0) { preferencesDataSource.setHiddenNotifUnlockCount(2) }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }

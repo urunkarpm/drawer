@@ -129,6 +129,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val HIDDEN_APP_PACKAGES = stringSetPreferencesKey("hidden_app_packages")
         val HIDDEN_NOTIF_UNLOCK_COUNT = intPreferencesKey("hidden_notif_unlock_count")
         val APP_VAULT_ENABLED = booleanPreferencesKey("app_vault_enabled")
+        val GLANCE_FROSTED_BACKDROP = booleanPreferencesKey("glance_frosted_backdrop")
     }
 
     val todoSettings: Flow<TodoSettings> = dataStore.data.map { prefs ->
@@ -382,6 +383,12 @@ class DrawerPreferencesDataSource @Inject constructor(
 
     suspend fun setDismissedUpdateVersion(versionTag: String) {
         dataStore.edit { it[PreferencesKeys.DISMISSED_UPDATE_VERSION] = versionTag }
+    }
+
+    val glanceFrostedBackdrop: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.GLANCE_FROSTED_BACKDROP] ?: false }
+
+    suspend fun setGlanceFrostedBackdrop(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.GLANCE_FROSTED_BACKDROP] = enabled }
     }
 
     val showWeather: Flow<Boolean> = dataStore.data.map { it[PreferencesKeys.SHOW_WEATHER] ?: true }

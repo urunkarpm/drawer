@@ -374,7 +374,8 @@ fun NotificationDrawer(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val shouldGlow = !forVaultOnly && uiState.hiddenNotifUnlockCount > 0
+                        // ponytail: caret only glows when there are actual active hidden notifications waiting and unlock count > 0; eliminates ghost glow.
+                        val shouldGlow = !forVaultOnly && uiState.hiddenNotifications.isNotEmpty() && uiState.hiddenNotifUnlockCount > 0
                         val glowColor = MaterialTheme.colorScheme.primary
                         val infiniteTransition = rememberInfiniteTransition(label = "caret_glow")
                         // ponytail: defer glow animation read to draw phase via drawBehind to prevent 120Hz continuous recomposition churn; ceiling: fixed pulse easing; upgrade path: spring-driven reactive indicator.

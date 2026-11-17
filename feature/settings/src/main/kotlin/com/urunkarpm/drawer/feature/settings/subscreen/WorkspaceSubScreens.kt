@@ -570,6 +570,15 @@ fun WorkspaceSubScreen(
                         shape = RoundedCornerShape(12.dp)
                     )
                 )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
+                    title = "Frosted Island Backdrop",
+                    subtitle = "Render a subtle specular hairline glass pill behind Glance clock and weather for guaranteed contrast",
+                    checked = uiState.glanceFrostedBackdrop,
+                    onCheckedChange = { viewModel.setGlanceFrostedBackdrop(it) }
+                )
             }
         }
 
@@ -810,6 +819,15 @@ fun GlanceSubScreen(
                         isHighlighted = highlightKey == "CAMERA_MIRROR",
                         shape = RoundedCornerShape(12.dp)
                     )
+                )
+
+                SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                SettingsSwitchRow(
+                    title = "Frosted Island Backdrop",
+                    subtitle = "Render a subtle specular hairline glass pill behind Glance clock and weather for guaranteed contrast",
+                    checked = uiState.glanceFrostedBackdrop,
+                    onCheckedChange = { viewModel.setGlanceFrostedBackdrop(it) }
                 )
 
                 SettingsDivider(modifier = Modifier.padding(vertical = 8.dp))

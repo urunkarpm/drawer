@@ -528,6 +528,7 @@ fun WidgetsPage(
     if (showCreateDrawerDialog) {
         EditWidgetDrawerDialog(
             drawer = null,
+            drawerIconStyle = drawerIconStyle,
             onDismissRequest = { showCreateDrawerDialog = false },
             onSave = { title, iconName, colorHex ->
                 onCreateDrawer(title, iconName, colorHex)
@@ -540,6 +541,7 @@ fun WidgetsPage(
     drawerBeingEdited?.let { drawerToEdit ->
         EditWidgetDrawerDialog(
             drawer = drawerToEdit,
+            drawerIconStyle = drawerIconStyle,
             onDismissRequest = { drawerBeingEdited = null },
             onSave = { title, iconName, colorHex ->
                 onUpdateDrawer(drawerToEdit.copy(title = title, iconName = iconName, colorHex = colorHex))

@@ -1100,6 +1100,7 @@ fun HomeScreen(
                         surfaceOpacity = uiState.surfaceOpacity,
                         surfaceStrokeOpacity = uiState.surfaceStrokeOpacity,
                         isMesmerizingGlow = uiState.dockMesmerizingGlow,
+                        frostedBackdrop = uiState.glanceFrostedBackdrop,
                         modifier = Modifier
                             .fillMaxWidth()
                             .zIndex(100f)
@@ -1287,57 +1288,7 @@ fun HomeScreen(
                 val currentAnyCategoryExpandedDock by rememberUpdatedState(groupsUiState.groups.any { it.group.isExpanded })
                 val currentIsAllAppsOpenDock by rememberUpdatedState(uiState.isAllAppsOpen)
 
-                // Pager Indicator with red badge for stale tasks
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 6.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    for (pageIdx in 0 until totalPages) {
-                        val isSelected = pagerState.currentPage == pageIdx
-                        val isTodoPage = pageIdx == todoPageIndex
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 6.dp)
-                                .clickable {
-                                    crispHaptics.tick()
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(pageIdx)
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(if (isSelected) 8.dp else 6.dp)
-                                    .background(
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                                        shape = CircleShape
-                                    )
-                            )
-                            if (isTodoPage && staleTodoCount > 0) {
-                                Surface(
-                                    color = MaterialTheme.colorScheme.error,
-                                    shape = CircleShape,
-                                    modifier = Modifier
-                                        .offset(x = 8.dp, y = (-8).dp)
-                                        .size(16.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = if (staleTodoCount > 9) "9+" else "$staleTodoCount",
-                                            color = MaterialTheme.colorScheme.onError,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                // ponytail: removed redundant pager indicator dots above dock (YAGNI); ceiling: no visual page dots; upgrade path: swipe gestures alone navigate pages.
 
                 // Bottom: Dock (swiping up from dock opens app drawer 1:1 with finger)
                 Box(
@@ -1910,9 +1861,11 @@ fun HomeScreen(
 
         if (showWidgetPickerSheet) {
             val targetTitle = uiState.widgetDrawers.find { it.id == targetDrawerIdForAdd }?.title
+            val widgetPickerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             WidgetPickerBottomSheet(
                 widgetHostManager = widgetHostManager,
                 targetDrawerTitle = targetTitle,
+                sheetState = widgetPickerSheetState,
                 onWidgetSelected = { info ->
                     showWidgetPickerSheet = false
                     handleSelectedWidget(info)

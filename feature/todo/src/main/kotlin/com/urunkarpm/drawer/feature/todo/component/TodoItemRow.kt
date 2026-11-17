@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -56,13 +57,23 @@ fun TodoItemRow(
     modifier: Modifier = Modifier
 ) {
     val crispHaptics = LocalCrispHaptics.current
+    val isMonochrome = LocalMonochromeIcons.current
     val now = System.currentTimeMillis()
     val isOverdue = TodoUtils.isOverdue(task.deadlineUtc, now)
 
-    val priorityColor = when (task.priority) {
-        TodoPriority.HIGH -> Color(0xFFEF5350)   // Red
-        TodoPriority.NORMAL -> Color(0xFF4CAF50) // Green
-        TodoPriority.LOW -> Color(0xFF29B6F6)    // Blue
+    // ponytail: adapts priority indicators to subtle high-contrast tonal grayscale in Monochrome Vibe mode.
+    val priorityColor = if (isMonochrome) {
+        when (task.priority) {
+            TodoPriority.HIGH -> MaterialTheme.colorScheme.onSurface
+            TodoPriority.NORMAL -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+            TodoPriority.LOW -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+        }
+    } else {
+        when (task.priority) {
+            TodoPriority.HIGH -> Color(0xFFEF5350)   // Red
+            TodoPriority.NORMAL -> Color(0xFF4CAF50) // Green
+            TodoPriority.LOW -> Color(0xFF29B6F6)    // Blue
+        }
     }
 
     val formattedDeadline = remember(task.deadlineUtc, task.deadlineZoneId) {
@@ -81,7 +92,10 @@ fun TodoItemRow(
             containerColor = when {
                 isNearbyNow -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f)
                 isStale || isOverdue -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.20f)
-                task.priority == TodoPriority.HIGH && task.status == TodoStatus.OPEN -> Color(0xFFEF5350).copy(alpha = 0.08f)
+                task.priority == TodoPriority.HIGH && task.status == TodoStatus.OPEN -> {
+                    if (isMonochrome) MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f)
+                    else Color(0xFFEF5350).copy(alpha = 0.08f)
+                }
                 else -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.70f)
             }
         ),
@@ -125,11 +139,16 @@ fun TodoItemRow(
                         },
                         modifier = Modifier.size(36.dp)
                     ) {
-                        // ponytail: simple check mark (red = open, green = done); ceiling: binary status without custom iconography; upgrade path: multi-state custom check animation.
+                        // ponytail: simple check mark (red = open, green = done; in monochrome mode: onSurfaceVariant / primary); ceiling: binary status without custom iconography; upgrade path: multi-state custom check animation.
+                        val checkmarkTint = if (isMonochrome) {
+                            if (task.status == TodoStatus.DONE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            if (task.status == TodoStatus.DONE) Color(0xFF4CAF50) else Color(0xFFEF5350)
+                        }
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Complete task",
-                            tint = if (task.status == TodoStatus.DONE) Color(0xFF4CAF50) else Color(0xFFEF5350),
+                            tint = checkmarkTint,
                             modifier = Modifier.size(22.dp)
                         )
                     }

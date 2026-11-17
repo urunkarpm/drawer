@@ -96,6 +96,7 @@ class SettingsViewModelTest {
     private val hapticFeedbackEnabledFlow = MutableStateFlow(true)
     private val autoCheckUpdatesFlow = MutableStateFlow(true)
     private val monochromeIconsFlow = MutableStateFlow(false)
+    private val glanceFrostedBackdropFlow = MutableStateFlow(false)
     private val appVaultEnabledFlow = MutableStateFlow(true)
 
     private lateinit var viewModel: SettingsViewModel
@@ -171,6 +172,7 @@ class SettingsViewModelTest {
         every { preferencesDataSource.showDrawerSuggestions } returns showDrawerSuggestionsFlow
         every { preferencesDataSource.autoCheckUpdates } returns autoCheckUpdatesFlow
         every { preferencesDataSource.monochromeIcons } returns monochromeIconsFlow
+        every { preferencesDataSource.glanceFrostedBackdrop } returns glanceFrostedBackdropFlow
         every { preferencesDataSource.appVaultEnabled } returns appVaultEnabledFlow
 
         viewModel = SettingsViewModel(

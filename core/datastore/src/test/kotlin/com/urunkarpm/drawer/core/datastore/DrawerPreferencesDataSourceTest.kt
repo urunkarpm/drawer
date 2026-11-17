@@ -75,6 +75,19 @@ class DrawerPreferencesDataSourceTest {
     }
 
     @Test
+    fun defaultGlanceFrostedBackdropIsFalse() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        assertEquals(false, dataSource.glanceFrostedBackdrop.first())
+    }
+
+    @Test
+    fun updateGlanceFrostedBackdropPersists() = runTest {
+        val dataSource = createDataSource(backgroundScope)
+        dataSource.setGlanceFrostedBackdrop(true)
+        assertEquals(true, dataSource.glanceFrostedBackdrop.first())
+    }
+
+    @Test
     fun defaultNotificationSwipeActionsAreCorrect() = runTest {
         val dataSource = createDataSource(backgroundScope)
         assertEquals(

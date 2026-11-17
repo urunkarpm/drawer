@@ -98,16 +98,26 @@ class NotificationsViewModel @Inject constructor(
         val (selectedItem, showRules, permission) = controls
         val hiddenPackages = notifPrefs.hiddenAppPackages
 
-        // Detect newly posted notifications from hidden apps and arm the unlock indicator
+        // Detect newly posted clearable notifications from hidden apps and arm the unlock indicator.
+        // ponytail: only clearable user alerts arm the cue; ignores ongoing background services and ignores service disconnect blips.
         val hiddenItems = notifications.filter { it.packageName in hiddenPackages }
         val currentHiddenKeys = hiddenItems.map { it.key }.toSet()
-        val newHiddenKeys = currentHiddenKeys - previousHiddenKeys
-        if (newHiddenKeys.isNotEmpty()) {
-            viewModelScope.launch {
-                preferencesDataSource.setHiddenNotifUnlockCount(2)
+        if (isServiceConnected) {
+            val newHiddenKeys = currentHiddenKeys - previousHiddenKeys
+            if (newHiddenKeys.isNotEmpty()) {
+                val hasClearableNewAlert = hiddenItems.any { it.key in newHiddenKeys && it.isClearable }
+                if (hasClearableNewAlert) {
+                    viewModelScope.launch {
+                        preferencesDataSource.setHiddenNotifUnlockCount(2)
+                    }
+                }
+            } else if (hiddenItems.isEmpty() && notifPrefs.hiddenNotifUnlockCount > 0) {
+                viewModelScope.launch {
+                    preferencesDataSource.setHiddenNotifUnlockCount(0)
+                }
             }
+            previousHiddenKeys = currentHiddenKeys
         }
-        previousHiddenKeys = currentHiddenKeys
 
         val groupedHidden = hiddenItems
             .groupBy { it.packageName }

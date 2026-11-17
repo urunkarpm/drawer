@@ -10,7 +10,12 @@ import android.os.Looper
 import android.provider.AlarmClock
 import android.provider.CalendarContract
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -236,6 +241,7 @@ fun GlanceHeader(
     surfaceOpacity: Float = 0.85f,
     surfaceStrokeOpacity: Float = 0.60f,
     isMesmerizingGlow: Boolean = true,
+    frostedBackdrop: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -322,12 +328,41 @@ fun GlanceHeader(
     // Status bar and corner-aware padding to give breathable spacing around the glance header
     val duoTopPadding = (cornerRadiusDp * 0.40f).coerceIn(10.dp, 16.dp)
 
+    // ponytail: optional specular hairline glass pill backdrop for Glance clock/weather, guaranteeing WCAG AA contrast over bright or noisy photographic wallpapers.
+    val backdropModifier = if (frostedBackdrop) {
+        Modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.52f),
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.32f)
+                    )
+                )
+            )
+            .border(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f),
+                        Color.Transparent
+                    )
+                ),
+                shape = RoundedCornerShape(24.dp)
+            )
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    } else {
+        Modifier
+    }
+
     // Main Glance Row: Clock & Date (Left), Duo Status Icon (Center), and Temperature & Location (Right)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .zIndex(100f)
-            .padding(top = duoTopPadding),
+            .padding(top = duoTopPadding)
+            .then(backdropModifier),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top
     ) {

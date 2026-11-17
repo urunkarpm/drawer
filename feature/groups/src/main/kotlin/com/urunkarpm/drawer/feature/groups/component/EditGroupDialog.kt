@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.graphics.drawable.Drawable
 import com.urunkarpm.drawer.core.designsystem.component.AppIconImage
+import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import com.urunkarpm.drawer.core.model.AppGroup
 import com.urunkarpm.drawer.core.model.GroupSortOrder
 import com.urunkarpm.drawer.core.model.GroupViewType
@@ -63,7 +64,8 @@ fun EditGroupDialog(
     onDismissRequest: () -> Unit,
     onSave: (name: String, iconName: String, colorHex: String, viewType: GroupViewType, columnCount: Int, sortOrder: GroupSortOrder, selectedApps: List<AppInfo>) -> Unit,
     onDelete: (() -> Unit)? = null,
-    twoDrawersSideBySide: Boolean = false
+    twoDrawersSideBySide: Boolean = false,
+    drawerIconStyle: String = "NEUTRAL"
 ) {
     var name by remember { mutableStateOf(group?.name ?: "") }
     var selectedIcon by remember { mutableStateOf(group?.iconName ?: "folder") }
@@ -81,6 +83,7 @@ fun EditGroupDialog(
     var selectedApps by remember { mutableStateOf(initialSelectedKeys) }
 
     val isEditing = group != null
+    val crispHaptics = LocalCrispHaptics.current
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
@@ -120,41 +123,55 @@ fun EditGroupDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Color Picker
-                Text(
-                    text = "Accent Color",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    GroupIcons.availableColors.forEach { colorHex ->
-                        val color = GroupIcons.parseColor(colorHex)
-                        val isSelected = selectedColor.equals(colorHex, ignoreCase = true)
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .clickable { selectedColor = colorHex }
-                                .then(
+                // ponytail: Color picker only shown when drawer icon style is EDITORIAL (Muted Palette); otherwise automatically styled.
+                if (drawerIconStyle == "EDITORIAL") {
+                    // Color Picker
+                    Text(
+                        text = "Accent Color",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GroupIcons.availableColors.forEach { colorHex ->
+                            val color = GroupIcons.parseColor(colorHex)
+                            val isSelected = selectedColor.equals(colorHex, ignoreCase = true)
+                            // ponytail: 48dp WCAG AA touch target enclosing a 36dp visual swatch with micro-haptic feedback.
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clickable {
+                                        crispHaptics.tick()
+                                        selectedColor = colorHex
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .then(
+                                            if (isSelected) {
+                                                Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                            } else Modifier
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     if (isSelected) {
-                                        Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                    } else Modifier
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Selected",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -170,27 +187,38 @@ fun EditGroupDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     GroupIcons.availableIcons.forEach { (iconKey, vector) ->
                         val isSelected = selectedIcon == iconKey
+                        // ponytail: 48dp WCAG AA touch target enclosing a 40dp visual icon container with micro-haptic feedback.
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable { selectedIcon = iconKey },
+                                .size(48.dp)
+                                .clickable {
+                                    crispHaptics.tick()
+                                    selectedIcon = iconKey
+                                },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = vector,
-                                contentDescription = iconKey,
-                                tint = if (isSelected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = vector,
+                                    contentDescription = iconKey,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -207,12 +235,18 @@ fun EditGroupDialog(
                 ) {
                     FilterChip(
                         selected = selectedSortOrder == GroupSortOrder.MANUAL,
-                        onClick = { selectedSortOrder = GroupSortOrder.MANUAL },
+                        onClick = {
+                            crispHaptics.tick()
+                            selectedSortOrder = GroupSortOrder.MANUAL
+                        },
                         label = { Text("Manual") }
                     )
                     FilterChip(
                         selected = selectedSortOrder == GroupSortOrder.ALPHABETICAL,
-                        onClick = { selectedSortOrder = GroupSortOrder.ALPHABETICAL },
+                        onClick = {
+                            crispHaptics.tick()
+                            selectedSortOrder = GroupSortOrder.ALPHABETICAL
+                        },
                         label = { Text("A to Z") }
                     )
                 }
@@ -276,6 +310,7 @@ fun EditGroupDialog(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable {
+                                            crispHaptics.tick()
                                             selectedApps = if (isSelected) {
                                                 selectedApps - key
                                             } else {
@@ -314,6 +349,7 @@ fun EditGroupDialog(
             Button(
                 onClick = {
                     if (name.isNotBlank()) {
+                        crispHaptics.click()
                         val finalApps = allApps.filter { "${it.packageName}/${it.activityName}" in selectedApps }
                         onSave(name, selectedIcon, selectedColor, hardcodedViewType, hardcodedColumnCount, selectedSortOrder, finalApps)
                     }

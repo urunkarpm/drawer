@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.urunkarpm.drawer.core.common.util.TodoUtils
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
 import com.urunkarpm.drawer.core.designsystem.haptics.LocalCrispHaptics
 import com.urunkarpm.drawer.core.model.TodoItem
 import com.urunkarpm.drawer.core.model.TodoPriority
@@ -54,10 +55,20 @@ fun TodoHeroFocusCard(
     modifier: Modifier = Modifier
 ) {
     val crispHaptics = LocalCrispHaptics.current
-    val priorityColor = when (task.priority) {
-        TodoPriority.HIGH -> Color(0xFFEF5350)   // Red
-        TodoPriority.NORMAL -> Color(0xFF4CAF50) // Green
-        TodoPriority.LOW -> Color(0xFF29B6F6)    // Blue
+    val isMonochrome = LocalMonochromeIcons.current
+    // ponytail: adapts priority indicators to subtle high-contrast tonal grayscale in Monochrome Vibe mode; ceiling: fixed luminance steps; upgrade path: custom dynamic tonal elevation.
+    val priorityColor = if (isMonochrome) {
+        when (task.priority) {
+            TodoPriority.HIGH -> MaterialTheme.colorScheme.onSurface
+            TodoPriority.NORMAL -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+            TodoPriority.LOW -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+        }
+    } else {
+        when (task.priority) {
+            TodoPriority.HIGH -> Color(0xFFEF5350)   // Red
+            TodoPriority.NORMAL -> Color(0xFF4CAF50) // Green
+            TodoPriority.LOW -> Color(0xFF29B6F6)    // Blue
+        }
     }
 
     val deadlineLabel = remember(task.deadlineUtc, task.deadlineZoneId) {
@@ -69,8 +80,11 @@ fun TodoHeroFocusCard(
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (task.priority == TodoPriority.HIGH) Color(0xFFEF5350).copy(alpha = 0.10f)
-            else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f)
+            containerColor = when {
+                isMonochrome -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f)
+                task.priority == TodoPriority.HIGH -> Color(0xFFEF5350).copy(alpha = 0.10f)
+                else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f)
+            }
         ),
         border = BorderStroke(
             1.5.dp,
@@ -109,11 +123,16 @@ fun TodoHeroFocusCard(
                 },
                 modifier = Modifier.size(36.dp)
             ) {
-                // ponytail: simple check mark (red = open, green = done); ceiling: binary status without custom iconography; upgrade path: multi-state custom check animation.
+                // ponytail: simple check mark (red = open, green = done; in monochrome mode: onSurfaceVariant / primary); ceiling: binary status without custom iconography; upgrade path: multi-state custom check animation.
+                val checkmarkTint = if (isMonochrome) {
+                    if (task.status == TodoStatus.DONE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    if (task.status == TodoStatus.DONE) Color(0xFF4CAF50) else Color(0xFFEF5350)
+                }
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "Complete focus task",
-                    tint = if (task.status == TodoStatus.DONE) Color(0xFF4CAF50) else Color(0xFFEF5350),
+                    tint = checkmarkTint,
                     modifier = Modifier.size(22.dp)
                 )
             }

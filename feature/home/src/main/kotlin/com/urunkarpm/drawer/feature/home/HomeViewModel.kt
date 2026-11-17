@@ -146,7 +146,8 @@ data class HomeUiState(
     val hiddenAppPackages: Set<String> = emptySet(),
     val hiddenApps: List<AppInfo> = emptyList(),
     val rawInstalledApps: List<AppInfo> = emptyList(),
-    val hiddenNotifUnlockCount: Int = 0
+    val hiddenNotifUnlockCount: Int = 0,
+    val glanceFrostedBackdrop: Boolean = false
 )
 
 data class SurfaceThemePrefs(
@@ -158,7 +159,8 @@ data class SurfaceThemePrefs(
     val cinematicPalette: String = "DEFAULT",
     val drawerLook: String = "SOLID",
     val matchDeviceScreenCurve: Boolean = true,
-    val deviceCurveOffsetDp: Float = 0f
+    val deviceCurveOffsetDp: Float = 0f,
+    val glanceFrostedBackdrop: Boolean = false
 )
 
 @HiltViewModel
@@ -389,8 +391,9 @@ class HomeViewModel @Inject constructor(
             preferencesDataSource.surfaceThemeStyle,
             preferencesDataSource.surfaceCornerRadius,
             preferencesDataSource.cinematicPalette,
-            preferencesDataSource.drawerLook
-        ) { theme, cornerRadius, palette, look -> listOf(theme, cornerRadius, palette, look) },
+            preferencesDataSource.drawerLook,
+            preferencesDataSource.glanceFrostedBackdrop
+        ) { theme, cornerRadius, palette, look, frostedBackdrop -> listOf(theme, cornerRadius, palette, look, frostedBackdrop) },
         combine(
             preferencesDataSource.surfaceOpacity,
             preferencesDataSource.surfaceBlurRadius,
@@ -406,6 +409,7 @@ class HomeViewModel @Inject constructor(
             surfaceCornerRadius = surface1[1] as Float,
             cinematicPalette = surface1[2] as String,
             drawerLook = surface1[3] as String,
+            glanceFrostedBackdrop = surface1[4] as Boolean,
             surfaceOpacity = surface2[0] as Float,
             surfaceBlurRadius = surface2[1] as Float,
             surfaceStrokeOpacity = surface2[2] as Float,
@@ -553,7 +557,8 @@ class HomeViewModel @Inject constructor(
             blurAppListOnOpen = glancePrefs.blurAppListOnOpen,
             appDrawerColumns = glancePrefs.appDrawerColumns,
             mindfulApps = dialogs.mindfulApps,
-            pendingMindfulApp = dialogs.pendingMindfulApp
+            pendingMindfulApp = dialogs.pendingMindfulApp,
+            glanceFrostedBackdrop = surfacePrefs.glanceFrostedBackdrop
         )
     }.stateIn(
         scope = viewModelScope,
@@ -1294,6 +1299,12 @@ class HomeViewModel @Inject constructor(
     fun setShowWeather(show: Boolean) {
         viewModelScope.launch {
             preferencesDataSource.setShowWeather(show)
+        }
+    }
+
+    fun setGlanceFrostedBackdrop(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesDataSource.setGlanceFrostedBackdrop(enabled)
         }
     }
 

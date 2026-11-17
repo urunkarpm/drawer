@@ -44,6 +44,7 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -58,6 +59,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.urunkarpm.drawer.core.designsystem.component.LocalMonochromeIcons
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -440,12 +442,31 @@ fun TodoScreen(
                                             textAlign = TextAlign.Center
                                         )
 
+                                        val isMonochrome = LocalMonochromeIcons.current
+                                        // Quick add button right in empty state for thumb ergonomics
+                                        FilledTonalButton(
+                                            onClick = {
+                                                crispHaptics.click()
+                                                showAddSheet = true
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Add Task", style = MaterialTheme.typography.labelLarge)
+                                        }
+
                                         if (uiState.doneTodayCount > 0) {
                                             Surface(
                                                 color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f),
                                                 shape = RoundedCornerShape(16.dp),
                                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
-                                                modifier = Modifier.padding(top = 8.dp)
+                                                modifier = Modifier.padding(top = 4.dp)
                                             ) {
                                                 Row(
                                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -455,7 +476,7 @@ fun TodoScreen(
                                                     Icon(
                                                         imageVector = Icons.Outlined.CheckCircle,
                                                         contentDescription = null,
-                                                        tint = Color(0xFF4CAF50),
+                                                        tint = if (isMonochrome) MaterialTheme.colorScheme.primary else Color(0xFF4CAF50),
                                                         modifier = Modifier.size(14.dp)
                                                     )
                                                     Text(
