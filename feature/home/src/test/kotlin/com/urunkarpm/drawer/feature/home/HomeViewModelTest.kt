@@ -911,5 +911,28 @@ class HomeViewModelTest {
 
         coVerify { preferencesDataSource.decrementHiddenNotifUnlockCount() }
     }
+
+    @Test
+    fun homeNavigation_closeAllApps_collapsesDrawerAndClearsQuery() = runTest {
+        viewModel.uiState.test {
+            awaitItem()
+            testScheduler.advanceUntilIdle()
+
+            viewModel.openAllApps()
+            viewModel.onSearchQueryChanged("search test")
+            testScheduler.advanceUntilIdle()
+
+            var state = expectMostRecentItem()
+            assertTrue(state.isAllAppsOpen)
+            assertEquals("search test", state.searchQuery)
+
+            viewModel.closeAllApps()
+            testScheduler.advanceUntilIdle()
+
+            state = expectMostRecentItem()
+            assertFalse(state.isAllAppsOpen)
+            assertEquals("", state.searchQuery)
+        }
+    }
 }
 

@@ -58,6 +58,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -202,6 +203,7 @@ fun HomeScreen(
     val staleTodoCount by viewModel.staleTodoCount.collectAsStateWithLifecycle()
     val availableUpdate by viewModel.availableUpdate.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val focusManager = LocalFocusManager.current
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
     val screenHeightDp = configuration.screenHeightDp
@@ -424,6 +426,7 @@ fun HomeScreen(
                     animationSpec = FluidSpringPhysics.fluidSpring()
                 )
             }
+            focusManager.clearFocus()
             isSettingsOpen = false
             viewModel.closeAllApps()
             isCameraOpen = false
@@ -434,8 +437,8 @@ fun HomeScreen(
             isNotificationExpanded = false
             showManualWalkthrough = false
             groupsViewModel.collapseAllGroups()
-            if (uiState.enableWidgetsPage && pagerState.currentPage != 1) {
-                pagerState.animateScrollToPage(1)
+            if (pagerState.currentPage != homePageIndex) {
+                pagerState.animateScrollToPage(homePageIndex)
             }
         }
     }

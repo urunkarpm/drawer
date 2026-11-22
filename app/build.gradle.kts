@@ -12,8 +12,8 @@ android {
 
     defaultConfig {
         applicationId = "com.urunkarpm.drawer"
-        versionCode = 49
-        versionName = "2.10.16"
+        versionCode = 50
+        versionName = "2.10.17"
     }
 
     val keystoreFile = rootProject.file("keystore/drawer-release.jks")

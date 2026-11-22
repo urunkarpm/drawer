@@ -44,11 +44,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // ponytail: Android Home gesture triggers onNewIntent with ACTION_MAIN or CATEGORY_HOME; only reset when already resumed in foreground to prevent flinching on unlock & app exits; ceiling is custom multi-instance task affinities; upgrade path is intent action dispatch routing.
-        if (lifecycle.currentState == Lifecycle.State.RESUMED &&
-            (intent.action == Intent.ACTION_MAIN || intent.hasCategory(Intent.CATEGORY_HOME))) {
+        setIntent(intent)
+        // ponytail: Android Home gesture/button triggers onNewIntent with ACTION_MAIN or CATEGORY_HOME; reset when activity is foregrounded to return to clean home page and collapse app drawer; ceiling is custom multi-instance task affinities; upgrade path is intent action dispatch routing.
+        val isHomeIntent = intent.action == Intent.ACTION_MAIN ||
+            intent.hasCategory(Intent.CATEGORY_HOME) ||
+            intent.hasCategory(Intent.CATEGORY_DEFAULT)
+        if (isHomeIntent) {
             homeResetTrigger = SystemClock.uptimeMillis()
         }
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.keyCode == android.view.KeyEvent.KEYCODE_HOME && event.action == android.view.KeyEvent.ACTION_UP) {
+            homeResetTrigger = SystemClock.uptimeMillis()
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

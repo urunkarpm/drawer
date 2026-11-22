@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -337,7 +338,7 @@ fun AllAppsDrawer(
             // iOS-grade fluid spring & rubber-banding drag state with velocity handoff
             val drawerTranslationY = remember { Animatable(0f) }
             var rawDragDistanceY by remember { mutableFloatStateOf(0f) }
-            val handleVelocityTracker = remember { VelocityTracker() }
+            val topCutoutPadding = WindowInsets.statusBars.union(WindowInsets.displayCutout).asPaddingValues().calculateTopPadding()
 
             LaunchedEffect(visible) {
                 if (visible) {
@@ -625,79 +626,16 @@ fun AllAppsDrawer(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
                     .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                     .nestedScroll(nestedScrollConnection)
-            ) {
-                // Top subtle drag handle indicator with generous touch target & effortless 1-swipe dismiss
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(36.dp)
-                        .pointerInput(Unit) {
-                            awaitEachGesture {
-                                val down = awaitFirstDown()
-                                handleVelocityTracker.resetTracking()
-                                handleVelocityTracker.addPosition(down.uptimeMillis, down.position)
-                                var isDragging = false
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull() ?: break
-                                    if (change.changedToUp()) {
-                                        if (isDragging) {
-                                            val vY = handleVelocityTracker.calculateVelocity().y
-                                            val shouldClose = rawDragDistanceY > 60f || vY > 250f
-                                            if (shouldClose) {
-                                                onClose()
-                                            } else {
-                                                coroutineScope.launch {
-                                                    drawerTranslationY.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = FluidSpringPhysics.fluidSpring(),
-                                                        initialVelocity = vY
-                                                    )
-                                                    rawDragDistanceY = 0f
-                                                }
-                                            }
-                                        }
-                                        break
-                                    }
-                                    val dragY = change.position.y - change.previousPosition.y
-                                    if (dragY > 0f || isDragging) {
-                                        change.consume()
-                                        isDragging = true
-                                        rawDragDistanceY = (rawDragDistanceY + dragY).coerceAtLeast(0f)
-                                        handleVelocityTracker.addPosition(change.uptimeMillis, change.position)
-                                        val displacement = FluidSpringPhysics.rubberBand(rawDragDistanceY, 400f)
-                                        coroutineScope.launch { drawerTranslationY.snapTo(displacement) }
-                                    }
-                                }
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 36.dp, height = 4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(
-                                if (isAnyGlassActive) {
-                                    if (isDrawerDark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.28f)
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                                }
-                            )
-                            .then(
-                                if (isAnyGlassActive) {
-                                    Modifier.border(
-                                        BorderStroke(0.5.dp, Color.White.copy(alpha = 0.40f)),
-                                        RoundedCornerShape(2.dp)
-                                    )
-                                } else Modifier
-                            )
+                    .then(
+                        if (blurTransition > 0.01f) {
+                            Modifier.blur(radius = (24 * blurTransition).dp)
+                        } else {
+                            Modifier
+                        }
                     )
-                }
-
+            ) {
                 // 1. App List Grid Area with privacy blur support
                 Box(
                     modifier = Modifier
@@ -705,17 +643,8 @@ fun AllAppsDrawer(
                         .fillMaxWidth()
                         .clipToBounds()
                 ) {
-                    // ponytail: native Modifier.blur on app list with 60% translucent privacy scrim; ceiling: API 31+ hardware RenderEffect blur (API < 31 gracefully falls back to scrim overlay); upgrade path: custom RenderScript/ShaderEffect for pre-API 31.
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(
-                                if (blurTransition > 0.01f) {
-                                    Modifier.blur(radius = (24 * blurTransition).dp)
-                                } else {
-                                    Modifier
-                                }
-                            )
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         if (isLoading) {
                             Box(
@@ -792,7 +721,7 @@ fun AllAppsDrawer(
                                     columns = GridCells.Fixed(gridColumns),
                                     contentPadding = PaddingValues(
                                         start = horizontalPadding,
-                                        top = 8.dp,
+                                        top = topCutoutPadding + 8.dp,
                                         end = gridEndPadding,
                                         bottom = 12.dp
                                     ),
@@ -848,57 +777,9 @@ fun AllAppsDrawer(
                             }
                         }
                     }
-
-                    // Frosted privacy scrim: cleanly obscures apps with 60% translucent backdrop until tapped or searched; zero gesture clashing
-                    if (blurTransition > 0.01f) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer { alpha = blurTransition }
-                                .background(
-                                    if (isDrawerDark) Color(0x99141218) else Color(0x99FFFFFF)
-                                )
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {
-                                    isAppListBlurred = false
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = if (isDrawerDark) Color(0xD91E1B24) else Color(0xF0FFFFFF),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (isDrawerDark) Color(0x33FFFFFF) else Color(0x1F000000)
-                                ),
-                                shadowElevation = 4.dp
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Security,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "Tap to reveal apps",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
 
-                // 2. Suggested Apps Row (NOT blurred, always visible, interactive, and aligned below app grid)
+                // 2. Suggested Apps Row (aligned below app grid)
                 if (frequentApps.isNotEmpty() && searchQuery.isBlank()) {
                     FrequentAppsRow(
                         frequentApps = frequentApps,
@@ -926,6 +807,54 @@ fun AllAppsDrawer(
                         .wrapContentWidth(Alignment.CenterHorizontally)
                         .widthIn(max = 760.dp)
                 )
+            }
+
+            // Full-page frosted privacy scrim: cleanly obscures full page with 60% translucent backdrop until tapped or searched; zero gesture clashing
+            if (blurTransition > 0.01f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = blurTransition }
+                        .background(
+                            if (isDrawerDark) Color(0x99141218) else Color(0x99FFFFFF)
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            isAppListBlurred = false
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isDrawerDark) Color(0xD91E1B24) else Color(0xF0FFFFFF),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isDrawerDark) Color(0x33FFFFFF) else Color(0x1F000000)
+                        ),
+                        shadowElevation = 4.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Tap to reveal apps",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             }
         }
     }
