@@ -125,6 +125,7 @@ class DrawerPreferencesDataSource @Inject constructor(
         val TODO_DONE_AUTO_DELETE_DAYS = intPreferencesKey("todo_done_auto_delete_days")
         val TODO_HIDE_TASK_TEXT_LOCK_SCREEN = booleanPreferencesKey("todo_hide_task_text_lock_screen")
         val TODO_LOCATION_ALERTS_SNOOZED_UNTIL = longPreferencesKey("todo_location_alerts_snoozed_until")
+        val CUSTOM_TODO_ORDER = stringPreferencesKey("custom_todo_order")
 
         val HIDDEN_APP_PACKAGES = stringSetPreferencesKey("hidden_app_packages")
         val HIDDEN_NOTIF_UNLOCK_COUNT = intPreferencesKey("hidden_notif_unlock_count")
@@ -171,6 +172,22 @@ class DrawerPreferencesDataSource @Inject constructor(
     suspend fun snoozeAllLocationAlerts(until: Long) {
         dataStore.edit { prefs ->
             prefs[PreferencesKeys.TODO_LOCATION_ALERTS_SNOOZED_UNTIL] = until
+        }
+    }
+
+    val customTodoOrder: Flow<List<Long>> = dataStore.data.map { prefs ->
+        val raw = prefs[PreferencesKeys.CUSTOM_TODO_ORDER]
+        if (raw.isNullOrBlank()) emptyList()
+        else try {
+            Json.decodeFromString<List<Long>>(raw)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun setCustomTodoOrder(order: List<Long>) {
+        dataStore.edit { prefs ->
+            prefs[PreferencesKeys.CUSTOM_TODO_ORDER] = Json.encodeToString(order)
         }
     }
 

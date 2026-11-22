@@ -38,6 +38,7 @@ class TodoViewModelTest {
     private val openTodosFlow = MutableStateFlow<List<TodoItem>>(emptyList())
     private val doneTodosFlow = MutableStateFlow<List<TodoItem>>(emptyList())
     private val settingsFlow = MutableStateFlow(TodoSettings())
+    private val customTodoOrderFlow = MutableStateFlow<List<Long>>(emptyList())
 
     private lateinit var viewModel: TodoViewModel
 
@@ -47,6 +48,7 @@ class TodoViewModelTest {
         every { repository.observeOpenTodos() } returns openTodosFlow
         every { repository.observeDoneTodos() } returns doneTodosFlow
         every { repository.settings } returns settingsFlow
+        every { repository.customTodoOrder } returns customTodoOrderFlow
         every { repository.observeSavedPlaces() } returns MutableStateFlow(emptyList())
         every { repository.observeRecentSearches(any()) } returns MutableStateFlow(emptyList())
 
@@ -224,5 +226,66 @@ class TodoViewModelTest {
         viewModel.resetFilterIfStats()
         testScheduler.runCurrent()
         assertEquals(TodoFilter.NEARBY, viewModel.uiState.value.filter)
+    }
+
+    @Test
+    fun reorderTasks_movesTaskUpAndDownCorrectly() {
+        val tasks = listOf(
+            TodoItem(id = 1L, title = "Task 1", status = TodoStatus.OPEN),
+            TodoItem(id = 2L, title = "Task 2", status = TodoStatus.OPEN),
+            TodoItem(id = 3L, title = "Task 3", status = TodoStatus.OPEN)
+        )
+
+        // Move 1 down to 2
+        val movedDown = reorderTasks(tasks, fromId = 1L, toId = 2L)
+        assertEquals(listOf(2L, 1L, 3L), movedDown)
+
+        // Move 3 up to 2
+        val movedUp = reorderTasks(tasks, fromId = 3L, toId = 2L)
+        assertEquals(listOf(1L, 3L, 2L), movedUp)
+
+        // Invalid ID returns original order
+        val unchanged = reorderTasks(tasks, fromId = 99L, toId = 2L)
+        assertEquals(listOf(1L, 2L, 3L), unchanged)
+    }
+
+    @Test
+    fun moveTask_persistsNewOrderToRepository() = runTest(testDispatcher) {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        testScheduler.runCurrent()
+
+        val task1 = TodoItem(id = 1L, title = "Task 1", status = TodoStatus.OPEN)
+        val task2 = TodoItem(id = 2L, title = "Task 2", status = TodoStatus.OPEN)
+        val task3 = TodoItem(id = 3L, title = "Task 3", status = TodoStatus.OPEN)
+        openTodosFlow.value = listOf(task1, task2, task3)
+        testScheduler.runCurrent()
+
+        viewModel.moveTask(fromId = 1L, toId = 2L)
+        testScheduler.runCurrent()
+
+        coVerify { repository.updateCustomTodoOrder(listOf(2L, 1L, 3L)) }
+    }
+
+    @Test
+    fun customTodoOrder_respectsSavedOrderInUiState() = runTest(testDispatcher) {
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.uiState.collect()
+        }
+        testScheduler.runCurrent()
+
+        val task1 = TodoItem(id = 1L, title = "Task 1", status = TodoStatus.OPEN)
+        val task2 = TodoItem(id = 2L, title = "Task 2", status = TodoStatus.OPEN)
+        val task3 = TodoItem(id = 3L, title = "Task 3", status = TodoStatus.OPEN)
+        openTodosFlow.value = listOf(task1, task2, task3)
+        customTodoOrderFlow.value = listOf(3L, 1L, 2L)
+        testScheduler.runCurrent()
+
+        val tasks = viewModel.uiState.value.openTasks
+        assertEquals(3, tasks.size)
+        assertEquals(3L, tasks[0].id)
+        assertEquals(1L, tasks[1].id)
+        assertEquals(2L, tasks[2].id)
     }
 }

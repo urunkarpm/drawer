@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Schedule
@@ -53,6 +55,8 @@ fun TodoItemRow(
     onComplete: (TodoItem) -> Unit,
     onDelete: ((TodoItem) -> Unit)? = null,
     onCyclePriority: ((TodoItem) -> Unit)? = null,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -305,6 +309,48 @@ fun TodoItemRow(
                                         color = if (isOverdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    // Move Up / Move Down buttons
+                    if (onMoveUp != null || onMoveDown != null) {
+                        Column(
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(start = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    crispHaptics.tick()
+                                    onMoveUp?.invoke()
+                                },
+                                enabled = onMoveUp != null,
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowUp,
+                                    contentDescription = "Move task up",
+                                    tint = if (onMoveUp != null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    crispHaptics.tick()
+                                    onMoveDown?.invoke()
+                                },
+                                enabled = onMoveDown != null,
+                                modifier = Modifier.size(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Move task down",
+                                    tint = if (onMoveDown != null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                     }

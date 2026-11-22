@@ -63,8 +63,9 @@ class TodoViewModel @Inject constructor(
         todoRepository.observeOpenTodos(),
         todoRepository.observeDoneTodos(),
         todoRepository.settings,
-        filterStateFlow
-    ) { openList: List<TodoItem>, doneList: List<TodoItem>, settings: TodoSettings, filterState: FilterState ->
+        filterStateFlow,
+        todoRepository.customTodoOrder
+    ) { openList: List<TodoItem>, doneList: List<TodoItem>, settings: TodoSettings, filterState: FilterState, customOrder: List<Long> ->
         val (filter, location, undoAction) = filterState
         val now = System.currentTimeMillis()
 
@@ -110,10 +111,12 @@ class TodoViewModel @Inject constructor(
             TodoFilter.DONE -> emptyList()
         }
 
-        // Rule 4: Put stale tasks and tasks at current place at top
+        // Rule 4: Put stale tasks and tasks at current place at top, respecting manual order
+        val orderMap = customOrder.withIndex().associate { it.value to it.index }
         val sortedOpenTasks = if (filter != TodoFilter.DONE) {
             filteredList.sortedWith(
-                compareByDescending<TodoItem> { nearbyNowTasks.contains(it) }
+                compareBy<TodoItem> { orderMap[it.id] ?: Int.MAX_VALUE }
+                    .thenByDescending { nearbyNowTasks.contains(it) }
                     .thenByDescending { staleTasks.contains(it) }
                     .thenByDescending { it.priority == TodoPriority.HIGH }
                     .thenBy { it.deadlineUtc ?: Long.MAX_VALUE }
@@ -328,4 +331,25 @@ class TodoViewModel @Inject constructor(
             todoRepository.snoozeAllLocationAlerts(until)
         }
     }
+
+    fun moveTask(fromId: Long, toId: Long) {
+        val currentTasks = uiState.value.openTasks
+        val newOrder = reorderTasks(currentTasks, fromId, toId)
+        viewModelScope.launch {
+            todoRepository.updateCustomTodoOrder(newOrder)
+        }
+    }
+}
+
+// ponytail: in-memory swap of task ordering persisted to DataStore; ceiling: flat list order without per-chrono-section sub-indexing; upgrade path: Room sort_order column.
+fun reorderTasks(currentTasks: List<TodoItem>, fromId: Long, toId: Long): List<Long> {
+    val fromIndex = currentTasks.indexOfFirst { it.id == fromId }
+    val toIndex = currentTasks.indexOfFirst { it.id == toId }
+    if (fromIndex == -1 || toIndex == -1 || fromIndex == toIndex) {
+        return currentTasks.map { it.id }
+    }
+    val mutable = currentTasks.toMutableList()
+    val item = mutable.removeAt(fromIndex)
+    mutable.add(toIndex, item)
+    return mutable.map { it.id }
 }

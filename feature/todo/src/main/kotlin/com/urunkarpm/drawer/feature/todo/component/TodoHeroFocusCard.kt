@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
@@ -52,6 +53,7 @@ fun TodoHeroFocusCard(
     onComplete: (TodoItem) -> Unit,
     onClick: (TodoItem) -> Unit,
     onCyclePriority: ((TodoItem) -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val crispHaptics = LocalCrispHaptics.current
@@ -239,6 +241,25 @@ fun TodoHeroFocusCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            if (onMoveDown != null) {
+                IconButton(
+                    onClick = {
+                        crispHaptics.tick()
+                        onMoveDown()
+                    },
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Move focus task down",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

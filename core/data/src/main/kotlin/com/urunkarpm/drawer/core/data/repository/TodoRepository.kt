@@ -154,6 +154,12 @@ class TodoRepository @Inject constructor(
 
     val settings: Flow<TodoSettings> = preferencesDataSource.todoSettings
 
+    val customTodoOrder: Flow<List<Long>> = preferencesDataSource.customTodoOrder
+
+    suspend fun updateCustomTodoOrder(order: List<Long>) {
+        preferencesDataSource.setCustomTodoOrder(order)
+    }
+
     suspend fun updateSettings(settings: TodoSettings) {
         preferencesDataSource.updateTodoSettings(settings)
     }

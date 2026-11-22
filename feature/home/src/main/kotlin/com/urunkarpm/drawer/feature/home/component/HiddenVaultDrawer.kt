@@ -700,7 +700,7 @@ fun HiddenVaultDrawer(
                             ) {
                                 items(
                                     items = hiddenApps,
-                                    key = { it.packageName },
+                                    key = { it.componentKey },
                                     contentType = { "vault_app" }
                                 ) { app ->
                                     VaultAppItem(
@@ -752,13 +752,15 @@ fun HiddenVaultDrawer(
     // ── Multi-Select Add Apps Sheet ─────────────────────────────────────────
     if (showAddAppsSheet) {
         val nonHiddenApps = remember(allInstalledApps, hiddenApps) {
-            val hiddenPkgSet = hiddenApps.map { it.packageName }.toSet()
-            allInstalledApps.filter { it.packageName !in hiddenPkgSet }.sortedBy { it.label.lowercase() }
+            filterNonHiddenAppsForVault(allInstalledApps, hiddenApps)
         }
         var searchQuery by remember { mutableStateOf("") }
         val filteredList = remember(searchQuery, nonHiddenApps) {
             if (searchQuery.isBlank()) nonHiddenApps
-            else nonHiddenApps.filter { it.label.contains(searchQuery, ignoreCase = true) }
+            else nonHiddenApps.filter {
+                it.label.contains(searchQuery, ignoreCase = true) ||
+                    it.packageName.contains(searchQuery, ignoreCase = true)
+            }
         }
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val selectedPackages = remember { mutableStateListOf<String>() }
@@ -824,7 +826,7 @@ fun HiddenVaultDrawer(
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(filteredList, key = { it.packageName }) { app ->
+                    items(filteredList, key = { it.componentKey }) { app ->
                         val isSelected = app.packageName in selectedPackages
                         Row(
                             modifier = Modifier
@@ -982,4 +984,17 @@ private fun VaultAppItem(
             textAlign = TextAlign.Center
         )
     }
+}
+
+// ponytail: filter non-hidden apps by unique package name while prioritizing personal profile over work profile; ceiling: one entry per package; upgrade path: per-activity vault hiding.
+internal fun filterNonHiddenAppsForVault(
+    allInstalledApps: List<AppInfo>,
+    hiddenApps: List<AppInfo>
+): List<AppInfo> {
+    val hiddenPkgSet = hiddenApps.map { it.packageName }.toSet()
+    return allInstalledApps
+        .filter { it.packageName !in hiddenPkgSet }
+        .sortedWith(compareBy({ it.isWorkProfile }, { it.label.lowercase() }))
+        .distinctBy { it.packageName }
+        .sortedBy { it.label.lowercase() }
 }

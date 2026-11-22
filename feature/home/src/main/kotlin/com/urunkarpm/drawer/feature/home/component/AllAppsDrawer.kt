@@ -228,9 +228,11 @@ fun AllAppsDrawer(
 
         var isAppListBlurred by remember { mutableStateOf(blurAppListOnOpen) }
 
-        LaunchedEffect(visible) {
+        LaunchedEffect(visible, blurAppListOnOpen) {
             if (visible && blurAppListOnOpen) {
                 isAppListBlurred = true
+            } else if (!blurAppListOnOpen) {
+                isAppListBlurred = false
             }
         }
 
@@ -703,9 +705,17 @@ fun AllAppsDrawer(
                         .fillMaxWidth()
                         .clipToBounds()
                 ) {
-                    // ponytail: static blur when privacy mode is active; crossfade alpha overlay instead of dynamic radius recalculation to eliminate GPU pipeline stalls and Box recompositions during drawer open.
+                    // ponytail: native Modifier.blur on app list with 60% translucent privacy scrim; ceiling: API 31+ hardware RenderEffect blur (API < 31 gracefully falls back to scrim overlay); upgrade path: custom RenderScript/ShaderEffect for pre-API 31.
                     Box(
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(
+                                if (blurTransition > 0.01f) {
+                                    Modifier.blur(radius = (24 * blurTransition).dp)
+                                } else {
+                                    Modifier
+                                }
+                            )
                     ) {
                         if (isLoading) {
                             Box(
@@ -839,14 +849,14 @@ fun AllAppsDrawer(
                         }
                     }
 
-                    // Frosted privacy scrim: cleanly obscures apps until tapped or searched; zero gesture clashing
+                    // Frosted privacy scrim: cleanly obscures apps with 60% translucent backdrop until tapped or searched; zero gesture clashing
                     if (blurTransition > 0.01f) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer { alpha = blurTransition }
                                 .background(
-                                    if (isDrawerDark) Color(0xF2141218) else Color(0xF2FFFFFF)
+                                    if (isDrawerDark) Color(0x99141218) else Color(0x99FFFFFF)
                                 )
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },

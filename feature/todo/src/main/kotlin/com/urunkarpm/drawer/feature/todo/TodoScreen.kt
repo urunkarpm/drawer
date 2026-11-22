@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -382,15 +383,8 @@ fun TodoScreen(
                             )
                         }
                         else -> {
-                            val heroTask = remember(uiState.openTasks, uiState.filter, nearbyNowTaskIds) {
-                                if (uiState.filter == TodoFilter.NEARBY) {
-                                    uiState.openTasks.firstOrNull()
-                                } else if (uiState.filter == TodoFilter.HIGH_PRIORITY) {
-                                    uiState.openTasks.firstOrNull { it.priority == com.urunkarpm.drawer.core.model.TodoPriority.HIGH }
-                                } else {
-                                    uiState.openTasks.firstOrNull { nearbyNowTaskIds.contains(it.id) }
-                                        ?: uiState.openTasks.firstOrNull()
-                                }
+                            val heroTask = remember(uiState.openTasks) {
+                                uiState.openTasks.firstOrNull()
                             }
 
                             if (uiState.openTasks.isEmpty() && uiState.nearbyNowTasks.isEmpty()) {
@@ -539,7 +533,10 @@ fun TodoScreen(
                                                     isNearby = nearbyNowTaskIds.contains(heroTask.id),
                                                     onComplete = { viewModel.completeTask(it) },
                                                     onClick = { editingTask = it },
-                                                    onCyclePriority = { viewModel.cyclePriority(it) }
+                                                    onCyclePriority = { viewModel.cyclePriority(it) },
+                                                    onMoveDown = if (remainingTasks.isNotEmpty()) {
+                                                        { viewModel.moveTask(heroTask.id, remainingTasks.first().id) }
+                                                    } else null
                                                 )
                                             }
                                         }
@@ -558,7 +555,7 @@ fun TodoScreen(
                                                     iconTint = MaterialTheme.colorScheme.primary
                                                 )
                                             }
-                                            items(otherNearbyTasks, key = { it.id }) { task ->
+                                            itemsIndexed(otherNearbyTasks, key = { _, it -> it.id }) { index, task ->
                                                 TodoItemRow(
                                                     task = task,
                                                     isStale = staleTaskIds.contains(task.id),
@@ -566,7 +563,15 @@ fun TodoScreen(
                                                     onComplete = { viewModel.completeTask(it) },
                                                     onDelete = { viewModel.deleteTask(it) },
                                                     onCyclePriority = { viewModel.cyclePriority(it) },
-                                                    onClick = { editingTask = task }
+                                                    onClick = { editingTask = task },
+                                                    onMoveUp = if (index > 0) {
+                                                        { viewModel.moveTask(task.id, otherNearbyTasks[index - 1].id) }
+                                                    } else if (heroTask != null && task.id == remainingTasks.firstOrNull()?.id) {
+                                                        { viewModel.moveTask(task.id, heroTask.id) }
+                                                    } else null,
+                                                    onMoveDown = if (index < otherNearbyTasks.size - 1) {
+                                                        { viewModel.moveTask(task.id, otherNearbyTasks[index + 1].id) }
+                                                    } else null
                                                 )
                                             }
                                         }
@@ -581,7 +586,7 @@ fun TodoScreen(
                                                     iconTint = MaterialTheme.colorScheme.error
                                                 )
                                             }
-                                            items(todayAndOverdueTasks, key = { it.id }) { task ->
+                                            itemsIndexed(todayAndOverdueTasks, key = { _, it -> it.id }) { index, task ->
                                                 TodoItemRow(
                                                     task = task,
                                                     isStale = staleTaskIds.contains(task.id),
@@ -589,7 +594,15 @@ fun TodoScreen(
                                                     onComplete = { viewModel.completeTask(it) },
                                                     onDelete = { viewModel.deleteTask(it) },
                                                     onCyclePriority = { viewModel.cyclePriority(it) },
-                                                    onClick = { editingTask = task }
+                                                    onClick = { editingTask = task },
+                                                    onMoveUp = if (index > 0) {
+                                                        { viewModel.moveTask(task.id, todayAndOverdueTasks[index - 1].id) }
+                                                    } else if (heroTask != null && task.id == remainingTasks.firstOrNull()?.id) {
+                                                        { viewModel.moveTask(task.id, heroTask.id) }
+                                                    } else null,
+                                                    onMoveDown = if (index < todayAndOverdueTasks.size - 1) {
+                                                        { viewModel.moveTask(task.id, todayAndOverdueTasks[index + 1].id) }
+                                                    } else null
                                                 )
                                             }
                                         }
@@ -603,7 +616,7 @@ fun TodoScreen(
                                                     icon = Icons.Outlined.CalendarToday
                                                 )
                                             }
-                                            items(upcomingTasks, key = { it.id }) { task ->
+                                            itemsIndexed(upcomingTasks, key = { _, it -> it.id }) { index, task ->
                                                 TodoItemRow(
                                                     task = task,
                                                     isStale = staleTaskIds.contains(task.id),
@@ -611,7 +624,15 @@ fun TodoScreen(
                                                     onComplete = { viewModel.completeTask(it) },
                                                     onDelete = { viewModel.deleteTask(it) },
                                                     onCyclePriority = { viewModel.cyclePriority(it) },
-                                                    onClick = { editingTask = task }
+                                                    onClick = { editingTask = task },
+                                                    onMoveUp = if (index > 0) {
+                                                        { viewModel.moveTask(task.id, upcomingTasks[index - 1].id) }
+                                                    } else if (heroTask != null && task.id == remainingTasks.firstOrNull()?.id) {
+                                                        { viewModel.moveTask(task.id, heroTask.id) }
+                                                    } else null,
+                                                    onMoveDown = if (index < upcomingTasks.size - 1) {
+                                                        { viewModel.moveTask(task.id, upcomingTasks[index + 1].id) }
+                                                    } else null
                                                 )
                                             }
                                         }
@@ -625,7 +646,7 @@ fun TodoScreen(
                                                     icon = Icons.Outlined.Checklist
                                                 )
                                             }
-                                            items(anytimeTasks, key = { it.id }) { task ->
+                                            itemsIndexed(anytimeTasks, key = { _, it -> it.id }) { index, task ->
                                                 TodoItemRow(
                                                     task = task,
                                                     isStale = staleTaskIds.contains(task.id),
@@ -633,7 +654,15 @@ fun TodoScreen(
                                                     onComplete = { viewModel.completeTask(it) },
                                                     onDelete = { viewModel.deleteTask(it) },
                                                     onCyclePriority = { viewModel.cyclePriority(it) },
-                                                    onClick = { editingTask = task }
+                                                    onClick = { editingTask = task },
+                                                    onMoveUp = if (index > 0) {
+                                                        { viewModel.moveTask(task.id, anytimeTasks[index - 1].id) }
+                                                    } else if (heroTask != null && task.id == remainingTasks.firstOrNull()?.id) {
+                                                        { viewModel.moveTask(task.id, heroTask.id) }
+                                                    } else null,
+                                                    onMoveDown = if (index < anytimeTasks.size - 1) {
+                                                        { viewModel.moveTask(task.id, anytimeTasks[index + 1].id) }
+                                                    } else null
                                                 )
                                             }
                                         }
@@ -647,7 +676,7 @@ fun TodoScreen(
                                                     iconTint = Color(0xFFEF5350)
                                                 )
                                             }
-                                            items(remainingTasks, key = { it.id }) { task ->
+                                            itemsIndexed(remainingTasks, key = { _, it -> it.id }) { index, task ->
                                                 TodoItemRow(
                                                     task = task,
                                                     isStale = staleTaskIds.contains(task.id),
@@ -655,7 +684,15 @@ fun TodoScreen(
                                                     onComplete = { viewModel.completeTask(it) },
                                                     onDelete = { viewModel.deleteTask(it) },
                                                     onCyclePriority = { viewModel.cyclePriority(it) },
-                                                    onClick = { editingTask = task }
+                                                    onClick = { editingTask = task },
+                                                    onMoveUp = if (index > 0) {
+                                                        { viewModel.moveTask(task.id, remainingTasks[index - 1].id) }
+                                                    } else if (heroTask != null) {
+                                                        { viewModel.moveTask(task.id, heroTask.id) }
+                                                    } else null,
+                                                    onMoveDown = if (index < remainingTasks.size - 1) {
+                                                        { viewModel.moveTask(task.id, remainingTasks[index + 1].id) }
+                                                    } else null
                                                 )
                                             }
                                         }
@@ -668,7 +705,7 @@ fun TodoScreen(
                                                     icon = Icons.Outlined.Schedule
                                                 )
                                             }
-                                            items(remainingTasks, key = { it.id }) { task ->
+                                            itemsIndexed(remainingTasks, key = { _, it -> it.id }) { index, task ->
                                                 TodoItemRow(
                                                     task = task,
                                                     isStale = staleTaskIds.contains(task.id),
@@ -676,7 +713,15 @@ fun TodoScreen(
                                                     onComplete = { viewModel.completeTask(it) },
                                                     onDelete = { viewModel.deleteTask(it) },
                                                     onCyclePriority = { viewModel.cyclePriority(it) },
-                                                    onClick = { editingTask = task }
+                                                    onClick = { editingTask = task },
+                                                    onMoveUp = if (index > 0) {
+                                                        { viewModel.moveTask(task.id, remainingTasks[index - 1].id) }
+                                                    } else if (heroTask != null) {
+                                                        { viewModel.moveTask(task.id, heroTask.id) }
+                                                    } else null,
+                                                    onMoveDown = if (index < remainingTasks.size - 1) {
+                                                        { viewModel.moveTask(task.id, remainingTasks[index + 1].id) }
+                                                    } else null
                                                 )
                                             }
                                         }
@@ -690,7 +735,7 @@ fun TodoScreen(
                                                     iconTint = MaterialTheme.colorScheme.primary
                                                 )
                                             }
-                                            items(remainingTasks, key = { it.id }) { task ->
+                                            itemsIndexed(remainingTasks, key = { _, it -> it.id }) { index, task ->
                                                 TodoItemRow(
                                                     task = task,
                                                     isStale = staleTaskIds.contains(task.id),
@@ -698,7 +743,15 @@ fun TodoScreen(
                                                     onComplete = { viewModel.completeTask(it) },
                                                     onDelete = { viewModel.deleteTask(it) },
                                                     onCyclePriority = { viewModel.cyclePriority(it) },
-                                                    onClick = { editingTask = task }
+                                                    onClick = { editingTask = task },
+                                                    onMoveUp = if (index > 0) {
+                                                        { viewModel.moveTask(task.id, remainingTasks[index - 1].id) }
+                                                    } else if (heroTask != null) {
+                                                        { viewModel.moveTask(task.id, heroTask.id) }
+                                                    } else null,
+                                                    onMoveDown = if (index < remainingTasks.size - 1) {
+                                                        { viewModel.moveTask(task.id, remainingTasks[index + 1].id) }
+                                                    } else null
                                                 )
                                             }
                                         }
